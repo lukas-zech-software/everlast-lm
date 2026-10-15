@@ -1,31 +1,3 @@
 # Everlast LM
 
-## Herangehensweise und Implementierung # Hinweis zur Zielsetzung Ich habe es mir hier zum Ziel genommen, eine möglichst technologisch ausgereifte Lösung zu implementieren: 1. um zu zeigen, wie ich 
-in einer Greenfield-Situation ein solches Produkt neu aufbauen würde 2. weil die einzelnen Teile Technologien und Dinge sind, die mich schon lange interessieren, und ich sehr dankbar bin für die 
-Gelegenheit, diese jetzt endlich für mich zu evaluieren Dadurch, dass es eine explizite Umfangs- oder Zeiteingrenzung für das Testprojekt gibt, habe ich mich dazu entschieden, diese detaillierte 
-Variante zu wählen. Für ein tatsächliches Kundenprojekt wäre ein solcher Ansatz natürlich anders zu rechtfertigen und würde normalerweise in so einer kleinen Aufgabe vermutlich nicht in dieser 
-Komplexität und Breite umgesetzt werden. Das nur zur fehlenden Wirtschaftlichkeitsprüfung der Lösung.
-### Konzept
-Ich habe mich dazu entschieden, die Aufgabe, ein Notebook-LM oder jetzt Xamena-Notebook-Clone zu bauen, durch einen Ansatz umzusetzen, den ich ohnehin schon längst mal ausprobiert hätte. Das ist 
-jetzt die perfekte Gelegenheit dafür: eine komplett spec-driven Implementierung, die darauf beruht, dass eine saubere Anforderungsanalyse stattfindet, die erkannten Anforderungen formalisiert in ein 
-Spezifikationsdokument geschrieben werden und dieses Dokument an ABDA als single source of truth für die komplette weitere Entwicklung dient.
-
-Sprich, daraus werden die Design-Specs und die Implementierungspläne abgeleitet. Daraus werden aber auch die automatischen Tests jeweils abgeleitet, um zu validieren, dass der Coding-Agent, der Workflow, die spezifische Modifikation korrekt implementiert hat. Das wird konkret umgesetzt in einem Test-driven Ansatz, bei dem nach der Anforderungsanalyse zu jeder Anforderung erst einmal automatisierte Tests generiert werden, die die Spezifikation gegen eine vermeintliche Implementierung validieren können.
-
-Sobald das steht, wird die tatsächliche Umsetzung gegen diese Tests dann in einem Mode passieren: ein Agent, der in einer Sandbox abgeschlossen für sich arbeiten kann, so möglichst ohne Überwachung. Deswegen in einer abgeschlossenen Sandbox, wo der Review-Mode deaktiviert werden kann, also der Permissions-Mode einfach alles erlaubt und YOLO gesetzt werden kann, damit der Agent möglichst ungestört arbeiten kann. 
-
-Ich beginne damit, mir in Markdown-Notizen wie diese Notizen anzufertigen, Gedanken aufzuschreiben und zu behalten und daraus später dann auch direkt Kontext für die Aufgaben gewinnen zu können. Ich werde als ersten konkreten Schritt die Technologien evaluieren, mit denen ich die Spezifikationen erstellen kann.
-
-Ich habe die Idee Spec-Driven Development früher schon einmal umgesetzt und bearbeitet, noch außerhalb der KI-Zeit bei Check24, bei dem wir den kompletten Entwicklungsworkflow von User Stories auf Spezifikationsanforderungen umstellen wollten, die in der Gherkin-Sprache implementiert werden. Gherkin ist eine halb natürliche Sprache, die es Product Ownern ermöglicht, sehr viel technischere Anforderungen zu schreiben, die dann automatisch weiterverwendet werden können.
-
-Da Notebook LM ein Google-Produkt ist und ich mich in der letzten Woche intensiv mit dem Google Adjantic Development Kit auseinandergesetzt habe und in der Google-Cloud-Umgebung sehr bewandert bin, werde ich dem Ansatz folgen, möglichst weit im Google-Universum zu bleiben, um Integrationshürden zu minimieren und Synergieeffekte eines so großen Ökosystems nutzen zu können. Außerdem wurde heute der öffentliche Zugang zu Googles neuem Frontier-Modell offengelegt. Gemini Argon hat ein gigantisches Kontextfenster und schneidet in den meisten Benchmarks nicht auf dem besten Niveau ab. Es kommt nicht an Fable oder Ähnliches ran, aber trotzdem auf einem sehr guten Niveau.
-
-Die Anforderungsanalyse, also die Analyse der Gemini-LM-Anwendung und der einzelnen Anforderungen und Funktionen, aus denen sie besteht, habe ich von Gemini Argon in einem Webinterface mit Canvas-Add-on einmal ganz naiv gefragt: ob er mir für eine interne Implementierung die Anwendung zerlegt und die einzelnen Funktionen mit Anforderungen auflistet.
-
-Er macht das sehr gut, sehr gern, und ich habe schon eine große Anforderungsliste: eigentlich ein fast ausdefiniertes RUN-Book, SPED-Book, ohne Implementierungsdetails, aber mit jeder einzelnen Funktion aufgelistet, sogar schon mit IDs vergeben. Das kann ich direkt in einen Knowledge Space packen.
-
-Vermutlich muss ich das davor noch einmal durchgehen und Funktionen markieren, die doch out of scope sind, weil hier jetzt einfach eine riesige Menge an Einzelfunktionen auftaucht. Auch ganz interessante Internas für die Validierungs- und Qualitätsmetriken der Karten: Schwellen, wie sie beim Auslesen von Notebook LM bewertet werden. Ganz spannend. Anscheinend hat Gemini Argon da auf Daten trainiert, die nicht unbedingt öffentlich sind. Kommt uns jetzt nur zugute. 
-
-So zwei Stunden nach Start: Ich habe die Feature-Liste, die Jim and I mir zur Verfügung gestellt hat, als Grundlage genommen, um einen Projektplan auf GitHub anzulegen. Das hat sich angeboten, da ich die Spezifikations-Implementierung und den Workflow mit Spec Kit umsetzen will. Das ist ein Open-Source-Framework, das von GitHub entwickelt wurde und auch auf GitHub entsprechend gut vollständig integriert ist. Dort könnten dann auch die Gentic Workflows für die Implementierung der einzelnen Specs laufen. Das muss ich noch validieren, wie die Tokenpreise auf GitHub im Moment sind. 
-
-Sobald das Anlegen des Projekts und das Importieren der Einzelaufgaben abgeschlossen ist, habe ich dann eine klare Implementierungslinie, die ab da nur noch mit dem Zeitaufwand der einzelnen Implementierung verbunden ist. Die Versionen, die die einzelnen Funktionen bündeln, sehen ein MVP vor, bei dem noch keine Analysen stattfinden, aber Einloggen und Dokumente hochladen schon validiert sind. Das ganze Deployment, Pipelines etc. werden in diesem Schritt mit evaluiert. 
+Eine hoffentlich recht vollständige Neuimplementierung von Notebook LM/Gemini Notebooks 
