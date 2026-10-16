@@ -3,6 +3,7 @@
 Thumbs.db
 .idea/
 .vscode/
+.ai/
 *.swp
 *.swo
 
@@ -10,6 +11,7 @@ Thumbs.db
 .notes/
 CLAUDE.local.md
 AGENTS.local.md
+.specify/**/.cache/
 
 # Git worktrees (isolated writing checkouts)
 .worktrees/

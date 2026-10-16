@@ -11,7 +11,7 @@ import { dirname, join, normalize } from "node:path";
 
 const SRS = "spec/System_Requirements_Specification_Gemeni_Notebook.md";
 // Spec Kit manages these paths; they are overwritten on upgrade and not checked here.
-const MANAGED = [/^\.claude\//, /^\.agents\//, /^\.github\/skills\//, /^\.specify\/(scripts|templates\/[^/]+\.md$)/];
+const MANAGED = [/^\.claude\//, /^\.agents\//, /^\.github\/skills\//, /^\.specify\/(extensions|scripts|templates\/[^/]+\.md$)/];
 
 const files = execFileSync("git", ["ls-files", "*.md"], { encoding: "utf8" })
   .split("\n")
