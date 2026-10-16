@@ -6,7 +6,7 @@
   <a href="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml"><img alt="Spec integrity" src="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/lukas-zech-software/everlast-lm?color=blue"></a>
   <a href="https://github.com/lukas-zech-software/everlast-lm/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/lukas-zech-software/everlast-lm"></a>
-  <a href="https://github.com/lukas-zech-software/everlast-lm/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/lukas-zech-software/everlast-lm"></a>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/lukas-zech-software/everlast-lm?label=roadmap%20issues"></a>
   <a href="https://github.com/lukas-zech-software/everlast-lm/milestones"><img alt="Milestones" src="https://img.shields.io/github/milestones/open/lukas-zech-software/everlast-lm?label=release%20milestones"></a>
   <a href="https://github.com/users/lukas-zech-software/projects/2"><img alt="Roadmap" src="https://img.shields.io/badge/roadmap-GitHub%20Project-24292f?logo=github"></a>
 </p>
@@ -16,7 +16,7 @@
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
   <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v1.0.1-informational"></a>
   <a href="https://github.com/github/spec-kit"><img alt="Spec Kit" src="https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue?logo=github"></a>
-  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white"></a>
+  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-conventional-fe5196"></a>
 </p>
 <p>
   <img alt="Agents" src="https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20OpenCode-8a2be2">
@@ -57,7 +57,7 @@
 
 ## At a glance
 
-| | |
+| Area | What is in place |
 | :- | :- |
 | **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) in 6 functional domains, plus 3 architectural contracts (`C-01`..`C-03`) |
 | **Releases** | 6 incremental releases (v1.0 MVP to v6.0 Enterprise), 19 function packages, 6 automated release gates |
