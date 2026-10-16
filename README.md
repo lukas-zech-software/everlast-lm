@@ -217,8 +217,8 @@ Once a card is specified, every detail in it becomes a test that the build must 
 reviewed before `/speckit-specify` runs on them. The review looks for contradictions (between cards, SRS, constitution
 and architecture), impossible or untestable statements, and format problems. Every batch reviewed so far had real
 findings: requirements dropped during card writing, clashes with architecture decisions, and "A or B" wording that
-cannot be tested. Release v1 and packages 3.2, 3.4, 4.2 and 6.3 are reviewed and fixed. The rest are queued (see
-[Status](#status-what-is-missing-before-implementation-starts)).
+cannot be tested. All 19 packages have now been reviewed and reconciled; the
+[requirements consistency audit](docs/requirements-consistency-audit.md) lists every correction per package.
 
 ---
 
@@ -375,7 +375,7 @@ visible and gives agents an assignable unit of work. It was generated from the S
 - **Views:** release overview (table), status board (kanban), package epics by release.
 - **Labels:** `type:*`, `domain:*`, `needs-clarification` and `spec-drift`.
 
-The issues were generated from the first SRS baseline. The FR cards and decisions `D1`–`D10` came later, so a full audit
+The issues were generated from the first SRS baseline. The FR cards and later architecture decisions came afterwards, so a full audit
 compared all 89 issues against the current specification. **All 55 requirement IDs are covered.** The audit flagged 23
 issues as `spec-drift`, and all 23 are now resolved: open questions that the FR cards answer were written into the
 issues, criteria that contradicted decisions were aligned (D7 single-host Join-In, D8 no Google Slides export, D10 link
