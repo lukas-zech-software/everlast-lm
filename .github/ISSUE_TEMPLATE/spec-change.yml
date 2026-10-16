@@ -1,0 +1,48 @@
+name: Spec change request
+description: Report a contradiction, gap or untestable statement in the specification, or propose a change.
+title: "[SPEC] "
+labels: ["spec-drift"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The specification is the single source of truth for every coding agent in this repository.
+        Precedence: constitution → SRS → FR cards → solution architecture.
+  - type: input
+    id: ids
+    attributes:
+      label: Affected IDs
+      description: SRS IDs, contracts, gates, decisions or deviations.
+      placeholder: FR-GC-07, D8, DEV-02, Gate v6.0 #3
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - Contradiction between documents
+        - Untestable or ambiguous wording
+        - Missing detail (FR card)
+        - Scope addition (SRS amendment)
+        - Scope removal or deferral (architecture decision)
+        - Deviation from the reference product (DEV-xx + Dn)
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Quote the conflicting passages with file paths and anchors.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed resolution
+      description: Which document changes, and how the affected tests and issues follow.
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: Affected packages, releases, gates, contracts or open Spec Kit features.
