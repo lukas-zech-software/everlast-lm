@@ -1,0 +1,22 @@
+{
+  "name": "everlast-lm",
+  "version": "1.0.0",
+  "description": "Eine hoffentlich recht vollständige Neuimplementierung von Notebook LM/Gemini Notebooks",
+  "homepage": "https://github.com/lukas-zech-software/everlast-lm#readme",
+  "bugs": {
+    "url": "https://github.com/lukas-zech-software/everlast-lm/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lukas-zech-software/everlast-lm.git"
+  },
+  "type": "module",
+  "main": "NONE",
+  "directories": {
+    "doc": "docs",
+    "spec": "specs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
