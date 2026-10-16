@@ -66,7 +66,7 @@ Scenario: Paywalled or unreachable Web URL fails with clear message
 ```
 
 **Edge & error cases**
-- SSRF protection on Web/Video URL input $\rightarrow$ Blocks private loopback/metadata IPs (`127.0.0.1`, `169.254.169.254`, etc.) unless explicitly allowlisted enterprise intranet domains.
+- SSRF protection on Web/Video URL input $\rightarrow$ Strict parser-level validation: blocks loopback (`127.0.0.0/8`, `::1`), cloud instance metadata (`169.254.169.254`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`fe80::/10`), IPv4-mapped IPv6, and DNS rebinding attacks unless explicitly allowlisted enterprise intranet domains.
 - Video URL has neither subtitles nor an extractable audio stream $\rightarrow$ Fails gracefully with `"No transcript available for this video"`.
 - Web URL points to a PDF $\rightarrow$ Automatically routes to the PDF ingestion parser (`Paket 1.2`).
 

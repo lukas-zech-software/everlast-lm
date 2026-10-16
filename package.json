@@ -2,6 +2,7 @@
   "name": "everlast-lm",
   "version": "0.0.0",
   "private": true,
+  "license": "Apache-2.0",
   "description": "Spec-driven, agent-built re-implementation of Gemini Notebook (NotebookLM) on Google Cloud",
   "homepage": "https://github.com/lukas-zech-software/everlast-lm#readme",
   "bugs": {

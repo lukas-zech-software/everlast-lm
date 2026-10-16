@@ -1,5 +1,56 @@
-.idea/
-.notes/
+# Operating System & IDEs
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local agent & session working notes (never shared)
+.notes/
 CLAUDE.local.md
 AGENTS.local.md
+
+# Git worktrees (isolated writing checkouts)
+.worktrees/
+
+# Environment files & Secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+*service-account*.json
+*credentials*.json
+gcp-key*.json
+client_secret*.json
+
+# Dependencies & Package Managers
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build & Compiler Artifacts
+dist/
+build/
+out/
+.turbo/
+.next/
+*.tsbuildinfo
+
+# Test & Coverage Outputs
+coverage/
+.nyc_output/
+
+# Terraform Infrastructure (infra/)
+infra/**/.terraform/
+infra/**/*.tfstate
+infra/**/*.tfstate.*
+infra/**/*.tfvars
+infra/**/*.tfvars.json

@@ -2,7 +2,7 @@
 
 > **Status:** Accepted baseline (binding for technical choices per Constitution: Platform Constraints); open risks in §6. This covers Phase 1 (requirements and decomposition) and Phase 2 (solution design) of the `google-cloud-solution-build-deploy-agents` workflow.
 > **Source of truth:** [`spec/System_Requirements_Specification_Gemeni_Notebook.md`](../spec/System_Requirements_Specification_Gemeni_Notebook.md)
-> **GCP project:** `lukas-gcloud-playground`
+> **GCP project:** `PROJECT_ID` (e.g. `everlast-lm-dev`)
 
 ### Decisions
 
@@ -53,7 +53,7 @@ Everlast LM is a company-internal workspace for source-grounded research, modell
 
 ### 2.3. Current state
 
-Greenfield. The repo holds only the SRS. The GCP project `lukas-gcloud-playground` already has these relevant APIs enabled: `run`, `cloudbuild`, `artifactregistry`, `pubsub`, `storage`, `cloudtrace`, `logging`, `monitoring`, `datastore`.
+Greenfield. The repo holds only the SRS. The target GCP project must have these relevant APIs enabled: `run`, `cloudbuild`, `artifactregistry`, `pubsub`, `storage`, `cloudtrace`, `logging`, `monitoring`, `datastore`.
 **Not yet enabled (required, see §7):** `aiplatform`, `sqladmin`, `cloudtasks`, `secretmanager`, `identitytoolkit`, `speech`, plus `documentai`, `modelarmor` and `discoveryengine` depending on release.
 
 ### 2.4. Dependencies
@@ -237,7 +237,7 @@ graph TD
 ### 5.1. Security, privacy, and compliance
 * **Access control:** one service account per Cloud Run service with least privilege (e.g. `roles/aiplatform.user` only on api, worker and live; `roles/cloudsql.client`; bucket-scoped `roles/storage.objectUser`). RBAC lives in API middleware and is backed by a `notebook_members` table. Every write endpoint checks the role, which covers the Gate v6 pen test.
 * **Data protection:** Google-managed encryption is enough for the showcase (no CMEK, which avoids KMS operations). Use signed URLs with short TTLs. Use Agent Platform endpoints only (NFR-SEC-01).
-* **Network security:** worker and render use internal ingress only. Cloud Tasks pushes with OIDC tokens. Cloud SQL is reached through the connector with IAM auth and no public IP password. Model Armor screens inputs and ingested web content. Add a load balancer plus Cloud Armor in v6.
+* **Network security:** worker and render use internal ingress only. Cloud Tasks pushes with OIDC tokens. Cloud SQL is reached through the connector with IAM auth and no public IP password. Model Armor screens inputs and ingested web content. The public `everlast-api` Cloud Run service enforces application-level rate limiting and payload size limits to mitigate Denial-of-Wallet (inference exhaustion) attacks prior to v6.0; add an external Application Load Balancer plus Cloud Armor in v6.
 
 ### 5.2. Reliability
 * Regional Cloud Run (multi-zone by default). Cloud Tasks retries with exponential backoff, and every job handler is **idempotent** (keyed on `artifact_id` / `source_id`).
