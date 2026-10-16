@@ -1,0 +1,12 @@
+* text=auto eol=lf
+
+# Spec Kit is vendored tooling; keep it out of the language statistics and collapsed in diffs.
+.specify/scripts/**        linguist-vendored
+.specify/templates/*.md    linguist-vendored
+.claude/skills/speckit-*/** linguist-vendored linguist-generated
+.agents/skills/speckit-*/** linguist-vendored linguist-generated
+.github/skills/speckit-*/** linguist-vendored linguist-generated
+
+# The specification is the product of this phase; count it as documentation.
+spec/**                    linguist-documentation=false linguist-detectable
+docs/**                    linguist-documentation=false linguist-detectable

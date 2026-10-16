@@ -1,0 +1,13 @@
+# Default owner for everything.
+*                                   @lukas-zech-software
+
+# Serialised shared files (AGENTS.md: "Shared changes, integration and handoff").
+# Changes here need the project owner's review.
+/.specify/memory/constitution.md    @lukas-zech-software
+/spec/                              @lukas-zech-software
+/docs/solution-architecture.md      @lukas-zech-software
+/AGENTS.md                          @lukas-zech-software
+/CLAUDE.md                          @lukas-zech-software
+/.specify/                          @lukas-zech-software
+/.github/                           @lukas-zech-software
+/package.json                       @lukas-zech-software
