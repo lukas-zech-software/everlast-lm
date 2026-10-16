@@ -20,6 +20,9 @@
 | D8 | FR-ST-16 Google Slides export | **Deferred** (SRS §5.5 DEV-02): v4 exports `.pptx` and `.pdf` only. Google Slides needs per-user OAuth |
 | D9 | FR-ST-17 Infographics | **Deterministic structured-layout-to-SVG rendering only**, with PNG export. No image generation model, so text and numbers stay legible and traceable |
 | D10 | FR-ST-04 link sharing | **Moved to v6.0.** v5.0 ships the player, background playback and `.mp3`/`.wav` download. Share links follow with notebook sharing, because their access rules depend on the FR-WM-05 roles *(2026-10-16)* |
+| D11 | FR-SI-01 Google Docs/Slides import | v3 uses a minimal Google Drive adapter with delegated per-user read access and export to the existing Office normalization path. Alternatives: manual export (does not fulfill native linked import/re-sync), deferral to v6 (would remove assigned v3 scope). API enablement still needs owner approval; no specific corporate IdP is chosen. This does not reinstate Google Slides output export (D8). |
+| D12 | NFR-PERF-01 large Studio contexts | Above model context capacity, map-reduce over **all original scoped chunks**, retaining chunk-level evidence; Source Guides help routing only. Summary-only reduction is rejected because it can discard required facts. No new datastore or framework. |
+| D13 | FR-GC-02 validation and streaming | Buffer factual answers until complete citation validation, then publish. Status may stream while waiting but does not count toward TTFT. Immediate model-token streaming was rejected because invalid later citations would already have exposed an invalid answer. Apply the same rule before Live factual speech and Studio publication. |
 
 ---
 
@@ -46,7 +49,7 @@ Everlast LM is a company-internal workspace for source-grounded research, modell
 
 * **Security:** Zero data training (NFR-SEC-01). SSO via OIDC/SAML, plus document ACLs for intranet discovery (NFR-SEC-02). RBAC enforced at the API layer, so a Chat-only user cannot reach raw sources even through a direct API call (Gate v6).
 * **Quality gates:** Hallucination rate < 5 % (EVAL-01). Citation ID precision = 1.0 (EVAL-02). Correct refusal in ≥ 99 % of out-of-source questions (EVAL-03). Context leakage from deselected sources = 0 (EVAL-04).
-* **Performance:** Effective context of 1M tokens, or equivalent hybrid RAG. Chat TTFT ≤ 2.5 s. Source Guide < 10 s after upload (Gate v2).
+* **Performance:** Effective context of 1M tokens, or equivalent hybrid RAG. Chat TTFT ≤ 2.5 s. Source Guide < 10 s P95 after the source reaches Ready (Gate v2).
 * **Cost:** Close to zero at idle (D4). This is a showcase project with no production SLA.
 * **Reliability:** Single region, with Cloud Run's built-in multi-zone serving. No formal RTO/RPO yet.
 * **Operations:** Spec-driven, test-first development with automated release gates (spec §5.4).
@@ -54,7 +57,7 @@ Everlast LM is a company-internal workspace for source-grounded research, modell
 
 ### 2.3. Current state
 
-Greenfield. The repo holds only the SRS. The target GCP project must have these relevant APIs enabled: `run`, `cloudbuild`, `artifactregistry`, `pubsub`, `storage`, `cloudtrace`, `logging`, `monitoring`, `datastore`.
+Greenfield. The repo holds the SRS, FR cards, constitution and this architecture; no application code or generated feature specs exist yet. The target GCP project must have these relevant APIs enabled: `run`, `cloudbuild`, `artifactregistry`, `pubsub`, `storage`, `cloudtrace`, `logging`, `monitoring`, `datastore`.
 **Not yet enabled (required, see §7):** `aiplatform`, `sqladmin`, `cloudtasks`, `secretmanager`, `identitytoolkit`, `speech`, plus `documentai`, `modelarmor` and `discoveryengine` depending on release.
 
 ### 2.4. Dependencies
@@ -115,11 +118,11 @@ A **pnpm monorepo** holds the shared `packages/contracts`, which defines C-01, C
 | **Agent framework** | **ADK for TypeScript** (`@google/adk`) | The skill's product mapping names ADK as the primary agent framework. ADK TS has Zod-typed tools, `Sequential/Parallel/LoopAgent`, A2A support (keeps FR-INT-01 open), a dev UI, and Cloud Run deployment. Details in §4.2. | Genkit (JS); ADK Python; plain `@google/genai` | See §4.2 |
 | **Model runtime** | **Gemini on Gemini Enterprise Agent Platform**, regional EU endpoint | Enterprise data governance (no training on customer data, which covers NFR-SEC-01), IAM auth with no API keys, and regional processing (D3) | Gemini Developer API (AI Studio) | **Pro:** fastest access to new features. **Con:** not the enterprise data-governance path, and weaker residency controls. **Do not use it for company data.** |
 | **Model routing** | **Flash** for chat and Studio; **Flash-Lite** for Source Guide, follow-up chips, quiz grading and judges; **Pro** for deep research, podcast scripts and long reports | The skill recommends Flash as the text default. TTFT ≤ 2.5 s rules out Pro for interactive chat. Starting with the smallest model saves cost and energy. | Pro everywhere | **Pro:** better reasoning. **Con:** latency, cost, and would miss the TTFT target |
-| **Retrieval / vector store** | **pgvector + Postgres full-text search in Cloud SQL** (D1): one `chunks` table (`notebook_id`, `source_id`, `chunk_id`, `text`, `token_count`, `locator jsonb`, `embedding vector`, `tsv tsvector`). HNSW index with **pgvector 0.8 iterative scans** (`hnsw.iterative_scan`). Hybrid ranking = vector top-N ∪ full-text top-N, merged with Reciprocal Rank Fusion in SQL. | The `chunks` table **is** C-01, so chunk IDs and polymorphic locators (`page_span`, `time_span`, `dom_path`) are ours. EVAL-04 becomes a hard `WHERE notebook_id = $1 AND source_id = ANY($2)` in one function (C-02). Iterative scans stop restrictive filters from returning too few rows. Hybrid search covers exact terms (names, IDs, numbers) that embeddings miss. No extra fixed cost, because it is the same instance. | RAG Engine (previous choice); AlloyDB (ScaNN, hybrid search); Vertex AI Search | **RAG Engine:** managed parsing, but an always-on Spanner instance, no TS SDK and limited control over locators. **AlloyDB:** stronger vector performance and in-database AI, but a much higher base cost. The catalog's `google-cloud-solution-hybrid-search-alloydb` skill is the upgrade path. **Vertex AI Search:** managed, but opaque chunking and no hard per-source filter |
+| **Retrieval / vector store** | **pgvector + Postgres full-text search in Cloud SQL** (D1): one `chunks` table (`notebook_id`, `source_id`, `chunk_id`, `text`, `token_count`, `locator jsonb`, `embedding vector`, `tsv tsvector`). HNSW index with **pgvector 0.8 iterative scans** (`hnsw.iterative_scan`). Hybrid ranking = vector top-N ∪ full-text top-N, merged with Reciprocal Rank Fusion in SQL. | The source-content projection of the `chunks` table implements C-01, so chunk IDs and polymorphic locators (`page_span`, `time_span`, `dom_path`) are ours. EVAL-04 becomes a hard `WHERE notebook_id = $1 AND source_id = ANY($2)` in one function (C-02). Iterative scans stop restrictive filters from returning too few rows. Hybrid search covers exact terms (names, IDs, numbers) that embeddings miss. No extra fixed cost, because it is the same instance. | RAG Engine (previous choice); AlloyDB (ScaNN, hybrid search); Vertex AI Search | **RAG Engine:** managed parsing, but an always-on Spanner instance, no TS SDK and limited control over locators. **AlloyDB:** stronger vector performance and in-database AI, but a much higher base cost. The catalog's `google-cloud-solution-hybrid-search-alloydb` skill is the upgrade path. **Vertex AI Search:** managed, but opaque chunking and no hard per-source filter |
 | **Embeddings** | **Gemini embedding model on Agent Platform** (EU endpoint), `taskType` `RETRIEVAL_DOCUMENT` / `RETRIEVAL_QUERY`; reduced output dimension (e.g. 768) to keep the HNSW index small | Same governance as the LLM calls. A smaller dimension keeps index RAM within a small Cloud SQL tier. | `text-embedding-005`; open model on Cloud Run | **Open model:** no per-call cost, but GPU hosting and ops. Pin the model version in `chunks.embedding_model` so re-embedding is a planned job, not a surprise |
 | **Reranking (optional)** | Skip in v1. Add the **Vertex AI ranking API** only if EVAL-01/02 benchmarks show retrieval misses | Keeps v1 lean; RRF is usually enough | Flash-Lite as a reranker | **Pro:** no new API. **Con:** adds latency against the 2.5 s TTFT target |
-| **Long-context path** | Gemini **context caching** for async Studio jobs | Studio synthesis such as reports, mind maps or podcasts improves with full-text context, and it is latency-insensitive. Use the full normalized text when it fits in about 1M tokens. Otherwise map-reduce over the Source Guides. | Long context in chat as well | **Con:** TTFT with very large prompts would break the 2.5 s target, so chat stays RAG-first |
-| **PDF / Office parsing and chunking** | **Own chunker** in `everlast-worker` (structure-aware, 300–600 tokens per chunk (C-01, FR card FR-SI-01) with overlap, never across page or section boundaries). Text PDFs: `pdfjs-dist` text with page numbers. **Scanned or tabular PDFs: Document AI Layout Parser** (OCR, tables, page-anchored blocks). DOCX/PPTX: convert to PDF with LibreOffice in `everlast-render`, then use the PDF path, so viewer and locators work the same for every document format | Every adapter emits the same `UnifiedDocumentChunk`, and the PDF viewer can highlight any document format | Gemini document understanding as the parser | **Pro:** handles messy layouts well. **Con:** page anchors are generated by the model and less deterministic. Usable as a fallback for files Document AI cannot parse |
+| **Long-context path** | Gemini **context caching** for async Studio jobs | Studio synthesis such as reports, mind maps or podcasts improves with full-text context, and it is latency-insensitive. Use the full normalized text when it fits in about 1M tokens. Otherwise map-reduce over all original scoped chunks with retained evidence (D12); Source Guides assist routing, not replace source text. | Long context in chat as well | **Con:** TTFT with very large prompts would break the 2.5 s target, so chat stays RAG-first |
+| **PDF / Office parsing and chunking** | **Own chunker** in `everlast-worker` (structure-aware, target 300–600 tokens per chunk (FR-SI-01 chunker policy, not a C-01 size invariant) with overlap, never across page or section boundaries). Text PDFs: `pdfjs-dist` text with page numbers. **Scanned or tabular PDFs: Document AI Layout Parser** (OCR, tables, page-anchored blocks). DOCX/PPTX: convert to PDF with LibreOffice in `everlast-render`, then use the PDF path plus supplemental extraction of speaker notes and visual descriptions into the normalized viewer, so locators cover all required content. Google Docs/Slides use delegated Drive export (D11) | Every adapter emits the same `UnifiedDocumentChunk`, and the PDF viewer can highlight any document format | Gemini document understanding as the parser | **Pro:** handles messy layouts well. **Con:** page anchors are generated by the model and less deterministic. Usable as a fallback for files Document AI cannot parse |
 | **ASR (audio)** | **Cloud Speech-to-Text V2 (Chirp)** batch with word time offsets | `time_span` locators must be exact (Gate v3: clickable `mm:ss`) | Gemini audio transcription | **Pro:** cheaper and one less API. **Con:** timestamps are generated by the model and less precise |
 | **Video URLs** | YouTube and media captions where available; otherwise extract the audio and send it through Speech-to-Text | Same locator guarantee | Gemini video understanding of YouTube URLs | Good as a fallback for videos without captions |
 | **Web ingestion** | Fetch plus Mozilla Readability in `everlast-worker` | Main-content extraction; each chunk stores a `dom_path` locator | Gemini URL-context tool | **Con:** no deterministic DOM locators |
@@ -202,23 +205,23 @@ graph TD
 ### 4.4. Architecture description
 
 **Data flow: ingestion (C-01).**
-1. The SPA uploads to GCS through a signed URL. The API creates a `sources` row (`status=pending`) and enqueues `ingest(source_id)`.
+1. The API authorizes and atomically reserves a quota slot, creates a source in `Uploading`, and issues a size-constrained signed GCS upload URL. After validating the completed object size, it marks `Processing` and enqueues `ingest(source_id)`. Failed uploads release reservations and purge partial objects.
 2. The worker runs the format adapter (PDF, Document AI, Speech-to-Text, Readability, …). It produces structured segments with native locators (`page_span` + text offsets, `time_span`, `dom_path`) and writes the normalized text to GCS for the viewer and for long-context jobs.
 3. Model Armor screens web and research content.
-4. The chunker cuts segments into `UnifiedDocumentChunk`s (`chunk_id` = UUIDv7). Embeddings are batch-requested with `RETRIEVAL_DOCUMENT`, and chunks, embeddings and `tsvector` are written to `chunks` **in one transaction**. Then `sources.status=ready`.
-5. A `sourceGuide(source_id)` task (Flash-Lite with structured output: summary plus key topics) runs in parallel to meet the < 10 s gate.
+4. The chunker cuts segments into `UnifiedDocumentChunk`s (`chunk_id` = UUIDv7). Embeddings are batch-requested with `RETRIEVAL_DOCUMENT`, and chunks, embeddings and `tsvector` are written to `chunks` **in one transaction**. Then the source transitions to `Ready`. Wire enum spelling follows the shared schema; these are the same lifecycle states as the cards.
+5. A `sourceGuide(source_id)` task (Flash-Lite with structured output: summary plus key topics) starts after Ready with C-02 singleton scope and completes in < 10 s P95 from Ready. It is independent of the currently selected chat sources.
 6. **Note to source (FR-NM-03)** sends the note's Markdown through the existing Markdown adapter (step 2) unchanged.
-7. **Delete or re-sync (FR-SI-05)**: `DELETE FROM chunks WHERE source_id = $1` (cascade), then re-ingest. Deleting a notebook cascades the same way (FR-WM-01/04).
+7. **Delete (FR-SI-05)** removes chunks, raw objects and derived access, cancels jobs, and prevents late writes. **Re-sync** stages and validates a new revision before an atomic swap; never delete the previous chunks before successful parsing/embedding. New revisions use fresh chunk IDs. In-flight consumers fail on revision change; historical citations are marked updated. Notebook deletion cascades database and object-store content (FR-WM-01/04).
 
 **Control flow: chat turn (C5, EVAL-01..04).**
 1. The API authenticates, then RBAC checks the role (Chat-only users may chat but never read raw sources).
-2. `ScopedContextProvider.getScopedContext(notebook, active_source_ids, query)`:
+2. `ScopedContextProvider.getScopedContext(notebook_id, active_source_ids)` (C-02; query and authenticated principal are request-bound provider context, not an alternative public signature):
    * Validates that every `active_source_id` belongs to `notebook` and is readable by the user.
    * Embeds the query (`RETRIEVAL_QUERY`) and runs **one SQL statement**: a vector top-N CTE and a full-text top-N CTE (`websearch_to_tsquery`), both with `WHERE notebook_id = $1 AND source_id = ANY($2)`, merged with Reciprocal Rank Fusion, `LIMIT k`. `hnsw.iterative_scan = relaxed_order` is set per transaction.
    * **Defense in depth:** asserts that every returned row's `source_id` is in the active set (EVAL-04 = 0 has two independent guards). Optionally enforce this with Postgres **row-level security** keyed on a session variable as well.
-   * Returns rows as `UnifiedDocumentChunk` directly: no mapping layer, because the table is the contract.
-3. The ADK `LlmAgent` (Flash) gets numbered chunks `[1..k]` and the persona or system prompt. It answers in **structured output** (`{sentences: [{text, citations: [n]}]}`), streamed over SSE.
-4. An `afterModel` callback **validates citations**. A citation outside `[1..k]` is impossible to render (Precision_ID = 1.0 by construction). If a sentence has no citation, or k = 0, the answer is replaced by the refusal template (EVAL-03). An optional Flash-Lite faithfulness judge runs asynchronously and stores its score with the message (EVAL-01 monitoring).
+   * Returns the C-01 projection of each row; database-only fields such as embeddings, revision metadata and full-text vectors are not additional C-01 fields. Shared contracts are defined once in `packages/contracts`.
+3. The ADK `LlmAgent` (Flash) gets numbered chunks `[1..k]` and the persona or system prompt. It answers in **structured output** (`{sentences: [{text, citations: [n]}]}`), buffered for citation validation before answer publication; progress events may stream over SSE (D13).
+4. An `afterModel` callback **validates citations**. A citation outside `[1..k]` immediately replaces the answer with refusal; no invalid draft is rendered and no regeneration exception is allowed (D13). If a factual sentence has no citation, or k = 0, the answer is replaced by the refusal template (EVAL-03). An optional Flash-Lite faithfulness judge runs asynchronously and stores its score with the message (EVAL-01 monitoring).
 5. Follow-up chips are generated by Flash-Lite after the answer has streamed.
 6. For citation clicks, the SPA receives each chunk's text and locator. pdf.js scrolls to `page_span` and highlights by the stored text offsets. Media sources seek the player to `time_span`, and web sources resolve `dom_path`.
 
@@ -227,8 +230,8 @@ graph TD
 **Control flow: Studio job (C-03).**
 1. `POST /studio/{plugin}` → `registry.get(plugin).triggerJob(scopedContext, params)`.
 2. A `StudioArtifact` row is created (`status=queued`) and a Cloud Task is enqueued.
-3. The worker gets the context (full text with context caching if it fits, otherwise a map-reduce over Source Guides) and calls Gemini with the plugin's Zod output schema.
-4. Media plugins hand off to `everlast-render`. Payloads are written to GCS or JSON, and the status changes to `ready`.
+3. The worker gets the context (full text with context caching if it fits, otherwise chunk-based map-reduce with evidence preserved (D12)) and calls Gemini with the plugin's Zod output schema.
+4. Media plugins hand off to `everlast-render`. Payloads are written to GCS or JSON, and the status changes to `Completed` only after citation and payload validation. Worker stages are Running substates of C-03; Failed/Cancelled expose no incomplete artifact.
 5. The SPA polls or receives SSE updates.
 
 ---
@@ -286,10 +289,10 @@ graph TD
 | :- | :- |
 | **v1.0** | `aiplatform` (Gemini and embeddings), `sqladmin` (Postgres 16+ with the `vector` extension), `cloudtasks`, `secretmanager`, `identitytoolkit`, `documentai` (OCR for scanned PDFs, Package 1.2); optionally `modelarmor` |
 | **v2.0** | No new products. Source Guide, reports and notes use existing services. |
-| **v3.0** | `speech` (Chirp), Agent Platform code sandbox, `everlast-render` Cloud Run Job (LibreOffice for DOCX/PPTX, ffmpeg); pgvector scale benchmark (NFR-PERF-01) |
+| **v3.0** | `speech` (Chirp), delegated Google Drive import/export adapter API (D11; import only), Agent Platform code sandbox, `everlast-render` Cloud Run Job (LibreOffice for DOCX/PPTX, ffmpeg); pgvector scale benchmark (NFR-PERF-01) |
 | **v4.0** | No new products. Infographics render as deterministic SVG (D9); slides use the existing `everlast-render` job |
 | **v5.0** | Gemini TTS, Live API (`everlast-live`, single-host Join-In per D7), Veo / Omni Flash |
-| **v6.0** | `discoveryengine` (Vertex AI Search, ACL-aware), Grounding with Google Search, LB plus Cloud Armor, A2A exposure |
+| **v6.0** | `discoveryengine` (Vertex AI Search, ACL-aware), Grounding with Google Search, LB plus Cloud Armor; A2A exposure remains deferred by D5 |
 
 **Next steps (skill Phase 3):**
 1. Approve this revision.
@@ -302,10 +305,23 @@ graph TD
 
 ## 8. Spec deviation log
 
-| ID | Requirement | Spec says | Implemented behaviour | Decided |
+| ID | Requirement | Original spec says | Accepted planned behaviour | Decided |
 | :- | :- | :- | :- | :- |
 | DEV-01 | FR-ST-03 (Join-In), Gate v5.0 #2 | The AI hosts answer live questions immediately in the same voice profile, then continue the discussion | Playback pauses. **One designated host** answers in that host's podcast voice through Gemini Live, grounded through C-02. Playback then resumes from the interruption point. The second host does not join live answers. | 2026-10-16, project owner |
 | DEV-02 | FR-ST-16 (Slide Decks) | Export as PPTX, PDF or Google Slides | `.pptx` and `.pdf` only; Google Slides export deferred because it needs per-user OAuth (D8) | 2026-10-16, project owner |
 | DEV-03 | FR-INT-01 (`@Notebook`), Gate v6.0 #3 | `@Notebook` mention and thread export in v6.0 | Deferred; package 6.3 is not specified and Gate v6.0 #3 is not part of v6.0 acceptance (D5) | 2026-10-16, project owner |
 
 > Every deviation is mirrored in SRS §5.5, so acceptance tests are generated against the accepted behaviour.
+
+
+### 8.1 Cross-package audit clarifications (2026-10-16)
+
+C-02 applies equally to summaries, raw normalized source text in GCS, history-derived
+context, caches, render jobs, sandbox inputs and Live replies. Database scope filtering alone
+does not prove Leakage = 0. Use the [binding card rules](../spec/requirements/README.md#binding-cross-package-rules)
+for source/revision snapshots and authorization checks. Scope/ACL/revision mismatches cannot
+be repaired by silently widening source selection. Imported enterprise sources and derived
+artifacts retain upstream authorization provenance (NFR-SEC-02).
+
+D11–D13 clarify existing assigned requirements during the requirements consistency audit.
+They authorize design changes, not enabling cloud products or bypassing release gates.

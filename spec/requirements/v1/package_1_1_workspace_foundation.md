@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** No Gate v1.0 item directly. Notebook isolation (`FR-WM-04`) is a prerequisite for Gate v1.0 #2 (`NFR-EVAL-04`, $\text{Leakage} = 0$).
 - **Out of scope:** Custom emojis/icons and sorting/pinning views (`v2.0` — `FR-WM-02`, `FR-WM-03`), multi-user sharing and RBAC (`v6.0` — `FR-WM-05`), usage analytics (`v6.0` — `FR-WM-06`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-WM-01 — Notebook CRUD
@@ -16,13 +18,13 @@
 | Priority (within package) | P1 |
 | Actors | Owner (in v1.0, only single-user Owner role exists) |
 | Depends on | FR-WM-04, C-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When an authenticated user clicks the "+ New notebook" ("+ Erstellen") button on the home overview, the system shall create an empty notebook owned by that user, navigate to `/notebook/<notebook_id>`, and open the "Add sources" modal immediately.
 - *Event:* When the owner clicks the notebook title in the top navigation bar or selects "Rename" from the three-dot menu on a notebook card and submits a valid string, the system shall persist the new title and update `updated_at`.
-- *Event:* When the owner selects "Delete" from the three-dot menu on a notebook card and confirms the modal prompt, the system shall permanently delete the notebook and cascade-delete all associated sources, chunks, chat histories, notes, and Studio artifacts.
-- *Unwanted:* If the edited notebook title is empty or consists only of whitespace after trimming, then the system shall reject the change and retain the previous title (or default to `"Untitled notebook"`).
+- *Event:* When the owner selects "Delete" from the three-dot menu on a notebook card and confirms the modal prompt, the system shall permanently delete the notebook and cascade-delete all associated sources, chunks, chat histories, notes, and Studio artifacts, including stored raw files and generated media. Cancel pending jobs and prevent late writes from recreating deleted data.
+- *Unwanted:* If the edited notebook title is empty or consists only of whitespace after trimming, then the system shall reject the change and retain the previous title.
 
 **User story:** As a knowledge worker, I want to create, open, rename, and permanently delete notebooks, so that I can organize separate research projects into dedicated workspaces.
 
@@ -40,7 +42,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.1 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Notebook Title | UTF-8 plain text | $1$ to $100$ characters after trimming (exact upper character cap in reference UI: `Unknown`, enforced as $100$ internally) | `"Untitled notebook"` |
-| `notebook_id` | UUID v4 / URL-safe string | Globally unique, immutable | System-generated |
+| `notebook_id` | UUID v4 | Globally unique, immutable | System-generated |
 
 **Outputs & state**
 - Visible: Notebook card in overview; editable title in workspace top bar; confirmation modal on delete.
@@ -96,7 +98,7 @@ Scenario: Delete notebook cascades to all child entities
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0) — enforced system-wide for all actors |
 | Depends on | FR-WM-01, C-01, C-02, NFR-EVAL-04 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall logically isolate all sources, document chunks, embeddings, chat histories, notes, and Studio artifacts by `notebook_id`.
@@ -148,7 +150,7 @@ Scenario: Tampered source ID from another notebook is rejected
 
 **Deviations from reference:** None.
 
-**Out of scope:** Cross-notebook federated search (`@Notebook` ecosystem querying is deferred to `v6.0` — `FR-INT-01`).
+**Out of scope:** Cross-notebook federated search (`FR-INT-01` is deferred without a target release by D5).
 
 **Open questions:** `None`
 
@@ -162,7 +164,7 @@ Scenario: Tampered source ID from another notebook is rejected
 | Priority (within package) | P2 |
 | Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-WM-01, FR-SI-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall enforce configurable per-notebook and per-source limits via environment configuration.
@@ -182,10 +184,10 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.1 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Max sources per notebook ($N_{\text{max}}$) | Integer | Configurable $50$ to $300$ | $50$ (Standard) / $300$ (Enterprise) |
+| Max sources per notebook ($N_{\text{max}}$) | Integer | Configurable $50$ to $300$ | $50$ in v1; deployment configuration may raise it to $300$ before v6 tenant policies |
 | Max words per single source | Integer | $\le 500,000\text{ words}$ | $500,000$ |
-| Max file size per upload | Bytes | $\le 200\text{ MB}$ ($209,715,200\text{ bytes}$) | $200\text{ MB}$ |
-| Max notebooks per user | Integer | $\le 100$ (Standard) / $\le 500$ (Enterprise) | $100$ |
+| Max file size per upload | Bytes | $\le 200\text{ MB}$ ($200,000,000\text{ bytes}$) | $200\text{ MB}$ |
+| Max notebooks per user | Integer | $\le 100$ in v1; v6 tenant policy permits up to $500$ | $100$ |
 
 **Outputs & state**
 - Visible: Source counter badge `n / N_max` in the upload modal and left sidebar; error toast/inline status on limit violation.
@@ -212,17 +214,24 @@ Scenario: Block adding 51st source when quota is 50
   When the user opens the "Add sources" modal
   Then the file upload button is disabled
   And the quota bar displays "50 / 50"
+
+Scenario: Concurrent uploads reserve the final slot atomically
+  Given the notebook has 49 occupied or reserved slots with N_max = 50
+  When two uploads request the final slot concurrently
+  Then exactly one is admitted and the other receives a quota error
+  When the admitted upload fails validation
+  Then its slot is released even while its error row remains visible
 ```
 
 **Edge & error cases**
 - Batch upload of $10$ files when $45 / 50$ slots are used $\rightarrow$ System accepts the first $5$ files and rejects the remaining $5$ with a quota warning.
-- Failed source in the sidebar $\rightarrow$ Does not count toward the active word limit once removed by the user.
+- Failed source in the sidebar $\rightarrow$ Releases its reserved source slot immediately; dismissing the error row does not alter quota usage. Concurrent uploads reserve slots atomically.
 
 **Measurable criteria**
-- File size check rejects oversized payloads (> $200\text{ MB}$) at the API gateway before full buffering in $\le 200\text{ ms}$.
+- Upload authorization rejects a declared size above 200,000,000 bytes in $\le 200\text{ ms}$. Signed upload constraints and server-side object-size validation enforce the actual byte count before parsing; aborted/oversized objects are removed.
 
 **Deviations from reference:** Quotas are exposed as configurable tenant parameters rather than tied to consumer Google One tiers.
 
 **Out of scope:** Per-tenant dynamic billing dashboards (`v6.0`).
 
-**Open questions:** Does a failed upload row in the sidebar occupy one of the $N_{\text{max}}$ source slots until dismissed by the user? (`Unknown`)
+**Open questions:** None. Failed uploads release their slot immediately; the dismissible error row is not a source.

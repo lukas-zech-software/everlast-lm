@@ -2,9 +2,11 @@
 
 - **Release:** v6.0
 - **Goal:** Scale the platform for enterprise multi-user collaboration with fine-grained role-based sharing (`Owner/Editor`, `Viewer Full`, `Viewer Chat-Only`), usage analytics dashboards, enterprise quota management, and strict SSO/OIDC authentication + document-level ACL enforcement.
-- **FRs:** FR-WM-05, FR-WM-06, FR-WM-07 (Enterprise scale), NFR-SEC-02
+- **FRs:** FR-WM-05, FR-WM-06, FR-WM-07 (Enterprise scale), NFR-SEC-02; FR-ST-04 link-sharing delivery (D10)
 - **Gate criteria (SRS §5.4):** Gate v6.0 #1 — Penetration-/RBAC-Test: Ein *Chat-Only*-Nutzer kann weder über UI noch via direktem API-Call Rohquellen oder Studio-Endpunkte abrufen; Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* findet niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
 - **Out of scope:** Public anonymous internet sharing outside the enterprise tenant boundary.
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -14,9 +16,9 @@
 | :- | :- |
 | Release / Package | v6.0 / 6.1 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor (manage shares), Viewer (Full), Viewer (Chat-Only) |
+| Actors | Owner (manage shares); Editor (edit notebook content); Viewer (Full), Viewer (Chat-Only) |
 | Depends on | FR-WM-01, FR-UI-01, NFR-SEC-02 |
-| Observed | 2026-10-15, Gemini Notebook Plus / Enterprise web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook Plus / Enterprise web |
 
 **Requirement (EARS)**
 - *Event:* When an `Owner` clicks the `"Share"` (`"Teilen"`) button in the top-right workspace header, the system shall open a sharing modal allowing the owner to grant access to internal users or enterprise groups with one of three roles:
@@ -24,6 +26,8 @@
   2. **`Viewer (Full)` (`Betrachter – Vollansicht`):** Read-only access to view sources in the Source Inspector, play/view generated Studio artifacts and notes, and conduct their own private chat sessions against the notebook.
   3. **`Viewer (Chat-Only)` (`Betrachter – Nur Chat`):** Restricted access to the Center Chat Panel only; cannot view the Left Sources Panel, the Source Inspector, the Right Studio/Notes Panel, or any raw source documents via UI or API.
 - *State:* While a user with role `Viewer (Chat-Only)` accesses a notebook, the RBAC middleware shall return HTTP `403 Forbidden` on any direct API request to `/sources`, `/chunks`, `/notes`, or `/studio`, and the Frontend (`FR-UI-01`) shall render exclusively the centered Chat interface.
+- *Ubiquitous:* Every request rechecks notebook authorization and upstream document ACLs. Chat-Only chat uses the server-resolved authorized Ready source set; a separate answer-bound citation preview may return only chunks cited in that user's authorized answer, never arbitrary chunk IDs. Notebook sharing does not grant upstream document access.
+- *Event:* From v6, Owner/Editor/Full Viewer can copy an authenticated Audio Overview link (FR-ST-04, D10). It grants no permissions; opening it rechecks notebook and contributing-source authorization, while Chat-Only and anonymous callers are denied.
 - *Event:* When an `Owner` sets an optional `"Welcome note"` (`"Begrüßungsnotiz"`) in the Share modal, the system shall display that welcome message at the top of the Chat panel for shared viewers.
 
 **User story:** As a department head or subject-matter expert, I want to curate a notebook of policies and share it with colleagues either as full viewers/editors or as a clean "Chat-Only" helpdesk bot, so that teams can query our knowledge base without altering or downloading the underlying raw files.
@@ -40,7 +44,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.1 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Grantee principal | User UUID or Group ID | Must belong to the authenticated enterprise tenant (`NFR-SEC-02`) | — |
-| Role | Enum | `owner` \| `editor` \| `viewer_full` \| `viewer_chat_only` | `viewer_full` |
+| Role | Enum | `editor` \| `viewer_full` \| `viewer_chat_only`; owner is established by notebook creation, never assignable through sharing | `viewer_full` |
 | Welcome note | UTF-8 string (optional) | $0\text{–}500$ characters | Empty |
 
 **Outputs & state**
@@ -56,8 +60,21 @@ Scenario: Penetration / RBAC test for Viewer (Chat-Only) role (Gate v6.0 #1)
   When U_chat opens Notebook N1 in the browser
   Then only the Center Chat Panel is rendered and the Sources and Studio panels are absent from the DOM
   And U_chat can ask grounded questions in the chat and see inline citation snippets on hover
-  When U_chat sends direct authenticated API requests to GET /api/v1/notebooks/N1/sources or /chunks or /studio
+  When U_chat sends direct authenticated API requests to GET /api/v1/notebooks/N1/sources or /chunks or /notes or /studio
   Then every request is rejected by the backend RBAC middleware with HTTP 403 Forbidden
+
+Scenario: Editor cannot elevate sharing permissions
+  Given an Editor can modify notebook sources and notes
+  When that Editor attempts to grant another principal access or delete the notebook
+  Then the server rejects both operations
+  And only the Owner can manage grants or delete the notebook
+
+Scenario: Chat-Only citation previews cannot enumerate source chunks
+  Given a Chat-Only user's own answer cites an authorized chunk A
+  When the user requests its answer-bound citation preview
+  Then only the cited snippet for A is returned
+  When the user substitutes an arbitrary uncited chunk ID
+  Then the preview request is denied
 ```
 
 **Edge & error cases**
@@ -83,7 +100,7 @@ Scenario: Penetration / RBAC test for Viewer (Chat-Only) role (Gate v6.0 #1)
 | Priority (within package) | P2 |
 | Actors | Owner/Editor |
 | Depends on | FR-WM-05 |
-| Observed | 2026-10-15, Gemini Notebook Plus / Enterprise web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook Plus / Enterprise web |
 
 **Requirement (EARS)**
 - *Event:* When an `Owner` or `Editor` of a shared notebook clicks the `"Analytics"` (`"Nutzungsstatistiken"`) button in the top header, the system shall display a dashboard modal showing two time-series charts over the last $7$, $30$, or $90$ days:
@@ -115,10 +132,10 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.1 FR
 
 ```gherkin
 Scenario: Shared notebook records aggregate daily users and queries without leaking private chat text
-  Given Notebook N1 is shared with 5 viewers
+  Given Notebook N1 is shared with 5 viewers and no other users access it on the measured UTC day
   When 3 viewers ask a total of 12 questions in Notebook N1 today
-  And the owner opens the "Analytics" dashboard for N1
-  Then today's metrics display "3 users" and "12 queries"
+  And the owner opens the "Analytics" dashboard on the following UTC day and selects the measured day
+  Then that day's metrics display "3 users" and "12 queries"
   And the API response contains zero prompt texts or individual user chat transcripts
 ```
 
@@ -144,7 +161,7 @@ Scenario: Shared notebook records aggregate daily users and queries without leak
 | Priority (within package) | P2 |
 | Actors | Platform Administrator, Owner/Editor |
 | Depends on | FR-WM-07 (Baseline v1.0) |
-| Observed | 2026-10-15, Gemini Notebook Plus / Enterprise web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook Plus / Enterprise web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* In `v6.0`, the system shall support role/tenant-based Enterprise Quotas raising the default notebook capacity up to $N_{\text{max}} = 300$ sources per notebook (up to $500,000$ words / $200\text{ MB}$ per source $\rightarrow 150,000,000$ words per notebook), $500$ notebooks per user, and configurable daily generation quotas for Chat, Audio Overviews, and Video Overviews.
@@ -161,8 +178,10 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.1 FR
 | Input | Format | Constraint | Default (Enterprise) |
 | :- | :- | :- | :- |
 | `max_sources_per_notebook` | Integer | $50\text{–}300$ | $300$ |
-| `max_notebooks_per_user` | Integer | $100\text{–}1,000$ | $500$ |
-| `max_audio_generations_per_day` | Integer | Configurable | $20\text{ / day / user}$ |
+| `max_notebooks_per_user` | Integer | $100\text{–}500$ | $500$ |
+| `max_chat_queries_per_day` | Integer | Configurable positive integer | 500 / UTC day / user |
+| `max_audio_generations_per_day` | Integer | Configurable positive integer | 20 / UTC day / user |
+| `max_video_generations_per_day` | Integer | Configurable positive integer | 20 / UTC day / user |
 
 **Outputs & state**
 - Visible: Updated `n / 300` quota bar in UI.
@@ -182,7 +201,7 @@ Scenario: Enterprise user uploads up to 300 sources into a single notebook
 - Standard user (`N_max = 50`) is invited as `Editor` to an Enterprise Owner's notebook (`N_max = 300`) $\rightarrow$ Quota follows the **notebook owner's tier** ($300$ sources).
 
 **Measurable criteria**
-- Quota evaluation executes in $\le 10\text{ ms}$ via cached policy lookup.
+- Quota policy lookup completes in $\le 10\text{ ms}$; admission uses an atomic counter/reservation, not the cache alone. Count accepted user submissions once (including failures/refusals); rejected over-quota requests and internal retries do not consume another unit. Reset daily usage at 00:00 UTC. Source quota follows the notebook owner's policy; daily generation quota follows the acting user. Lowering a quota below current usage blocks new additions without deleting existing data.
 
 **Deviations from reference:** None.
 
@@ -199,12 +218,13 @@ Scenario: Enterprise user uploads up to 300 sources into a single notebook
 | Release / Package | v6.0 / 6.1 |
 | Priority (within package) | P1 |
 | Actors | All Users, Identity Provider (IdP), Discovery & Research Agent |
-| Depends on | FR-WM-05, FR-SI-06, FR-SI-07 |
-| Observed | 2026-10-15, Enterprise SRS §4.3 |
+| Depends on | FR-WM-04, C-02; provides authorization primitives to FR-WM-05 and FR-SI-06/07 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §4.3 |
 
 **Requirement (EARS)**
 - *Ubiquitous:* All web UI and API endpoints shall authenticate users via the enterprise Identity Provider using OpenID Connect (OIDC) or SAML 2.0, extracting the user's verified `user_id`, email, and security group memberships (`groups`).
 - *Ubiquitous:* Whenever any search or ingestion agent (`Discover Sources` `FR-SI-06` or `Deep Research` `FR-SI-07`) queries connected enterprise repositories (Intranet, SharePoint, Confluence, Google Drive, DMS), the query shall execute strictly with the calling user's OAuth2 On-Behalf-Of (OBO) token or pre-filtered security group ACL filter (`user_principals INTERSECT document_acl != EMPTY`).
+- *Ubiquitous:* Imported enterprise sources retain upstream document identity and authorization provenance. Recheck effective permissions during retrieval, re-sync, source viewing, citation previews, artifact/export access and job publication, not only during search. Derived content is visible only to users authorized for all of its contributing sources; loss of access invalidates caches and media delivery. Never let a notebook ACL override an upstream denial (C-02).
 - *Unwanted:* If a document in the enterprise intranet lacks read permission for the requesting user, then the system shall **never** return its title, snippet, URL, or content in search results or research reports.
 
 **User story:** As a CISO, I want the platform to authenticate via corporate SSO and strictly enforce existing intranet document ACLs during agentic search, so that employees can never discover or import restricted HR, legal, or M&A documents they aren't authorized to read.
@@ -219,7 +239,7 @@ Evidence: `SRS §4.3 NFR-SEC-02`, `SRS §5.4 Gate v6.0 #2`
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| OIDC / SAML Token | Signed JWT / SAML Assertion | Valid signature, non-expired (`exp`), matching issuer (`iss`) and audience (`aud`) | Required on all routes |
+| OIDC / SAML Token | Signed OIDC JWT / SAML assertion exchanged for application session | Validate signature, issuer and audience plus JWT expiry or SAML Conditions/recipient/InResponseTo as applicable | Required for protected routes; login/callback and health routes expose no notebook data |
 | Document ACL Principals | Array of User/Group IDs | Evaluated at retrieval time before LLM context injection | Deny by default |
 
 **Outputs & state**
@@ -237,6 +257,12 @@ Scenario: Intranet ACL enforcement prevents unauthorized document discovery (Gat
   When U_engineer runs "Discover Sources" or "Deep Research" for a keyword present in both D_secret and D_public
   Then the search query filters by U_engineer's principals at the index level
   And D_public is returned while D_secret is completely excluded (0 titles, 0 snippets, 0 chunks leaked)
+
+Scenario: Sharing and cached artifacts do not bypass revoked upstream access
+  Given a shared notebook contains an imported restricted document and an artifact derived from it
+  When the requesting user's upstream document access is revoked
+  Then C-02 excludes the document and cached content is invalidated
+  And its source, citation previews, derived artifact and media downloads are unavailable to that user
 ```
 
 **Edge & error cases**

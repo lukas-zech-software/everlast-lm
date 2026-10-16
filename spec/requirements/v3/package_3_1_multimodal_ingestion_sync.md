@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v3.0 #1 — Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).
 - **Out of scope:** Autonomous intranet/web search discovery (`v6.0` — `FR-SI-06`, `FR-SI-07`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-SI-01 (Subset B) — Office, Web, Video & Audio Ingestion
@@ -16,10 +18,11 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-SI-01 (Subset A), FR-SI-04, FR-WM-07, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Owner/Editor uploads a `.docx` or `.pptx` file, the system shall extract all document/slide text, tables, speaker notes, and embedded visual descriptions into `UnifiedDocumentChunk` records (`Contract C-01`) with `page_span` / `slide_number` locators.
+- *Event:* When the Owner/Editor uploads a `.docx` or `.pptx` file, the system shall extract all document/slide text, tables, speaker notes, and embedded visual descriptions into `UnifiedDocumentChunk` records (`Contract C-01`) with C-01 `page_span` locators into the normalized viewer document. The Office adapter must preserve speaker notes and extract visual descriptions alongside PDF conversion; a rendered slide number is page metadata, not a new locator variant.
+- *Event:* When the Owner submits a Google Docs/Slides link or selects a document in the authorized picker, the v3 Google Drive import adapter shall use that user's delegated read access, export Docs/Slides into the Office normalization path, and preserve the external document ID for manual re-sync. Reject revoked/insufficient permission; never substitute a service account's access. This import adapter precedes v6 enterprise discovery (D11).
 - *Event:* When the Owner/Editor submits a Web URL, the system shall fetch the page, strip boilerplate navigation/ads, extract the main article content into `UnifiedDocumentChunk` records, and store the canonical URL.
 - *Event:* When the Owner/Editor submits a Video URL (e.g., YouTube or internal media portal) or uploads an Audio file (`.mp3`, `.wav`, `.m4a`), the system shall extract the caption transcript or run Automatic Speech Recognition (ASR) to produce `UnifiedDocumentChunk` records where every chunk carries a `time_span` locator (`start_ms`, `end_ms`, formatted `mm:ss`).
 - *Event:* When the user clicks an inline citation `[n]` (`FR-GC-03`) pointing to an audio or video chunk, the Source Inspector (`FR-SI-04`) shall open the transcript with an embedded media/timestamp player, scroll to the highlighted transcript segment, and seek the player to `start_ms`.
@@ -39,14 +42,14 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 | :- | :- | :- | :- |
 | Office files | `.docx`, `.pptx` | Max $200\text{ MB}$, $\le 500,000$ words (`FR-WM-07`) | — |
 | Audio files | `.mp3`, `.wav`, `.m4a` | Max $200\text{ MB}$ | — |
-| Website URL | `https://...` | Publicly/internally reachable HTML; no paywall/login wall unless authenticated connector (`v6.0`) | — |
+| Website URL | `https://...` | Public HTML or explicitly allowlisted enterprise HTML reachable under the requesting user's authorized access; Google Docs/Slides use the delegated v3 adapter, not generic scraping | — |
 | Video URL | YouTube / enterprise video URL | Must have captions/transcript or audio track accessible | — |
 | `time_span` locator | `Contract C-01` JSON | `{ start_ms: int, end_ms: int, display_time: "mm:ss" }` | — |
 
 **Outputs & state**
 - Visible: Format-specific icons (Web globe, Video play icon, Audio waveform, Slides icon, Doc icon) in the Left Panel; timestamped transcript + media player in Source Inspector.
-- Persisted: `Source` record (`media_type`, `external_url`) and `UnifiedDocumentChunk` records with `time_span` or `slide_number` locators.
-- States: `Uploading / Fetching` $\rightarrow$ `Transcribing / Parsing` $\rightarrow$ `Ready` (or `Failed`).
+- Persisted: `Source` record (`media_type`, `external_url`) and `UnifiedDocumentChunk` records with `page_span`, `time_span`, or `dom_path` locators only (C-01).
+- States: `Uploading` $\rightarrow$ `Processing` $\rightarrow$ `Ready` (or `Failed`), with Fetching/Transcribing/Parsing as progress substates, not new eligibility states.
 
 **Acceptance criteria (Gherkin)**
 
@@ -60,13 +63,22 @@ Scenario: Audio upload produces chunks with clickable mm:ss timestamp locators (
   Then the Source Inspector opens "Interview.mp3", highlights the segment at 04:15, and seeks the player to 04:15
 
 Scenario: Paywalled or unreachable Web URL fails with clear message
-  Given a Web URL returning HTTP 403 Forbidden or an empty JS shell
+  Given a Web URL returning HTTP 403 Forbidden or no extractable article content
   When the owner submits the URL in the "Website" dialog
   Then the source status transitions to "Failed" with reason "Unable to extract content from URL"
+
+Scenario: Google Slides import preserves notes and deterministic locators
+  Given an owner has delegated read access to a Google Slides document with slide text and speaker notes
+  When the owner imports its link
+  Then both slide text and speaker notes appear in the normalized viewer
+  And all citations use C-01 page_span locators rather than a slide_number variant
+  When delegated access is revoked before re-sync
+  Then re-sync is denied without using a privileged service account
 ```
 
 **Edge & error cases**
-- SSRF protection on Web/Video URL input $\rightarrow$ Strict parser-level validation: blocks loopback (`127.0.0.0/8`, `::1`), cloud instance metadata (`169.254.169.254`), RFC 1918 private subnets (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), link-local (`fe80::/10`), IPv4-mapped IPv6, and DNS rebinding attacks unless explicitly allowlisted enterprise intranet domains.
+- SSRF protection applies before each connection and redirect, including resolved IPs: always block loopback, metadata, link-local and equivalent IPv4-mapped IPv6 destinations. Private ranges (including IPv6 ULA) are denied except explicit enterprise destinations allowed by tenant network policy and user authorization; an allowlisted hostname cannot bypass forbidden addresses or DNS-rebinding checks.
+- Screen web/research content for prompt injection before indexing or model use (Constitution VI). Quarantined content never becomes Ready or enters C-02.
 - Video URL has neither subtitles nor an extractable audio stream $\rightarrow$ Fails gracefully with `"No transcript available for this video"`.
 - Web URL points to a PDF $\rightarrow$ Automatically routes to the PDF ingestion parser (`Paket 1.2`).
 
@@ -74,7 +86,7 @@ Scenario: Paywalled or unreachable Web URL fails with clear message
 - $100\%$ of ingested audio/video chunks contain valid `time_span` (`mm:ss`) locators (`Gate v3.0 #1`).
 - $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95).
 
-**Deviations from reference:** Unlike consumer NotebookLM (which only imports static snapshots of web pages and cannot follow links), our Web parser uses a headless browser fallback for internal SPA docs while still taking a deterministic snapshot per sync.
+**Deviations from reference:** Use the architecture's fetch + Readability path with deterministic snapshots. A page containing only an unsupported JavaScript shell fails clearly; no unapproved headless-browser dependency is implied.
 
 **Out of scope:** Crawling entire multi-page websites recursively from a single root URL (`Discover Sources` is in `v6.0`).
 
@@ -90,12 +102,12 @@ Scenario: Paywalled or unreachable Web URL fails with clear message
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-SI-01, FR-GC-03, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the three-dot menu (`⋮`) next to a source in the Left Panel and selects `"Rename source"` (`"Quelle umbenennen"`), the system shall update the `Source.title` across the sidebar, Source Inspector, and all citation tooltips.
 - *Event:* When the Owner/Editor selects `"Remove source"` (`"Quelle entfernen"`) and confirms, the system shall delete the `Source` and its `UnifiedDocumentChunk` records from the notebook and decrement the source counter.
-- *Event:* Where a source originates from a mutable external link (Web URL or linked cloud/intranet document), when the Owner/Editor clicks `"Re-sync"` (`"Neu synchronisieren"` / `"Click to sync"`) in the Source Inspector or via a webhook event, the system shall re-fetch the latest content, atomically replace the source's `UnifiedDocumentChunk` set, and regenerate its `Source Guide` (`FR-SI-02`).
+- *Event:* Where a source originates from a mutable external link (Web URL or linked cloud/intranet document), when the Owner/Editor clicks `"Re-sync"` (`"Neu synchronisieren"` / `"Click to sync"`) in the Source Inspector or via a webhook event, the system shall re-fetch the latest content, stage and validate the replacement (limits, safety, parsing and embeddings), then atomically replace the source's `UnifiedDocumentChunk` set with fresh non-reused chunk IDs, and regenerate its `Source Guide` (`FR-SI-02`).
 
 **User story:** As a project lead working with living web pages and cloud documents, I want to rename or remove sources and re-sync external sources when the upstream document changes, so that my notebook never works on stale information.
 
@@ -115,7 +127,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 **Outputs & state**
 - Visible: Updated title in sidebar; `"Syncing..."` indicator during re-sync; updated `last_synced_at` timestamp in Source Inspector.
 - Persisted: Atomic swap of `UnifiedDocumentChunk` records for `source_id`; updated `content_hash` and `last_synced_at`.
-- States: `Ready` $\rightarrow$ `ReSyncing` $\rightarrow$ `Ready` (retains previous chunks if re-fetch fails).
+- States: `Ready` with a `ReSyncing` operation indicator $\rightarrow$ `Ready` at the new revision on success; the old committed revision remains readable until atomic swap and is retained on any failure. This does not change the FR-SI-03 Ready eligibility rule.
 
 **Acceptance criteria (Gherkin)**
 
@@ -129,7 +141,7 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 ```
 
 **Edge & error cases**
-- Historical chat message cited `chk_old_04` from before a re-sync $\rightarrow$ If `chk_old_04` no longer exists after re-sync, the historical citation tooltip still renders the snapshot snippet saved on `ChatMessage.citations` (`FR-GC-02`) and opens the updated source at the top with a note `"Source was updated since this answer was generated"`.
+- Historical chat message cited `chk_old_04` before re-sync $\rightarrow$ Mark the citation `Source updated`; an authorized viewer may read the saved historical snippet and explicitly open the current source at the top, but no exact-passage jump is offered. Chat-Only click-through stays blocked. Never retarget the old chunk ID to new text or use the stale snippet in a new prompt.
 
 **Measurable criteria**
 - Deleting a source removes its chunks from retrieval immediately ($0\text{ ms}$ staleness on next chat turn).

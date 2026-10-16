@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* & *Deep Research* finden niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
 - **Out of scope:** Autonomous write-actions on external websites (form submissions, purchases).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-SI-06 — Discover Sources Agent ("Quellen entdecken")
@@ -15,8 +17,8 @@
 | Release / Package | v6.0 / 6.2 |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
-| Depends on | FR-SI-01, FR-WM-07, NFR-SEC-02, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Depends on | FR-SI-01, FR-WM-07, NFR-SEC-02, C-01, C-02 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"Discover sources"` (`"Quellen entdecken"`) in the Left Panel or the `"Add sources"` modal, enters a topic description (or clicks `"I'm feeling curious"` / `"Ich bin neugierig"`), selects search scope (`Enterprise Intranet`, `Web`, or `Both`), and clicks `"Submit"`, the `Discovery & Research Agent` shall query the configured search indices (enforcing `NFR-SEC-02` ACLs) and return a curated list of up to $10$ relevant candidate sources, each with a title, URL, and an AI-annotated summary explaining why it is relevant to the query.
@@ -58,7 +60,9 @@ Scenario: Discover Sources curates relevant ACL-filtered results and imports sel
 
 **Edge & error cases**
 - Notebook only has $2$ remaining source quota slots (`298 / 300`) $\rightarrow$ Allows checking at most $2$ candidates and shows a quota indicator.
-- `"I'm feeling curious"` clicked $\rightarrow$ Generates a random/featured enterprise knowledge topic and discovers sources for it.
+- `"I'm feeling curious"` clicked $\rightarrow$ Show a suggested topic for the user to confirm; only Submit authorizes external discovery under the displayed scope.
+- All candidate summaries and research results are labelled external and screened for prompt injection before model use/indexing. They are not notebook grounding until imported as Ready C-01 sources; existing notebook content can be read only through C-02.
+- Deep Research needs at least two free source slots (one primary source and one report). If no permitted primary source imports successfully, fail with an explanation rather than publish an uncited report. Enforce per-source limits on the report too; a failed report import leaves the job Failed with existing primary sources intact.
 
 **Measurable criteria**
 - Discovery curation returns candidate list in $\le 8.0\text{ s}$ (P95).
@@ -79,14 +83,14 @@ Scenario: Discover Sources curates relevant ACL-filtered results and imports sel
 | Release / Package | v6.0 / 6.2 |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
-| Depends on | FR-SI-06, FR-ST-10, NFR-SEC-02, C-01, C-03 |
-| Observed | 2026-10-15, Gemini Notebook / Gemini Deep Research |
+| Depends on | FR-SI-06, FR-ST-10, FR-WM-07, NFR-SEC-02, C-01, C-02, C-03 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook / Gemini Deep Research |
 
 **Requirement (EARS)**
-- *Event:* When the Owner/Editor launches `"Deep Research"` (`"Tiefenrecherche"`) with a complex research question, the `Discovery & Research Agent` shall first generate a multi-step **Research Plan** (`Forschungsplan`) for user approval (or auto-start), and upon confirmation execute iterative autonomous search loops (formulating sub-queries, reading candidate pages/intranet docs under `NFR-SEC-02`, cross-checking facts, and refining follow-up searches).
+- *Event:* When the Owner/Editor launches `"Deep Research"` (`"Tiefenrecherche"`) with a complex research question, the `Discovery & Research Agent` shall first generate a multi-step **Research Plan** (`Forschungsplan`) for user approval, and only upon confirmation execute iterative autonomous search loops (formulating sub-queries, reading candidate pages/intranet docs under `NFR-SEC-02`, cross-checking facts, and refining follow-up searches).
 - *Event:* When the multi-step investigation completes, the agent shall:
-  1. Ingest all verified primary sources discovered during the run directly into the notebook's `Sources` panel (`Contract C-01`).
-  2. Generate a comprehensive, fully cited **Deep Research Report** and save it as a `StudioArtifact` / `Source` in the notebook so the user can immediately chat with or generate Studio Audio/Video/Mindmaps from the findings.
+  1. Import the verified primary sources admitted by the approved plan and quota, after safety and ACL checks, through C-01. Await Ready before report synthesis; report any failed imports explicitly.
+  2. Obtain these Ready sources through C-02 using the approved explicit research scope, then generate the fully cited **Deep Research Report** through C-03. Persist both a `StudioArtifact` and a separately ingested report `Source`, preserving primary-source provenance. The report cannot cite its own generated source or an unimported candidate. Mark externally obtained material as external (FR-GC-01).
 
 **User story:** As a strategy or R&D analyst, I want an autonomous Deep Research agent that plans a multi-step investigation, reads dozens of intranet and web sources, writes a comprehensive cited research report, and imports both the report and the primary sources into my notebook automatically.
 
@@ -103,12 +107,12 @@ Evidence: `SRS §3.2 FR-SI-07`, `https://blog.google/products/gemini/google-gemi
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Research prompt | UTF-8 string | $10\text{–}5,000$ characters | — |
-| Search iterations / depth | Integer | $2\text{–}5$ iterative refinement hops; up to $25$ imported primary sources per run (bounded by remaining `FR-WM-07` quota) | $3$ hops |
+| Search iterations / depth | Integer | $2\text{–}5$ iterative refinement hops; up to $25$ imported primary sources per run; reserve one additional source slot for the report and bound primary imports by remaining `FR-WM-07` capacity | $3$ hops |
 
 **Outputs & state**
 - Visible: Editable/approvable Research Plan, real-time step-by-step progress log, final Deep Research Report, and imported primary sources in Left Panel.
-- Persisted: Imported `Source` records (`Contract C-01`) + synthesized `StudioArtifact` (`plugin_type: 'deep_research_report'`).
-- States: `Planning` $\rightarrow$ `AwaitingPlanApproval` $\rightarrow$ `Researching (Step k/N)` $\rightarrow$ `SynthesizingReport` $\rightarrow$ `IngestingSources` $\rightarrow$ `Completed`.
+- Persisted: Imported primary and report `Source` records (`Contract C-01`) plus synthesized `StudioArtifact` (`plugin_type: 'deep_research_report'`, primary source IDs/revisions and citations).
+- States: `Planning` $\rightarrow$ `AwaitingPlanApproval` $\rightarrow$ `Researching (Step k/N)` $\rightarrow$ `IngestingPrimarySources` $\rightarrow$ `SynthesizingReport` $\rightarrow$ `IngestingReportSource` $\rightarrow$ `Completed` (or `Failed` / `Cancelled`). The research coordinator owns these progress states; report synthesis invokes the standard C-03 plugin lifecycle after primary sources are Ready.
 
 **Acceptance criteria (Gherkin)**
 
@@ -119,10 +123,17 @@ Scenario: Deep Research executes multi-step search, imports primary sources, and
   Then the agent executes >= 2 iterative search steps respecting NFR-SEC-02 document ACLs
   And imports the discovered primary sources into the Left Panel in state "Ready"
   And saves a comprehensive Deep Research Report citing those primary sources
+
+Scenario: Research reserves room for both primary evidence and the report source
+  Given the notebook has exactly two free source slots
+  When the owner approves Deep Research
+  Then the job admits at most one primary source and reserves one slot for the report
+  And the primary source reaches Ready before the report is synthesized through C-02
+  And the completed report is stored as both a cited StudioArtifact and a Ready source
 ```
 
 **Edge & error cases**
-- User clicks `"Cancel research"` mid-run $\rightarrow$ Agent stops further search hops immediately and discards or optionally saves partial findings found so far.
+- User clicks `"Cancel research"` mid-run $\rightarrow$ Stop further hops and mark the job Cancelled; keep already imported sources, release unused quota reservations, and do not publish a partial report as Completed. Expose the imported-source list and cancellation status.
 
 **Measurable criteria**
 - Research Plan generated in $\le 5.0\text{ s}$; full 3-hop Deep Research run completes in $\le 180\text{ s}$ with live progress updates every $\le 3\text{ s}$.

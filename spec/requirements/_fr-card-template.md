@@ -4,6 +4,10 @@ Copy the card below once per functional requirement into the package file
 (`spec/requirements/v<N>/package_<N>_<M>_<short_name>.md`). Write `Unknown` for anything you could not
 observe; never guess. See [README.md](README.md) for what to extract and how to hand files over.
 
+All cards inherit the [binding cross-package rules](README.md#binding-cross-package-rules).
+Record target choices separately from unverified reference claims. The examples below do not
+override the SRS, real cards, release roles, or architecture decisions.
+
 ## Card
 
 ````markdown
@@ -13,9 +17,9 @@ observe; never guess. See [README.md](README.md) for what to extract and how to 
 | :- | :- |
 | Release / Package | v1.0 / 1.2 |
 | Priority (within package) | P1 / P2 / P3 |
-| Actors | Owner/Editor · Viewer · Chat-only (list who may do this) |
+| Actors | Owner; from v6: Editor, Viewer Full, Chat-Only as applicable |
 | Depends on | FR-…, C-0x |
-| Observed | YYYY-MM-DD, Gemini Notebook web |
+| Evidence status | Verified capture path/date, or unverified reference; do not invent observation dates |
 
 **Requirement (EARS)**
 - *Event:* When <trigger>, the system shall <response>.
@@ -152,7 +156,7 @@ Scenario: Delete cascades
 | :- | :- |
 | Release / Package | v1.0 / 1.2 |
 | Priority | P1 |
-| Actors | Owner/Editor, Viewer, Chat-only |
+| Actors | Owner; Editor and Viewer Full from v6 (Chat-Only scope is server-resolved) |
 | Depends on | FR-SI-01, C-02, NFR-EVAL-04 |
 
 **Requirement (EARS)**
@@ -174,13 +178,11 @@ Scenario: Deselected source never leaks
   And no retrieved chunk belongs to B
 ```
 
-**Outputs & state:** Counter "n sources selected" in the chat input; selection is persisted
-per user and notebook.
+**Outputs & state:** Counter "n sources selected" in the chat input; selection is held in client session state per user and notebook and sent explicitly on each request.
 
 **Measurable criteria:** Leakage = 0 across the NFR-EVAL-04 suite.
 
-**Open questions:** Is the selection persisted per user or per notebook (shared)? Are newly
-added sources selected by default?
+**Open questions:** None in the real FR-SI-03 card: selection is session-local and newly Ready sources are selected for the importing session.
 
 ### Example C — FR-GC-03 Citation hover & click (complex UI)
 
@@ -188,7 +190,7 @@ added sources selected by default?
 | :- | :- |
 | Release / Package | v1.0 / 1.3 |
 | Priority | P1 |
-| Actors | Owner/Editor, Viewer; Chat-only → see open question |
+| Actors | Owner; Editor and Viewer Full from v6; Chat-Only gets answer-bound hover only |
 | Depends on | FR-GC-02, FR-SI-04, C-01 |
 
 **Requirement (EARS)**
@@ -216,5 +218,4 @@ deterministic (Gate v1.0 #3).
 
 **Deviations from reference:** None.
 
-**Open questions:** Chat-only users must not see raw sources (FR-WM-05). Do they see hover
-snippets? Can they click through?
+**Open questions:** None in FR-WM-05: Chat-Only users see authorized answer-bound snippets but cannot open raw sources.

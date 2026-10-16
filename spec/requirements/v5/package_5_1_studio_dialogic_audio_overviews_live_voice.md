@@ -4,7 +4,9 @@
 - **Goal:** Provide the signature 2-host dialogic AI Podcast generator ("Audio Overview") with pre-generation customization (focus prompt, length, multilingual output), an integrated audio player with speed/export controls, and the real-time interactive voice mode ("Join-In" / live interrupt).
 - **FRs:** FR-ST-01, FR-ST-02, FR-ST-03, FR-ST-04
 - **Gate criteria (SRS §5.4):** Gate v5.0 #1 — Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte; Gate v5.0 #2 — Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.
-- **Out of scope:** Uploading custom user voice samples for voice cloning.
+- **Out of scope:** Uploading custom user voice samples for voice cloning; audio link sharing is delivered in v6 under D10 and package 6.1.
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-SI-03, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"Generate"` (`"Generieren"`) on the `Audio Overview` tile in the Studio panel, the `Audio Podcast Agent` shall synthesize the active sources ($S_{\text{aktiv}}$) into a natural, multi-minute conversational dialogue script between two distinct AI hosts (`Host A` — analytical lead, `Host B` — curious co-host using analogies and follow-up questions) and synthesize the multi-speaker audio track with natural turn-taking, prosody, and zero destructive waveform clipping.
@@ -35,7 +37,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.5.1 
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
 | Speaker profiles | 2 distinct neural TTS voices | `Host_A` (Voice 1) & `Host_B` (Voice 2) per target language | Default language pair |
 
 **Outputs & state**
@@ -77,7 +79,7 @@ Scenario: Audio Overview produces a clean 2-speaker grounded dialogue (Gate v5.0
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-ST-01, FR-UI-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"Customize"` (`"Anpassen"`) on the `Audio Overview` tile before generation, the system shall open a configuration popover allowing the user to set:
@@ -113,14 +115,14 @@ Evidence: `https://blog.google/technology/ai/notebooklm-update-october-2024/`, `
 Scenario: Customized German Shorter Audio Overview from English sources
   Given a notebook with English PDF sources
   When the owner opens Audio Overview Customize, selects Length "Shorter", Language "de-DE", enters focus "Focus only on pricing", and clicks Generate
-  Then the generated audio dialogue is spoken in German, lasts between 2.5 and 6 minutes, and focuses on pricing
+  Then the generated audio dialogue is spoken in German, lasts between 3 and 5 minutes when sufficient source content exists, and focuses on pricing
 ```
 
 **Edge & error cases**
 - Focus prompt asks hosts to discuss a topic not present in $S_{\text{aktiv}}$ $\rightarrow$ Hosts explicitly mention on air that the provided sources do not cover that topic and pivot to the closest available material in $S_{\text{aktiv}}$.
 
 **Measurable criteria**
-- Generated duration stays within $\pm 30\%$ of the target bracket when source volume suffices.
+- Generated duration falls within the selected bracket (Shorter 3–5, Default 8–12, Longer 15–20 minutes) when source volume suffices; explain shorter evidence-limited outputs instead of padding.
 
 **Deviations from reference:** Allows keeping multiple customized Audio Overview artifacts in the Studio library of a single notebook rather than limiting to only one active recording.
 
@@ -137,12 +139,12 @@ Scenario: Customized German Shorter Audio Overview from English sources
 | Release / Package | v5.0 / 5.1 |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer |
-| Depends on | FR-ST-01, FR-GC-01, C-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Depends on | FR-ST-01, FR-ST-04, FR-GC-01, FR-GC-02, C-02 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the user clicks `"Interactive mode"` (`"Interaktiver Modus"` / `"Beitreten"`) on a playing or ready Audio Overview, the system shall open the interactive voice session player and establish a low-latency bidirectional audio/WebSocket stream.
-- *Event:* While the Audio Overview is playing in Interactive Mode, when the user clicks `"Join"` (`"Unterbrechen / Fragen"`) or speaks into the microphone, the system shall immediately pause the pre-rendered podcast playback at the current turn boundary/timestamp (`t_interrupt`), acknowledge the user in the designated host's voice (e.g., `"Oh, let's bring in our listener—go ahead!"`), transcribe the user's spoken question via streaming ASR, generate a strictly source-grounded response from $S_{\text{aktiv}}$ (`Contract C-02`) synthesized in that designated host's voice profile (`DEV-01`), and then seamlessly resume the podcast discussion from `t_interrupt`.
+- *Event:* While the Audio Overview is playing in Interactive Mode, when the user clicks `"Join"` (`"Unterbrechen / Fragen"`) or speaks into the microphone, the system shall immediately pause the pre-rendered podcast playback at the exact current playback timestamp (`t_interrupt`; do not wait for a turn boundary), acknowledge the user in the designated host's voice (e.g., `"Oh, let's bring in our listener—go ahead!"`), transcribe the user's spoken question via streaming ASR, generate a strictly source-grounded response from $S_{\text{aktiv}}$ (`Contract C-02`) synthesized in that designated host's voice profile (`DEV-01`), and then seamlessly resume the podcast discussion from `t_interrupt`.
 - *Unwanted:* If the user asks a spoken question whose answer is not in $S_{\text{aktiv}}$, then the designated host shall politely state in voice that the sources don't cover that detail and resume the episode (`FR-GC-01`, `DEV-01`).
 
 **User story:** As an active listener, I want to interrupt the AI podcast hosts mid-episode using my microphone to ask a clarifying question and hear the designated host answer me directly in their voice before continuing the show.
@@ -163,8 +165,8 @@ Evidence: `https://blog.google/technology/ai/notebooklm-redesign-audio-overviews
 | Interrupt position | `t_interrupt_ms` | Timestamp / transcript turn index in `StudioArtifact` | Current playback position |
 
 **Outputs & state**
-- Visible: Live voice visualizer (`Listening...` $\rightarrow$ `Host answering...` $\rightarrow$ `Resuming episode...`) and optional live transcript caption.
-- Persisted: Ephemeral live session stream (optional session log in chat/transcript).
+- Visible: Live voice visualizer (`Listening...` $\rightarrow$ `Host answering...` $\rightarrow$ `Resuming episode...`) and a live transcript with claim-level validated source citations; validate the reply before playing its factual speech.
+- Persisted: Live session is ephemeral; show its validated reply transcript and citations during the session. No durable recording is created by default.
 - States: `PlayingEpisode` $\rightarrow$ `UserSpeaking` $\rightarrow$ `SynthesizingHostReply` $\rightarrow$ `PlayingHostReply` $\rightarrow$ `PlayingEpisode (Resumed)`.
 
 **Acceptance criteria (Gherkin)**
@@ -181,6 +183,13 @@ Scenario: Spoken out-of-scope question during Join-In is refused per FR-GC-01
   Given an Audio Overview playing in Interactive Mode on a cybersecurity notebook
   When the user clicks "Join" and asks "What is the recipe for tiramisu?"
   Then the designated host states that the notebook sources do not contain that information and resumes the episode
+
+Scenario: Invalid live citation is refused before factual speech plays
+  Given a live reply draft cites a chunk outside the interrupt request scope
+  When the citation validator checks the reply
+  Then only the designated host's refusal is played
+  And no factual speech from the invalid draft is played
+  And podcast playback resumes at the saved interruption timestamp
 ```
 
 **Edge & error cases**
@@ -206,10 +215,11 @@ Scenario: Spoken out-of-scope question during Join-In is refused per FR-GC-01
 | Priority (within package) | P2 |
 | Actors | Owner/Editor, Viewer |
 | Depends on | FR-ST-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The integrated Audio Overview player shall provide play/pause, a scrubbable timeline bar with current/total time (`mm:ss`), $\pm 10\text{ s}$ skip buttons, playback speed control ($0.5\times, 0.75\times, 1.0\times, 1.25\times, 1.5\times, 1.75\times, 2.0\times$), and download as `.mp3` or `.wav`.
+- *Event:* From v6 (D10), Copy link produces an authenticated artifact deep-link for existing authorized Owner/Editor/Full Viewers. It grants no new access; v5 provides player and downloads only. Chat-Only and anonymous users cannot retrieve the audio or transcript (FR-WM-05).
 - *State:* While an Audio Overview is playing, the user shall be able to collapse the Studio artifact viewer, switch between Chat and Source Inspector, or view notes while the audio continues playing uninterrupted in a persistent mini-player bar.
 
 **User story:** As a power listener, I want to listen at $1.5\times$ speed while reading sources and chatting in the notebook, or download the `.mp3`/`.wav` file to listen offline on my phone.

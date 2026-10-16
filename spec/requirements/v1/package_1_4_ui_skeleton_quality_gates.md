@@ -4,7 +4,9 @@
 - **Goal:** Provide the responsive 3-column Single-Page Application workspace layout and enforce automated quality/security gates for grounding faithfulness, citation precision, negative rejection, context scoping, and zero data training.
 - **FRs:** FR-UI-01, NFR-SEC-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04
 - **Gate criteria (SRS §5.4):** Gate v1.0 #2 — the automated suite for `NFR-EVAL-01` to `04` passes ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$).
-- **Out of scope:** Dark/Light mode and per-notebook language selector (`v2.0` — `FR-UI-02`), active Studio generator tiles in the right panel (`v2.0`–`v5.0` — `FR-ST-*`), `@Notebook` enterprise chat integration (`v6.0` — `FR-INT-01`).
+- **Out of scope:** Dark/Light mode and per-notebook language selector (`v2.0` — `FR-UI-02`), active Studio generator tiles in the right panel (`v2.0`–`v5.0` — `FR-ST-*`), `@Notebook` enterprise chat integration (deferred by D5 — `FR-INT-01`).
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0; Chat-only hides side panels) |
 | Depends on | FR-WM-01, FR-SI-03, FR-SI-04, FR-GC-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The web application shall render the notebook workspace as a reactive Single-Page Application (SPA) divided into a top navigation header and three distinct functional panels:
@@ -86,12 +88,12 @@ Scenario: Collapsing side panels preserves chat draft and scroll position
 | Priority (within package) | P1 |
 | Actors | Automated CI/CD Evaluation Runner, Security Auditor |
 | Depends on | FR-WM-04, FR-SI-03, FR-GC-01, FR-GC-02, C-01, C-02 |
-| Observed | 2026-10-15, Enterprise SRS Validation Standard |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS Validation Standard |
 
 **Requirement (EARS)**
-- *Ubiquitous (`NFR-SEC-01`):* The system shall configure all LLM, OCR, and embedding model calls with zero data retention / zero model training policies so that uploaded documents, prompts, and outputs are never used to train foundation models.
+- *Ubiquitous (`NFR-SEC-01`):* The system shall configure all LLM, OCR, and embedding model calls with enterprise no-training policies so that uploaded documents, prompts, and outputs are never used to train foundation models.
 - *Event (`NFR-EVAL-01` — Grounding Faithfulness):* When the CI/CD pipeline executes the Grounding Evaluation Suite against a golden dataset of $(S_{\text{aktiv}}, Q, A)$ triples, the automated NLI / LLM-as-a-Judge verifier shall verify that the hallucination rate $\epsilon_{\text{hallucination}}$ is strictly $< 0.05$ ($5\%$).
-- *Event (`NFR-EVAL-02` — Citation Precision):* When the CI/CD pipeline evaluates generated citations, the system shall verify that $100\%$ of inline citation badges reference a real `chunk_id` in $S_{\text{aktiv}}$ ($\text{Precision}_{\text{ID}} = 1.0$) and that the referenced chunk semantically entails the cited statement.
+- *Event (`NFR-EVAL-02` — Citation Precision):* When the CI/CD pipeline evaluates generated citations, the system shall verify that $100\%$ of inline citation badges reference a real `chunk_id` in $S_{\text{aktiv}}$ ($\text{Precision}_{\text{ID}} = 1.0$); a separate LLM-judged semantic-support suite shall check that the chunk entails the claim. Deterministic ID validation does not require a model judge.
 - *Event (`NFR-EVAL-03` — Negative Rejection):* When the CI/CD pipeline runs unanswerable world-knowledge queries against unrelated active sources, the system shall refuse to answer from world knowledge in $\ge 99\%$ of test cases.
 - *Event (`NFR-EVAL-04` — Strict Context Scoping):* When the CI/CD pipeline runs queries while specific sources are deselected ($s_i \notin S_{\text{aktiv}}$), the system shall verify that zero chunks from $s_i$ appear in the retrieval log, LLM prompt, or response ($\text{Leakage} = 0$).
 
@@ -128,12 +130,13 @@ Scenario: Release Gate v1.0 passes all four evaluation metrics
   And citation ID precision is 1.0
   And negative rejection rate on out-of-scope world knowledge is >= 0.99
   And chunk leakage from deselected sources is 0
-  And Gate(v1.0) status is set to PASS
+  And the evaluation portion of Gate(v1.0) passes
+  And the full gate remains pending until upload/schema and citation-navigation checks also pass
 
 Scenario: Deselected source does not leak via conversation history
-  Given Source B states "Project Aurora budget is $4.2M" and is selected
+  Given Sources A and B are selected and only Source B states "Project Aurora budget is $4.2M"
   And the user asked "What is the Project Aurora budget?" and received an answer citing Source B
-  When the user deselects Source B
+  When the user deselects Source B and leaves Source A selected
   And asks "Repeat the Project Aurora budget"
   Then neither the prompt context nor the response contains "$4.2M"
   And the answer states that the selected sources do not mention Project Aurora

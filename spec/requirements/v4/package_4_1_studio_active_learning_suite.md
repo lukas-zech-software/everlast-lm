@@ -4,7 +4,9 @@
 - **Goal:** Provide interactive pedagogical Studio generators (`Contract C-03`) for Flashcards (with flip and chat-explain triggers), multi-format Quizzes (with immediate source-grounded grading), per-user learning progress tracking (spaced repetition / missed-items review), and combined Interactive Learning Overviews.
 - **FRs:** FR-ST-12, FR-ST-13, FR-ST-14, FR-ST-15
 - **Gate criteria (SRS §5.4):** Gate v4.0 #1 — Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab; Gate v4.0 #2 — Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.
-- **Out of scope:** Export to external LMS via SCORM/LTI (`v6.0+`).
+- **Out of scope:** Export to external LMS via SCORM/LTI (not scheduled in the SRS).
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor (generate), Viewer (study) |
 | Depends on | FR-SI-03, FR-GC-01, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Flashcards"` (`"Lernkarten"`) tile in the Studio panel (optionally specifying difficulty `Easy`/`Medium`/`Hard`, card count, or focus topic via the customize icon), the `Pedagogy Agent` shall generate a deck of question-and-answer flashcards strictly from $S_{\text{aktiv}}$ (`Contract C-02`) and persist it as a `StudioArtifact` (`Contract C-03`).
@@ -80,7 +82,7 @@ Scenario: Flashcards are generated strictly from active sources and "Explain" tr
 | Priority (within package) | P1 |
 | Actors | Owner/Editor (generate), Viewer (take quiz) |
 | Depends on | FR-SI-03, FR-GC-01, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Quiz"` tile in the Studio panel (optionally customizing difficulty, question count, or focus topic), the `Pedagogy Agent` shall generate an interactive quiz strictly from $S_{\text{aktiv}}$ supporting four question types:
@@ -111,7 +113,7 @@ Evidence: `https://blog.google/technology/ai/notebooklm-flashcards-quizzes-2025/
 **Outputs & state**
 - Visible: Interactive quiz runner, hint popover, immediate grading feedback with citations `[n]`, final score card.
 - Persisted: `StudioArtifact` (`plugin_type: 'quiz'`, `payload_json: { questions: [{ id, type, prompt, hint, options, correct_answer, rubric, source_chunk_ids }] }`).
-- States: `Unanswered` $\rightarrow$ `HintShown` $\rightarrow$ `GradedCorrect` / `GradedIncorrect` $\rightarrow$ `QuizCompleted`.
+- States: `Unanswered` (optional `HintShown`) $\rightarrow$ `GradedCorrect` / `GradedIncorrect` $\rightarrow$ `QuizCompleted`.
 
 **Acceptance criteria (Gherkin)**
 
@@ -146,12 +148,12 @@ Scenario: Quiz covers only active sources and grades Short Answer semantically (
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer |
 | Depends on | FR-ST-13, FR-ST-14 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.5 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.5 |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall persist per-user, per-artifact learning state (`LearningProgress`) recording which flashcard IDs and quiz question IDs the user answered correctly (`mastered`) or missed/marked for review (`needs_review`), along with attempt counts and last-reviewed timestamps.
 - *Event:* When the user clicks `"Review missed"` (`"Falsch beantwortete wiederholen"`) on a Flashcard deck or Quiz summary screen, the system shall start a focused repetition round containing exclusively the items in state `needs_review`.
-- *Event:* When the user reopens a previously started Flashcard deck or Quiz in a later browser session, the system shall restore their progress and mastery counters.
+- *Event:* When the user reopens a previously started Flashcard deck or Quiz in a later browser session, the system shall restore their progress and mastery counters. Reset progress requires confirmation and clears only that user’s state for that artifact, returning its items to Unseen.
 
 **User story:** As a student or employee preparing for certification, I want the notebook to remember which flashcards and quiz questions I missed across sessions so that I can focus my repetition strictly on my weak spots.
 
@@ -207,8 +209,8 @@ Scenario: Missed quiz questions persist across sessions for targeted review (Gat
 | Release / Package | v4.0 / 4.1 |
 | Priority (within package) | P2 |
 | Actors | Owner/Editor (generate), Viewer (interact) |
-| Depends on | FR-ST-10, FR-ST-13, FR-ST-14, FR-ST-17, C-03 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.4 |
+| Depends on | FR-ST-10, FR-ST-13, FR-ST-14, FR-ST-15, FR-ST-17 (package 4.2), C-02, C-03 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.4 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor selects `"Learning Overview"` (`"Interaktiver Lernüberblick"`) in the Studio panel, the system shall generate a composite interactive document that weaves structured chapter summaries (`FR-ST-10`), inline visual concept diagrams/infographics (`FR-ST-17`), embedded flip-flashcards (`FR-ST-13`), and inline knowledge-check quiz widgets (`FR-ST-14`) into a single scrollable lesson.
@@ -225,13 +227,13 @@ Evidence: `SRS §3.5.4 FR-ST-12`
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
 | Section count | Integer | $3\text{–}6$ thematic modules per overview | Auto-structured |
 
 **Outputs & state**
 - Visible: Scrollable multi-block interactive lesson inside the Studio viewer.
 - Persisted: `StudioArtifact` (`plugin_type: 'learning_overview'`, `payload_json: { modules: [{ title, summary_md, diagram_svg, flashcards: [...], checkpoint_quiz: [...] }] }`).
-- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed`.
+- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed` (or `Failed` / `Cancelled`).
 
 **Acceptance criteria (Gherkin)**
 
@@ -240,10 +242,16 @@ Scenario: Generate Interactive Learning Overview with embedded flashcards and ch
   Given a notebook with 2 Ready sources
   When the owner generates an "Interactive Learning Overview"
   Then the completed artifact renders narrative sections with inline citations, SVG diagrams, interactive flip cards, and inline quiz questions
+
+Scenario: A missing infographic cannot be reported as a complete learning overview
+  Given a learning overview job with valid text, flashcard and quiz blocks
+  When its required infographic block fails
+  Then the composite artifact is Failed with a retry action
+  And an incomplete lesson is not published as Completed
 ```
 
 **Edge & error cases**
-- Single sub-block generation fails $\rightarrow$ Degrades gracefully by rendering the text, flashcards, and quiz blocks without failing the entire overview artifact.
+- Required summary, diagram, flashcard or quiz block fails $\rightarrow$ Mark the composite job Failed with a retry action; do not label an incomplete lesson Completed. Embedded learning items have stable IDs and use FR-ST-15 per-user progress.
 
 **Measurable criteria**
 - Complete Learning Overview generates in $\le 30.0\text{ s}$ (P95).

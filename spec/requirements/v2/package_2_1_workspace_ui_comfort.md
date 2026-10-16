@@ -3,8 +3,10 @@
 - **Release:** v2.0
 - **Goal:** Enrich the notebook home overview and workspace UI with visual metadata (custom emoji/icon, timestamps, source counters), grid/list view switching, sorting, pinning, dark/light theme support, and output language configuration.
 - **FRs:** FR-WM-02, FR-WM-03, FR-UI-02
-- **Gate criteria (SRS §5.4):** Gate v2.0 — UI and metadata persistence verified alongside v2.0 functional roundtrip tests.
+- **Gate criteria (SRS §5.4):** No direct Gate v2.0 item; metadata, theme and language acceptance tests support the integrated v2 release, but do not substitute for Gate v2.0 #1–3.
 - **Out of scope:** Multi-user sharing badges and analytics (`v6.0` — `FR-WM-05`, `FR-WM-06`).
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -16,7 +18,7 @@
 | Priority (within package) | P2 |
 | Actors | Owner/Editor, Viewer (read-only) |
 | Depends on | FR-WM-01, FR-SI-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall assign and display for every notebook an emoji/icon, title, creation/last-modified timestamp, and current count of `Ready` sources (`"<n> sources"` / `"<n> Quellen"`).
@@ -37,7 +39,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.1 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Emoji icon | Unicode Emoji string | Single valid Unicode emoji grapheme cluster ($\le 16\text{ bytes}$ UTF-8) | `"📓"` (auto-updated on first source ingest) |
+| Emoji icon | Unicode Emoji string | Single valid Unicode emoji grapheme cluster (including multi-code-point ZWJ and skin-tone sequences) | `"📓"` (auto-updated on first source ingest) |
 | Source count | Integer | $0 \le n \le N_{\text{max}}$ | $0$ |
 
 **Outputs & state**
@@ -83,10 +85,10 @@ Scenario: Adding a source increments the card source counter
 | Priority (within package) | P2 |
 | Actors | Owner/Editor, Viewer |
 | Depends on | FR-WM-01, FR-WM-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Ubiquitous:* The home overview shall provide a toggle between a **Grid View** (cards) and a **List View** (tabular rows) and a sort dropdown offering `Most recent` (`Zuletzt geöffnet/geändert`), `Title` (`Titel A–Z`), and `Created date` (`Erstellungsdatum`).
+- *Ubiquitous:* The home overview shall provide a toggle between a **Grid View** (cards) and a **List View** (tabular rows) and a sort dropdown offering `Most recently opened` (`Zuletzt geöffnet`; per-user `last_opened_at` descending, falling back to `created_at` for unopened notebooks), `Title` (`Titel A–Z`), and `Created date` (`Erstellungsdatum`).
 - *Event:* When the user clicks the pin icon (or selects `"Pin"` from the card menu) on a notebook, the system shall mark the notebook as pinned for that user and keep pinned notebooks anchored at the top of the overview ahead of unpinned notebooks.
 - *Event:* When the user switches between Grid View and List View or changes the sort order, the system shall re-render the list immediately and persist the view preference in user settings / `localStorage`.
 
@@ -109,7 +111,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.1 FR
 
 **Outputs & state**
 - Visible: Grid cards or tabular list rows; active pin badge on pinned notebooks.
-- Persisted: `is_pinned` in database (`UserNotebookPreference`); view mode and sort order in user profile / `localStorage`.
+- Persisted: `is_pinned` and `last_opened_at` in database (`UserNotebookPreference`); opening a notebook does not change its content `updated_at`; view mode and sort order in user profile / `localStorage`.
 - States: `Unpinned` $\leftrightarrow$ `Pinned`.
 
 **Acceptance criteria (Gherkin)**
@@ -130,7 +132,7 @@ Scenario: Switching between Grid and List view persists across page reloads
 - User has $0$ notebooks $\rightarrow$ Overview displays an empty-state call-to-action (`"Create your first notebook"`) and hides/disables sort controls.
 
 **Measurable criteria**
-- Sorting and view-mode toggling up to $200$ notebooks completes client-side in $\le 100\text{ ms}$.
+- Sorting and view-mode toggling up to $500$ notebooks completes client-side in $\le 100\text{ ms}$.
 
 **Deviations from reference:** Explicit pinning is included as a first-class feature (`FR-WM-03`) in addition to the reference's sort-by-recency/title controls.
 
@@ -148,10 +150,11 @@ Scenario: Switching between Grid and List view persists across page reloads
 | Priority (within package) | P2 |
 | Actors | Owner/Editor, Viewer, Chat-only |
 | Depends on | FR-UI-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the user selects `Light mode`, `Dark mode`, or `System` (`Device default`) from the top-right Settings menu, the system shall apply the selected color theme across all panels without reloading the page and persist the preference.
+- *Event:* When a user configures input language globally or for a notebook, the system shall use that BCP-47 preference for typed/spoken input handling; `auto` detects input language without translating stored source text. Notebook defaults are editable only by Owner/Editor from v6; other users can override their own preferences.
 - *Event:* When the user selects an `Output language` (`Ausgabesprache`) in the global or notebook-level settings, the system shall instruct all chat, Source Guide, Note Assistant, and Studio synthesis agents to generate their responses in that target language, regardless of the language of the uploaded source documents.
 
 **User story:** As an international enterprise user, I want to toggle Dark/Light mode and set the output language of my notebook, so that I can read foreign-language sources and receive summaries, chats, and reports in my preferred working language.
@@ -168,11 +171,11 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.6 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Theme preference | Enum | `light` \| `dark` \| `system` | `system` |
-| Output language | BCP-47 language tag | Supported enterprise languages (e.g., `de-DE`, `en-US`, `fr-FR`, `es-ES`, `ja-JP`, etc. — $\ge 35$ languages) | Account / Browser locale (`de-DE`) |
+| Output language | BCP-47 language tag | Supported enterprise languages (e.g., `de-DE`, `en-US`, `fr-FR`, `es-ES`, `ja-JP`, etc. — $\ge 35$ languages) | Supported account locale, then browser locale, then `en-US`; no fixed German default |
 
 **Outputs & state**
 - Visible: Immediate CSS theme switch; generated AI text appears in the configured target language.
-- Persisted: `theme` on user profile/`localStorage`; `output_language` on `User` (global default) and overridable per `Notebook`.
+- Persisted: `theme` on user profile/`localStorage`; `input_language` and `output_language` on `User`, with notebook defaults and personal per-notebook overrides. Effective precedence: explicit job language > personal notebook override > notebook default > user default > supported browser locale > `en-US`; input defaults to `auto`.
 - States: `LightTheme` $\leftrightarrow$ `DarkTheme` $\leftrightarrow$ `SystemTheme`.
 
 **Acceptance criteria (Gherkin)**

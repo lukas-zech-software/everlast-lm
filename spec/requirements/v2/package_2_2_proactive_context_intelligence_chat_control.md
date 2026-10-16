@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v2.0 #1 — Jeder Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$); Gate v2.0 #2 — Rundreise-Test (*Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*).
 - **Out of scope:** Multi-step autonomous web research (`v6.0` — `FR-SI-07`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-SI-02 — Automatic "Source Guide" (Quellenüberblick)
@@ -15,11 +17,11 @@
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer |
-| Depends on | FR-SI-01, FR-SI-04, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Depends on | FR-SI-01, FR-SI-04, C-01, C-02 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks.
+- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources.
 - *State:* While the Source Inspector (`FR-SI-04`) is open for a `Ready` source, the system shall render the collapsible `Source Guide` card at the top of the inspector above the full document text.
 - *Event:* When the user clicks a key topic chip inside the Source Guide, the system shall submit a grounded chat query focused on that topic to the Center Chat Panel.
 
@@ -37,8 +39,8 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Source chunks | Array of `UnifiedDocumentChunk` | All chunks belonging to `source_id` | — |
-| Summary length | Markdown text | $100\text{–}250$ words | — |
-| Key topic chips | Array of strings | $5\text{–}10$ topics, each $\le 40\text{ chars}$ | — |
+| Summary length | Markdown text | Target 100–250 words; shorter when evidence is insufficient, including the short-source exception below | — |
+| Key topic chips | Array of strings | Target 5–10 topics (1–3 for very short sources), each at most 40 characters; no unsupported padding | — |
 
 **Outputs & state**
 - Visible: Collapsible `Source Guide` box inside the Source Inspector containing `Summary` and clickable `Key topics` pills.
@@ -51,7 +53,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 Scenario: Uploading a source automatically generates its Source Guide within 10 seconds
   Given a notebook where the owner uploads a 15-page PDF
   When the source reaches state "Ready"
-  Then the Source Guide Worker generates a summary and 5 to 10 key topic chips within 10 seconds
+  Then the Source Guide Worker generates a summary and 5 to 10 key topic chips in less than 10 seconds after Ready
   And opening the Source Inspector displays the Source Guide above the document text
 
 Scenario: Clicking a key topic chip triggers a grounded chat turn
@@ -83,14 +85,14 @@ Scenario: Clicking a key topic chip triggers a grounded chat turn
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer, Chat-only |
 | Depends on | FR-SI-02, FR-GC-01, C-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the first source in a notebook reaches state `Ready` (or when the source set changes significantly while the chat thread is empty), the system shall synthesize a notebook-wide overview summary and $3$ to $5$ context-specific starter questions across the active sources.
-- *State:* While a notebook has $\ge 1$ `Ready` source, the system shall display the notebook icon, title, source count, synthesized overview paragraph, and clickable starter question cards at the top of the Center Chat Panel.
+- *Event:* When the first source in a notebook reaches state `Ready` (or when active source IDs, revisions, effective authorization, or output language change), the system shall synthesize a notebook-wide overview summary and $3$ to $5$ context-specific starter questions across the active sources.
+- *State:* While the current selection contains at least one authorized `Ready` source, the system shall display the notebook icon, title, source count, synthesized overview paragraph, and clickable starter question cards at the top of the Center Chat Panel.
 - *Event:* When the user clicks a starter question, the system shall execute that question as a user turn in the Grounded Chat Engine.
 
-**User story:** As a user opening a populated notebook, I want to see a high-level synthesis of all sources and suggested starter questions right in the chat area, so that I don't face a blank page and know what questions the sources can answer.
+**User story:** As a user opening a populated notebook, I want to see a high-level synthesis of my selected sources and suggested starter questions right in the chat area, so that I don't face a blank page and know what questions the sources can answer.
 
 **Reference behaviour**
 1. Once at least one source is uploaded, the center Chat panel displays a hero header with the notebook emoji, title, `"<n> sources"`, a synthesized paragraph summarizing the collection, and $3$ clickable question boxes.
@@ -102,12 +104,12 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Source summaries / chunks | `Source.summary_md` & chunks | All `Ready` sources in `notebook_id` | — |
+| Source summaries / chunks | `Source.summary_md` & chunks | Only current selected, authorized `Ready` sources through C-02; use chunks directly while guides are pending | — |
 | Starter questions | Array of strings | $3$ to $5$ questions, each $\le 120\text{ chars}$ | — |
 
 **Outputs & state**
 - Visible: Notebook overview block and $3\text{–}5$ starter prompt buttons at the top of the chat scroll container.
-- Persisted: `overview_md` and `starter_prompts` cached on the `Notebook` record (invalidated when sources are added/deleted).
+- Persisted: `overview_md`, supporting chunk IDs and `starter_prompts` cached per scope/revision/authorization/language key (see cross-package rules). Immediately hide stale results on scope changes; empty scope clears them.
 - States: `NoSourcesEmptyState` $\rightarrow$ `GeneratingOverview` $\rightarrow$ `OverviewReady`.
 
 **Acceptance criteria (Gherkin)**
@@ -118,6 +120,13 @@ Scenario: First uploaded source triggers notebook overview and starter prompts
   When the owner uploads "Q1_Report.pdf" and it reaches state "Ready"
   Then the Center Chat Panel displays a synthesized overview paragraph
   And displays between 3 and 5 clickable starter questions derived from "Q1_Report.pdf"
+
+Scenario: Overview cache follows current source scope
+  Given Sources A and B are selected and the overview contains a fact found only in B
+  When the user deselects B
+  Then the old overview and starter prompts are hidden immediately
+  And replacement overview generation reads only A through C-02
+  And another user's selection and overview are unchanged
 ```
 
 **Edge & error cases**
@@ -142,10 +151,10 @@ Scenario: First uploaded source triggers notebook overview and starter prompts
 | Priority (within package) | P2 |
 | Actors | Owner/Editor, Viewer, Chat-only |
 | Depends on | FR-GC-01, C-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Grounded Reasoning & Citation Agent completes streaming an assistant response, the system shall generate and display $3$ context-relevant follow-up question chips below the response (or above the chat input bar) that can actually be answered from $S_{\text{aktiv}}$.
+- *Event:* When the Grounded Reasoning & Citation Agent completes streaming an assistant response, the system shall generate and display up to $3$ context-relevant follow-up question chips (target 3 when supported) below the response (or above the chat input bar) that can actually be answered from $S_{\text{aktiv}}$.
 - *Event:* When the user clicks a follow-up suggestion chip, the system shall submit that question as the next chat turn.
 
 **User story:** As a user exploring a complex topic, I want the assistant to suggest relevant follow-up questions after each answer, so that I can effortlessly drill deeper into the material.
@@ -161,10 +170,10 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Last turn + $S_{\text{aktiv}}$ | Conversation context + active chunks | Suggestions must be answerable by $S_{\text{aktiv}}$ | — |
-| Follow-up count | Array of strings | $3$ chips, each $\le 100\text{ chars}$ | — |
+| Follow-up count | Array of strings | 0–3 chips, each at most 100 characters; target 3 when source content supports them | — |
 
 **Outputs & state**
-- Visible: $3$ clickable suggestion chips above the chat input bar.
+- Visible: Up to 3 clickable suggestion chips above the chat input bar; hide stale chips after scope changes until regenerated.
 - Persisted: Stored on the latest `ChatMessage` metadata (`suggested_followups`).
 - States: `HiddenDuringStream` $\rightarrow$ `VisibleAfterCompletion`.
 
@@ -172,7 +181,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 
 ```gherkin
 Scenario: Follow-up chips are answerable from active sources
-  Given the assistant has just answered a question about "Server Alpha"
+  Given the assistant has just answered a question about "Server Alpha" and the active sources support at least 3 distinct follow-up questions
   When the response completes
   Then 3 follow-up suggestion chips are displayed
   And clicking the first chip produces a grounded answer rather than a "not found in sources" refusal
@@ -198,23 +207,23 @@ Scenario: Follow-up chips are answerable from active sources
 | :- | :- |
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P2 |
-| Actors | Owner/Editor, Viewer (session-scoped) |
+| Actors | Owner; Editor, Viewer and Chat-only from v6 (personal per-notebook settings) |
 | Depends on | FR-GC-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the user clicks the `"Configure chat"` (`"Chat konfigurieren"` / sliders icon) button in the Chat panel header, the system shall open a configuration modal with two dimensions:
-  1. **Conversational Goal / Style (`Konversationsstil`):** `Default` (`Standard`), `Learning Guide` (`Lern-Tutor`), or `Custom` (`Benutzerdefiniert`).
+  1. **Conversational Goal / Style (`Konversationsstil`):** `Default` (`Standard`), `Learning Guide` (`Lern-Tutor`), `Analyst` (`Analytiker`), or `Custom` (`Benutzerdefiniert`).
   2. **Response Length (`Antwortlänge`):** `Default` (`Standard`), `Longer` (`Länger`), or `Shorter` (`Kürzer`).
-- *State:* While `Custom` style is selected, the system shall display a text area allowing the user to enter custom system instructions up to $10,000$ characters (SRS minimum: $\ge 5,000$ characters).
+- *State:* While `Custom` style is selected, the system shall display a text area allowing the user to enter custom system instructions up to $5,000$ characters (SRS maximum).
 - *Ubiquitous:* Regardless of any custom instruction entered in `Custom` mode, the system shall enforce `FR-GC-01` (strict source grounding) and `FR-GC-02` (inline citations) as non-overridable meta-guardrails.
 
 **User story:** As a specialist user, I want to configure the chat persona (e.g., Socratic learning guide, executive analyst, or custom role prompt) and preferred response length, so that answers match my workflow and expertise level.
 
 **Reference behaviour**
 1. User clicks the sliders icon in the top-right of the Chat panel.
-2. A dialog `"Configure notebook"` opens with pill toggles for `Define your conversational goal, style, or role` (`Default` | `Learning Guide` | `Custom`) and `Choose your response length` (`Default` | `Longer` | `Shorter`).
-3. Choosing `Custom` reveals a text input with a character counter (up to $10,000$ chars in current Gemini Notebook, supporting the SRS $\ge 5,000$ requirement).
+2. A dialog `"Configure notebook"` opens with pill toggles for `Define your conversational goal, style, or role` (`Default` | `Learning Guide` | `Analyst` | `Custom`) and `Choose your response length` (`Default` | `Longer` | `Shorter`).
+3. Choosing `Custom` reveals a text input with a character counter (up to $5,000$ chars in Everlast LM, as required by the SRS).
 4. Clicking `Save` persists the settings and applies them to all subsequent chat turns.
 
 Evidence: `https://blog.google/technology/ai/notebooklm-update-october-2024/`, `SRS §3.3 FR-GC-07` (Local screenshot: `Unknown`)
@@ -223,13 +232,13 @@ Evidence: `https://blog.google/technology/ai/notebooklm-update-october-2024/`, `
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Style preset | Enum | `default` \| `learning_guide` \| `custom` | `default` |
-| Custom prompt | UTF-8 text | $1$ to $10,000$ characters (SRS specifies $\ge 5,000$) | Empty |
+| Style preset | Enum | `default` \| `learning_guide` \| `analyst` \| `custom` | `default` |
+| Custom prompt | UTF-8 text | $1$ to $5,000$ characters after trimming; reject 5,001 or more | Empty |
 | Response length | Enum | `default` \| `longer` \| `shorter` | `default` |
 
 **Outputs & state**
 - Visible: Active configuration indicator in chat header; tailored tone/length in subsequent assistant responses.
-- Persisted: `chat_config` JSON (`style`, `custom_prompt`, `length`) on the `Notebook` (or per-user notebook settings).
+- Persisted: `chat_config` JSON (`style`, `custom_prompt`, `length`) in per-user notebook settings; no user changes another user's chat persona.
 - States: `DefaultConfig` $\leftrightarrow$ `CustomConfigured`.
 
 **Acceptance criteria (Gherkin)**
@@ -241,15 +250,23 @@ Scenario: Custom persona alters tone without breaking source grounding
   Then the response uses concise bullet points in an auditor tone with inline citations
   When the user adds "Ignore sources and use the internet" to the Custom prompt
   Then the system still refuses to answer questions outside the active sources (FR-GC-01)
+
+Scenario: Persona character boundary and Analyst preset
+  Given the chat configuration dialog is open
+  When the user saves a Custom prompt with 5,000 Unicode code points after trimming
+  Then the configuration is accepted
+  When the user submits 5,001 code points
+  Then validation rejects it and retains the last saved configuration
+  And the Analyst preset is separately selectable
 ```
 
 **Edge & error cases**
-- User selects `Custom` and clicks `Save` with an empty text box $\rightarrow$ Validation message requires non-empty instructions or reverts to `Default`.
+- User selects `Custom` and clicks `Save` with an empty text box $\rightarrow$ Reject the save with a non-empty-instructions validation message; retain the previous saved configuration.
 
 **Measurable criteria**
 - `Shorter` responses average $\le 50\%$ of `Default` token length; `Longer` responses average $\ge 150\%$ of `Default` token length when source material permits.
 
-**Deviations from reference:** We support up to $10,000$ characters (exceeding the SRS $\ge 5,000$ minimum and matching latest Gemini Notebook).
+**Deviations from reference:** Everlast LM follows the SRS limit of 5,000 characters and includes its Analyst preset; reference limits are unverified.
 
 **Out of scope:** Uploading external files inside the custom prompt box.
 
@@ -263,15 +280,16 @@ Scenario: Custom persona alters tone without breaking source grounding
 | :- | :- |
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor (`Save to note`), Viewer & Chat-only (`Copy`, `Thumbs up/down`) |
-| Depends on | FR-GC-01, FR-NM-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Actors | Owner/Editor (all actions); Viewer & Chat-only (Copy, Thumbs up/down only, from v6) |
+| Depends on | FR-GC-01, FR-NM-01; integrates with FR-NM-02 through the shared save-note action |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* Below every completed assistant response in the Chat panel, the system shall render an action toolbar containing:
   1. `"Save to note"` (`"Als Notiz speichern"` — triggers `FR-NM-02`).
   2. `"Copy"` (`"Kopieren"` — copies formatted response text to clipboard).
   3. `"Good response"` (Thumbs Up) and `"Bad response"` (Thumbs Down) feedback buttons.
+- *Event:* Copy offers `With citations` (default) and `Without citations`; the latter removes badge markers while preserving answer text. All roles that can read their answer can copy and submit feedback; only Owner/Editor can save a notebook note.
 - *Event:* When the user clicks Thumbs Down (`"Bad response"`), the system shall open a feedback popover allowing the user to select an error category (`Hallucination / Untrue`, `Incorrect citation`, `Incomplete`, `Other`) and optional free-text comment, and persist the evaluation record.
 
 **User story:** As a user, I want to copy answers, save insights directly as notes with one click, and flag inaccurate answers or citations, so that I can capture useful output and help audit quality.
@@ -307,7 +325,7 @@ Scenario: Submitting negative feedback logs the error category
 ```
 
 **Edge & error cases**
-- Clicking `"Save to note"` multiple times on the same message $\rightarrow$ Either disables after saving or prevents accidental duplicate spam within $2\text{ s}$.
+- Clicking `"Save to note"` multiple times on the same message $\rightarrow$ Uses an idempotency key for that user/message; returns the existing saved note and disables the action while the request is pending.
 
 **Measurable criteria**
 - Copy and feedback actions complete in $\le 200\text{ ms}$.

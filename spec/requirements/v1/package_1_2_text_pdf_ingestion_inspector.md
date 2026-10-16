@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v1.0 #1 — an end-to-end upload (PDF/MD) produces valid `UnifiedDocumentChunk` records; Gate v1.0 #2, `NFR-EVAL-04` part — $\text{Leakage} = 0$; Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
 - **Out of scope:** DOCX, PPTX, Web URLs, YouTube/Video URLs, Audio ASR, and source re-sync (`v3.0` — `FR-SI-01` Subset B, `FR-SI-05`); automatic Source Guide generation (`v2.0` — `FR-SI-02`); Discover Sources / Deep Research (`v6.0` — `FR-SI-06`, `FR-SI-07`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-SI-01 (Subset A) — Text, Markdown, PDF & Copied Text Ingestion
@@ -16,11 +18,11 @@
 | Priority (within package) | P1 |
 | Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-WM-01, FR-WM-07, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor uploads a `.pdf`, `.txt`, or `.md` file or submits pasted text via the "Copied text" dialog, the system shall create a `Source` record in state `Uploading`, move it to `Processing` once the content is received, extract the text and structural layout (including OCR for scanned PDF pages and table structure), segment it into `UnifiedDocumentChunk` objects (`Contract C-01`), and transition the source to `Ready`.
-- *Ubiquitous:* The system shall assign every `UnifiedDocumentChunk` a deterministic `locator` (`page_number` and character/paragraph `span` for PDFs; character/paragraph `span` for TXT/MD/Copied Text) so that citations can resolve back to the exact passage.
+- *Ubiquitous:* The system shall assign every `UnifiedDocumentChunk` a deterministic `locator` (`page_span` with page and text offsets for PDFs; `page_span` with paragraph/text offsets and no physical page for TXT/MD/Copied Text) so that citations can resolve back to the exact passage.
 - *Unwanted:* If a file is corrupted, password-protected, or contains zero extractable text even after OCR, then the system shall transition the source state to `Failed` and display an inline error indicator next to the source in the sidebar.
 
 **User story:** As a researcher, I want to upload PDFs (including scanned documents), text files, Markdown files, or pasted clipboard text into my notebook, so that the AI can analyze and cite their contents accurately.
@@ -40,7 +42,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 | :- | :- | :- | :- |
 | File upload | `.pdf`, `.txt`, `.md` | Max $200\text{ MB}$, max $500,000$ words per source (`FR-WM-07`) | — |
 | Copied text | UTF-8 string | $1\text{ char}$ to $500,000$ words | Source title: `"Pasted text"` |
-| `UnifiedDocumentChunk` | `Contract C-01` JSON | `source_id`, `chunk_id`, `text`, `token_count`, `locator` (`page_span` / `char_span`) | — |
+| `UnifiedDocumentChunk` | `Contract C-01` JSON | `source_id`, `chunk_id`, `text`, `token_count`, `locator` (`page_span`; text-only sources omit the physical page) | — |
 
 **Outputs & state**
 - Visible: Source item in left sidebar with format icon, title, and status indicator.
@@ -83,7 +85,7 @@ Scenario: Password-protected PDF fails gracefully
 
 **Out of scope:** Google Drive picker integration, DOCX/PPTX, Web URLs, YouTube, Audio (`v3.0`).
 
-**Open questions:** What is the exact chunk size / token overlap used internally by Gemini Notebook when falling back from full-context injection to chunked citation mapping? (`Unknown` — we define $300\text{–}600$ tokens per citation span in `C-01`).
+**Open questions:** None for implementation. Reference chunking internals are unverified. The architecture uses structure-aware chunks targeting 300–600 tokens with overlap, without crossing page/section boundaries; size is a chunker policy, not part of C-01. Short boundary fragments may be below 300 tokens; split oversized sections rather than exceed the configured cap.
 
 ---
 
@@ -95,14 +97,14 @@ Scenario: Password-protected PDF fails gracefully
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer (from v6.0) |
 | Depends on | FR-SI-01, C-02, NFR-EVAL-04 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall display a checkbox next to every source in the left sidebar and a master `"Select all sources"` checkbox at the top of the source list.
-- *Event:* When a new source finishes ingestion (`Ready`), the system shall automatically set its checkbox to selected ($s_i \in S_{\text{aktiv}}$).
+- *Event:* When a new source finishes ingestion (`Ready`), the system shall automatically set its checkbox to selected in the importing user's session only ($s_i \in S_{\text{aktiv}}$).
 - *Event:* When the user toggles any source checkbox or the `"Select all sources"` checkbox, the system shall immediately update the active source set $S_{\text{aktiv}}$ and update the counter badge (`"<n> sources"` / `"<n> Quellen"`) inside the chat input bar.
 - *State:* While a source is in state `Uploading`, `Processing`, or `Failed`, the system shall disable its selection checkbox and exclude it from $S_{\text{aktiv}}$.
-- *Unwanted:* If the user deselects all sources ($|S_{\text{aktiv}}| = 0$), then the system shall disable the chat submit button and display a prompt to select at least one source.
+- *Unwanted:* If the user deselects all sources ($\lvert S_{\text{aktiv}}\rvert = 0$), then the system shall disable chat submit and Studio generation, display a prompt to select at least one source, and reject empty-scope generation requests server-side.
 
 **User story:** As a knowledge worker, I want to check or uncheck individual sources in the sidebar before asking a question, so that I can restrict the AI's reasoning to a specific subset of documents.
 
@@ -118,7 +120,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $0 \le |S_{\text{aktiv}}| \le N_{\text{max}}$, each source must be in state `Ready` | All `Ready` sources in the notebook |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $0 \le \lvert S_{\text{aktiv}}\rvert \le N_{\text{max}}$, each source must be in state `Ready` | All `Ready` sources in the notebook |
 
 **Outputs & state**
 - Visible: Individual checkboxes, master checkbox (checked / indeterminate / unchecked), and `"<n> sources"` indicator in the chat input bar.
@@ -155,7 +157,7 @@ Scenario: Zero sources selected disables chat input
 
 **Out of scope:** Saved selection presets / source folders.
 
-**Open questions:** In multi-user shared notebooks (`v6.0`), is checkbox selection state local to the user's browser session or persisted per user on the server? (`Unknown` — in `v1.0`, persisted in client state + passed per API request).
+**Open questions:** None. Selection is local per user, browser session, and notebook and is passed explicitly on each request (see the cross-package rules).
 
 ---
 
@@ -167,7 +169,7 @@ Scenario: Zero sources selected disables chat input
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer (from v6.0) |
 | Depends on | FR-SI-01, FR-GC-03, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the user clicks a source title in the left sidebar, the system shall expand the left panel into the Source Inspector view and render the formatted full text of that source without leaving or resetting the active chat session.
@@ -189,7 +191,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | `source_id` | UUID | Must exist in current `notebook_id` | — |
-| `highlight_chunk_id` (optional) | UUID / `locator` (`Contract C-01`) | Valid `chunk_id` belonging to `source_id` | `null` (scroll to top) |
+| `highlight_chunk_id` (optional) | Chunk UUID (`Contract C-01`; locator is resolved server-side) | Valid `chunk_id` belonging to `source_id` | `null` (scroll to top) |
 
 **Outputs & state**
 - Visible: Expanded left panel with document header, scrollable full-text container (`data-chunk-id` anchors), and highlighted passage when triggered from a citation.
@@ -204,7 +206,7 @@ Scenario: Clicking source title opens full text at top
   When the user clicks the title "Architecture_Spec.md" in the sidebar
   Then the Source Inspector opens in the left panel
   And renders the full text of "Architecture_Spec.md" scrolled to the top
-  And the middle Chat panel remains visible and intact
+  And on desktop the middle Chat panel remains visible and intact (on narrow screens the Chat tab retains its state)
 
 Scenario: Citation click scrolls deterministically to target chunk
   Given a chat answer with citation [2] pointing to chunk "chk_042" on page 7 of "Report.pdf"
@@ -215,7 +217,7 @@ Scenario: Citation click scrolls deterministically to target chunk
 ```
 
 **Edge & error cases**
-- Very large source ($400,000$ words) opened in Source Inspector $\rightarrow$ Uses virtualized scrolling / windowed chunk rendering so jumping to `chk_1500` (with $300\text{–}600$-token chunks, roughly $700\text{–}1,800$ chunks in total) completes without freezing the browser tab.
+- Very large source ($400,000$ words) opened in Source Inspector $\rightarrow$ Uses virtualized scrolling / windowed chunk rendering so jumping to `chk_1500` (with structure-aware chunks targeting 300–600 tokens; exact chunk count depends on content and overlap) completes without freezing the browser tab.
 - User clicks a second citation `[3]` from a different source while Source Inspector is already open on `[1]` $\rightarrow$ Inspector switches immediately to the new source and scrolls to `[3]`.
 
 **Measurable criteria**

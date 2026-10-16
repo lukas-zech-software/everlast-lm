@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v3.0 #3 — Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX.
 - **Out of scope:** Slide Decks and Infographics (`v4.0` — `FR-ST-16`, `FR-ST-17`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-ST-08 — Automatic Mindmap Generation
@@ -16,11 +18,11 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-SI-03, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Mind Map"` (`"Mindmap"`) generator chip/tile in the Studio or Chat overview, the `Graph Synthesis Agent` shall synthesize the active sources ($S_{\text{aktiv}}$) into a strictly hierarchical, acyclic tree (`root` $\rightarrow$ `main branches` $\rightarrow$ `sub-topics` $\rightarrow$ `leaf facts`) and store it as a `StudioArtifact` (`Contract C-03`).
-- *Unwanted:* If the LLM generates cyclic edges, orphan nodes, or duplicate node IDs, then the schema validator shall normalize or reject the graph before persisting so that every saved Mindmap is a valid rooted tree.
+- *Unwanted:* If the LLM generates cyclic edges, orphan nodes, or duplicate node IDs, then the schema validator shall reject the invalid graph and mark the job Failed before publishing so that every saved Mindmap is a valid rooted tree.
 
 **User story:** As a visual thinker, I want to generate a hierarchical mindmap from my selected sources with one click, so that I can see how central concepts, subtopics, and details connect across all my documents.
 
@@ -35,7 +37,7 @@ Evidence: `https://blog.google/technology/ai/notebooklm-mind-maps-2025/`, `SRS �
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
 | Tree depth & size | Directed Acyclic Tree JSON | Depth $2\text{–}5$ levels; $15\text{–}120$ total nodes; each node label $\le 80\text{ chars}$ | Initial render expanded to depth $2$ |
 
 **Outputs & state**
@@ -76,7 +78,7 @@ Scenario: Generated Mindmap JSON is strictly hierarchical and acyclic (Gate v3.0
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer |
 | Depends on | FR-ST-08, FR-GC-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The Mindmap Viewer shall provide controls to pan, zoom in/out, fit-to-screen, expand/collapse child branches (`>` / `<` chevron on each parent node), and download the rendered mindmap as a high-resolution `.png` or `.svg` file.
@@ -118,10 +120,18 @@ Scenario: Exporting Mindmap downloads valid PNG and SVG files
   Given an open Mindmap with 25 visible nodes
   When the user clicks "Export PNG" and "Export SVG"
   Then a non-empty valid PNG image and a valid SVG document containing all 25 node labels are downloaded
+
+Scenario: Drilldown does not restore a historical source selection
+  Given a mindmap node was generated from Source B
+  And only Source A is currently selected
+  When the user clicks that node
+  Then the UI prompts the user to select supporting sources
+  And B is not automatically selected
+  And no B-derived node label or summary enters the chat prompt
 ```
 
 **Edge & error cases**
-- Clicking a node when all sources were subsequently deselected ($|S_{\text{aktiv}}| = 0$) $\rightarrow$ Automatically restores the Mindmap's `active_source_ids_snapshot` or prompts the user to select sources.
+- Clicking a node when all sources were subsequently deselected ($\lvert S_{\text{aktiv}}\rvert = 0$) $\rightarrow$ Prompts the user to select sources; never restores a snapshot automatically or sends labels derived from deselected sources into Chat.
 
 **Measurable criteria**
 - Canvas pan/zoom and node expand/collapse render at $60\text{ fps}$ ($\le 16\text{ ms}$ frame time) up to $120$ nodes.
@@ -142,7 +152,7 @@ Scenario: Exporting Mindmap downloads valid PNG and SVG files
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer (export) |
 | Depends on | FR-SI-03, C-02, C-03 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.6 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.6 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Data Table"` (`"Datentabelle"`) tile in the Studio panel (optionally providing a focus prompt such as `"Compare all vendors by pricing, SLA, and certifications"` or choosing a suggested table schema), the `Table Extraction Agent` shall extract structured rows and columns across $S_{\text{aktiv}}$ and persist a `StudioArtifact` (`Contract C-03`).
