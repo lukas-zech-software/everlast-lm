@@ -1,4 +1,4 @@
-# Everlast LM
+<h1><img alt="Everlast LM: spec-driven, agent-built re-implementation of Gemini Notebook" src="docs/assets/social-preview.png" width="100%"></h1>
 
 **A spec-driven, agent-built re-implementation of Gemini Notebook (formerly NotebookLM) on Google Cloud.**
 
