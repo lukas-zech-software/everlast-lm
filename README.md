@@ -373,11 +373,12 @@ visible and gives agents an assignable unit of work. It was generated from the S
 - **Labels:** `type:*`, `domain:*`, `needs-clarification` and `spec-drift`.
 
 The issues were generated from the first SRS baseline. The FR cards and decisions `D1`–`D10` came later, so a full audit
-compared all 89 issues against the current specification. **All 55 requirement IDs are covered.** 23 issues were labelled
-`spec-drift` with a comment explaining the gap and a suggested fix. Most are open questions that the FR cards have
-since answered. A few contradict later decisions, for example the Google Slides export (D8), single-host Join-In (D7)
-and the deferred `@Notebook` integration (D5). Every issue and milestone now links to its current SRS section and FR
-card on `main`. The `spec-drift` findings themselves are resolved in the specification first, then in the issues.
+compared all 89 issues against the current specification. **All 55 requirement IDs are covered.** The audit flagged 23
+issues as `spec-drift`, and all 23 are now resolved: open questions that the FR cards answer were written into the
+issues, criteria that contradicted decisions were aligned (D7 single-host Join-In, D8 no Google Slides export, D10 link
+sharing in v6.0), and the deferred `@Notebook` integration (D5 / DEV-03) is labelled `status:deferred` and removed from
+the v6.0 gate. Every issue and milestone links to its current SRS section and FR card on `main`. Six issues keep
+`needs-clarification` for questions the specification deliberately leaves open, such as analytics data retention.
 
 ---
 
@@ -464,8 +465,8 @@ the multi-agent rules in `AGENTS.md`, the GitHub project with 89 issues, and an 
 4. **Shared prerequisites:** the monorepo scaffold, the contracts package and CI from the [next steps](#next-steps-independent-agent-sessions-in-the-cloud),
    plus the two-day ADK-for-TypeScript spike (risk R3) and a local pgvector prototype with an `NFR-EVAL-04` leakage
    test.
-5. **Bring the GitHub issues up to date.** Issues and milestones already link to the current SRS and FR cards. Still
-   open: resolve the 23 `spec-drift` findings and link each epic to its Spec Kit feature directory.
+5. **Link the GitHub issues to Spec Kit features.** The issues are in sync with the specification (all 23 audit
+   findings resolved); once `/speckit-specify` runs, each epic links to its `specs/NNN-…` feature directory.
 6. **Approve the cloud setup:** enable the v1 Google Cloud APIs (`aiplatform`, `sqladmin`, `cloudtasks`,
    `secretmanager`, `identitytoolkit`, `documentai`) and write the Terraform baseline.
 
