@@ -32,7 +32,10 @@ The intended runtime security model is part of the specification and binding for
 
 ## Repository safeguards
 
-- Secret scanning with push protection, Dependabot alerts and security updates are enabled.
+- Secret scanning with push protection, Dependabot alerts and security updates, CodeQL code scanning and private
+  vulnerability reporting are enabled: every security feature GitHub offers for public repositories on a personal
+  account. Generic-pattern detection and validity checks require GitHub Secret Protection on an organization plan and
+  are deliberately not used (owner decision, 2026-10-16).
 - GitHub Actions run with read-only tokens by default, are restricted to GitHub-owned and verified actions, and must
   be pinned to a full commit SHA.
 - `main` is protected: changes merge through pull requests with passing checks; force pushes and deletion are blocked.
