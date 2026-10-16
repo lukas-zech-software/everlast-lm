@@ -62,7 +62,7 @@
 | **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) in 6 functional domains, plus 3 architectural contracts (`C-01`..`C-03`) |
 | **Releases** | 6 incremental releases (v1.0 MVP to v6.0 Enterprise), 19 function packages, 6 automated release gates |
 | **FR cards** | 53 detailed requirement cards: **143 EARS statements**, **81 Gherkin acceptance scenarios**, about 33,000 words |
-| **Architecture** | 9 recorded decisions (`D1`..`D9`), 2 documented spec deviations (`DEV-01`, `DEV-02`), 8 tracked risks |
+| **Architecture** | 10 recorded decisions (`D1`..`D10`), 3 documented spec deviations (`DEV-01`..`DEV-03`), 8 tracked risks |
 | **Governance** | Constitution v1.0.1 with 6 principles, test-first marked non-negotiable |
 | **Agent tooling** | GitHub Spec Kit installed for Claude Code, Codex and GitHub Copilot; one shared `AGENTS.md` |
 | **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2) with 89 issues, 6 milestones, 3 views |
@@ -129,7 +129,7 @@ everlast-lm/
 │   │   └── v1/ … v6/             ← one file per function package, one card per requirement (19 files, 53 cards)
 │   └── evidence/                 ← screenshots and recordings of the reference product, per FR
 ├── docs/
-│   └── solution-architecture.md  ← binding technical choices, decisions D1–D9, risks, release mapping
+│   └── solution-architecture.md  ← binding technical choices, decisions D1–D10, risks, release mapping
 ├── scripts/
 │   └── check-spec-integrity.mjs  ← CI check: every link and anchor resolves, every SRS ID has an FR card
 ├── .specify/                     ← GitHub Spec Kit
@@ -265,11 +265,12 @@ graph LR
 | D2 | Language | TypeScript end-to-end; contracts are shared Zod schemas in `packages/contracts` |
 | D3 | Residency | EU (`europe-west4`) by default; exceptions in a per-feature region map |
 | D4 | Operating model | Cloud Run + one Postgres, scale to zero; Cloud SQL is the only fixed cost |
-| D5 | `@Notebook` integration | Deferred; the chat agent stays A2A-ready |
+| D5 | `@Notebook` integration | Deferred (`DEV-03`); Gate v6.0 #3 is not part of v6.0 acceptance; the chat agent stays A2A-ready |
 | D6 | Identity | Generic OIDC/SAML via Identity Platform until an IdP is chosen |
 | D7 | Live "Join-In" voice | Accepted deviation `DEV-01`: one designated host answers live questions |
 | D8 | Google Slides export | Deferred (`DEV-02`): `.pptx` and `.pdf` only, because Slides needs per-user OAuth |
 | D9 | Infographics | Deterministic SVG from a structured layout, no image model, so numbers stay traceable |
+| D10 | Audio link sharing | Moved to v6.0, because share-link access depends on the v6 sharing roles; v5.0 ships player and export |
 
 A design choice worth pointing out: the platform's "agents" from the SRS were sorted into **truly agentic** components
 (grounded chat, research, note assistant: ADK `LlmAgent` with tools) and **deterministic pipelines** (ingestion, every
@@ -371,7 +372,7 @@ visible and gives agents an assignable unit of work. It was generated from the S
 - **Views:** release overview (table), status board (kanban), package epics by release.
 - **Labels:** `type:*`, `domain:*`, `needs-clarification` and `spec-drift`.
 
-The issues were generated from the first SRS baseline. The FR cards and decisions `D1`–`D9` came later, so a full audit
+The issues were generated from the first SRS baseline. The FR cards and decisions `D1`–`D10` came later, so a full audit
 compared all 89 issues against the current specification. **All 55 requirement IDs are covered.** 23 issues were labelled
 `spec-drift` with a comment explaining the gap and a suggested fix. Most are open questions that the FR cards have
 since answered. A few contradict later decisions, for example the Google Slides export (D8), single-host Join-In (D7)
@@ -452,10 +453,9 @@ the multi-agent rules in `AGENTS.md`, the GitHub project with 89 issues, and an 
 
 **Still to do, in order:**
 
-1. **Fix the remaining spec contradictions.** Chunk size is 300–600 tokens in the v1 cards and about 400–800 in the
-   architecture; this blocks package 1.2. Also: the `FR-GC-07` custom-prompt limit (5,000 in the SRS, 10,000 in the
-   card), the release for `FR-ST-04` link sharing, and an SRS deviation entry for `D5` with the matching amendment of
-   Gate v6.0 criterion #3.
+1. **Spec contradictions: resolved.** The audit's open points are decided and recorded: chunk size 300–600 tokens in
+   both cards and architecture, the `FR-GC-07` custom prompt stays at 5,000 characters as in the SRS, `FR-ST-04` link
+   sharing moves to v6.0 (`D10`), and the `@Notebook` deferral is logged as `DEV-03` with Gate v6.0 #3 amended.
 2. **Review the remaining FR cards** before their releases are specified: v2 (2.1–2.4), 3.1, 3.3, 4.1, v5 (5.1, 5.2),
    6.1 and 6.2. The v1 cards are reviewed, so v1 is not blocked by this.
 3. **Run the Spec Kit stages for v1.** `/speckit-specify` → clarify → plan → tasks → `/speckit-analyze` (the
