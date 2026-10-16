@@ -14,12 +14,12 @@
   <img alt="Phase" src="https://img.shields.io/badge/phase-specification%20complete-2ea44f">
   <img alt="Implementation" src="https://img.shields.io/badge/implementation-not%20started-lightgrey">
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
-  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v1.0.1-informational"></a>
+  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v1.1.0-informational"></a>
   <a href="https://github.com/github/spec-kit"><img alt="Spec Kit" src="https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue?logo=github"></a>
   <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-conventional-fe5196"></a>
 </p>
 <p>
-  <img alt="Agents" src="https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20OpenCode-8a2be2">
+  <img alt="Agents" src="https://img.shields.io/badge/agents-Antigravity%20%C2%B7%20Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Copilot-8a2be2">
   <img alt="ACP" src="https://img.shields.io/badge/connected%20via-Agent%20Client%20Protocol-8a2be2">
   <img alt="TypeScript" src="https://img.shields.io/badge/planned-TypeScript-3178C6?logo=typescript&logoColor=white">
   <img alt="Google Cloud" src="https://img.shields.io/badge/target-Google%20Cloud%20%C2%B7%20europe--west4-4285F4?logo=googlecloud&logoColor=white">
@@ -63,8 +63,8 @@
 | **Releases** | 6 incremental releases (v1.0 MVP to v6.0 Enterprise), 19 function packages, 6 automated release gates |
 | **FR cards** | 53 detailed requirement cards: **150 EARS statements**, **96 Gherkin acceptance scenarios**, about 36,000 words |
 | **Architecture** | 13 recorded decisions (`D1`..`D13`), 3 documented spec deviations (`DEV-01`..`DEV-03`), 8 tracked risks |
-| **Governance** | Constitution v1.0.1 with 6 principles, test-first marked non-negotiable |
-| **Agent tooling** | GitHub Spec Kit installed for Claude Code, Codex and GitHub Copilot; one shared `AGENTS.md` |
+| **Governance** | Constitution v1.1.0 with 6 principles and 8 executable gate checks (`CC-01`..`CC-08`), test-first marked non-negotiable |
+| **Agent tooling** | GitHub Spec Kit (`agy` / `.agents/skills` and `.github/skills`), `git` + `github` extensions, and `pipeline` workflow; one shared `AGENTS.md` |
 | **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2) with 89 issues, 6 milestones, 3 views |
 | **Application code** | None yet, on purpose. See [Status](#status-what-is-missing-before-implementation-starts) |
 
@@ -124,24 +124,26 @@ everlast-lm/
 ├── spec/
 │   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: index of all requirement IDs and release gates
 │   ├── requirements/
-│   │   ├── README.md             ← how FR cards are written (11 fields to extract per requirement)
+│   │   ├── README.md             ← how FR cards are written + binding cross-package rules & prerequisites
 │   │   ├── _fr-card-template.md  ← EARS + Gherkin card template
 │   │   └── v1/ … v6/             ← one file per function package, one card per requirement (19 files, 53 cards)
 │   └── evidence/                 ← screenshots and recordings of the reference product, per FR
 ├── docs/
-│   └── solution-architecture.md  ← binding technical choices, decisions D1–D13, risks, release mapping
+│   ├── solution-architecture.md  ← binding technical choices, decisions D1–D13, risks, release mapping
+│   └── requirements-consistency-audit.md ← package-by-package audit across all 19 packages / 53 FR cards
 ├── scripts/
-│   └── check-spec-integrity.mjs  ← CI check: every link and anchor resolves, every SRS ID has an FR card
+│   └── check-spec-integrity.mjs  ← CI check: links/anchors, FR card coverage, and Spec Kit CC-01/CC-02 checks
 ├── .specify/                     ← GitHub Spec Kit
-│   ├── memory/constitution.md    ← project constitution (overrides everything)
-│   ├── templates/overrides/      ← repo customisations of Spec Kit templates (test-first tasks template)
+│   ├── memory/constitution.md    ← project constitution v1.1.0 (Principles I–VI and gates CC-01..CC-08)
+│   ├── templates/overrides/      ← repo customisations of Spec Kit templates (spec, plan, and test-first tasks)
+│   ├── workflows/pipeline/       ← full Spec Kit pipeline workflow (specify → clarify → plan → tasks → analyze → implement → converge)
+│   ├── extensions/               ← installed Spec Kit extensions (git and github)
 │   ├── scripts/bash/             ← Spec Kit helper scripts (managed)
-│   └── integrations/             ← install manifests for Claude, Codex and Copilot
-├── .claude/skills/speckit-*      ← Spec Kit commands for Claude Code
-├── .agents/skills/speckit-*      ← … for Codex
+│   └── integrations/             ← install manifests for Spec Kit
+├── .agents/skills/speckit-*      ← Spec Kit skills for Antigravity (agy) and Codex
 └── .github/
-    ├── skills/speckit-*          ← … for GitHub Copilot
-    ├── workflows/                ← CI (spec integrity), actions pinned to commit SHAs
+    ├── skills/speckit-*          ← Spec Kit skills for GitHub Copilot
+    ├── workflows/                ← CI (spec integrity, copilot setup steps), actions pinned to commit SHAs
     ├── ISSUE_TEMPLATE/           ← spec change request form
     └── CODEOWNERS                ← owner review for the serialised shared files
 ```
@@ -157,10 +159,10 @@ Agents get a strict order of precedence, so that no conflict has to be resolved 
 
 | Rank | Document | Binding for |
 | :-: | :- | :- |
-| 1 | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | Principles and process. Overrides everything. |
+| 1 | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | Principles, cross-package invariants and gates `CC-01`..`CC-08`. Overrides everything. |
 | 2 | [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) | **What** is built: all IDs, contracts, release packages and gates |
-| 3 | [FR cards](spec/requirements/README.md) | The detail of each requirement (limits, states, errors, acceptance scenarios) |
-| 4 | [Solution architecture](docs/solution-architecture.md) | **How** it is built: decisions `D1`..`Dn` |
+| 3 | [FR cards & rules](spec/requirements/README.md) | The detail of each requirement (limits, states, errors, acceptance scenarios) and cross-package rules |
+| 4 | [Solution architecture](docs/solution-architecture.md) | **How** it is built: decisions `D1`..`D13` |
 
 Changes follow fixed rules. New scope is added as an SRS amendment. Removing or deferring scope needs a recorded
 architecture decision. A deliberate difference from the reference product is logged twice: as a `DEV-xx` entry in SRS
@@ -224,16 +226,17 @@ cannot be tested. All 19 packages have now been reviewed and reconciled; the
 
 ## The constitution
 
-[`constitution.md`](.specify/memory/constitution.md) (v1.0.1) is the guardrail every Spec Kit stage checks against:
+[`constitution.md`](.specify/memory/constitution.md) (v1.1.0) is the guardrail every Spec Kit stage checks against,
+enforced through an 8-point Constitution Check Gate Table (`CC-01`..`CC-08`):
 
 | # | Principle | In one line |
 | :-: | :- | :- |
-| I | Spec Traceability | Every spec, plan, task and test cites an SRS ID; untraceable behaviour is not built |
-| II | **Test-First (non-negotiable)** | Spec-derived tests precede implementation, must fail first, and may not be weakened without an SRS amendment |
-| III | Grounding and Scoping | Answers only from active sources; citation IDs validated in code; deterministic eval suites on every PR |
-| IV | Architectural Contracts | `C-01`..`C-03` defined once as shared typed schemas; breaking changes need amendment and migration |
-| V | Release Gates | v(k+1) implementation waits for Gate v(k); every release is runnable |
-| VI | Security and Data | Enterprise model endpoints only (no training on customer data), server-side authorisation, EU by default |
+| I | Spec Traceability (`CC-01`) | Every spec, plan, task and test cites an SRS ID and transcribes FR card EARS/Gherkin and numeric/unit limits verbatim |
+| II | **Test-First (`CC-02`, non-negotiable)** | Spec-derived failing tests precede implementation, must fail first, and may not be weakened without an SRS amendment |
+| III | Grounding and Scoping (`CC-03`, `CC-04`) | Explicit `Ready` snapshot scoping, history/cache/drilldown hygiene, and pre-publication citation validation (`D13`) |
+| IV | Architectural Contracts (`CC-05`) | `C-01`..`C-03` defined once in `packages/contracts`; breaking changes after a gate need amendment, `Dn` and migration |
+| V | Release Gates (`CC-06`) | v(k+1) implementation waits for Gate v(k) and within-release prerequisites (`spec/requirements/README.md`) |
+| VI | Security, Quotas and Residency (`CC-07`, `CC-08`) | Enterprise EU (`europe-west4`) endpoints, role phasing (`v1–v5` Owner-only, `v6` RBAC), atomic source slots, ADK vs. deterministic boundaries |
 
 It also fixes the platform (TypeScript end-to-end, Google Cloud, Gemini via enterprise endpoints) and requires a
 recorded decision with alternatives before any new framework, datastore or fixed-cost component is added.
@@ -294,26 +297,31 @@ becomes one Spec Kit feature, owned by one session for its whole lifecycle:
   → /speckit-tasks
   → /speckit-analyze
   → /speckit-implement
+  → /speckit-converge  (if post-implementation gaps remain)
 ```
 
 | Stage | Exit criterion before the next stage |
 | :- | :- |
-| Specify / clarify | English spec grounded in the package's FR cards, every requirement citing its SRS ID, no open markers |
-| Plan | Constitution Check passes before research **and** after design; dependencies, shared contracts and file boundaries are explicit |
+| Specify / clarify | English spec grounded in the package's FR cards and `spec/requirements/README.md`, every requirement citing its SRS ID, no open markers |
+| Plan | Constitution Check (`CC-01`..`CC-08`) passes before research **and** after design; dependencies, shared contracts and file boundaries are explicit |
 | Tasks | Spec-derived test tasks come before the implementation tasks they cover; dependencies and file paths recorded; `[P]` only for truly independent tasks |
-| Analyze | Spec, plan and tasks reviewed together; constitution violations and blocking coverage or contract conflicts resolved |
+| Analyze | Spec, plan and tasks reviewed together against `CC-01`..`CC-08`; constitution violations and blocking coverage or contract conflicts resolved |
 | Implement | Tests run and fail for the right reason first, then Green → Refactor |
 
 Customisations on top of stock Spec Kit:
 
-- **Multi-agent install.** Spec Kit 1.2.1 is installed for Claude Code (`.claude/skills`), Codex (`.agents/skills`)
-  and GitHub Copilot (`.github/skills`), so any of them can run any stage.
-- **Stricter sequence than the bundled workflow.** The bundled `.specify/workflows/speckit/workflow.yml` skips clarify
-  and analyze. `AGENTS.md` makes both mandatory.
-- **Test-first template.** The stock tasks template marks tests as optional, which contradicts Principle II. A
-  project override in [`.specify/templates/overrides/tasks-template.md`](.specify/templates/overrides/tasks-template.md)
-  makes them mandatory and survives Spec Kit upgrades (managed files are listed in `.specify/integrations/*.manifest.json`
-  and are never edited directly).
+- **Agent skills and extensions.** Spec Kit 1.2.1 is configured with `.agents/skills` (Antigravity `agy` and Codex) and
+  `.github/skills` (GitHub Copilot), plus the `git` and `github` extensions (`speckit-github-taskstoissues` qualified by
+  `[<feature-slug>] T001` so task IDs never collide across packages).
+- **Full `pipeline` workflow.** Because the stock `.specify/workflows/speckit/workflow.yml` skips clarify and analyze,
+  [`.specify/workflows/pipeline/workflow.yml`](.specify/workflows/pipeline/workflow.yml) provides the complete
+  `specify → clarify → plan → tasks → analyze → analyze-gate → implement → converge` pipeline.
+- **Customised `spec`, `plan` and `tasks` templates.** Project overrides in
+  [`.specify/templates/overrides/spec-template.md`](.specify/templates/overrides/spec-template.md),
+  [`.specify/templates/overrides/plan-template.md`](.specify/templates/overrides/plan-template.md) and
+  [`.specify/templates/overrides/tasks-template.md`](.specify/templates/overrides/tasks-template.md) enforce SRS ID
+  citations (`CC-01`), the 8-point Constitution Check Gate Table (`CC-01`..`CC-08`), TypeScript monorepo paths, and
+  mandatory test-first task ordering (`CC-02`), while surviving Spec Kit upgrades.
 - **Single requirement source.** The global "brainstorm → plan" workflow some agents bring with them is explicitly
   turned off for this repository, so there is exactly one path from requirement to code.
 
@@ -431,19 +439,17 @@ is a GitHub project, and GitHub already provides the needed building blocks:
    that every link and anchor in the specification resolves and that every SRS ID has an FR card. Next come lint,
    type-check, unit, contract and the deterministic eval suites (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run on path filters for retrieval, prompt
    and chat code, and before every release gate. The existing `main` ruleset then requires these checks as well.
-3. **Issues as the claim and handoff record.** Each Spec Kit task slice becomes an issue (`/speckit-taskstoissues` or a
-   small script) carrying the `AGENTS.md` assignment fields: spec path, task IDs, allowed files, base commit,
+3. **Issues as the claim and handoff record.** Each Spec Kit task slice becomes an issue (`/speckit-github-taskstoissues`, qualified by `[<feature-slug>] T001` so task IDs never collide across packages) carrying the `AGENTS.md` assignment fields: spec path, task IDs, allowed files, base commit,
    dependencies and acceptance checks. The assignee is the claim. Sub-issues and native issue dependencies (today the
    dependencies are listed in the issue text) express order, and the project's Status field shows progress.
 4. **Cloud agents pick up issues.** An issue is assigned to a cloud coding agent: GitHub Copilot coding agent, Codex
    cloud tasks, Claude Code through GitHub Actions or on the web, or the Gemini CLI GitHub Action. Each runs in an
-   ephemeral sandbox on its own branch and ends with a PR. Environment setup is defined once
-   (`copilot-setup-steps.yml` or a dev container), so every agent sees the same toolchain.
+   ephemeral sandbox on its own branch and ends with a PR. Environment setup is defined in
+   [`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml), so every agent sees the same toolchain.
 5. **Ownership enforced, not just agreed.** `CODEOWNERS` for the serialised shared files (SRS, constitution,
    architecture, contracts, CI, `infra/`), so changes there need the package owner's review. A **merge queue**
    integrates PRs in dependency order and re-runs checks on the combined result.
-6. **Central feature allocation.** One coordinator issue per release reserves `specs/NNN-<package>` directory names and
-   branch names before `/speckit-specify` runs, which removes the numbering race between parallel sessions.
+6. **Central feature allocation.** `AGENTS.md` and the release roadmap/epic issues (`#1`–`#5`) centrally reserve `specs/001-workspace-foundation` through `specs/004-ui-skeleton-quality-gates` and matching branch names before `/speckit-specify` runs, which removes the numbering race between parallel sessions.
 7. **Credential-free cloud access.** GitHub OIDC with Workload Identity Federation for Google Cloud, so there are no
    stored keys. Each PR gets its own test database (for example Postgres with pgvector in a container) and resource
    names prefixed by branch. Terraform `apply` runs only from `main`, with state locking.
@@ -454,24 +460,22 @@ is a GitHub project, and GitHub already provides the needed building blocks:
 
 ## Status: what is missing before implementation starts
 
-**Done:** SRS, constitution, solution architecture, 53 FR cards, the deviation log, the Spec Kit setup for three agents,
-the multi-agent rules in `AGENTS.md`, the GitHub project with 89 issues, and an issue-versus-spec audit.
+**Done:** SRS, constitution v1.1.0 (`CC-01`..`CC-08`), solution architecture (`D1`..`D13`), 53 FR cards, the deviation log, the Spec Kit setup (`agy` + Copilot skills, `git` + `github` extensions, `pipeline` workflow, `spec`/`plan`/`tasks` template overrides), `copilot-setup-steps.yml`, the multi-agent rules and v1 feature reservations in `AGENTS.md`, the GitHub project with 89 issues, and both the issue-versus-spec audit and the package-by-package requirements consistency audit.
 
 **Still to do, in order:**
 
-1. **Requirements consistency audit: complete.** All 19 packages / 53 cards have been reviewed against the
-   constitution, SRS and architecture, including deferred package 6.3. Corrections cover source scoping,
-   permissions, quotas, lifecycle, limits, contracts and gate criteria; see the
+1. **Requirements consistency audit & v1 issue alignment: complete.** All 19 packages / 53 cards have been reviewed against the
+   constitution, SRS and architecture, including deferred package 6.3, and the v1 Epics (`#2`–`#5`), Gate `#84`, and Roadmap `#1` reserve `specs/001-workspace-foundation`..`specs/004-ui-skeleton-quality-gates` and reference the binding audit rules; see the
    [package-by-package audit](docs/requirements-consistency-audit.md).
 2. **Carry the corrected acceptance criteria into planning.** The shared card rules apply to every package.
    Runtime feasibility and performance remain to be established by the specified spikes and release tests.
 3. **Run the Spec Kit stages for v1.** `/speckit-specify` → clarify → plan → tasks → `/speckit-analyze` (the
-   verification pass across spec, plan and tasks), once for each of packages 1.1 to 1.4. This produces the concrete, test-first task lists that implementation agents need. No
+   verification pass across spec, plan and tasks), once for each of packages 1.1 to 1.4 (`specs/001-workspace-foundation` to `specs/004-ui-skeleton-quality-gates`). This produces the concrete, test-first task lists that implementation agents need. No
    `specs/` directory exists yet.
 4. **Shared prerequisites:** the monorepo scaffold, the contracts package and CI from the [next steps](#next-steps-independent-agent-sessions-in-the-cloud),
    plus the two-day ADK-for-TypeScript spike (risk R3) and a local pgvector prototype with an `NFR-EVAL-04` leakage
    test.
-5. **Link the GitHub issues to Spec Kit features.** Reconcile issue criteria with this requirements audit; once `/speckit-specify` runs, each epic links to its `specs/NNN-…` feature directory.
+5. **Convert analyzed v1 tasks to GitHub issues.** Once `/speckit-analyze` passes for a package, run `/speckit-github-taskstoissues` to create feature-qualified task issues (`[001-workspace-foundation] T001: ...`) under its epic.
 6. **Approve the cloud setup:** enable the v1 Google Cloud APIs (`aiplatform`, `sqladmin`, `cloudtasks`,
    `secretmanager`, `identitytoolkit`, `documentai`) and write the Terraform baseline.
 

@@ -75,6 +75,43 @@ for (const line of srs.split("\n")) {
   if (!/FR-Karten?:.*\]\(requirements\//.test(line)) findings.push(`${SRS}: ${m[1]} has no FR card link`);
 }
 
+// Validate generated Spec Kit artifacts under specs/<feature>/ (CC-01, CC-02, CC-01..CC-08 gates).
+const SRS_ID_RE = /\b(?:(?:FR|NFR)-[A-Z]+-\d+|C-0[123]|Gate\s+v[1-6]\.0)\b/;
+const CC_GATES = ["CC-01", "CC-02", "CC-03", "CC-04", "CC-05", "CC-06", "CC-07", "CC-08"];
+const specFiles = files.filter((f) => /^specs\/[^/]+\/(spec|plan|tasks)\.md$/.test(f));
+
+for (const file of specFiles) {
+  const raw = readFileSync(file, "utf8");
+  if (!SRS_ID_RE.test(raw)) {
+    findings.push(`${file}: missing SRS requirement/contract citation (CC-01)`);
+  }
+  if (file.endsWith("/plan.md")) {
+    const missingGates = CC_GATES.filter((gate) => !raw.includes(gate));
+    if (missingGates.length) {
+      findings.push(`${file}: missing Constitution Check gate ID(s): ${missingGates.join(", ")}`);
+    }
+  }
+  if (file.endsWith("/tasks.md")) {
+    const taskLines = raw
+      .split("\n")
+      .filter((line) => /^- \[[ xX]\]\s+(?:\[[^\]]+\]\s+)*T\d{3,}\b/.test(line.trim()));
+    if (!taskLines.length) {
+      findings.push(`${file}: no valid task items (- [ ] T001 ...) found`);
+    }
+    // Within each User Story phase, failing test tasks must appear before implementation tasks (CC-02).
+    const storySections = raw.split(/^##\s+Phase\s+\d+:\s+User Story\b/m).slice(1);
+    for (const section of storySections) {
+      const testIdx = section.search(/^###\s+Tests\b/m);
+      const implIdx = section.search(/^###\s+Implementation\b/m);
+      if (testIdx === -1) {
+        findings.push(`${file}: User Story phase missing '### Tests' subsection (CC-02)`);
+      } else if (implIdx !== -1 && testIdx > implIdx) {
+        findings.push(`${file}: '### Tests' must precede '### Implementation' in User Story phase (CC-02)`);
+      }
+    }
+  }
+}
+
 if (findings.length) {
   console.error(findings.join("\n"));
   console.error(`\n✗ ${findings.length} finding(s)`);
@@ -82,3 +119,6 @@ if (findings.length) {
 }
 console.log(`✓ ${files.length} Markdown files: all relative links and anchors resolve`);
 console.log(`✓ ${ids.length} SRS requirement IDs: every one links to an FR card`);
+if (specFiles.length) {
+  console.log(`✓ ${specFiles.length} Spec Kit feature artifact(s): CC-01/CC-02 checks pass`);
+}

@@ -8,6 +8,14 @@
       "source": "bundled",
       "installed_at": "2026-10-15T15:38:51.293250+00:00",
       "updated_at": "2026-10-15T15:38:51.293260+00:00"
+    },
+    "pipeline": {
+      "name": "Guided SDD Pipeline",
+      "version": "1.1.0",
+      "description": "Chains specify \u2192 clarify \u2192 plan \u2192 tasks \u2192 analyze \u2192 implement \u2192 converge into one guided run with a single clarify gate and a post-implement convergence loop.\n",
+      "source": "https://raw.githubusercontent.com/domattioli/spec-kit-workflow-pipeline/v1.1.0/workflow.yml",
+      "installed_at": "2026-10-16T23:17:32.108382+00:00",
+      "updated_at": "2026-10-16T23:17:32.109497+00:00"
     }
   }
 }

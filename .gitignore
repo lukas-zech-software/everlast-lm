@@ -11,6 +11,8 @@ Thumbs.db
 .notes/
 CLAUDE.local.md
 AGENTS.local.md
+.specify/feature.json
+.specify/.*.lock
 .specify/**/.cache/
 
 # Git worktrees (isolated writing checkouts)
