@@ -10,3 +10,6 @@
 # The specification is the product of this phase; count it as documentation.
 spec/**                    linguist-documentation=false linguist-detectable
 docs/**                    linguist-documentation=false linguist-detectable
+
+# Generated banner (rendered from docs/assets/social-preview.html); not project code.
+docs/assets/**             linguist-vendored
