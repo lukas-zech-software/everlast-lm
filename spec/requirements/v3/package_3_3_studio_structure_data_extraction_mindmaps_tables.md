@@ -1,0 +1,195 @@
+# Package 3.3 — Studio: Structure & Data Extraction (Mindmaps & Tables)
+
+- **Release:** v3.0
+- **Goal:** Add two interactive structural Studio plugins (`Contract C-03`): hierarchical interactive Mindmaps with node-to-chat drilldown and PNG/SVG export, and multi-document Data Tables with CSV/XLSX export.
+- **FRs:** FR-ST-08, FR-ST-09, FR-ST-18
+- **Gate criteria (SRS §5.4):** Gate v3.0 #3 — Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX.
+- **Out of scope:** Slide Decks and Infographics (`v4.0` — `FR-ST-16`, `FR-ST-17`).
+
+---
+
+### FR-ST-08 — Automatic Mindmap Generation
+
+| Field | Value |
+| :- | :- |
+| Release / Package | v3.0 / 3.3 |
+| Priority (within package) | P1 |
+| Actors | Owner/Editor |
+| Depends on | FR-SI-03, C-02, C-03 |
+| Observed | 2026-10-15, Gemini Notebook web |
+
+**Requirement (EARS)**
+- *Event:* When the Owner/Editor clicks the `"Mind Map"` (`"Mindmap"`) generator chip/tile in the Studio or Chat overview, the `Graph Synthesis Agent` shall synthesize the active sources ($S_{\text{aktiv}}$) into a strictly hierarchical, acyclic tree (`root` $\rightarrow$ `main branches` $\rightarrow$ `sub-topics` $\rightarrow$ `leaf facts`) and store it as a `StudioArtifact` (`Contract C-03`).
+- *Unwanted:* If the LLM generates cyclic edges, orphan nodes, or duplicate node IDs, then the schema validator shall normalize or reject the graph before persisting so that every saved Mindmap is a valid rooted tree.
+
+**User story:** As a visual thinker, I want to generate a hierarchical mindmap from my selected sources with one click, so that I can see how central concepts, subtopics, and details connect across all my documents.
+
+**Reference behaviour**
+1. User clicks `Mind Map` in the Studio panel (or the `"Mind Map"` chip in the notebook overview).
+2. A job `"Generating Mind Map..."` runs asynchronously in the Studio artifact list.
+3. Once complete, clicking the artifact opens a full-bleed interactive canvas showing the central notebook topic branching left-to-right into color-coded category nodes and child nodes.
+
+Evidence: `https://blog.google/technology/ai/notebooklm-mind-maps-2025/`, `SRS §3.5.3 FR-ST-08` (Local screenshot: `Unknown`)
+
+**Inputs & limits**
+
+| Input | Format | Constraint | Default |
+| :- | :- | :- | :- |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
+| Tree depth & size | Directed Acyclic Tree JSON | Depth $2\text{–}5$ levels; $15\text{–}120$ total nodes; each node label $\le 80\text{ chars}$ | Initial render expanded to depth $2$ |
+
+**Outputs & state**
+- Visible: Mindmap entry in Studio artifact list; interactive node-link tree canvas when opened.
+- Persisted: `StudioArtifact` (`plugin_type: 'mindmap'`, `payload_json: { root_node: { id, label, summary, source_chunk_ids, children: [...] } }`).
+- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed` (or `Failed`).
+
+**Acceptance criteria (Gherkin)**
+
+```gherkin
+Scenario: Generated Mindmap JSON is strictly hierarchical and acyclic (Gate v3.0 #3)
+  Given a notebook with 3 active sources
+  When the owner clicks "Mind Map" in the Studio panel
+  Then the completed StudioArtifact payload validates as a single-rooted acyclic tree with depth >= 2
+  And every node label is derived exclusively from the active sources
+```
+
+**Edge & error cases**
+- Very large notebook ($50+$ sources) $\rightarrow$ Hierarchical map-reduce over Source Guides (`FR-SI-02`) ensures balanced top-level branches without omitting sources.
+
+**Measurable criteria**
+- $100\%$ of generated Mindmap JSON payloads pass acyclic tree schema validation (`Gate v3.0 #3`).
+- Mindmap generation completes in $\le 20.0\text{ s}$ (P95).
+
+**Deviations from reference:** None.
+
+**Out of scope:** Manual drag-and-drop re-parenting of mindmap nodes by the user.
+
+**Open questions:** `None`
+
+---
+
+### FR-ST-09 — Mindmap Interactivity, Chat Drilldown & Export
+
+| Field | Value |
+| :- | :- |
+| Release / Package | v3.0 / 3.3 |
+| Priority (within package) | P1 |
+| Actors | Owner/Editor, Viewer |
+| Depends on | FR-ST-08, FR-GC-01 |
+| Observed | 2026-10-15, Gemini Notebook web |
+
+**Requirement (EARS)**
+- *Ubiquitous:* The Mindmap Viewer shall provide controls to pan, zoom in/out, fit-to-screen, expand/collapse child branches (`>` / `<` chevron on each parent node), and download the rendered mindmap as a high-resolution `.png` or `.svg` file.
+- *Event:* When the user clicks the label/body of any node in the Mindmap, the system shall close/minimize the fullscreen Mindmap overlay (or keep it docked) and automatically submit a targeted prompt in the Center Chat Panel asking to explain that specific sub-topic in the context of its parent branch using the active sources.
+
+**User story:** As a researcher exploring a mindmap, I want to expand or collapse branches, click any node to immediately ask the chat for a cited deep dive on that concept, and export the map as an image for my reports.
+
+**Reference behaviour**
+1. In the open Mindmap modal/canvas, each branch node has an expand/collapse button (`>` / `<`) on its right edge.
+2. Clicking `>` smoothly animates the reveal of child sub-nodes.
+3. Clicking directly on a node's text box sends a pre-constructed query (`"Discuss what the sources say about <Node Label>, in the context of <Parent Label>..."`) to the Chat panel and streams a grounded answer with citations.
+4. Clicking the download icon in the top-right corner downloads a `.png` (or `.svg`) image of the currently expanded tree.
+
+Evidence: `https://blog.google/technology/ai/notebooklm-mind-maps-2025/`, `SRS §3.5.3 FR-ST-09` (Local screenshot: `Unknown`)
+
+**Inputs & limits**
+
+| Input | Format | Constraint | Default |
+| :- | :- | :- | :- |
+| Node chevron click | DOM Event | Toggles `expanded` boolean on target `node_id` | Depth $1\text{–}2$ expanded initially |
+| Node body click | DOM Event | Injects prompt for `(node.label, parent.label)` into Chat | — |
+| Image export | `.png` / `.svg` | Captures full bounding box of currently expanded nodes | `.png` ($2\times$ retina scale) |
+
+**Outputs & state**
+- Visible: Smooth pan/zoom ($60\text{ fps}$), branch expand/collapse animations, automatic chat turn on node click, downloaded `.png`/`.svg` file.
+- Persisted: Resulting drilldown chat turn is persisted in `ChatMessage` history (`FR-GC-06`).
+- States: `CanvasViewing` $\rightarrow$ `NodeDrilldownToChat`.
+
+**Acceptance criteria (Gherkin)**
+
+```gherkin
+Scenario: Clicking a Mindmap node triggers a grounded chat explanation
+  Given an open Mindmap with parent node "Security Architecture" and child node "mTLS Certificates"
+  When the user clicks the body of the node "mTLS Certificates"
+  Then the Chat panel receives a prompt asking about "mTLS Certificates" in the context of "Security Architecture"
+  And streams a grounded response with inline citations
+
+Scenario: Exporting Mindmap downloads valid PNG and SVG files
+  Given an open Mindmap with 25 visible nodes
+  When the user clicks "Export PNG" and "Export SVG"
+  Then a non-empty valid PNG image and a valid SVG document containing all 25 node labels are downloaded
+```
+
+**Edge & error cases**
+- Clicking a node when all sources were subsequently deselected ($|S_{\text{aktiv}}| = 0$) $\rightarrow$ Automatically restores the Mindmap's `active_source_ids_snapshot` or prompts the user to select sources.
+
+**Measurable criteria**
+- Canvas pan/zoom and node expand/collapse render at $60\text{ fps}$ ($\le 16\text{ ms}$ frame time) up to $120$ nodes.
+
+**Deviations from reference:** Supports lossless `.svg` export in addition to `.png`.
+
+**Out of scope:** Exporting to proprietary `.mm` (FreeMind) or `.xmind` formats.
+
+**Open questions:** `None`
+
+---
+
+### FR-ST-18 — Studio: Structured Data Tables & CSV/XLSX Export
+
+| Field | Value |
+| :- | :- |
+| Release / Package | v3.0 / 3.3 |
+| Priority (within package) | P1 |
+| Actors | Owner/Editor, Viewer (export) |
+| Depends on | FR-SI-03, C-02, C-03 |
+| Observed | 2026-10-15, Enterprise SRS §3.5.6 |
+
+**Requirement (EARS)**
+- *Event:* When the Owner/Editor clicks the `"Data Table"` (`"Datentabelle"`) tile in the Studio panel (optionally providing a focus prompt such as `"Compare all vendors by pricing, SLA, and certifications"` or choosing a suggested table schema), the `Table Extraction Agent` shall extract structured rows and columns across $S_{\text{aktiv}}$ and persist a `StudioArtifact` (`Contract C-03`).
+- *Ubiquitous:* Every cell in a generated Data Table that asserts a factual value shall include a citation reference (`chunk_id`) linking back to the source passage, or display `"N/A (Not in sources)"` if a document does not state that attribute.
+- *Event:* When the user clicks `"Export CSV"` or `"Export Excel (.xlsx)"` in the Data Table viewer, the system shall generate and download a valid UTF-8 `.csv` or OpenXML `.xlsx` file.
+
+**User story:** As an enterprise analyst comparing multiple proposals, contracts, or research papers, I want the Studio to extract structured comparison tables across my active sources and export them to CSV or Excel, so that I don't have to copy-paste metrics manually.
+
+**Reference behaviour**
+1. User clicks `Data Table` in the Studio panel and either clicks a suggested table topic or types custom column/row instructions.
+2. The Studio generates a structured interactive table inside the Right Panel viewer with sortable columns and inline cell citations `[n]`.
+3. Clicking `Export CSV` or `Export XLSX` downloads the spreadsheet file immediately.
+
+Evidence: `SRS §3.5.6 FR-ST-18`, `SRS §5.4 Gate v3.0 #3`
+
+**Inputs & limits**
+
+| Input | Format | Constraint | Default |
+| :- | :- | :- | :- |
+| Table extraction prompt | UTF-8 text (optional) | $0\text{–}2,000$ characters | Auto-detected comparison schema from $S_{\text{aktiv}}$ |
+| Table dimensions | JSON matrix | $2\text{–}25$ columns, $1\text{–}500$ rows | — |
+| Export format | File download | RFC 4180 `.csv` (UTF-8 with BOM) \| `.xlsx` (OOXML) | `.xlsx` / `.csv` |
+
+**Outputs & state**
+- Visible: Interactive sortable table in the Studio viewer with cell-level citation badges `[n]`; export buttons for `.csv` and `.xlsx`.
+- Persisted: `StudioArtifact` (`plugin_type: 'data_table'`, `payload_json: { columns: [...], rows: [{ cells: [{ value, chunk_ids }] }] }`).
+- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed` (or `Failed`).
+
+**Acceptance criteria (Gherkin)**
+
+```gherkin
+Scenario: Extract multi-document comparison table and export valid CSV and XLSX (Gate v3.0 #3)
+  Given 3 active vendor PDFs describing "Vendor A", "Vendor B", and "Vendor C"
+  When the owner generates a Data Table with prompt "Compare vendors by Price and Uptime SLA"
+  Then the generated table contains 3 rows and columns for Vendor, Price, and Uptime SLA with cell citations
+  When the user clicks "Export CSV" and "Export XLSX"
+  Then the downloaded CSV parses without syntax errors and the XLSX opens cleanly in openpyxl/Excel
+```
+
+**Edge & error cases**
+- Formula injection prevention in CSV/XLSX export $\rightarrow$ Cell values starting with `=`, `+`, `-`, or `@` are sanitized/escaped so opening the exported file in Excel cannot trigger CSV macro injection.
+
+**Measurable criteria**
+- $100\%$ of exported `.csv` and `.xlsx` files pass format parser validation (`Gate v3.0 #3`).
+
+**Deviations from reference:** First-class dedicated Studio tile with `.csv`/`.xlsx` export and formula-injection sanitization.
+
+**Out of scope:** Full two-way live spreadsheet formula editing inside the Studio viewer.
+
+**Open questions:** `None`

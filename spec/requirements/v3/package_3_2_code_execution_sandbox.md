@@ -1,0 +1,78 @@
+# Package 3.2 — Quantitative Code Execution Sandbox
+
+- **Release:** v3.0
+- **Goal:** Provide the Grounded Reasoning Agent with an isolated, network-disabled Python code execution sandbox ("Cloud Computer") to perform deterministic calculations, data cleaning, and chart generation over structured/tabular data extracted from active sources.
+- **FRs:** FR-GC-08
+- **Gate criteria (SRS §5.4):** Gate v3.0 #2 — the Python sandbox (`FR-GC-08`) is network-isolated and returns correct calculation results and plots.
+- **Out of scope:** Arbitrary user-facing Jupyter notebook IDE or persistent outbound network access from sandbox containers.
+
+---
+
+### FR-GC-08 — Secure Code Execution Sandbox (Cloud Computer)
+
+| Field | Value |
+| :- | :- |
+| Release / Package | v3.0 / 3.2 |
+| Priority (within package) | P1 |
+| Actors | Owner; Editor, Viewer, Chat-only (from v6.0) — triggered automatically by the Chat Agent |
+| Depends on | FR-GC-01, FR-SI-03, C-02 |
+| Observed | 2026-10-15, Enterprise SRS §3.3 & §4.1 |
+
+**Requirement (EARS)**
+- *Event:* When a user asks a quantitative, statistical, aggregation, or plotting question in Chat over active sources ($S_{\text{aktiv}}$), the Grounded Reasoning Agent shall delegate computation to the `Code Execution Agent`, which writes and executes Python code inside an ephemeral, network-isolated sandbox (MicroVM / WebAssembly / gVisor container).
+- *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, strictly bounded CPU/memory/execution-time limits, and read-only access solely to the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`).
+- *Event:* When code execution starts, the system shall show a `"Running code…"` status in the chat response within $\le 2.5\text{ s}$ of the user's submission (this status is the first streamed token for `NFR-PERF-01`).
+- *Event:* When sandbox execution completes, the system shall embed the computed numerical results, each marked with a `Computed` label, generated charts (PNG/SVG), and a collapsible `"View executed code"` (`"Code anzeigen"`) inspection block inside the assistant's grounded chat response alongside source citations `[n]` to the source data used.
+- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($512\text{ MB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
+
+**User story:** As a financial or data analyst, I want the chat assistant to calculate exact sums, growth rates, regressions, and charts by running real Python code on numbers from my sources, so that I never suffer from LLM arithmetic hallucinations.
+
+**Reference behaviour**
+1. User uploads financial reports or CSV/table-heavy PDFs and asks `"Calculate the compound annual growth rate (CAGR) of R&D spend from 2021 to 2025 and plot a bar chart"`.
+2. The assistant extracts the cited figures from $S_{\text{aktiv}}$, runs Python (`pandas`/`matplotlib`) in the isolated sandbox, and displays the exact CAGR percentage, the rendered bar chart image, an expandable `"View executed code"` drawer, and citations `[1]`, `[2]` to the source tables.
+
+Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
+
+**Inputs & limits**
+
+| Input | Format | Constraint | Default |
+| :- | :- | :- | :- |
+| Generated Python script | UTF-8 Python 3.12 code | Pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy` | — |
+| Sandbox CPU / RAM limit | Container quota | $\le 1\text{ vCPU}$, $\le 512\text{ MB RAM}$, $\le 64\text{ MB}$ temp `/tmp` disk | Enforced per run |
+| Execution timeout | Wall-clock duration | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
+| Outbound network | Network namespace | Completely disabled (`--network=none`) | Disabled |
+
+**Outputs & state**
+- Visible: Exact computed values, inline rendered chart image (PNG/SVG with download button), collapsible code block (`stdout` + Python source), and source citations `[n]`.
+- Persisted: `code_execution_trace` (`code`, `stdout`, `stderr`, `exit_code`, `artifacts: [chart_urls]`) stored on the `ChatMessage` entity.
+- States: `CodeGenerating` $\rightarrow$ `SandboxRunning` $\rightarrow$ `Succeeded` (or `TimedOut` / `Failed`).
+
+**Acceptance criteria (Gherkin)**
+
+```gherkin
+Scenario: Sandbox computes exact arithmetic and renders plot from active source data (Gate v3.0 #2)
+  Given an active source containing a table of 12 monthly server latency values
+  When the user asks "What is the exact standard deviation of the monthly latency and plot the trend?"
+  Then the Code Execution Agent executes Python in the sandbox
+  And the response includes the exact calculated standard deviation labelled "Computed", an inline chart image, and citation [1]
+
+Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #2)
+  Given a prompt attempting to execute "import urllib.request; urllib.request.urlopen('https://example.com')"
+  When the sandbox runs the code
+  Then the network call fails immediately due to full network isolation
+  And zero packets leave the sandbox environment
+```
+
+**Edge & error cases**
+- Infinite loop (`while True: pass`) in generated code $\rightarrow$ Killed deterministically at $15.0\text{ s}$ wall-clock timeout; container destroyed.
+- Source numbers have conflicting units (e.g., `$M` vs `$B`) $\rightarrow$ Agent normalizes units explicitly in the visible Python code comments and cites both sources.
+
+**Measurable criteria**
+- $0$ successful outbound network connections in security penetration tests (`Gate v3.0 #2`).
+- Sandbox cold/warm boot + execution latency $\le 4.0\text{ s}$ (P95) for standard tabular calculations.
+
+**Deviations from reference:** Exposes the executed Python snippet in a collapsible `"View executed code"` drawer for enterprise auditability.
+
+**Out of scope:** Installing arbitrary third-party `pip` packages at runtime.
+
+**Open questions:** `None`
