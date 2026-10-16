@@ -1,10 +1,11 @@
 <!--
 Sync Impact Report
 ==================
-Version change: (unversioned template) → 1.0.0
-Bump rationale: Initial ratification from the design approved on 2026-10-15
+Version change: (unversioned template) → 1.0.0 → 1.0.1
+Bump rationale: 1.0.0 is the initial ratification from the design approved on 2026-10-15
 (audience: agent guardrails; workflow: Spec Kit only; tech lock-in: settled choices only;
-eval gating: tiered).
+eval gating: tiered). 1.0.1 (PATCH) clarifies Principle I: the FR cards under
+spec/requirements/ are part of the source of truth.
 
 Modified principles (template slot → new title):
   - [PRINCIPLE_1_NAME] → I. Spec Traceability
@@ -41,6 +42,8 @@ Deferred TODOs: none
 - Every feature spec, plan, task and test MUST cite at least one ID from
   `spec/System_Requirements_Specification_Gemeni_Notebook.md` (`FR-*`, `NFR-*`, `C-01`..`C-03`,
   or a release gate).
+- The SRS together with its FR cards under `spec/requirements/` is the source of truth. Where
+  a card details an FR, the card is binding for that FR.
 - Behaviour that cannot be traced to such an ID MUST NOT be built.
 - Scope changes MUST be recorded before planning starts: additions as an SRS amendment, removals
   or deferrals as a recorded decision in `docs/solution-architecture.md`.
@@ -155,4 +158,4 @@ requirement correctly.
 - Compliance is checked at every plan's Constitution Check, at `/speckit-analyze`, and in pull
   request review.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-15
+**Version**: 1.0.1 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-15
