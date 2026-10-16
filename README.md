@@ -2,11 +2,30 @@
 
 **A spec-driven, agent-built re-implementation of Gemini Notebook (formerly NotebookLM) on Google Cloud.**
 
-![Phase](https://img.shields.io/badge/phase-specification%20complete-2ea44f)
-![Implementation](https://img.shields.io/badge/implementation-not%20started-lightgrey)
-![Spec Kit](https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue)
-![Agents](https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Gemini%20%C2%B7%20OpenCode-8a2be2)
-![Cloud](https://img.shields.io/badge/target-Google%20Cloud%20%C2%B7%20europe--west4-4285F4)
+<p>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml"><img alt="Spec integrity" src="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/lukas-zech-software/everlast-lm?color=blue"></a>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/lukas-zech-software/everlast-lm"></a>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/lukas-zech-software/everlast-lm"></a>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/milestones"><img alt="Milestones" src="https://img.shields.io/github/milestones/open/lukas-zech-software/everlast-lm?label=release%20milestones"></a>
+  <a href="https://github.com/users/lukas-zech-software/projects/2"><img alt="Roadmap" src="https://img.shields.io/badge/roadmap-GitHub%20Project-24292f?logo=github"></a>
+</p>
+<p>
+  <img alt="Phase" src="https://img.shields.io/badge/phase-specification%20complete-2ea44f">
+  <img alt="Implementation" src="https://img.shields.io/badge/implementation-not%20started-lightgrey">
+  <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
+  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v1.0.1-informational"></a>
+  <a href="https://github.com/github/spec-kit"><img alt="Spec Kit" src="https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue?logo=github"></a>
+  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-conventional-fe5196?logo=conventionalcommits&logoColor=white"></a>
+</p>
+<p>
+  <img alt="Agents" src="https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Gemini%20CLI%20%C2%B7%20OpenCode-8a2be2">
+  <img alt="ACP" src="https://img.shields.io/badge/connected%20via-Agent%20Client%20Protocol-8a2be2">
+  <img alt="TypeScript" src="https://img.shields.io/badge/planned-TypeScript-3178C6?logo=typescript&logoColor=white">
+  <img alt="Google Cloud" src="https://img.shields.io/badge/target-Google%20Cloud%20%C2%B7%20europe--west4-4285F4?logo=googlecloud&logoColor=white">
+  <img alt="Gemini" src="https://img.shields.io/badge/models-Gemini%20on%20Agent%20Platform-8E75B2?logo=googlegemini&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/retrieval-Postgres%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
+</p>
 
 > **The challenge:** *"Build a NotebookLM clone. Implementation, scope and structure are up to you."*
 >
@@ -111,6 +130,8 @@ everlast-lm/
 │   └── evidence/                 ← screenshots and recordings of the reference product, per FR
 ├── docs/
 │   └── solution-architecture.md  ← binding technical choices, decisions D1–D9, risks, release mapping
+├── scripts/
+│   └── check-spec-integrity.mjs  ← CI check: every link and anchor resolves, every SRS ID has an FR card
 ├── .specify/                     ← GitHub Spec Kit
 │   ├── memory/constitution.md    ← project constitution (overrides everything)
 │   ├── templates/overrides/      ← repo customisations of Spec Kit templates (test-first tasks template)
@@ -118,7 +139,11 @@ everlast-lm/
 │   └── integrations/             ← install manifests for Claude, Codex and Copilot
 ├── .claude/skills/speckit-*      ← Spec Kit commands for Claude Code
 ├── .agents/skills/speckit-*      ← … for Codex
-└── .github/skills/speckit-*      ← … for GitHub Copilot
+└── .github/
+    ├── skills/speckit-*          ← … for GitHub Copilot
+    ├── workflows/                ← CI (spec integrity), actions pinned to commit SHAs
+    ├── ISSUE_TEMPLATE/           ← spec change request form
+    └── CODEOWNERS                ← owner review for the serialised shared files
 ```
 
 The SRS and the GitHub issues are in German, because the challenge was set in German. FR cards, architecture,
@@ -395,9 +420,10 @@ is a GitHub project, and GitHub already provides the needed building blocks:
 1. **Shared prerequisites first.** Scaffold the pnpm monorepo, publish `packages/contracts` (`C-01`..`C-03` as Zod
    schemas) and the database migration baseline. Every parallel package depends on these, so they are merged before
    any fan-out.
-2. **CI as the enforced gate.** GitHub Actions for lint, type-check, unit, contract and the deterministic eval suites
-   (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run on path filters for retrieval, prompt
-   and chat code, and before every release gate. Branch rulesets require these checks and a PR for `main`.
+2. **CI as the enforced gate.** A first workflow already runs on every PR and blocks merges into `main`: it checks
+   that every link and anchor in the specification resolves and that every SRS ID has an FR card. Next come lint,
+   type-check, unit, contract and the deterministic eval suites (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run on path filters for retrieval, prompt
+   and chat code, and before every release gate. The existing `main` ruleset then requires these checks as well.
 3. **Issues as the claim and handoff record.** Each Spec Kit task slice becomes an issue (`/speckit-taskstoissues` or a
    small script) carrying the `AGENTS.md` assignment fields: spec path, task IDs, allowed files, base commit,
    dependencies and acceptance checks. The assignee is the claim. Sub-issues and native issue dependencies (today the
@@ -449,6 +475,13 @@ Once steps 1 to 4 are done for a package, implementation agents can start on it 
 > Usage windows and rate limits mean the long review and specification runs happen one after another rather than as a
 > large parallel fan-out. The process and the repository are designed for that fan-out. The budget is the only thing
 > holding it back.
+
+---
+
+## License and contributing
+
+Licensed under the [Apache License 2.0](LICENSE). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow,
+[`SECURITY.md`](SECURITY.md) for reporting vulnerabilities, and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ---
 
