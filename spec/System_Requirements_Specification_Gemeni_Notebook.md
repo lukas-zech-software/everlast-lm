@@ -2,7 +2,8 @@
 
 **Dokumentstatus:** Entwurf (Baseline für Spec-Driven Agentic Development)  
 **Zielsystem:** Firmeninterne, quellenbasierte KI-Recherche-, Analyse- und Wissenssynthese-Plattform  
-**Referenzsystem:** Google Gemini Notebook (bis Juli 2026 bekannt als *Google NotebookLM*)
+**Referenzsystem:** Google Gemini Notebook (bis Juli 2026 bekannt als *Google NotebookLM*)  
+**Verwandte Dokumente:** [Lösungsarchitektur](../docs/solution-architecture.md) (Umsetzungsentscheidungen D1–Dn; bindend für das *Wie*, diese SRS bleibt bindend für das *Was*) · [FR-Karten](requirements/README.md) · [Constitution](../.specify/memory/constitution.md)
 
 ---
 
@@ -36,16 +37,16 @@ Jede Anforderung besitzt eine eindeutige Kennung (`FR-XXX`), um im Rahmen eines 
 
 Ein „Notebook“ bildet den logisch isolierten Daten- und Kontext-Container für ein spezifisches Projekt oder Thema.
 
-* **FR-WM-01 (Notebook CRUD):** Nutzer müssen Notebooks erstellen, öffnen, umbenennen und endgültig löschen können.
-* **FR-WM-02 (Metadaten & Visuelle Organisation):** Jedem Notebook müssen ein Titel, ein individuell wählbares Icon/Emoji, Erstellungs- und Änderungszeitstempel sowie die Anzahl der enthaltenen Quellen zugewiesen werden.
-* **FR-WM-03 (Übersicht & Sortierung):** Auf der Startseite müssen Notebooks in einer Raster- oder Listenansicht darstellbar, nach Kriterien (Zuletzt geöffnet, Titel, Erstellungsdatum) sortierbar und anpinnbar (*Pin/Unpin*) sein.
-* **FR-WM-04 (Isolierter Wissenskontext):** Standardmäßig darf kein Informationsaustausch zwischen verschiedenen Notebooks stattfinden; jedes Notebook bildet eine strikt isolierte Wissensdomäne.
-* **FR-WM-05 (Kollaboration & Sharing):** Notebooks müssen für andere interne Nutzer oder Gruppen freigegeben werden können. Unterstützte Rollen:
+* **FR-WM-01 (Notebook CRUD):** Nutzer müssen Notebooks erstellen, öffnen, umbenennen und endgültig löschen können. → FR-Karte: [FR-WM-01](requirements/v1/package_1_1_workspace_foundation.md#fr-wm-01--notebook-crud)
+* **FR-WM-02 (Metadaten & Visuelle Organisation):** Jedem Notebook müssen ein Titel, ein individuell wählbares Icon/Emoji, Erstellungs- und Änderungszeitstempel sowie die Anzahl der enthaltenen Quellen zugewiesen werden. → FR-Karte: [FR-WM-02](requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-02--metadata--visual-organization)
+* **FR-WM-03 (Übersicht & Sortierung):** Auf der Startseite müssen Notebooks in einer Raster- oder Listenansicht darstellbar, nach Kriterien (Zuletzt geöffnet, Titel, Erstellungsdatum) sortierbar und anpinnbar (*Pin/Unpin*) sein. → FR-Karte: [FR-WM-03](requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-03--home-overview-sorting--pinning)
+* **FR-WM-04 (Isolierter Wissenskontext):** Standardmäßig darf kein Informationsaustausch zwischen verschiedenen Notebooks stattfinden; jedes Notebook bildet eine strikt isolierte Wissensdomäne. → FR-Karte: [FR-WM-04](requirements/v1/package_1_1_workspace_foundation.md#fr-wm-04--isolated-knowledge-context)
+* **FR-WM-05 (Kollaboration & Sharing):** Notebooks müssen für andere interne Nutzer oder Gruppen freigegeben werden können. Unterstützte Rollen: → FR-Karte: [FR-WM-05](requirements/v6/package_6_1_enterprise_governance_sharing_analytics.md#fr-wm-05--role-based-collaboration--sharing-incl-chat-only-mode)
   * *Owner / Editor:* Darf Quellen hinzufügen/löschen, Notizen bearbeiten und Studio-Artefakte generieren.
   * *Viewer (Vollansicht):* Lesezugriff auf Quellen, generierte Studio-Artefakte und eigene Chat-Interaktion.
   * *Viewer (Chat-Only):* Sieht ausschließlich das Chat-Interface, um Fragen an das Notebook zu stellen, ohne die Rohquellen oder das Studio manipulieren zu können.
-* **FR-WM-06 (Notebook-Analytics für Enterprise-Sharing):** Für geteilte Notebooks muss ein Statistik-Dashboard abrufbar sein (Anzahl der zugreifenden Nutzer pro Tag, Anzahl der gestellten Fragen).
-* **FR-WM-07 (Ressourcen-Quotas):** Das System muss konfigurierbare Limits pro Notebook erzwingen (Referenzwert: $N_{\text{max}} \ge 50$ bis $300$ Quellen pro Notebook; max. $500.000$ Wörter bzw. $200\text{ MB}$ pro Einzelquelle).
+* **FR-WM-06 (Notebook-Analytics für Enterprise-Sharing):** Für geteilte Notebooks muss ein Statistik-Dashboard abrufbar sein (Anzahl der zugreifenden Nutzer pro Tag, Anzahl der gestellten Fragen). → FR-Karte: [FR-WM-06](requirements/v6/package_6_1_enterprise_governance_sharing_analytics.md#fr-wm-06--notebook-usage-analytics-for-shared-notebooks)
+* **FR-WM-07 (Ressourcen-Quotas):** Das System muss konfigurierbare Limits pro Notebook erzwingen (Referenzwert: $N_{\text{max}} \ge 50$ bis $300$ Quellen pro Notebook; max. $500.000$ Wörter bzw. $200\text{ MB}$ pro Einzelquelle). → FR-Karten: [Baseline v1.0](requirements/v1/package_1_1_workspace_foundation.md#fr-wm-07--resource-quotas-baseline-v10), [Enterprise Tier](requirements/v6/package_6_1_enterprise_governance_sharing_analytics.md#fr-wm-07-enterprise-tier--enterprise-quota--tier-management)
 
 ---
 
@@ -53,21 +54,21 @@ Ein „Notebook“ bildet den logisch isolierten Daten- und Kontext-Container f�
 
 Dieses Modul verantwortet die Aufnahme, Vorverarbeitung und Bereitstellung sämtlicher Referenzdokumente.
 
-* **FR-SI-01 (Unterstützte Quellformate):** Das System muss folgende Eingabeformate nativ verarbeiten und in ein einheitliches internes Dokumentenmodell (inkl. Seiten-, Absatz- oder Zeitstempel-Referenzen) überführen:
+* **FR-SI-01 (Unterstützte Quellformate):** Das System muss folgende Eingabeformate nativ verarbeiten und in ein einheitliches internes Dokumentenmodell (inkl. Seiten-, Absatz- oder Zeitstempel-Referenzen) überführen: → FR-Karten: [Subset A](requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-01-subset-a--text-markdown-pdf--copied-text-ingestion), [Subset B](requirements/v3/package_3_1_multimodal_ingestion_sync.md#fr-si-01-subset-b--office-web-video--audio-ingestion)
   * Dokumente: PDF (inkl. OCR für gescannte Seiten und Layout-/Tabellenerkennung), TXT, Markdown (`.md`), DOCX / Google Docs.
   * Präsentationen: PPTX / Google Slides (Extraktion von Folientexten und visuellen Elementen).
   * Web-Ressourcen: Öffentliche und interne Web-URLs (HTML-Scraping und Bereinigung auf den Hauptinhalt).
   * Video-Quellen: Video-URLs (z. B. YouTube oder interne Mediatheken) via Extraktion von Untertiteln/Transkripten inkl. Zeitstempeln.
   * Audio-Dateien: MP3, WAV, M4A etc. via automatischer Spracherkennung (ASR / Speech-to-Text) mit Zeitstempel-Segmentierung.
   * Rohtext: Direktes Einfügen von Text aus der Zwischenablage (*Copied Text*).
-* **FR-SI-02 (Automatischer „Source Guide“ / Quellenüberblick):** Unmittelbar nach dem Upload einer Quelle muss ein Hintergrund-Agent automatisch:
+* **FR-SI-02 (Automatischer „Source Guide“ / Quellenüberblick):** Unmittelbar nach dem Upload einer Quelle muss ein Hintergrund-Agent automatisch: → FR-Karte: [FR-SI-02](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-si-02--automatic-source-guide-quellenüberblick)
   1. Eine prägnante Zusammenfassung des Dokuments generieren.
   2. Eine Liste der zentralen Schlüsselthemen (*Key Topics* / Keywords) extrahieren, die als klickbare Filter oder Prompt-Auslöser dienen.
-* **FR-SI-03 (Granulare Quellen-Selektion / Scoping):** In der Quellen-Seitenleiste muss jede Quelle eine Checkbox besitzen. Nutzer müssen für jede einzelne Chat-Anfrage oder Studio-Generierung frei wählen können, ob **alle** oder nur eine **spezifische Teilmenge** ($S_{\text{aktiv}} \subseteq S_{\text{gesamt}}$) der Quellen als Kontext genutzt werden.
-* **FR-SI-04 (Integrierter Quellen-Inspektor / Source Viewer):** Ein Klick auf eine Quelle in der Seitenleiste öffnet diese in einer Leseansicht innerhalb der App (inkl. Anzeige des Source Guides und des formatierten Volltexts bzw. Dokuments), ohne den aktuellen Arbeitsbereich zu verlassen.
-* **FR-SI-05 (Quellen-CRUD & Synchronisation):** Quellen müssen einzeln umbenannt, gelöscht oder – im Falle externer Dokumente/Webseiten – manuell oder per Webhook neu synchronisiert (*Re-Sync*) werden können, wenn sich das Originaldokument ändert.
-* **FR-SI-06 (Discover Sources Agent):** Der Nutzer kann ein Thema oder eine Forschungsfrage in ein Suchfeld („Quellen entdecken“) eingeben. Ein Recherche-Agent durchsucht daraufhin angebundene Suchindizes (Web oder Unternehmens-Intranet), präsentiert eine kuratierte Liste relevanter Treffer mit Kurzbeschreibung und erlaubt den 1-Klick-Import ausgewählter Treffer als neue Notebook-Quellen.
-* **FR-SI-07 (Deep Research Agent):** Erweiterter agentischer Modus, der zu einer komplexen Fragestellung selbstständig mehrstufige Suchen durchführt, Fakten verifiziert, einen strukturierten Forschungsbericht generiert und sowohl den Bericht als auch die gefundenen Primärquellen direkt in das Notebook einspeist.
+* **FR-SI-03 (Granulare Quellen-Selektion / Scoping):** In der Quellen-Seitenleiste muss jede Quelle eine Checkbox besitzen. Nutzer müssen für jede einzelne Chat-Anfrage oder Studio-Generierung frei wählen können, ob **alle** oder nur eine **spezifische Teilmenge** ($S_{\text{aktiv}} \subseteq S_{\text{gesamt}}$) der Quellen als Kontext genutzt werden. → FR-Karte: [FR-SI-03](requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-03--granular-source-selection--scoping)
+* **FR-SI-04 (Integrierter Quellen-Inspektor / Source Viewer):** Ein Klick auf eine Quelle in der Seitenleiste öffnet diese in einer Leseansicht innerhalb der App (inkl. Anzeige des Source Guides und des formatierten Volltexts bzw. Dokuments), ohne den aktuellen Arbeitsbereich zu verlassen. → FR-Karte: [FR-SI-04](requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-04--integrated-source-inspector-source-viewer)
+* **FR-SI-05 (Quellen-CRUD & Synchronisation):** Quellen müssen einzeln umbenannt, gelöscht oder – im Falle externer Dokumente/Webseiten – manuell oder per Webhook neu synchronisiert (*Re-Sync*) werden können, wenn sich das Originaldokument ändert. → FR-Karte: [FR-SI-05](requirements/v3/package_3_1_multimodal_ingestion_sync.md#fr-si-05--source-crud-rename-delete--re-synchronization)
+* **FR-SI-06 (Discover Sources Agent):** Der Nutzer kann ein Thema oder eine Forschungsfrage in ein Suchfeld („Quellen entdecken“) eingeben. Ein Recherche-Agent durchsucht daraufhin angebundene Suchindizes (Web oder Unternehmens-Intranet), präsentiert eine kuratierte Liste relevanter Treffer mit Kurzbeschreibung und erlaubt den 1-Klick-Import ausgewählter Treffer als neue Notebook-Quellen. → FR-Karte: [FR-SI-06](requirements/v6/package_6_2_autonomous_research_agents_discover_deep_research.md#fr-si-06--discover-sources-agent-quellen-entdecken)
+* **FR-SI-07 (Deep Research Agent):** Erweiterter agentischer Modus, der zu einer komplexen Fragestellung selbstständig mehrstufige Suchen durchführt, Fakten verifiziert, einen strukturierten Forschungsbericht generiert und sowohl den Bericht als auch die gefundenen Primärquellen direkt in das Notebook einspeist. → FR-Karte: [FR-SI-07](requirements/v6/package_6_2_autonomous_research_agents_discover_deep_research.md#fr-si-07--multi-step-deep-research-agent)
 
 ---
 
@@ -75,19 +76,19 @@ Dieses Modul verantwortet die Aufnahme, Vorverarbeitung und Bereitstellung sämt
 
 Das Herzstück der Interaktion: Ein streng auf die ausgewählten Quellen beschränkter Konversations- und Analyse-Agent.
 
-* **FR-GC-01 (Strikte Grounding-Policy):** Der Chat-Agent darf Antworten ausschließlich auf Basis der aktuell aktivierten Quellen ($S_{\text{aktiv}}$) und des bisherigen Gesprächsverlaufs formulieren. Ist eine Information nicht in den Quellen enthalten, muss das System dies explizit mitteilen und darf nicht auf allgemeines Weltwissen des vortrainierten Modells zurückgreifen (außer der Nutzer fordert explizit eine externe Web-/Intranet-Aktion an).
-* **FR-GC-02 (Präzise Inline-Zitationen):** Jede inhaltliche Aussage in einer KI-Antwort muss mit mindestens einem nummerierten Zitat-Badge (z. B. `[1]`, `[2]`) versehen sein.
-* **FR-GC-03 (Interaktive Zitat-Verifikation):**
+* **FR-GC-01 (Strikte Grounding-Policy):** Der Chat-Agent darf Antworten ausschließlich auf Basis der aktuell aktivierten Quellen ($S_{\text{aktiv}}$) und des bisherigen Gesprächsverlaufs formulieren. Ist eine Information nicht in den Quellen enthalten, muss das System dies explizit mitteilen und darf nicht auf allgemeines Weltwissen des vortrainierten Modells zurückgreifen (außer der Nutzer fordert explizit eine externe Web-/Intranet-Aktion an). → FR-Karte: [FR-GC-01](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-01--strict-grounding-policy)
+* **FR-GC-02 (Präzise Inline-Zitationen):** Jede inhaltliche Aussage in einer KI-Antwort muss mit mindestens einem nummerierten Zitat-Badge (z. B. `[1]`, `[2]`) versehen sein. → FR-Karte: [FR-GC-02](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-02--precise-inline-citations)
+* **FR-GC-03 (Interaktive Zitat-Verifikation):** → FR-Karte: [FR-GC-03](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-03--interactive-citation-verification-hover--click)
   * *Hover:* Bewegt der Nutzer den Mauszeiger über ein Zitat-Badge `[n]`, erscheint ein Tooltip mit dem exakten Textausschnitt (*Snippet*) und dem Namen der Quelle.
   * *Klick:* Ein Klick auf `[n]` öffnet den Quellen-Inspektor (`FR-SI-04`), scrollt automatisch zur exakten Fundstelle im Originaldokument und hebt die referenzierte Textpassage farblich hervor.
-* **FR-GC-04 (Notebook-Überblick & Starter-Prompts):** Beim Öffnen eines Notebooks mit geladenen Quellen zeigt der Chat-Bereich automatisch eine Gesamtzusammenfassung aller Quellen sowie $3$ bis $5$ kontextbezogene Beispielfragen an.
-* **FR-GC-05 (Dynamische Follow-up-Vorschläge):** Nach jeder KI-Antwort generiert das System automatisch weiterführende Fragevorschläge (*Suggested Chips*), die das Thema vertiefen.
-* **FR-GC-06 (Persistente Konversationshistorie):** Chat-Verläufe müssen sitzungsübergreifend gespeichert werden. Nutzer müssen vergangene Konversationen fortsetzen, durchsuchen oder den Chat-Verlauf bei Bedarf zurücksetzen/löschen können.
-* **FR-GC-07 (Konfigurierbare Personas, Ziele & Antwortstile):** Über die Chateinstellungen des Notebooks muss der Nutzer das Antwortverhalten anpassen können:
+* **FR-GC-04 (Notebook-Überblick & Starter-Prompts):** Beim Öffnen eines Notebooks mit geladenen Quellen zeigt der Chat-Bereich automatisch eine Gesamtzusammenfassung aller Quellen sowie $3$ bis $5$ kontextbezogene Beispielfragen an. → FR-Karte: [FR-GC-04](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-04--notebook-overview--starter-prompts)
+* **FR-GC-05 (Dynamische Follow-up-Vorschläge):** Nach jeder KI-Antwort generiert das System automatisch weiterführende Fragevorschläge (*Suggested Chips*), die das Thema vertiefen. → FR-Karte: [FR-GC-05](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-05--dynamic-follow-up-suggestions)
+* **FR-GC-06 (Persistente Konversationshistorie):** Chat-Verläufe müssen sitzungsübergreifend gespeichert werden. Nutzer müssen vergangene Konversationen fortsetzen, durchsuchen oder den Chat-Verlauf bei Bedarf zurücksetzen/löschen können. → FR-Karte: [FR-GC-06](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-06--persistent-conversation-history)
+* **FR-GC-07 (Konfigurierbare Personas, Ziele & Antwortstile):** Über die Chateinstellungen des Notebooks muss der Nutzer das Antwortverhalten anpassen können: → FR-Karte: [FR-GC-07](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-07--configurable-personas-goals--response-styles)
   * *Antwortlänge:* Standard, Länger, Kürzer.
   * *Stil / Rolle:* Standard, Lern-Tutor (*Learning Guide* – stellt Rückfragen statt nur Lösungen zu präsentieren), Analytiker oder **Benutzerdefinierter System-Prompt** (bis zu $5.000$ Zeichen für spezifische Instruktionen, Tonalität und Rollenvorgaben).
-* **FR-GC-08 (Sichere Code-Ausführungs-Sandbox / Cloud Computer):** Für quantitative Analysen, Datenbereinigungen oder komplexe Berechnungen auf hochgeladenen Datenquellen muss der Chat-Agent in einer isolierten Sandbox Programmcode (z. B. Python) schreiben, ausführen und die Ergebnisse (Werte, Diagramme, Dateien) in die Antwort einbetten können.
-* **FR-GC-09 (Antwort-Aktionen & Feedback):** Jede Antwort bietet Aktionen zum Kopieren (inkl. oder exkl. Quellenverweise), zum Speichern als Notiz (*Save to Note*) sowie zur Qualitätsbewertung (Daumen hoch/runter mit Fehlerkategorisierung wie „Halluzination“, „Falsches Zitat“, „Unvollständig“).
+* **FR-GC-08 (Sichere Code-Ausführungs-Sandbox / Cloud Computer):** Für quantitative Analysen, Datenbereinigungen oder komplexe Berechnungen auf hochgeladenen Datenquellen muss der Chat-Agent in einer isolierten Sandbox Programmcode (z. B. Python) schreiben, ausführen und die Ergebnisse (Werte, Diagramme, Dateien) in die Antwort einbetten können. → FR-Karte: [FR-GC-08](requirements/v3/package_3_2_code_execution_sandbox.md#fr-gc-08--secure-code-execution-sandbox-cloud-computer)
+* **FR-GC-09 (Antwort-Aktionen & Feedback):** Jede Antwort bietet Aktionen zum Kopieren (inkl. oder exkl. Quellenverweise), zum Speichern als Notiz (*Save to Note*) sowie zur Qualitätsbewertung (Daumen hoch/runter mit Fehlerkategorisierung wie „Halluzination“, „Falsches Zitat“, „Unvollständig“). → FR-Karte: [FR-GC-09](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-09--response-actions--quality-feedback)
 
 ---
 
@@ -95,10 +96,10 @@ Das Herzstück der Interaktion: Ein streng auf die ausgewählten Quellen beschr�
 
 Dient der Kuratierung von Arbeitsergebnissen, eigenen Gedanken und gespeicherten KI-Erkenntnissen.
 
-* **FR-NM-01 (Manuelle Notizerstellung):** Nutzer können jederzeit eigene Notizen mit einem Rich-Text-/Markdown-Editor innerhalb des Notebooks anlegen, bearbeiten und löschen.
-* **FR-NM-02 (Speichern von Chat-Antworten als Notiz):** Mit einem Klick auf „Als Notiz speichern“ wird eine Chat-Antwort (inkl. ihrer Zitate) als schreibgeschützte oder editierbare Notiz im Studio-/Notizbereich abgelegt.
-* **FR-NM-03 (Konvertierung: Notiz zu Quelle):** Einzelne Notizen oder alle Notizen eines Notebooks müssen per 1-Klick-Aktion („In Quelle umwandeln“) in eine formale Quelle im Quellen-Index (`Modul 2`) überführt werden können, sodass sie fortan für das Grounding und die Zitation zur Verfügung stehen.
-* **FR-NM-04 (KI-Operationen auf ausgewählten Notizen):** Wählt der Nutzer eine oder mehrere Notizen aus, stehen kontextsensitive KI-Aktionen bereit:
+* **FR-NM-01 (Manuelle Notizerstellung):** Nutzer können jederzeit eigene Notizen mit einem Rich-Text-/Markdown-Editor innerhalb des Notebooks anlegen, bearbeiten und löschen. → FR-Karte: [FR-NM-01](requirements/v2/package_2_3_notes_pinboard_lifecycle.md#fr-nm-01--manual-note-creation--editing)
+* **FR-NM-02 (Speichern von Chat-Antworten als Notiz):** Mit einem Klick auf „Als Notiz speichern“ wird eine Chat-Antwort (inkl. ihrer Zitate) als schreibgeschützte oder editierbare Notiz im Studio-/Notizbereich abgelegt. → FR-Karte: [FR-NM-02](requirements/v2/package_2_3_notes_pinboard_lifecycle.md#fr-nm-02--save-chat-response-as-note)
+* **FR-NM-03 (Konvertierung: Notiz zu Quelle):** Einzelne Notizen oder alle Notizen eines Notebooks müssen per 1-Klick-Aktion („In Quelle umwandeln“) in eine formale Quelle im Quellen-Index (`Modul 2`) überführt werden können, sodass sie fortan für das Grounding und die Zitation zur Verfügung stehen. → FR-Karte: [FR-NM-03](requirements/v2/package_2_3_notes_pinboard_lifecycle.md#fr-nm-03--convert-notes-to-source-1-click-roundtrip)
+* **FR-NM-04 (KI-Operationen auf ausgewählten Notizen):** Wählt der Nutzer eine oder mehrere Notizen aus, stehen kontextsensitive KI-Aktionen bereit: → FR-Karte: [FR-NM-04](requirements/v2/package_2_3_notes_pinboard_lifecycle.md#fr-nm-04--contextual-ai-operations-on-selected-notes)
   * *Zusammenfassen* der ausgewählten Notizen.
   * *Gliederung erstellen* (*Create Outline*).
   * *Verwandte Ideen vorschlagen* (auf Basis der Notebook-Quellen).
@@ -111,60 +112,61 @@ Dient der Kuratierung von Arbeitsergebnissen, eigenen Gedanken und gespeicherten
 Das Studio ist eine dedizierte Werkzeugleiste zur asynchronen Generierung komplexer, multimodaler Wissensartefakte aus den aktuell ausgewählten Quellen ($S_{\text{aktiv}}$). Alle generierten Artefakte werden in einer Studio-Bibliothek des Notebooks gespeichert.
 
 #### 3.5.1 Audio Overviews (KI-Podcast & Interaktiver Sprachmodus)
-* **FR-ST-01 (Dialogische Audio-Synthese):** Generierung einer natürlich klingenden, mehrminütigen Audio-Diskussion („Deep Dive Podcast“) zwischen zwei KI-Moderierenden (Hosts), die den Inhalt der Quellen zusammenfassen, Metaphern nutzen und Zusammenhänge diskutieren.
-* **FR-ST-02 (Pre-Generation Customizing):** Vor der Generierung kann der Nutzer Parameter festlegen:
+* **FR-ST-01 (Dialogische Audio-Synthese):** Generierung einer natürlich klingenden, mehrminütigen Audio-Diskussion („Deep Dive Podcast“) zwischen zwei KI-Moderierenden (Hosts), die den Inhalt der Quellen zusammenfassen, Metaphern nutzen und Zusammenhänge diskutieren. → FR-Karte: [FR-ST-01](requirements/v5/package_5_1_studio_dialogic_audio_overviews_live_voice.md#fr-st-01--dialogic-2-host-audio-synthesis-deep-dive-podcast)
+* **FR-ST-02 (Pre-Generation Customizing):** Vor der Generierung kann der Nutzer Parameter festlegen: → FR-Karte: [FR-ST-02](requirements/v5/package_5_1_studio_dialogic_audio_overviews_live_voice.md#fr-st-02--audio-overview-pre-generation-customizing)
   * *Fokus-Instruktion:* Freitext-Prompt (z. B. „Fokussiere dich nur auf die Sicherheitsrisiken in Abschnitt 3“ oder „Richte das Gespräch an Einsteiger“).
   * *Format/Länge:* Kurzüberblick vs. ausführlicher Deep Dive.
   * *Ausgabesprache:* Mehrsprachige Generierung (unabhängig von der Sprache der Quelldokumente).
-* **FR-ST-03 (Interaktiver Modus / „Join-In“):** Während des Abspielens des Audio Overviews kann der Nutzer in den interaktiven Modus wechseln und per Mikrofon („Beitreten“ / *Interrupt*) live Fragen stellen oder das Gespräch in eine andere Richtung lenken. Die KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Basis der Notebook-Quellen und setzen anschließend die Diskussion fort.
-* **FR-ST-04 (Audio-Player & Export):** Integrierter Player mit Geschwindigkeitsregelung ($0.5\times$ bis $2.0\times$), Hintergrundwiedergabe, Download als Audiodatei (`.mp3`/`.wav`) und Link-Sharing.
+* **FR-ST-03 (Interaktiver Modus / „Join-In“):** Während des Abspielens des Audio Overviews kann der Nutzer in den interaktiven Modus wechseln und per Mikrofon („Beitreten“ / *Interrupt*) live Fragen stellen oder das Gespräch in eine andere Richtung lenken. Die KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Basis der Notebook-Quellen und setzen anschließend die Diskussion fort. → FR-Karte: [FR-ST-03](requirements/v5/package_5_1_studio_dialogic_audio_overviews_live_voice.md#fr-st-03--interactive-voice-mode-join-in--live-interrupt)
+  * *Spezifikationsabweichung (DEV-01, 2026-10-16):* Bei Unterbrechung (Interrupt) pausiert die Wiedergabe. **Ein designierter Host** beantwortet die Live-Zwischenfrage in seiner Host-Stimme (über Gemini Live, quellenbasiert über `C-02`), woraufhin die Wiedergabe an der Unterbrechungsstelle fortgesetzt wird. Der zweite Host nimmt nicht an der Live-Beantwortung teil (siehe auch §5.4 `Gate v5.0` und §5.5).
+* **FR-ST-04 (Audio-Player & Export):** Integrierter Player mit Geschwindigkeitsregelung ($0.5\times$ bis $2.0\times$), Hintergrundwiedergabe, Download als Audiodatei (`.mp3`/`.wav`) und Link-Sharing. → FR-Karte: [FR-ST-04](requirements/v5/package_5_1_studio_dialogic_audio_overviews_live_voice.md#fr-st-04--audio-player-controls-background-playback--export)
 
 #### 3.5.2 Video Overviews
-* **FR-ST-05 (Narrated Slideshow / Standard Video Overview):** Automatische Generierung eines Erklärvideos bestehend aus visuell gestalteten Präsentationsfolien (inkl. Diagrammen, Zitaten und Schlüsselbegriffen aus den Quellen) kombiniert mit einer synchronisierten KI-Sprecherstimme.
-* **FR-ST-06 (Short Video Overviews):** Generierung kompakter Kurzvideos ($\approx 60\text{ s}$) mit edukativen Animationen für eine schnelle mobile Wiederholung.
-* **FR-ST-07 (Cinematic Video Overviews):** Generierung voll animierter, filmischer Wissensvideos in wählbaren visuellen Stilen (z. B. *Scientific*, *Professional*, *Editorial*, *Sketch Note*) unter Einsatz generativer Bild-/Videomodelle.
+* **FR-ST-05 (Narrated Slideshow / Standard Video Overview):** Automatische Generierung eines Erklärvideos bestehend aus visuell gestalteten Präsentationsfolien (inkl. Diagrammen, Zitaten und Schlüsselbegriffen aus den Quellen) kombiniert mit einer synchronisierten KI-Sprecherstimme. → FR-Karte: [FR-ST-05](requirements/v5/package_5_2_studio_video_overviews.md#fr-st-05--narrated-slideshow--standard-video-overview)
+* **FR-ST-06 (Short Video Overviews):** Generierung kompakter Kurzvideos ($\approx 60\text{ s}$) mit edukativen Animationen für eine schnelle mobile Wiederholung. → FR-Karte: [FR-ST-06](requirements/v5/package_5_2_studio_video_overviews.md)
+* **FR-ST-07 (Cinematic Video Overviews):** Generierung voll animierter, filmischer Wissensvideos in wählbaren visuellen Stilen (z. B. *Scientific*, *Professional*, *Editorial*, *Sketch Note*) unter Einsatz generativer Bild-/Videomodelle. → FR-Karte: [FR-ST-07](requirements/v5/package_5_2_studio_video_overviews.md#fr-st-07--cinematic-video-overviews-with-selectable-visual-styles)
 
 #### 3.5.3 Visuelle Wissensgraphen (Mindmaps)
-* **FR-ST-08 (Automatische Mindmap-Generierung):** Synthese der aktiven Quellen in einen hierarchischen, interaktiven Knoten-Kanten-Graphen (Zentralthema $\rightarrow$ Hauptkategorien $\rightarrow$ Unterthemen $\rightarrow$ Detailfakten).
-* **FR-ST-09 (Mindmap-Interaktivität):**
+* **FR-ST-08 (Automatische Mindmap-Generierung):** Synthese der aktiven Quellen in einen hierarchischen, interaktiven Knoten-Kanten-Graphen (Zentralthema $\rightarrow$ Hauptkategorien $\rightarrow$ Unterthemen $\rightarrow$ Detailfakten). → FR-Karte: [FR-ST-08](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-08--automatic-mindmap-generation)
+* **FR-ST-09 (Mindmap-Interaktivität):** → FR-Karte: [FR-ST-09](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-09--mindmap-interactivity-chat-drilldown--export)
   * Auf- und Zuklappen (*Expand/Collapse*) von Knotenebenen, Zoomen und Verschieben (*Pan/Zoom*).
   * Ein Klick auf einen spezifischen Knoten öffnet im Chat-Bereich automatisch eine detaillierte Erklärung und Quellensuche genau zu diesem Teilthema.
   * Export der Mindmap als Bilddatei (PNG/SVG).
 
 #### 3.5.4 Berichte & Text-Synthese (Reports)
-* **FR-ST-10 (Standard-Berichtsvorlagen):** 1-Klick-Generierung strukturierter Fachdokumente:
+* **FR-ST-10 (Standard-Berichtsvorlagen):** 1-Klick-Generierung strukturierter Fachdokumente: → FR-Karte: [FR-ST-10](requirements/v2/package_2_4_studio_text_synthesis_reports.md#fr-st-10--standard-report-templates-briefing-doc-study-guide-faq-timeline)
   * *Briefing Doc:* Management Summary mit Kernaussagen, wichtigen Fakten und Zitaten.
   * *Study Guide (Studienleitfaden):* Überblick, Glossar zentraler Begriffe, Kurzfragen mit Antworten und Essay-Themen.
   * *FAQ:* Häufig gestellte Fragen und fundierte Antworten aus dem Material.
   * *Timeline (Zeitleiste):* Chronologische Auflistung aller in den Quellen genannten Ereignisse inkl. einer Liste der Hauptakteure (*Cast of Characters*).
-* **FR-ST-11 (Dynamische & Benutzerdefinierte Berichte):** Das System analysiert den Inhalt der Quellen und schlägt kontextspezifische Berichtsformate vor (z. B. „Marktanalyse“, „Methodik-Vergleich“, „Widerspruchs-Bericht“, „Blogpost“). Zudem kann der Nutzer eigene Berichtsstrukturen per Prompt definieren.
-* **FR-ST-12 (Interactive Learning Overviews):** Kombinierte Berichte, die Zusammenfassungen, generierte Infografiken, Lernkarten und Quizze zu einem zusammenhängenden interaktiven Dokument verweben.
+* **FR-ST-11 (Dynamische & Benutzerdefinierte Berichte):** Das System analysiert den Inhalt der Quellen und schlägt kontextspezifische Berichtsformate vor (z. B. „Marktanalyse“, „Methodik-Vergleich“, „Widerspruchs-Bericht“, „Blogpost“). Zudem kann der Nutzer eigene Berichtsstrukturen per Prompt definieren. → FR-Karte: [FR-ST-11](requirements/v2/package_2_4_studio_text_synthesis_reports.md#fr-st-11--dynamic--custom-prompted-reports)
+* **FR-ST-12 (Interactive Learning Overviews):** Kombinierte Berichte, die Zusammenfassungen, generierte Infografiken, Lernkarten und Quizze zu einem zusammenhängenden interaktiven Dokument verweben. → FR-Karte: [FR-ST-12](requirements/v4/package_4_1_studio_active_learning_suite.md#fr-st-12--interactive-learning-overviews)
 
 #### 3.5.5 Aktives Lernen (Flashcards & Quizzes)
-* **FR-ST-13 (Interaktive Lernkarten / Flashcards):** Generierung von Frage-Antwort-Karten aus den Quellen. Jede Karte verfügt über eine Umdreh-Funktion (*Flip*) sowie einen **„Erklären“-Button (*Explain*)**, der im Chat eine ausführliche Herleitung mit direkten Quellenverweisen generiert.
-* **FR-ST-14 (Interaktive Quizze):** Generierung von Wissensüberprüfungen mit unterschiedlichen Aufgabentypen:
+* **FR-ST-13 (Interaktive Lernkarten / Flashcards):** Generierung von Frage-Antwort-Karten aus den Quellen. Jede Karte verfügt über eine Umdreh-Funktion (*Flip*) sowie einen **„Erklären“-Button (*Explain*)**, der im Chat eine ausführliche Herleitung mit direkten Quellenverweisen generiert. → FR-Karte: [FR-ST-13](requirements/v4/package_4_1_studio_active_learning_suite.md#fr-st-13--interactive-flashcards-with-chat-explain-trigger)
+* **FR-ST-14 (Interaktive Quizze):** Generierung von Wissensüberprüfungen mit unterschiedlichen Aufgabentypen: → FR-Karte: [FR-ST-14](requirements/v4/package_4_1_studio_active_learning_suite.md#fr-st-14--interactive-quizzes-with-semantic-grading)
   * *Multiple Choice* (Einfachauswahl) & *Multiple Select* (Mehrfachauswahl).
   * *Fill-in-the-blank* (Lückentext) & *Short Answer* (Freitextantwort mit semantischer KI-Bewertung).
   * Sofortiges Feedback bei richtiger/falscher Antwort inkl. quellenbasierter Begründung.
-* **FR-ST-15 (Lernfortschritts-Tracking):** Das System speichert pro Nutzer, welche Lernkarten und Quizfragen gewusst oder verfehlt wurden, um gezielte Wiederholungsrunden (*Spaced Repetition* / Fokus auf falsch beantwortete Fragen) zu ermöglichen.
+* **FR-ST-15 (Lernfortschritts-Tracking):** Das System speichert pro Nutzer, welche Lernkarten und Quizfragen gewusst oder verfehlt wurden, um gezielte Wiederholungsrunden (*Spaced Repetition* / Fokus auf falsch beantwortete Fragen) zu ermöglichen. → FR-Karte: [FR-ST-15](requirements/v4/package_4_1_studio_active_learning_suite.md#fr-st-15--per-user-learning-progress-tracking--targeted-review)
 
 #### 3.5.6 Präsentationen, Infografiken & Datentabellen
-* **FR-ST-16 (Slide Decks):** Generierung strukturierter Präsentationsfolien (Titel, Bullet-Points, visuelle Layouts, Sprechernotizen) mit Exportmöglichkeit (PPTX / PDF / Google Slides).
-* **FR-ST-17 (Infografiken):** Generierung visueller Übersichten und Prozessgrafiken zu Kernaussagen der Quellen.
-* **FR-ST-18 (Data Tables):** Gezielte Extraktion strukturierter Daten, Vergleiche und Metriken über mehrere Dokumente hinweg in ein interaktives Tabellenformat (inkl. CSV-/Excel-Export).
+* **FR-ST-16 (Slide Decks):** Generierung strukturierter Präsentationsfolien (Titel, Bullet-Points, visuelle Layouts, Sprechernotizen) mit Exportmöglichkeit (PPTX / PDF / Google Slides). → FR-Karte: [FR-ST-16](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-16--studio-slide-decks-with-pptx--pdf-export)
+* **FR-ST-17 (Infografiken):** Generierung visueller Übersichten und Prozessgrafiken zu Kernaussagen der Quellen. → FR-Karte: [FR-ST-17](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-17--studio-visual-infographics)
+* **FR-ST-18 (Data Tables):** Gezielte Extraktion strukturierter Daten, Vergleiche und Metriken über mehrere Dokumente hinweg in ein interaktives Tabellenformat (inkl. CSV-/Excel-Export). → FR-Karte: [FR-ST-18](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-18--studio-structured-data-tables--csvxlsx-export)
 
 ---
 
 ### 3.6 Modul 6: Ökosystem-Integration & Benutzeroberfläche (UI/INT)
 
-* **FR-INT-01 (Integration in den zentralen Enterprise-Chat):** Analog zur `@Gemini Notebook`-Erweiterung in der Haupt-Gemini-App müssen Nutzer aus dem allgemeinen Unternehmens-Chatbot heraus:
+* **FR-INT-01 (Integration in den zentralen Enterprise-Chat):** Analog zur `@Gemini Notebook`-Erweiterung in der Haupt-Gemini-App müssen Nutzer aus dem allgemeinen Unternehmens-Chatbot heraus: → FR-Karte: [FR-INT-01](requirements/v6/package_6_3_ecosystem_integration_notebook_mention.md#fr-int-01--central-enterprise-chat-integration-notebook-mention--thread-export)
   * Auf bestehende Notebooks per `@Notebook`-Mention zugreifen und Fragen stellen können.
   * Einen laufenden allgemeinen Chat-Thread direkt als neues Notebook oder als Quelle in ein bestehendes Notebook exportieren können.
-* **FR-UI-01 (Adaptives 3-Spalten-Arbeitsplatz-Layout):** Die Web-Applikation muss als reaktive Single-Page-Application (SPA) mit drei klaren Funktionsbereichen aufgebaut sein:
+* **FR-UI-01 (Adaptives 3-Spalten-Arbeitsplatz-Layout):** Die Web-Applikation muss als reaktive Single-Page-Application (SPA) mit drei klaren Funktionsbereichen aufgebaut sein: → FR-Karte: [FR-UI-01](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#fr-ui-01--adaptive-3-column-workspace-layout)
   1. **Linkes Panel (Quellen):** Quellenliste, Checkbox-Auswahl, Upload-Dialog, Discover-Sources-Suche und eingebetteter Source-Viewer (klappbar).
   2. **Mittleres Panel (Chat & Interaktion):** Konversationsverlauf, Zitat-Anzeige, Eingabeleiste mit Quellen-Zähler (`x Quellen ausgewählt`) und Prompt-Vorschläge.
   3. **Rechtes Panel (Studio & Notizen):** Kacheln zur Auslösung von Studio-Generierungen (Audio, Video, Mindmap, Reports, Flashcards, Quiz, Tables) sowie die Liste aller generierten Artefakte und gespeicherten Notizen.
-* **FR-UI-02 (Sprach- & Darstellungsoptionen):** Unterstützung für Dark/Light Mode sowie globale und notebook-spezifische Festlegung der Ein- und Ausgabesprache.
+* **FR-UI-02 (Sprach- & Darstellungsoptionen):** Unterstützung für Dark/Light Mode sowie globale und notebook-spezifische Festlegung der Ein- und Ausgabesprache. → FR-Karte: [FR-UI-02](requirements/v2/package_2_1_workspace_ui_comfort.md#fr-ui-02--theme--language-configuration)
 
 ---
 
@@ -184,15 +186,15 @@ Für eine saubere Aufgabentrennung im Backend soll die Plattform als orchestrier
 | **Studio Synthesis Agents** | Spezialisierte Sub-Agenten für Skripterstellung + TTS-Dialog (Audio), Storyboard + Folien/Video-Rendering (Video), Graph-Extraktion (Mindmap), Pädagogik-Generierung (Quiz/Flashcards) und Datenextraktion (Tables). | `FR-ST-01` bis `FR-ST-18` |
 
 ### 4.2 Formale Validierungs- und Qualitätsmetriken (Eval-Specs)
-* **NFR-EVAL-01 (Grounding Faithfulness):** Jede generierte Antwort $A$ zu einer Quellenmenge $S_{\text{aktiv}}$ muss durch einen automatisierten *LLM-as-a-Judge*- bzw. NLI-Prüfschritt validiert werden können. Die Halluzinationsrate (Aussagen in $A$, die nicht aus $S_{\text{aktiv}}$ ableitbar sind) muss im Benchmark unter einem Schwellenwert von $\epsilon_{\text{hallucination}} < 0{,}05$ ($5\,\%$) liegen.
-* **NFR-EVAL-02 (Citation Precision & Recall):** Jedes generierte Zitat `[n]` muss auf einen real existierenden Chunk-Identifier $c_n \in S_{\text{aktiv}}$ verweisen (keine „toten“ oder erfundenen Referenzen: $\text{Precision}_{\text{ID}} = 1{,}0$). Der referenzierte Textausschnitt $c_n$ muss die im Satz getroffene Aussage semantisch stützen.
-* **NFR-EVAL-03 (Negative Rejection Test):** Bei Fragen zu Fakten, die nachweislich **nicht** in $S_{\text{aktiv}}$ enthalten sind (obwohl sie Teil des allgemeinen Weltwissens des Basis-LLMs sind), muss das System in $\ge 99\,\%$ der Testfälle die Beantwortung unter Hinweis auf die fehlende Quellengrundlage ablehnen.
-* **NFR-EVAL-04 (Striktes Kontext-Scoping):** Ist eine Quelle $s_i$ im UI abgewählt ($s_i \notin S_{\text{aktiv}}$), darf kein einziger Chunk aus $s_i$ in den Prompt-Kontext oder das Retrieval-Ergebnis gelangen ($\text{Leakage} = 0$).
+* **NFR-EVAL-01 (Grounding Faithfulness):** Jede generierte Antwort $A$ zu einer Quellenmenge $S_{\text{aktiv}}$ muss durch einen automatisierten *LLM-as-a-Judge*- bzw. NLI-Prüfschritt validiert werden können. Die Halluzinationsrate (Aussagen in $A$, die nicht aus $S_{\text{aktiv}}$ ableitbar sind) muss im Benchmark unter einem Schwellenwert von $\epsilon_{\text{hallucination}} < 0{,}05$ ($5\,\%$) liegen. → FR-Karte: [NFR-EVAL-01](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
+* **NFR-EVAL-02 (Citation Precision & Recall):** Jedes generierte Zitat `[n]` muss auf einen real existierenden Chunk-Identifier $c_n \in S_{\text{aktiv}}$ verweisen (keine „toten“ oder erfundenen Referenzen: $\text{Precision}_{\text{ID}} = 1{,}0$). Der referenzierte Textausschnitt $c_n$ muss die im Satz getroffene Aussage semantisch stützen. → FR-Karte: [NFR-EVAL-02](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
+* **NFR-EVAL-03 (Negative Rejection Test):** Bei Fragen zu Fakten, die nachweislich **nicht** in $S_{\text{aktiv}}$ enthalten sind (obwohl sie Teil des allgemeinen Weltwissens des Basis-LLMs sind), muss das System in $\ge 99\,\%$ der Testfälle die Beantwortung unter Hinweis auf die fehlende Quellengrundlage ablehnen. → FR-Karte: [NFR-EVAL-03](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
+* **NFR-EVAL-04 (Striktes Kontext-Scoping):** Ist eine Quelle $s_i$ im UI abgewählt ($s_i \notin S_{\text{aktiv}}$), darf kein einziger Chunk aus $s_i$ in den Prompt-Kontext oder das Retrieval-Ergebnis gelangen ($\text{Leakage} = 0$). → FR-Karte: [NFR-EVAL-04](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
 
 ### 4.3 Enterprise Security, Datenschutz & Performance
-* **NFR-SEC-01 (Zero Data Training & Isolation):** Hochgeladene Unternehmensdaten, Prompts und generierte Artefakte dürfen unter keinen Umständen zum Training von Basismodellen verwendet werden.
-* **NFR-SEC-02 (Rollenspezifische Zugriffskontrolle / ACLs):** Die Plattform muss an das zentrale Identity & Access Management (SSO / OIDC / SAML) angebunden sein. Bei angebundenen Unternehmensquellen (z. B. Intranet-Suche im *Discover Sources*-Modus) müssen bestehende Dokumenten-Berechtigungen (ACLs) des jeweiligen Nutzers strikt respektiert werden.
-* **NFR-PERF-01 (Kontextfenster & Retrieval-Latenz):** Das System muss ein effektives Kontextfenster von mindestens $1 \times 10^6$ Tokens (oder eine äquivalente verlustfreie Kombination aus Long-Context-LLM und hochpräzisem Hybrid-RAG) unterstützen. Die Time-to-First-Token (TTFT) im Chat sollte bei Standardabfragen $\le 2{,}5\text{ s}$ betragen.
+* **NFR-SEC-01 (Zero Data Training & Isolation):** Hochgeladene Unternehmensdaten, Prompts und generierte Artefakte dürfen unter keinen Umständen zum Training von Basismodellen verwendet werden. → FR-Karte: [NFR-SEC-01](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
+* **NFR-SEC-02 (Rollenspezifische Zugriffskontrolle / ACLs):** Die Plattform muss an das zentrale Identity & Access Management (SSO / OIDC / SAML) angebunden sein. Bei angebundenen Unternehmensquellen (z. B. Intranet-Suche im *Discover Sources*-Modus) müssen bestehende Dokumenten-Berechtigungen (ACLs) des jeweiligen Nutzers strikt respektiert werden. → FR-Karte: [NFR-SEC-02](requirements/v6/package_6_1_enterprise_governance_sharing_analytics.md#nfr-sec-02--enterprise-sso-oidcsaml--document-level-acl-enforcement)
+* **NFR-PERF-01 (Kontextfenster & Retrieval-Latenz):** Das System muss ein effektives Kontextfenster von mindestens $1 \times 10^6$ Tokens (oder eine äquivalente verlustfreie Kombination aus Long-Context-LLM und hochpräzisem Hybrid-RAG) unterstützen. Die Time-to-First-Token (TTFT) im Chat sollte bei Standardabfragen $\le 2{,}5\text{ s}$ betragen. → FR-Karte: [NFR-PERF-01](requirements/v3/package_3_4_long_context_latency_scaling.md)
 
 ---
 
@@ -300,5 +302,16 @@ Ein Entwicklungs-Agent darf erst dann mit der Implementierung von Version $V_{k+
 | **Gate v2.0** | **1.** Jeder Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$).<br>**2.** Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.<br>**3.** Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente. |
 | **Gate v3.0** | **1.** Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).<br>**2.** Python-Sandbox (`FR-GC-08`) ist netzwerkisoliert und gibt korrekte Rechenergebnisse/Plots zurück.<br>**3.** Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX; Kontextfenster skaliert bis $10^6$ Tokens (`NFR-PERF-01`). |
 | **Gate v4.0** | **1.** Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab.<br>**2.** Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.<br>**3.** Slide-Deck-Export liefert fehlerfrei öffnende PPTX-/PDF-Dateien. |
-| **Gate v5.0** | **1.** Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte.<br>**2.** Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* und setzt den Podcast fort.<br>**3.** Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`). |
+| **Gate v5.0** | **1.** Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte.<br>**2.** Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.<br>**3.** Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`). |
 | **Gate v6.0** | **1.** Penetration-/RBAC-Test: Ein *Chat-Only*-Nutzer kann weder über UI noch via direktem API-Call Rohquellen oder Studio-Endpunkte abrufen.<br>**2.** ACL-Test (`NFR-SEC-02`): *Discover Sources* findet niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.<br>**3.** `@Notebook`-Aufruf im externen Enterprise-Chat liefert identisch fundierte Antworten wie der interne Notebook-Chat. |
+
+---
+
+### 5.5 Dokumentierte Spezifikationsabweichungen (Spec Deviation Log)
+
+Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwicklungs- und Test-Agenten werden architektonische und betriebliche Abweichungen vom ursprünglichen Referenzverhalten hier explizit festgehalten. Abweichungen, die eine Architekturentscheidung erfordern, verweisen auf deren ID (Dn) in der [Lösungsarchitektur](../docs/solution-architecture.md#decisions):
+
+| ID | Anforderung / Gate | Ursprüngliche Anforderung | Akzeptiertes Verhalten (Architecture Decision) | Datum & Beschluss |
+| :--- | :--- | :--- | :--- | :--- |
+| **DEV-01** | `FR-ST-03` (Join-In), `Gate v5.0` #2 | Beide KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Zwischenfragen und setzen anschließend die Diskussion fort. | Playback pausiert. **Ein designierter Host** beantwortet die Live-Frage in seiner Host-Podcast-Stimme über Gemini Live (grounded über `C-02`). Playback wird anschließend an der Unterbrechungsstelle fortgesetzt. Der zweite Host nimmt nicht an der Live-Antwort teil. | 2026-10-16, Project Owner ([D7](../docs/solution-architecture.md#decisions)) |
+| **DEV-02** | `FR-ST-16` (Slide Decks) | Export als PPTX / PDF / Google Slides. | Export ausschließlich als `.pptx` und `.pdf`. Der Google-Slides-Export ist zurückgestellt, da er eine OAuth-Autorisierung pro Nutzer erfordert. | 2026-10-16, Project Owner ([D8](../docs/solution-architecture.md#decisions)) |
