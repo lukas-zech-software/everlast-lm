@@ -61,8 +61,8 @@
 | :- | :- |
 | **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) in 6 functional domains, plus 3 architectural contracts (`C-01`..`C-03`) |
 | **Releases** | 6 incremental releases (v1.0 MVP to v6.0 Enterprise), 19 function packages, 6 automated release gates |
-| **FR cards** | 53 detailed requirement cards: **143 EARS statements**, **81 Gherkin acceptance scenarios**, about 33,000 words |
-| **Architecture** | 10 recorded decisions (`D1`..`D10`), 3 documented spec deviations (`DEV-01`..`DEV-03`), 8 tracked risks |
+| **FR cards** | 53 detailed requirement cards: **150 EARS statements**, **96 Gherkin acceptance scenarios**, about 36,000 words |
+| **Architecture** | 13 recorded decisions (`D1`..`D13`), 3 documented spec deviations (`DEV-01`..`DEV-03`), 8 tracked risks |
 | **Governance** | Constitution v1.0.1 with 6 principles, test-first marked non-negotiable |
 | **Agent tooling** | GitHub Spec Kit installed for Claude Code, Codex and GitHub Copilot; one shared `AGENTS.md` |
 | **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2) with 89 issues, 6 milestones, 3 views |
@@ -129,7 +129,7 @@ everlast-lm/
 │   │   └── v1/ … v6/             ← one file per function package, one card per requirement (19 files, 53 cards)
 │   └── evidence/                 ← screenshots and recordings of the reference product, per FR
 ├── docs/
-│   └── solution-architecture.md  ← binding technical choices, decisions D1–D10, risks, release mapping
+│   └── solution-architecture.md  ← binding technical choices, decisions D1–D13, risks, release mapping
 ├── scripts/
 │   └── check-spec-integrity.mjs  ← CI check: every link and anchor resolves, every SRS ID has an FR card
 ├── .specify/                     ← GitHub Spec Kit
@@ -271,6 +271,9 @@ graph LR
 | D8 | Google Slides export | Deferred (`DEV-02`): `.pptx` and `.pdf` only, because Slides needs per-user OAuth |
 | D9 | Infographics | Deterministic SVG from a structured layout, no image model, so numbers stay traceable |
 | D10 | Audio link sharing | Moved to v6.0, because share-link access depends on the v6 sharing roles; v5.0 ships player and export |
+| D11 | Google Docs/Slides import | Delegated v3 import through the Office normalization path; Google Slides output export stays deferred |
+| D12 | Large Studio contexts | Process all original scoped chunks in bounded batches; summaries alone are not lossless evidence |
+| D13 | Citation validation | Validate complete factual answers before publication or live speech; progress events do not count as TTFT |
 
 A design choice worth pointing out: the platform's "agents" from the SRS were sorted into **truly agentic** components
 (grounded chat, research, note assistant: ADK `LlmAgent` with tools) and **deterministic pipelines** (ingestion, every
@@ -377,8 +380,10 @@ compared all 89 issues against the current specification. **All 55 requirement I
 issues as `spec-drift`, and all 23 are now resolved: open questions that the FR cards answer were written into the
 issues, criteria that contradicted decisions were aligned (D7 single-host Join-In, D8 no Google Slides export, D10 link
 sharing in v6.0), and the deferred `@Notebook` integration (D5 / DEV-03) is labelled `status:deferred` and removed from
-the v6.0 gate. Every issue and milestone links to its current SRS section and FR card on `main`. Six issues keep
-`needs-clarification` for questions the specification deliberately leaves open, such as analytics data retention.
+the v6.0 gate. Every issue and milestone links to its current SRS section and FR card on `main`. At that audit baseline, six issues retained
+`needs-clarification` for planning questions such as analytics data retention. The subsequent
+[requirements consistency audit](docs/requirements-consistency-audit.md) updates the source specifications;
+its new acceptance details must be reconciled when deriving Spec Kit tasks and refreshing issue criteria.
 
 ---
 
@@ -454,19 +459,19 @@ the multi-agent rules in `AGENTS.md`, the GitHub project with 89 issues, and an 
 
 **Still to do, in order:**
 
-1. **Spec contradictions: resolved.** The audit's open points are decided and recorded: chunk size 300–600 tokens in
-   both cards and architecture, the `FR-GC-07` custom prompt stays at 5,000 characters as in the SRS, `FR-ST-04` link
-   sharing moves to v6.0 (`D10`), and the `@Notebook` deferral is logged as `DEV-03` with Gate v6.0 #3 amended.
-2. **Review the remaining FR cards** before their releases are specified: v2 (2.1–2.4), 3.1, 3.3, 4.1, v5 (5.1, 5.2),
-   6.1 and 6.2. The v1 cards are reviewed, so v1 is not blocked by this.
+1. **Requirements consistency audit: complete.** All 19 packages / 53 cards have been reviewed against the
+   constitution, SRS and architecture, including deferred package 6.3. Corrections cover source scoping,
+   permissions, quotas, lifecycle, limits, contracts and gate criteria; see the
+   [package-by-package audit](docs/requirements-consistency-audit.md).
+2. **Carry the corrected acceptance criteria into planning.** The shared card rules apply to every package.
+   Runtime feasibility and performance remain to be established by the specified spikes and release tests.
 3. **Run the Spec Kit stages for v1.** `/speckit-specify` → clarify → plan → tasks → `/speckit-analyze` (the
    verification pass across spec, plan and tasks), once for each of packages 1.1 to 1.4. This produces the concrete, test-first task lists that implementation agents need. No
    `specs/` directory exists yet.
 4. **Shared prerequisites:** the monorepo scaffold, the contracts package and CI from the [next steps](#next-steps-independent-agent-sessions-in-the-cloud),
    plus the two-day ADK-for-TypeScript spike (risk R3) and a local pgvector prototype with an `NFR-EVAL-04` leakage
    test.
-5. **Link the GitHub issues to Spec Kit features.** The issues are in sync with the specification (all 23 audit
-   findings resolved); once `/speckit-specify` runs, each epic links to its `specs/NNN-…` feature directory.
+5. **Link the GitHub issues to Spec Kit features.** Reconcile issue criteria with this requirements audit; once `/speckit-specify` runs, each epic links to its `specs/NNN-…` feature directory.
 6. **Approve the cloud setup:** enable the v1 Google Cloud APIs (`aiplatform`, `sqladmin`, `cloudtasks`,
    `secretmanager`, `identitytoolkit`, `documentai`) and write the Terraform baseline.
 

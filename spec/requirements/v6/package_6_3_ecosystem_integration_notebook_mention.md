@@ -1,11 +1,13 @@
 # Package 6.3 — Ecosystem Integration (@Notebook)
 
-- **Release:** v6.0
+- **Release:** Unscheduled (original allocation: v6.0; deferred by D5)
 - **Status:** Deferred (D5). `FR-INT-01` is out of scope per architecture decision D5; do not run `/speckit-specify` for this package until D5 is revisited.
 - **Goal:** Expose an enterprise ecosystem gateway (`FR-INT-01`) allowing users in the central corporate AI chat assistant to query any authorized notebook via `@Notebook` mentions with identical source grounding and citations, and to export general chat threads into a new or existing notebook.
 - **FRs:** FR-INT-01
-- **Gate criteria (SRS §5.4):** Gate v6.0 #3 — an `@Notebook` call from the external enterprise chat returns answers grounded identically to the internal notebook chat.
+- **Gate criteria (SRS §5.4):** Gate v6.0 #3 is deferred by D5/DEV-03 and is not required for the current v6 release. The retained criteria below apply only after an explicit reinstatement decision.
 - **Out of scope:** Third-party unauthenticated webhook consumers.
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -13,12 +15,12 @@
 
 | Field | Value |
 | :- | :- |
-| Release / Package | v6.0 / 6.3 |
+| Release / Package | Unscheduled / 6.3 (original v6.0 allocation) |
 | Status | Deferred (D5) |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer (Full), Viewer (Chat-Only) |
 | Depends on | FR-WM-05, FR-GC-01, FR-GC-02, NFR-SEC-02, C-02 |
-| Observed | 2026-10-15, Gemini App `@NotebookLM` extension & SRS §3.6 |
+| Reference provenance (unverified) | 2026-10-15, Gemini App `@NotebookLM` extension & SRS §3.6 |
 
 **Requirement (EARS)**
 - *Event:* When an authenticated user in the central Enterprise Chat application types `@` (or `@Notebook`), the `Ecosystem Gateway` shall return an autocomplete list of notebooks the user has permission to access (`Owner`, `Editor`, `Viewer Full`, or `Viewer Chat-Only` per `FR-WM-05`).
@@ -38,7 +40,7 @@ Evidence: `SRS §3.6 FR-INT-01`, `SRS §5.4 Gate v6.0 #3`
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `@Notebook` query payload | `{ notebook_id, query, history }` + User OIDC token | User must hold $\ge$ `viewer_chat_only` role on `notebook_id` | All `Ready` sources in `notebook_id` |
+| `@Notebook` query payload | `{ notebook_id, query, active_source_ids }` + authenticated application session; no arbitrary external history is trusted as notebook evidence | User must hold $\ge$ `viewer_chat_only` role on `notebook_id` | All `Ready` sources in `notebook_id` |
 | Thread export payload | `{ target_notebook_id (optional), title, messages: [...] }` | User must hold `owner` or `editor` role if `target_notebook_id` is specified | Creates new notebook if `target_notebook_id` is null |
 
 **Outputs & state**
@@ -71,7 +73,7 @@ Scenario: Unauthorized user cannot query or autocomplete a private notebook via 
 **Measurable criteria**
 - Grounding faithfulness ($\epsilon_{\text{hallucination}} < 0.05$), citation precision ($\text{Precision}_{\text{ID}} = 1.0$), and negative rejection ($\ge 99\%$) via `@Notebook` gateway match internal notebook chat 1:1 (`Gate v6.0 #3`).
 
-**Deviations from reference:** Exposes the `@Notebook` integration as an A2A (Agent2Agent) agent endpoint, as planned in the architecture (D5, `@Notebook` row), optionally also as an MCP (Model Context Protocol) tool, so any internal enterprise assistant can integrate with zero custom glue code.
+**Deviations from reference:** Deferred under D5/DEV-03. The architecture remains A2A-ready, but commits to no gateway or MCP implementation in the current release plan. Retained behavior is future scope, not permission to build it now.
 
 **Out of scope:** Allowing `@Notebook` mentions from external unauthenticated Slack/Teams workspaces outside the corporate tenant.
 

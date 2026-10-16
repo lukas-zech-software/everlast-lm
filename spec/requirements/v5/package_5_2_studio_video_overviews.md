@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v5.0 #3 — Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`).
 - **Out of scope:** Live real-time 3D avatar webcam calls.
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-ST-05 — Narrated Slideshow / Standard Video Overview
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor (generate), Viewer (watch/download) |
 | Depends on | FR-ST-16, FR-ST-01, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"Video Overview"` (`"Video-Zusammenfassung"`) in the Studio panel in `Standard (Narrated Slideshow)` mode, the `Video Rendering Pipeline` shall generate a structured slide storyboard (`FR-ST-16` engine: visual diagrams, key quotes, charts, and bullet animations) synchronized frame-accurately with an AI narrator voiceover track and mux them into a playable `.mp4` / `.webm` video artifact (`Contract C-03`).
@@ -55,7 +57,7 @@ Scenario: Narrated Slideshow Video Overview produces synchronized MP4/WebM strea
 ```
 
 **Edge & error cases**
-- Browser lacks hardware codec support for a specific container $\rightarrow$ Serves standard H.264/AAC `.mp4` (and VP9/Opus `.webm`) compatible with all enterprise browsers.
+- Browser cannot play the chosen encoding $\rightarrow$ Offer the alternate H.264/AAC MP4 or VP9/Opus WebM rendition; show an unsupported-playback message with an authorized download if neither is playable. Both formats are validated for all three video modes.
 
 **Measurable criteria**
 - Audio-video synchronization drift $< 100\text{ ms}$ across the entire video duration (`Gate v5.0 #3`).
@@ -76,7 +78,7 @@ Scenario: Narrated Slideshow Video Overview produces synchronized MP4/WebM strea
 | Priority (within package) | P2 |
 | Actors | Owner/Editor (generate), Viewer (watch/download) |
 | Depends on | FR-ST-05, C-02, C-03 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.2 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.2 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor selects `"Short Video"` (`"Kurzvideo ~60 s"`) in the `Video Overview` customization modal, the `Video Rendering Pipeline` shall condense the top $3\text{–}5$ core insights of $S_{\text{aktiv}}$ into a compact, fast-paced $\approx 60\text{-second}$ ($45\text{–}75\text{ s}$) educational animation with kinetic typography, animated diagrams, and voiceover narration.
@@ -133,7 +135,7 @@ Scenario: Short Video Overview renders a synchronized 45-to-75-second video (Gat
 | Priority (within package) | P2 |
 | Actors | Owner/Editor (generate), Viewer (watch/download) |
 | Depends on | FR-ST-05, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web & SRS §3.5.2 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web & SRS §3.5.2 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor selects `"Cinematic Video"` (`"Cinematic Video Overview"`) in the `Video Overview` modal and chooses a visual direction style from:
@@ -171,10 +173,16 @@ Scenario: Cinematic Video Overview renders valid MP4 stream in chosen style (Gat
   When the owner triggers a Cinematic Video Overview with style "sketch_note"
   Then the pipeline generates a playable 1080p MP4/WebM stream with synchronized narration and subtitles
   And the artifact metadata records visual_style = "sketch_note"
+
+Scenario: Cinematic failure is not silently replaced by a slideshow
+  Given a cinematic scene worker fails after bounded retries
+  When the pipeline finalizes the job
+  Then the Cinematic artifact is Failed
+  And no slideshow fallback is labelled a successful Cinematic artifact
 ```
 
 **Edge & error cases**
-- Generative video scene worker times out on one scene $\rightarrow$ Falls back to animated Ken-Burns vector/keyframe scene in the same style palette so the overall video job still succeeds cleanly.
+- Generative scene worker times out $\rightarrow$ Retry under the bounded job policy, then mark the Cinematic job Failed; do not silently substitute a slideshow and claim Cinematic success. A separately requested narrated slideshow remains available.
 
 **Measurable criteria**
 - $100\%$ of all three video modes (`FR-ST-05`, `FR-ST-06`, `FR-ST-07`) produce valid, playable, audio-synchronized `.mp4`/`.webm` streams (`Gate v5.0 #3`).

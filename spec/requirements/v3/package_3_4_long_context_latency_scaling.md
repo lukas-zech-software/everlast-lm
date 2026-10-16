@@ -4,7 +4,9 @@
 - **Goal:** Scale the `ScopedContextProvider` (`Contract C-02`) and Grounded Reasoning Engine to support an effective context window of $\ge 1 \times 10^6$ tokens across up to $300$ sources while maintaining a Time-to-First-Token ($\text{TTFT}$) $\le 2.5\text{ s}$.
 - **FRs:** NFR-PERF-01
 - **Gate criteria (SRS §5.4):** Gate v3.0 #3 — the effective context scales to $10^6$ tokens (`NFR-PERF-01`) with $\text{TTFT} \le 2.5\text{ s}$ while `NFR-EVAL-01..04` continue to pass.
-- **Out of scope:** Multi-notebook federated indexing (`v6.0`).
+- **Out of scope:** Multi-notebook federated indexing (no scheduled release; D5 defers FR-INT-01).
+
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
 ---
 
@@ -16,12 +18,12 @@
 | Priority (within package) | P1 |
 | Actors | System / Grounded Reasoning & Citation Agent, Studio Agents |
 | Depends on | C-01, C-02, FR-GC-01, FR-SI-02, NFR-EVAL-01..04 |
-| Observed | 2026-10-15, Enterprise SRS §4.3 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §4.3 |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The `ScopedContextProvider` (`Contract C-02`) and Grounded Reasoning pipeline shall support notebooks containing an aggregate active source volume of at least $1 \times 10^6$ tokens without out-of-memory errors, context truncation failures, or degradation of `NFR-EVAL-01..04` metrics.
 - *Ubiquitous:* For chat, regardless of the size of $S_{\text{aktiv}}$, the system shall combine hierarchical source summaries (`FR-SI-02`) with hybrid vector + full-text retrieval and merged ranking, strictly scoped to `active_source_ids` (chat is retrieval-first; architecture decision D1).
-- *Event:* When a Studio job runs over $S_{\text{aktiv}}$, the system shall pass the full normalized source text using context caching if it fits within $1 \times 10^6$ tokens, and otherwise map-reduce over the Source Guides (`FR-SI-02`).
+- *Event:* When a Studio job runs over $S_{\text{aktiv}}$, the system shall pass the full normalized source text using context caching if it fits within $1 \times 10^6$ tokens, and otherwise process every scoped chunk in bounded batches, using Source Guides for planning but retaining original chunk references throughout map-reduce (D12). Summaries alone must not replace detailed source evidence.
 - *Ubiquitous:* For standard chat queries (turns without code execution, `FR-GC-08`) against an active notebook, the system shall achieve a Time-to-First-Token ($\text{TTFT}$) of $\le 2.5\text{ s}$ (P95).
 
 **User story:** As an enterprise researcher working with massive document collections (up to millions of tokens across dozens of books, transcripts, and reports), I want fast, sub-2.5-second initial responses and complete recall without hitting context-length crashes.
@@ -41,15 +43,15 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §4.3 NF
 | Time-to-First-Token ($\text{TTFT}$) | Milliseconds | $\le 2,500\text{ ms}$ (P95 on standard chat queries, i.e. without code execution) | — |
 
 **Outputs & state**
-- Visible: Fast streaming start indicator ($\le 2.5\text{ s}$) regardless of notebook size.
+- Visible: First validated answer token within $\le 2.5\text{ s}$ (P95) on the declared standard-query benchmark; loading indicators do not count.
 - Persisted: Pre-computed vector embeddings and a full-text index, filtered strictly by `(notebook_id, source_id)` inside `ScopedContextProvider` (`Contract C-02`).
-- States: Chat: `HybridRetrieval` (always). Studio jobs: `CachedFullContext` $\leftrightarrow$ `SourceGuideMapReduce`.
+- States: Chat: `HybridRetrieval` (always). Studio jobs: `CachedFullContext` $\leftrightarrow$ `ChunkMapReduce` (Source Guides assist routing).
 
 **Acceptance criteria (Gherkin)**
 
 ```gherkin
 Scenario: Needle-in-a-haystack query at 1,000,000 tokens meets TTFT and citation accuracy (Gate v3.0 #3)
-  Given a notebook populated with 41 Ready sources totaling 1,050,000 tokens
+  Given a notebook populated with 41 Ready sources where Sources 1 to 40 alone total at least 1,050,000 tokens
   And chunk "chk_needle_77" in Source 33 contains the unique specification "Reactor coolant pressure must be 142.8 bar"
   And Source 41 contains the decoy "Reactor coolant pressure must be 155.0 bar"
   When the user selects Sources 1 to 40, deselects Source 41, and asks "What must the reactor coolant pressure be?" in 20 runs
@@ -59,7 +61,7 @@ Scenario: Needle-in-a-haystack query at 1,000,000 tokens meets TTFT and citation
 ```
 
 **Edge & error cases**
-- Broad global question (`"Summarize the main themes across all 40 sources"`) at $> 10^6$ tokens $\rightarrow$ Query router automatically includes all $40$ `Source Guide` summaries (`FR-SI-02`) plus top retrieved detail chunks so global synthesis never suffers from top-$k$ tunnel vision.
+- Broad global question (`"Summarize the main themes across all 40 sources"`) at $> 10^6$ tokens $\rightarrow$ Query router automatically includes all $40$ `Source Guide` summaries (`FR-SI-02`) plus top retrieved detail chunks with original chunk references; detailed questions still retrieve original chunks, never treating summaries as a lossless corpus replacement.
 
 **Measurable criteria**
 - Effective context capacity $\ge 1 \times 10^6\text{ tokens}$ (`Gate v3.0 #3`).

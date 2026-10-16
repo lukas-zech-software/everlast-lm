@@ -1,6 +1,6 @@
 # System Requirements Specification (SRS): Enterprise-Plattform nach dem Vorbild von „Gemini Notebook“
 
-**Dokumentstatus:** Entwurf (Baseline für Spec-Driven Agentic Development)  
+**Dokumentstatus:** Entwurf (Baseline für Spec-Driven Agentic Development; Konsistenzklärung 2026-10-16)<br>
 **Zielsystem:** Firmeninterne, quellenbasierte KI-Recherche-, Analyse- und Wissenssynthese-Plattform  
 **Referenzsystem:** Google Gemini Notebook (bis Juli 2026 bekannt als *Google NotebookLM*)  
 **Verwandte Dokumente:** [Lösungsarchitektur](../docs/solution-architecture.md) (Umsetzungsentscheidungen D1–Dn; bindend für das *Wie*, diese SRS bleibt bindend für das *Was*) · [FR-Karten](requirements/README.md) · [Constitution](../.specify/memory/constitution.md)
@@ -81,7 +81,7 @@ Das Herzstück der Interaktion: Ein streng auf die ausgewählten Quellen beschr�
 * **FR-GC-03 (Interaktive Zitat-Verifikation):** → FR-Karte: [FR-GC-03](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-03--interactive-citation-verification-hover--click)
   * *Hover:* Bewegt der Nutzer den Mauszeiger über ein Zitat-Badge `[n]`, erscheint ein Tooltip mit dem exakten Textausschnitt (*Snippet*) und dem Namen der Quelle.
   * *Klick:* Ein Klick auf `[n]` öffnet den Quellen-Inspektor (`FR-SI-04`), scrollt automatisch zur exakten Fundstelle im Originaldokument und hebt die referenzierte Textpassage farblich hervor.
-* **FR-GC-04 (Notebook-Überblick & Starter-Prompts):** Beim Öffnen eines Notebooks mit geladenen Quellen zeigt der Chat-Bereich automatisch eine Gesamtzusammenfassung aller Quellen sowie $3$ bis $5$ kontextbezogene Beispielfragen an. → FR-Karte: [FR-GC-04](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-04--notebook-overview--starter-prompts)
+* **FR-GC-04 (Notebook-Überblick & Starter-Prompts):** Beim Öffnen eines Notebooks mit geladenen Quellen zeigt der Chat-Bereich automatisch eine Gesamtzusammenfassung der aktuell ausgewählten, autorisierten Quellen sowie $3$ bis $5$ kontextbezogene Beispielfragen an. → FR-Karte: [FR-GC-04](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-04--notebook-overview--starter-prompts)
 * **FR-GC-05 (Dynamische Follow-up-Vorschläge):** Nach jeder KI-Antwort generiert das System automatisch weiterführende Fragevorschläge (*Suggested Chips*), die das Thema vertiefen. → FR-Karte: [FR-GC-05](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-05--dynamic-follow-up-suggestions)
 * **FR-GC-06 (Persistente Konversationshistorie):** Chat-Verläufe müssen sitzungsübergreifend gespeichert werden. Nutzer müssen vergangene Konversationen fortsetzen, durchsuchen oder den Chat-Verlauf bei Bedarf zurücksetzen/löschen können. → FR-Karte: [FR-GC-06](requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-06--persistent-conversation-history)
 * **FR-GC-07 (Konfigurierbare Personas, Ziele & Antwortstile):** Über die Chateinstellungen des Notebooks muss der Nutzer das Antwortverhalten anpassen können: → FR-Karte: [FR-GC-07](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-07--configurable-personas-goals--response-styles)
@@ -152,7 +152,7 @@ Das Studio ist eine dedizierte Werkzeugleiste zur asynchronen Generierung komple
 * **FR-ST-15 (Lernfortschritts-Tracking):** Das System speichert pro Nutzer, welche Lernkarten und Quizfragen gewusst oder verfehlt wurden, um gezielte Wiederholungsrunden (*Spaced Repetition* / Fokus auf falsch beantwortete Fragen) zu ermöglichen. → FR-Karte: [FR-ST-15](requirements/v4/package_4_1_studio_active_learning_suite.md#fr-st-15--per-user-learning-progress-tracking--targeted-review)
 
 #### 3.5.6 Präsentationen, Infografiken & Datentabellen
-* **FR-ST-16 (Slide Decks):** Generierung strukturierter Präsentationsfolien (Titel, Bullet-Points, visuelle Layouts, Sprechernotizen) mit Exportmöglichkeit (PPTX / PDF / Google Slides). → FR-Karte: [FR-ST-16](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-16--studio-slide-decks-with-pptx--pdf-export)
+* **FR-ST-16 (Slide Decks):** Generierung strukturierter Präsentationsfolien (Titel, Bullet-Points, visuelle Layouts, Sprechernotizen) mit Exportmöglichkeit (PPTX / PDF; Google Slides ist gemäß D8/DEV-02 zurückgestellt). → FR-Karte: [FR-ST-16](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-16--studio-slide-decks-with-pptx--pdf-export)
 * **FR-ST-17 (Infografiken):** Generierung visueller Übersichten und Prozessgrafiken zu Kernaussagen der Quellen. → FR-Karte: [FR-ST-17](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-17--studio-visual-infographics)
 * **FR-ST-18 (Data Tables):** Gezielte Extraktion strukturierter Daten, Vergleiche und Metriken über mehrere Dokumente hinweg in ein interaktives Tabellenformat (inkl. CSV-/Excel-Export). → FR-Karte: [FR-ST-18](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-18--studio-structured-data-tables--csvxlsx-export)
 
@@ -160,7 +160,7 @@ Das Studio ist eine dedizierte Werkzeugleiste zur asynchronen Generierung komple
 
 ### 3.6 Modul 6: Ökosystem-Integration & Benutzeroberfläche (UI/INT)
 
-* **FR-INT-01 (Integration in den zentralen Enterprise-Chat):** Analog zur `@Gemini Notebook`-Erweiterung in der Haupt-Gemini-App müssen Nutzer aus dem allgemeinen Unternehmens-Chatbot heraus: → FR-Karte: [FR-INT-01](requirements/v6/package_6_3_ecosystem_integration_notebook_mention.md#fr-int-01--central-enterprise-chat-integration-notebook-mention--thread-export)
+* **FR-INT-01 (Integration in den zentralen Enterprise-Chat):** **Zurückgestellt ohne Zielrelease (D5, DEV-03); folgende Beschreibung bleibt für eine spätere Wiederaufnahme erhalten.** Analog zur `@Gemini Notebook`-Erweiterung in der Haupt-Gemini-App müssen Nutzer aus dem allgemeinen Unternehmens-Chatbot heraus: → FR-Karte: [FR-INT-01](requirements/v6/package_6_3_ecosystem_integration_notebook_mention.md#fr-int-01--central-enterprise-chat-integration-notebook-mention--thread-export)
   * Auf bestehende Notebooks per `@Notebook`-Mention zugreifen und Fragen stellen können.
   * Einen laufenden allgemeinen Chat-Thread direkt als neues Notebook oder als Quelle in ein bestehendes Notebook exportieren können.
   * *Spezifikationsabweichung (DEV-03, 2026-10-16):* `FR-INT-01` ist zurückgestellt ([D5](../docs/solution-architecture.md#decisions)) und nicht Teil des v6.0-Abnahmeumfangs. Die Architektur bleibt A2A-fähig, damit die Integration später ohne Umbau ergänzt werden kann.
@@ -202,7 +202,7 @@ Für eine saubere Aufgabentrennung im Backend soll die Plattform als orchestrier
 
 ## 5. Inkrementelle Release-Roadmap & Versionspakete (Spec-Driven Milestones)
 
-Um eine konfliktfreie, agentische Entwicklung zu gewährleisten, wird das Gesamtsystem in **sechs aufeinander aufbauende Releases ($V_{1.0}$ bis $V_{6.0}$)** unterteilt. Jede Version erweitert das System um fachlich und technisch kohärente Funktionspakete, stellt einen **vollständig lauffähigen, produktiv nutzbaren Anwendungsstand** dar und bildet die disjunkte Gesamtmenge aller Anforderungen:
+Um eine konfliktfreie, agentische Entwicklung zu gewährleisten, wird das Gesamtsystem in **sechs aufeinander aufbauende Releases ($V_{1.0}$ bis $V_{6.0}$)** unterteilt. Jede Version erweitert das System um fachlich und technisch kohärente Funktionspakete, stellt einen **vollständig lauffähigen, produktiv nutzbaren Anwendungsstand** dar und bildet die geplante Gesamtmenge der aktiven Anforderungen; FR-SI-01 und FR-WM-07 werden in gestuften Teilmengen geliefert, FR-INT-01 bleibt gemäß D5 außerhalb dieser Releases:
 
 $$\text{Gesamtsystem} = V_{1.0\text{ (MVP)}} \cup V_{2.0} \cup V_{3.0} \cup V_{4.0} \cup V_{5.0} \cup V_{6.0}$$
 
@@ -212,7 +212,7 @@ Damit spätere Releases niemals zu Breaking Changes oder Refactoring-Konflikten 
 
 1. **Contract C-01 (`UnifiedDocumentChunk`-Schema):** Jeder Ingestion-Parser (egal ob PDF in $V_{1.0}$, Audio/Video in $V_{3.0}$ oder Deep-Research in $V_{6.0}$) überführt Quelldaten in dasselbe normierte Datenobjekt:
    $$\text{Chunk} = (\texttt{source\_id}, \texttt{chunk\_id}, \texttt{text}, \texttt{token\_count}, \texttt{locator})$$
-   wobei $\texttt{locator}$ polymorph als Seiten-/Absatz-Offset (`page_span`), Zeitstempel-Intervall (`time_span`) oder DOM-Pfad ausgeprägt ist. Die Citation Engine und alle Studio-Agenten arbeiten ausschließlich gegen dieses Schema.
+   wobei $\texttt{locator}$ polymorph als Seiten-/Absatz-Offset (`page_span`; physische Seite optional für reine Textquellen, mit deterministischen Text-/Absatz-Offsets), Zeitstempel-Intervall (`time_span`) oder DOM-Pfad (`dom_path`) ausgeprägt ist. Folien nutzen `page_span` im normalisierten Viewer; `char_span` und `slide_number` sind keine zusätzlichen Locator-Varianten. Die Citation Engine und alle Studio-Agenten arbeiten ausschließlich gegen dieses Schema.
 2. **Contract C-02 (`ScopedContextProvider`-Schnittstelle):** Kein Agent (weder Chat noch Studio) greift direkt auf Datenbanktabellen zu. Alle Konsumenten rufen ausschließlich `getScopedContext(notebook_id, active_source_ids)` auf. Dadurch ist `NFR-EVAL-04` ($\text{Leakage} = 0$) zentral an einer einzigen Stelle garantiert.
 3. **Contract C-03 (`StudioPluginRegistry` & Asynchrones Job-Pattern):** Jedes Studio-Feature implementiert ein einheitliches Interface `StudioGeneratorPlugin` (`triggerJob(scoped_context, params) -> artifact_id`) und legt sein Ergebnis als typisiertes JSON-/Media-Payload in derselben `StudioArtifact`-Tabelle ab. Neue Studio-Kacheln in $V_{3.0}$, $V_{4.0}$ und $V_{5.0}$ werden als unabhängige Plugins registriert, ohne bestehenden Code zu modifizieren (*Open-Closed Principle*).
 
@@ -227,7 +227,7 @@ Damit spätere Releases niemals zu Breaking Changes oder Refactoring-Konflikten 
 | **v3.0** | **Multimodal Ingestion & Data Analytics** | Tiefe Medien- und Datenanalyse: Import von Audio, Video, Web, DOCX/PPTX; Re-Sync; interaktive Mindmaps, Datentabellen-Extraktion und Python-Code-Sandbox. | *ASR/Video/Web/Office Parsers*, *Code Execution Agent*, *Graph & Table Agents* |
 | **v4.0** | **Active Learning & Visual Studio** | Didaktik & Präsentation: Interaktive Lernkarten, Quiz-Engine mit Fortschritts-Tracking, Learning Overviews, Folien-Generator (Slide Decks) und Infografiken. | *Pedagogy Agent (Quiz/Flashcards)*, *Slide & Infographic Agent* |
 | **v5.0** | **Generative Broadcast Studio (Audio & Video)** | High-End Medien-Synthese: Dialogischer 2-Host-KI-Podcast (Audio Overview), Echtzeit-Sprachinteraktion („Join-In“) sowie Narrated, Short und Cinematic Video Overviews. | *Audio Podcast & Live-Voice Agent*, *Video Rendering Pipeline* |
-| **v6.0** | **Enterprise Scale, Collaboration & Autonomous Research** | Unternehmensweite Skalierung: Rollenbasiertes Sharing, Analytics, SSO/ACL-Durchsetzung, autonome Recherche-Agenten (Discover & Deep Research) und `@Notebook`-Integration. | *Discovery & Deep Research Agent*, *Enterprise ACL & Ecosystem Gateway* |
+| **v6.0** | **Enterprise Scale, Collaboration & Autonomous Research** | Unternehmensweite Skalierung: Rollenbasiertes Sharing, Analytics, SSO/ACL-Durchsetzung, autonome Recherche-Agenten (Discover & Deep Research). `@Notebook` bleibt zurückgestellt (D5/DEV-03). | *Discovery & Deep Research Agent*, *Enterprise ACL* (Ecosystem Gateway zurückgestellt) |
 
 ---
 
@@ -271,12 +271,12 @@ Damit spätere Releases niemals zu Breaking Changes oder Refactoring-Konflikten 
 * **Zugeordnete Funktionspakete:**
   * *Paket 4.1 – Studio: Active Learning Suite:* `FR-ST-13` (Interaktive Flashcards mit Chat-Explain-Trigger), `FR-ST-14` (Interaktive Quizze mit semantischer Bewertung), `FR-ST-15` (Lernfortschritts-Tracking pro Nutzer), `FR-ST-12` (Interactive Learning Overviews).
   * *Paket 4.2 – Studio: Visuals & Presentations:* `FR-ST-16` (Slide Decks mit PPTX/PDF-Export), `FR-ST-17` (Generierte Infografiken).
-* **Technische Unabhängigkeit:** Alle vier neuen Generatoren klinken sich als unabhängige Plugins in die `StudioPluginRegistry` (`C-03`) ein. Der „Erklären“-Button einer Lernkarte (`FR-ST-13`) und eines Mindmap-Knotens (`FR-ST-09`) nutzt dieselbe standardisierte Chat-Prompt-Injection-Schnittstelle aus $V_{2.0}$.
+* **Technische Unabhängigkeit:** Alle neuen Generatoren klinken sich als unabhängige Plugins in die `StudioPluginRegistry` (`C-03`) ein. Der „Erklären“-Button einer Lernkarte (`FR-ST-13`) und eines Mindmap-Knotens (`FR-ST-09`) nutzt dieselbe scope-geprüfte Übergabe an den Chat wie die Topic-/Starter-/Follow-up-Aktionen aus $V_{2.0}$; Inhalte abgewählter Quellen werden dabei nicht erneut in Prompts übernommen (NFR-EVAL-04).
 
 ---
 
 #### Version 5.0: Generative Broadcast Studio (Audio & Video Overviews)
-* **Lauffähiger Zustand:** Freischaltung der komplexen generativen Audio- und Video-Pipelines im Studio. Nutzer können mehrsprachige, auf Wunsch fokussierte KI-Podcasts (*Audio Overviews*) mit zwei Moderierenden generieren, diese im integrierten Player abspielen und über den **„Join-In“-Modus** live per Mikrofon Fragen stellen, worauf die KI-Hosts in Echtzeit antworten. Zudem erzeugt das Studio automatisch vertonte Erklärvideos (*Narrated Slideshows*), kompakte $60\text{-s}$-Kurzvideos (*Shorts*) und voll animierte *Cinematic Video Overviews*.
+* **Lauffähiger Zustand:** Freischaltung der komplexen generativen Audio- und Video-Pipelines im Studio. Nutzer können mehrsprachige, auf Wunsch fokussierte KI-Podcasts (*Audio Overviews*) mit zwei Moderierenden generieren, diese im integrierten Player abspielen und über den **„Join-In“-Modus** live per Mikrofon Fragen stellen, worauf ein designierter Host gemäß DEV-01 in Echtzeit antwortet. Zudem erzeugt das Studio automatisch vertonte Erklärvideos (*Narrated Slideshows*), kompakte $60\text{-s}$-Kurzvideos (*Shorts*) und voll animierte *Cinematic Video Overviews*.
 * **Zugeordnete Funktionspakete:**
   * *Paket 5.1 – Studio: Dialogische Audio Overviews & Live-Voice:* `FR-ST-01` (2-Host-Audio-Synthese), `FR-ST-02` (Pre-Generation Customizing: Fokus, Länge, Sprache), `FR-ST-03` (Interaktiver Echtzeit-Sprachmodus / „Join-In“), `FR-ST-04` (Audio-Player mit Speed-Control & MP3/WAV-Export).
   * *Paket 5.2 – Studio: Video Overviews:* `FR-ST-05` (Narrated Slideshow Video), `FR-ST-06` (Short Video Overviews), `FR-ST-07` (Cinematic Video Overviews in wählbaren Stilen).
@@ -285,12 +285,12 @@ Damit spätere Releases niemals zu Breaking Changes oder Refactoring-Konflikten 
 ---
 
 #### Version 6.0: Enterprise Scale, Collaboration & Autonomous Research
-* **Lauffähiger Zustand:** Ausbau der Einzelplatz-Lösung zur unternehmensweiten Wissensplattform. Notebooks können mit feingranularen Rollen (*Owner/Editor*, *Viewer Vollansicht*, *Viewer Chat-Only*) für Teams freigegeben und über ein Analytics-Dashboard ausgewertet werden. Die Plattform erzwingt über SSO/OIDC sämtliche Dokumenten-ACLs des Unternehmens. Zwei autonome Recherche-Agenten (*Discover Sources* und mehrstufiger *Deep Research Agent*) durchsuchen selbstständig das Unternehmens-Intranet und das Web nach neuen Quellen. Zudem können Nutzer aus dem zentralen Enterprise-Chatbot heraus per `@Notebook` direkt mit jedem freigegebenen Notebook interagieren.
+* **Lauffähiger Zustand:** Ausbau der Einzelplatz-Lösung zur unternehmensweiten Wissensplattform. Notebooks können mit feingranularen Rollen (*Owner/Editor*, *Viewer Vollansicht*, *Viewer Chat-Only*) für Teams freigegeben und über ein Analytics-Dashboard ausgewertet werden. Die Plattform erzwingt über SSO/OIDC sämtliche Dokumenten-ACLs des Unternehmens. Zwei autonome Recherche-Agenten (*Discover Sources* und mehrstufiger *Deep Research Agent*) durchsuchen selbstständig das Unternehmens-Intranet und das Web nach neuen Quellen. Die ursprünglich vorgesehene `@Notebook`-Integration bleibt ohne Zielrelease zurückgestellt (D5/DEV-03).
 * **Zugeordnete Funktionspakete:**
   * *Paket 6.1 – Enterprise Governance, Sharing & Analytics:* `FR-WM-05` (Rollenbasiertes Sharing inkl. Chat-Only-Modus), `FR-WM-06` (Notebook-Analytics Dashboard), `FR-WM-07` (Enterprise-Quota-Management), `NFR-SEC-02` (SSO/OIDC/SAML & strikte Durchsetzung von Dokumenten-ACLs).
   * *Paket 6.2 – Autonome Recherche-Agenten:* `FR-SI-06` (Discover Sources Agent für Intranet/Web), `FR-SI-07` (Multi-Step Deep Research Agent inkl. Primärquellen- und Berichts-Import).
-  * *Paket 6.3 – Ökosystem-Integration:* `FR-INT-01` (`@Notebook`-Mention im zentralen Enterprise-Chat & Export von Chat-Threads als Notebook-Quelle).
-* **Technische Unabhängigkeit:** Die Recherche-Agenten (`FR-SI-06`, `FR-SI-07`) agieren als vorgeschaltete Such-Orchestratoren, die gefundene Dokumente über die bestehende Ingestion-Pipeline ($V_{1.0}/V_{3.0}$) und Berichte über die Report-Engine ($V_{2.0}$) einspeisen. Der *Chat-Only*-Viewer-Modus (`FR-WM-05`) blendet im Frontend (`FR-UI-01`) einfach das linke und rechte Panel aus und deaktiviert schreibende API-Endpunkte über die RBAC-Middleware.
+  * *Paket 6.3 – Ökosystem-Integration (zurückgestellt, kein Bestandteil von v6.0; D5/DEV-03):* `FR-INT-01` (`@Notebook`-Mention im zentralen Enterprise-Chat & Export von Chat-Threads als Notebook-Quelle).
+* **Technische Unabhängigkeit:** Die Recherche-Agenten (`FR-SI-06`, `FR-SI-07`) agieren als vorgeschaltete Such-Orchestratoren, die gefundene Dokumente über die bestehende Ingestion-Pipeline ($V_{1.0}/V_{3.0}$) und Berichte über die Report-Engine ($V_{2.0}$) einspeisen. Der *Chat-Only*-Viewer-Modus (`FR-WM-05`) blendet im Frontend (`FR-UI-01`) das linke und rechte Panel aus und blockiert auch lesende Rohquellen-, Chunk-, Notiz- und Studio-API-Endpunkte serverseitig; ausschließlich antwortgebundene autorisierte Zitatvorschauen bleiben verfügbar.
 
 ---
 
@@ -301,7 +301,7 @@ Ein Entwicklungs-Agent darf erst dann mit der Implementierung von Version $V_{k+
 | Release | Verpflichtendes Validierungs-Gate (Automated Acceptance Criteria) |
 | :--- | :--- |
 | **Gate v1.0** | **1.** End-to-End-Upload (PDF/MD) erzeugt valide `UnifiedDocumentChunk`-Einträge.<br>**2.** `NFR-EVAL-01` bis `04` bestanden ($\epsilon_{\text{hallucination}} < 0{,}05$, $\text{Precision}_{\text{ID}} = 1{,}0$, $\text{Rejection} \ge 99\,\%$, $\text{Leakage} = 0$).<br>**3.** Klick auf Zitat `[n]` scrollt im UI-Test deterministisch zum richtigen DOM-Element im Source-Viewer. |
-| **Gate v2.0** | **1.** Jeder Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$).<br>**2.** Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.<br>**3.** Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente. |
+| **Gate v2.0** | **1.** Jeder erfolgreich ingestierte Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$ P95 ab `Ready`; Fehler dürfen das Quellenlesen nicht blockieren).<br>**2.** Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.<br>**3.** Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente. |
 | **Gate v3.0** | **1.** Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).<br>**2.** Python-Sandbox (`FR-GC-08`) ist netzwerkisoliert und gibt korrekte Rechenergebnisse/Plots zurück.<br>**3.** Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX; Kontextfenster skaliert bis $10^6$ Tokens (`NFR-PERF-01`). |
 | **Gate v4.0** | **1.** Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab.<br>**2.** Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.<br>**3.** Slide-Deck-Export liefert fehlerfrei öffnende PPTX-/PDF-Dateien. |
 | **Gate v5.0** | **1.** Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte.<br>**2.** Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.<br>**3.** Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`). |
@@ -318,3 +318,49 @@ Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwi
 | **DEV-01** | `FR-ST-03` (Join-In), `Gate v5.0` #2 | Beide KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Zwischenfragen und setzen anschließend die Diskussion fort. | Playback pausiert. **Ein designierter Host** beantwortet die Live-Frage in seiner Host-Podcast-Stimme über Gemini Live (grounded über `C-02`). Playback wird anschließend an der Unterbrechungsstelle fortgesetzt. Der zweite Host nimmt nicht an der Live-Antwort teil. | 2026-10-16, Project Owner ([D7](../docs/solution-architecture.md#decisions)) |
 | **DEV-02** | `FR-ST-16` (Slide Decks) | Export als PPTX / PDF / Google Slides. | Export ausschließlich als `.pptx` und `.pdf`. Der Google-Slides-Export ist zurückgestellt, da er eine OAuth-Autorisierung pro Nutzer erfordert. | 2026-10-16, Project Owner ([D8](../docs/solution-architecture.md#decisions)) |
 | **DEV-03** | `FR-INT-01` (`@Notebook`), Paket 6.3, `Gate v6.0` #3 | `@Notebook`-Mention im zentralen Enterprise-Chat und Export von Chat-Threads als Notebook oder Quelle in v6.0. | Zurückgestellt. Paket 6.3 wird nicht spezifiziert; Gate v6.0 #3 ist nicht Teil der v6.0-Abnahme. Der Chat-Agent bleibt zustandslos hinter `C-02` und A2A-fähig. | 2026-10-16, Project Owner ([D5](../docs/solution-architecture.md#decisions)) |
+
+### 5.6 Konsistenzklärungen der FR-Karten (2026-10-16)
+
+Diese Klarstellungen lösen Widersprüche innerhalb der bestehenden IDs auf; sie ändern keine
+Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-APIs.
+
+- **FR-WM-07:** 200 MB = 200.000.000 Bytes und 500.000 Wörter sind unabhängige inklusive
+  Obergrenzen. Quellen-Slots werden atomar reserviert und bei fehlgeschlagener Ingestion
+  freigegeben. v1: 100 Notebooks je Nutzer und standardmäßig 50 Quellen je Notebook
+  (Deployment-Konfiguration bis 300); v6: Tenant-/Rollenrichtlinien bis 500 Notebooks und
+  300 Quellen. Die bestehenden täglichen Generierungsquotas aus Karte 6.1 werden präzisiert:
+  Standardwerte 500 Chat-Anfragen, 20 Audio- und 20 Video-Generierungen pro Nutzer/UTC-Tag;
+  positive, administrativ konfigurierbare Limits. Keine zusätzlichen Billing-Funktionen.
+- **FR-GC-07/09, FR-UI-02:** Persona-Limit 5.000 Zeichen, inklusive Analyst-Preset;
+  Kopieren mit oder ohne Zitate. Globale und notebookbezogene Eingabe-/Ausgabesprachen
+  verwenden die Vorrangregeln der Karten; persönliche Einstellungen ändern keine fremden
+  Nutzerpräferenzen.
+- **C-01/C-02, FR-SI-01/02/05:** Alle Parser verwenden dieselbe Locator-Union. Der Source
+  Guide startet nach erfolgreicher Ingestion mit explizitem Einzelquellen-Scope. Re-Sync
+  validiert eine neue Revision vor dem atomaren Austausch; Fehler erhalten den alten Stand.
+  Google Docs/Slides-Import gehört weiterhin zu v3 (D11); authentifizierter Import ist nicht
+  auf v6-Suche verschoben. Prompt-Injection-Prüfung für Web-Inhalte gilt ab v3.
+- **FR-NM-03/04, FR-GC-01/02, NFR-EVAL-04:** Eine Mehrfach-Konvertierung erzeugt eine
+  kombinierte Quelle unter den normalen Limits. Notizen sind Nutzereingaben, nicht automatisch
+  Quellenbelege; für quellenbasierte Notiz-Synthese werden sie zuerst konvertiert und explizit
+  ausgewählt. Die beschriftete Notiz-Aktion autorisiert diese Konvertierung als Teil des
+  Vorgangs, sodass Zusammenfassen/Gliedern auch ohne zuvor vorhandene Quelle möglich bleibt.
+  Validierte Antworten und Medien müssen Quellen belegen; fehlgeschlagene
+  Zitatprüfung ergibt unmittelbar eine Ablehnung. Historie, Caches und Artefakt-zu-Chat-Aktionen
+  dürfen den aktuellen Scope nicht umgehen. Statusanzeigen zählen nicht als Antwort-TTFT (D13).
+- **FR-WM-05/06, NFR-SEC-02:** Nur Owner verwalten Freigaben; Viewer behalten eigene
+  Chats und Lernfortschritte. Chat-Only erhält ausschließlich antwortgebundene Zitatvorschauen,
+  keine beliebig adressierbare Chunk-/Quellen-API. Quell-ACLs gelten auch nach dem Import
+  für abgeleitete Artefakte. Analytics zählen UTC-Tage inklusive Owner-Zugriffen.
+- **FR-ST-04/12/16/17, FR-SI-07:** Audio-Links gewähren keine zusätzlichen Rechte;
+  Learning Overviews benötigen auch Infografiken aus Paket 4.2. Deep Research importiert
+  Primärquellen vor der belegten Berichtssynthese und speichert Bericht als Artefakt und Quelle.
+  Die Berichtquelle benötigt einen eigenen Quota-Slot. Pflichtbestandteile dürfen nicht durch
+  stillen Fallback oder unvollständige Erfolgszustände entfallen.
+- **NFR-PERF-01:** Die Millionen-Token-Messung umfasst mindestens eine Million aktive
+  Tokens, nicht inklusive abgewählter Decoys. Große Studio-Jobs verarbeiten Original-Chunks
+  vollständig in Batches; verlustbehaftete Source Guides allein genügen nicht (D12).
+
+Die [paketübergreifenden Regeln](requirements/README.md#binding-cross-package-rules) und
+[Abhängigkeiten](requirements/README.md#package-prerequisites) präzisieren diese bestehenden
+Anforderungen für die nachfolgenden Spec-Kit-Stufen.

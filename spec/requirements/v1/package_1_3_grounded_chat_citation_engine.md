@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v1.0 #2 — `NFR-EVAL-01` to `04` pass ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$); Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
 - **Out of scope:** Notebook overview & starter prompts (`v2.0` — `FR-GC-04`), follow-up suggestion chips (`v2.0` — `FR-GC-05`), configurable personas/response lengths (`v2.0` — `FR-GC-07`), save-to-note & feedback buttons (`v2.0` — `FR-GC-09`), Python code execution sandbox (`v3.0` — `FR-GC-08`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-GC-01 — Strict Grounding Policy
@@ -16,11 +18,11 @@
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0) |
 | Depends on | FR-SI-03, C-01, C-02, NFR-EVAL-01, NFR-EVAL-03, NFR-EVAL-04 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The Grounded Reasoning & Citation Agent shall generate answers exclusively from the `UnifiedDocumentChunk` records returned by `ScopedContextProvider(notebook_id, active_source_ids)` and the eligible turns of the current conversation history.
-- *Unwanted:* If a previous turn in the conversation history cites a source that is not in the current $S_{\text{aktiv}}$, then the system shall exclude that turn (question and answer) from the context of the new turn, so that content from deselected sources cannot re-enter the prompt via history (`NFR-EVAL-04`). Excluded turns remain visible in the chat panel.
+- *Unwanted:* If a previous turn used any source/revision in its context snapshot that is no longer active, current, or authorized, then the system shall exclude that turn (question and answer) from the context of the new turn, so that content from deselected sources cannot re-enter the prompt via history (`NFR-EVAL-04`). Excluded turns remain visible in the chat panel.
 - *Unwanted:* If the user asks a question whose answer cannot be derived from $S_{\text{aktiv}}$ (even if the fact is well-known in the base LLM's pre-training data), then the system shall explicitly state that the selected sources do not contain this information and shall not answer from general world knowledge.
 - *Unwanted:* If a question is partially supported by $S_{\text{aktiv}}$ and partially unsupported, then the system shall answer only the supported part with citations and explicitly state which aspect is not covered in the sources.
 
@@ -38,11 +40,11 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | User message | UTF-8 text | $1$ to $10,000$ characters | — |
-| `active_source_ids` | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
-| Conversation history | Array of turns | Persisted thread; only turns whose citations all reference sources in $S_{\text{aktiv}}$ | — |
+| `active_source_ids` | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
+| Conversation history | Array of turns | Persisted thread; only turns whose complete source/revision provenance remains active and authorized (including summaries, tool output and imported artifact text); missing provenance excludes the turn | — |
 
 **Outputs & state**
-- Visible: Streamed assistant markdown message in the center chat panel (or polite refusal message when ungrounded).
+- Visible: Citation-validated assistant Markdown message (buffered until the complete answer passes verification; status events may stream) in the center chat panel (or polite refusal message when ungrounded).
 - Persisted: `ChatMessage` record (`id`, `thread_id`, `notebook_id`, `user_id`, `role`, `content`, `active_source_ids_snapshot`, `created_at`).
 - States: `Idle` $\rightarrow$ `Retrieving` $\rightarrow$ `Streaming` $\rightarrow$ `Completed` (or `Error`).
 
@@ -62,6 +64,12 @@ Scenario: Grounded synthesis across multiple active sources
   When the user asks "What security requirement applies to Server Alpha?"
   Then the assistant answers that Server Alpha runs on port 8080 and requires mTLS client certificates
   And cites both Source 1 and Source 2
+
+Scenario: Uncited historical context cannot bypass deselection
+  Given a previous turn used Sources A and B but cited only A
+  When B is deselected before the next question
+  Then that turn and its derived tool or summary context are excluded from the new prompt
+  And Source B content is absent from the retrieval result and model context
 ```
 
 **Edge & error cases**
@@ -89,12 +97,12 @@ Scenario: Grounded synthesis across multiple active sources
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0) |
 | Depends on | FR-GC-01, C-01, NFR-EVAL-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall attach at least one numbered inline citation badge (`[1]`, `[2]`, …) to every factual claim or synthesized statement in an assistant response, referencing the exact `chunk_id`(s) from $S_{\text{aktiv}}$ that support that statement.
-- *Event:* When the assistant response references $K$ distinct chunks across the answer, the system shall re-index the displayed badge numbers sequentially from `1` to `K` per response, in order of first appearance (a chunk cited again reuses its number), and map each badge `[n]` to a structured citation metadata object (`citation_index`, `source_id`, `source_title`, `chunk_id`, `snippet`, `locator`).
-- *Unwanted:* If the LLM generates a citation reference to a `chunk_id` that does not exist in the retrieved context of $S_{\text{aktiv}}$, then the citation verifier shall discard the draft before rendering and regenerate the answer once; if the regenerated answer still contains an invalid reference, the system shall render the refusal response instead (never a draft with stripped citations), so that $\text{Precision}_{\text{ID}} = 1.0$.
+- *Event:* When the assistant response references $K$ distinct chunks across the answer, the system shall re-index the displayed badge numbers sequentially from `1` to `K` per response, in order of first appearance (a chunk cited again reuses its number), and map each badge `[n]` to a structured citation metadata object (`badge_number`, `source_id`, `source_title`, `chunk_id`, `snippet`, `locator`).
+- *Unwanted:* If the LLM generates a citation reference to a `chunk_id` that does not exist in the retrieved context of $S_{\text{aktiv}}$, then the citation verifier shall discard the draft before rendering and immediately render the refusal response (no retry answer or draft with stripped citations), so that $\text{Precision}_{\text{ID}} = 1.0$.
 
 **User story:** As a reader of an AI answer, I want every factual statement to carry an inline numbered citation badge, so that I immediately know which claims are backed by evidence and how many sources corroborate them.
 
@@ -127,17 +135,11 @@ Scenario: Every factual sentence includes a valid citation badge
   And every badge maps to an existing chunk_id in the active sources
   And NLI verification confirms the cited chunk semantically supports the sentence
 
-Scenario: Invalid chunk ID triggers one regeneration
+Scenario: Invalid chunk ID immediately produces a refusal
   Given an internal LLM draft output containing a reference to non-existent chunk "chk_99999"
   When the citation verification pipeline processes the response
   Then the draft is not rendered
-  And the answer is regenerated once
-  And the rendered answer contains only citations to existing chunks in the active sources
-
-Scenario: Invalid chunk ID after regeneration falls back to refusal
-  Given the regenerated answer still references a non-existent chunk
-  When the citation verification pipeline processes it
-  Then the refusal response is rendered instead of the answer
+  And the refusal response is rendered instead of the answer without regeneration
   And no citation badge is rendered
 ```
 
@@ -147,7 +149,7 @@ Scenario: Invalid chunk ID after regeneration falls back to refusal
 
 **Measurable criteria**
 - Citation ID Precision ($\text{Precision}_{\text{ID}}$) = $1.0$ ($100\%$ of badges resolve to real chunks in $S_{\text{aktiv}}$ — `NFR-EVAL-02`, `Gate v1.0 #2`).
-- Semantic citation support score $\ge 0.95$ on `NFR-EVAL-02`.
+- Every cited claim must be semantically supported (`NFR-EVAL-02`); assess support in the LLM-judged suite, separately from deterministic ID validation. No 95% exception permits unsupported citations.
 
 **Deviations from reference:** None.
 
@@ -165,11 +167,11 @@ Scenario: Invalid chunk ID after regeneration falls back to refusal
 | Priority (within package) | P1 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0; Chat-only per `FR-WM-05`: hover snippet shown, click-through blocked) |
 | Depends on | FR-GC-02, FR-SI-04, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the user hovers the pointer over (or focuses via keyboard on) an inline citation badge `[n]`, the system shall display a floating popover/tooltip showing the exact verbatim text snippet of the cited chunk and the title of its source document.
-- *Event:* When the user clicks an inline citation badge `[n]`, the system shall open the Source Inspector (`FR-SI-04`) for the cited `source_id`, scroll to the cited `chunk_id` `locator`, and highlight the passage in the document text.
+- *Event:* When an Owner, Editor, or Full Viewer clicks an inline citation badge `[n]`, the system shall open the Source Inspector (`FR-SI-04`) for the cited `source_id`, scroll to the cited `chunk_id` `locator`, and highlight the passage in the document text.
 - *Unwanted:* If the cited source was deleted from the notebook after the chat message was generated, then the system shall display `"Source deleted"` in the hover tooltip and disable the click-through action.
 
 **User story:** As a knowledge worker, I want to hover over any citation `[n]` to preview the exact quote and click it to jump to the highlighted passage in the full document, so that I can verify the AI's interpretation in seconds.
@@ -187,7 +189,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Pointer `mouseenter` / `click` on `[n]` | DOM Event | Mapped to `citation` metadata (`source_id`, `chunk_id`, `snippet`, `locator`) | — |
-| Tooltip snippet length | UTF-8 text | Full text of the cited chunk ($300\text{–}600$ tokens per `C-01`, see `FR-SI-01`; scrollable inside the popover if long) | — |
+| Tooltip snippet length | UTF-8 text | Full text of the cited chunk (structure-aware chunk targeting 300–600 tokens per architecture; scrollable inside the popover if long) | — |
 
 **Outputs & state**
 - Visible: Floating tooltip on hover; opened and scrolled Source Inspector with highlighted text on click.
@@ -220,7 +222,7 @@ Scenario: Clicking citation for a subsequently deleted source
 
 **Edge & error cases**
 - Citation badge near the right or bottom edge of the viewport $\rightarrow$ Popover automatically flips placement (`top`/`bottom`/`left`) to stay fully inside the viewport.
-- Cited source is currently unchecked ($s_i \notin S_{\text{aktiv}}$) in a later turn $\rightarrow$ Historical citation badge still previews and opens the source in the inspector because the source still exists in the notebook.
+- Cited source is currently unchecked ($s_i \notin S_{\text{aktiv}}$) in a later turn $\rightarrow$ Historical citation badge still previews and opens the source in the inspector only while the user still has access to that source. Historical content is not eligible for new prompt context merely because it remains viewable.
 
 **Measurable criteria**
 - Hover tooltip renders in $\le 300\text{ ms}$.
@@ -242,7 +244,7 @@ Scenario: Clicking citation for a subsequently deleted source
 | Priority (within package) | P2 |
 | Actors | Owner; Editor, Viewer, Chat-only (from v6.0) |
 | Depends on | FR-WM-01, FR-GC-01, FR-GC-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall persist every user prompt and assistant response (including all inline citation metadata) per `notebook_id` and `user_id` across browser reloads and sessions.
@@ -304,4 +306,4 @@ Scenario: Searching the chat history jumps to a past message
 
 **Out of scope:** Search across multiple threads or across notebooks (`v1.0` has a single thread per user per notebook; search within that thread is in scope).
 
-**Open questions:** Does reference Gemini Notebook support multiple named chat threads per notebook per user, or a single continuous chat thread per user with a clear/reset button? (`Unknown` — `v1.0` implements a single persisted thread per user per notebook with a clear/reset action, extensible to multi-thread).
+**Open questions:** None for implementation. v1 implements a single persisted thread per user per notebook with search and clear/reset. Reference multi-thread behavior is unverified.

@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v4.0 #3 — slide deck export produces PPTX and PDF files that open without errors.
 - **Out of scope:** Narrated video rendering from slides (`v5.0` — `FR-ST-05` builds on this engine); Google Slides export (deferred: SRS §5.5 `DEV-02`, architecture decision D8).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-ST-16 — Studio: Slide Decks with PPTX & PDF Export
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner (generate, view, export); Editor (generate), Viewer (view/export) from v6.0 |
 | Depends on | FR-SI-03, C-02, C-03 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.6 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.6 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Slide Deck"` (`"Präsentation"`) tile in the Studio panel (optionally specifying slide count, target audience, or focus prompt), the `Slide & Infographic Agent` shall synthesize $S_{\text{aktiv}}$ into a structured presentation deck where each slide has a layout template (`Title`, `Two-Column`, `Key Metric Callout`, `Comparison Table`, `Diagram/Chart`), headline, concise bullet points, source citations `[n]`, and detailed speaker notes (`Sprechernotizen`).
@@ -85,7 +87,7 @@ Scenario: Failed slide deck generation can be retried
 | Priority (within package) | P2 |
 | Actors | Owner (generate, view, export); Editor (generate), Viewer (view/export) from v6.0 |
 | Depends on | FR-SI-03, C-02, C-03 |
-| Observed | 2026-10-15, Enterprise SRS §3.5.6 |
+| Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.6 |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Infographic"` (`"Infografik"`) tile in the Studio panel (optionally choosing layout style `auto`, `process_flow`, `comparison`, `metrics_summary`, or `architecture_diagram`), the `Slide & Infographic Agent` shall synthesize key takeaways, metrics, and workflows from $S_{\text{aktiv}}$ into a structured visual poster/infographic rendered as crisp vector graphics (`.svg`) with `.png` export.

@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v2.0 #2 — Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.
 - **Out of scope:** Real-time multi-cursor collaborative editing inside a single note (`v6.0` supports notebook-level sharing).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-NM-01 — Manual Note Creation & Editing
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor, Viewer (read-only) |
 | Depends on | FR-WM-01, FR-UI-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"+ Add note"` (`"+ Notiz hinzufügen"`) in the Right Panel (`Studio / Notes`), the system shall create a new editable note record, open the Note Editor view inside the Right Panel, and focus the content area.
@@ -58,7 +60,7 @@ Scenario: Create and auto-save a manual note
 ```
 
 **Edge & error cases**
-- Browser tab closes mid-typing $\rightarrow$ Auto-save debounce ($\le 1,000\text{ ms}$) and `beforeunload` flush preserve the latest text.
+- Closing the editor flushes pending saves before reporting success. Abrupt browser termination/offline state cannot guarantee a network flush: retain a local draft, show pending/error status, and recover it on reopening; never falsely show unsaved edits as saved.
 
 **Measurable criteria**
 - Auto-save persists changes within $\le 1.0\text{ s}$ of typing pause.
@@ -78,8 +80,8 @@ Scenario: Create and auto-save a manual note
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
-| Depends on | FR-GC-09, FR-NM-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Depends on | FR-GC-02, FR-NM-01; invoked by FR-GC-09 through the shared save-note action |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks `"Save to note"` (`"Als Notiz speichern"`) on an assistant chat response (`FR-GC-09`), the system shall create a new `Note` record in the Right Panel containing the full response text, an auto-generated or prompt-derived title, and its preserved inline citations.
@@ -99,12 +101,12 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `message_id` | UUID | Must belong to an assistant message in `notebook_id` | — |
+| `message_id` | UUID | Must belong to the requesting user's assistant message in `notebook_id`; copy text/citation metadata independently so clearing the chat does not cascade-delete the note | — |
 
 **Outputs & state**
 - Visible: New note entry in the Right Panel list; toast confirmation `"Saved to notes"`.
 - Persisted: `Note` entity (`origin_type: 'saved_response'`, `source_message_id`, `content_md`, `citations_json`).
-- States: `SavedReadOnly` (with option to copy or convert to editable note / source).
+- States: `SavedReadOnly` (with option to copy or convert to editable note / source). Converting to editable creates a manual copy, preserves origin metadata, and removes verified citation badges from editable prose so edits cannot masquerade as verified claims; the original saved response remains unchanged.
 
 **Acceptance criteria (Gherkin)**
 
@@ -118,7 +120,7 @@ Scenario: Saved chat response survives clearing chat history
 ```
 
 **Edge & error cases**
-- Note saved from a response that had $0$ citations (e.g., general summary) $\rightarrow$ Saved cleanly without citation badges.
+- Note saved from a response that had $0$ citations (e.g., a refusal or non-factual conversational message; factual summaries require citations) $\rightarrow$ Saved cleanly without citation badges.
 
 **Measurable criteria**
 - `"Save to note"` creates and renders the note item in the Right Panel in $\le 300\text{ ms}$.
@@ -139,10 +141,10 @@ Scenario: Saved chat response survives clearing chat history
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-NM-01, FR-NM-02, FR-SI-01, C-01 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Owner/Editor opens a note in the Right Panel and clicks `"Convert to source"` (`"In Quelle umwandeln"`), or selects multiple notes and clicks `"Convert all notes to source"`, the system shall pass the Markdown content of the note(s) to the Markdown Ingestion Parser (`FR-SI-01`), create a new `Source` record in the Left Panel, chunk it into `UnifiedDocumentChunk` records (`Contract C-01`), and mark the new source as `Ready` and selected ($s_{\text{new}} \in S_{\text{aktiv}}$).
+- *Event:* When the Owner/Editor opens a note in the Right Panel and clicks `"Convert to source"` (`"In Quelle umwandeln"`), or selects multiple notes and clicks `"Convert selected to source"`, or chooses `"Convert all notes to source"` for all notebook notes, the system shall pass the Markdown content of the note(s) to the Markdown Ingestion Parser (`FR-SI-01`), create one new `Source` record in the Left Panel (multiple notes are concatenated in displayed order under their titles), chunk it into `UnifiedDocumentChunk` records (`Contract C-01`), and mark the new source as `Ready` and selected ($s_{\text{new}} \in S_{\text{aktiv}}$).
 - *Ubiquitous:* Converting a note to a source shall keep the original note in the Right Panel unless the user explicitly deletes it.
 
 **User story:** As an analyst, I want to convert my curated notes or saved AI syntheses back into formal notebook sources with one click, so that subsequent chat queries and Studio generators can ground and cite my synthesized findings.
@@ -158,28 +160,35 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| `note_ids` | Array of $1..M$ UUIDs | Non-empty content; notebook must be under source quota $N_{\text{max}}$ (`FR-WM-07`) | — |
+| `note_ids` | Array of $1..M$ UUIDs | All IDs must belong to the current notebook and be readable; combined content must be non-empty and obey both per-source limits; atomically reserve one source slot (`FR-WM-07`) | — |
 
 **Outputs & state**
 - Visible: New `Ready` source in Left Panel (`Sources`) with checkbox selected; active source count increments by $1$.
-- Persisted: New `Source` (`media_type: 'note_markdown'`) and `UnifiedDocumentChunk` records (`C-01`).
+- Persisted: New `Source` (`media_type: 'note_markdown'`, origin note IDs and revision snapshot; preserved old citations are provenance, while new answers cite the converted source's own C-01 chunks) and `UnifiedDocumentChunk` records (`C-01`).
 - States: `Note` $\rightarrow$ `IngestingAsSource` $\rightarrow$ `SourceReady`.
 
 **Acceptance criteria (Gherkin)**
 
 ```gherkin
 Scenario: Full Gate v2.0 roundtrip (Chat -> Note -> Source -> Cited in Chat)
-  Given a notebook with 1 source "Raw_Data.pdf"
-  When the user asks a question in Chat and clicks "Save to note" on the answer
-  And the user adds manual insight "Project codename is TITAN-77" to a note and clicks "Convert to source"
+  Given a notebook with 1 source "Raw_Data.pdf" stating "Project codename is TITAN-77"
+  When the user asks for the project codename in Chat and saves the cited answer as a note
+  And the user converts that exact saved-response note to a source without editing it
   Then a new source appears in the Left Panel in state "Ready" and is checked
-  When the user asks in Chat "What is the project codename?"
+  When the user selects only the converted source and asks in Chat "What is the project codename?"
   Then the assistant answers "TITAN-77" with a citation [1] pointing to the converted note source
+
+Scenario: Multiple notes produce one bounded source
+  Given three non-empty notes in the current notebook and one free source slot
+  When the owner converts the selected notes whose combined text fits the per-source limits
+  Then exactly one source contains all three notes in displayed order under their titles
+  And the original notes remain unchanged
+  And subsequent edits to a note do not alter the converted source
 ```
 
 **Edge & error cases**
 - Notebook is already at $N_{\text{max}}$ sources (`50 / 50`) $\rightarrow$ `"Convert to source"` is disabled with tooltip `"Source limit reached"`.
-- Note body is completely empty $\rightarrow$ `"Convert to source"` is disabled.
+- Combined note body is empty/whitespace-only $\rightarrow$ conversion is disabled. A single note retains its title; a multi-note source uses `Combined notes`. Reject combined content over either source limit without consuming a slot; never silently truncate.
 
 **Measurable criteria**
 - Converting a note ($\le 5,000$ words) into a citable `Ready` source completes in $\le 2.0\text{ s}$ (`Gate v2.0 #2`).
@@ -199,8 +208,8 @@ Scenario: Full Gate v2.0 roundtrip (Chat -> Note -> Source -> Cited in Chat)
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P2 |
 | Actors | Owner/Editor |
-| Depends on | FR-NM-01, FR-GC-01, C-02 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Depends on | FR-NM-01, FR-NM-03, FR-GC-01, C-02 |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor selects one or more notes via checkboxes in the Notes view (or opens a single note), the system shall display a contextual action bar with four AI operations:
@@ -208,7 +217,7 @@ Scenario: Full Gate v2.0 roundtrip (Chat -> Note -> Source -> Cited in Chat)
   2. `"Create outline"` (`"Gliederung erstellen"`)
   3. `"Suggest related ideas"` (`"Verwandte Ideen vorschlagen"` — grounded in $S_{\text{aktiv}}$)
   4. `"Critique"` (`"Kritik / Review"`)
-- *Event:* When the user clicks one of these actions, the `Note Assistant` agent shall process the selected note contents (alongside $S_{\text{aktiv}}$ for `"Suggest related ideas"` and `"Critique"`) and output the result in the Chat / new Note card.
+- *Event:* When the user clicks one of these actions, the `Note Assistant` agent shall show in the action label/help that it creates a source snapshot from the selected notes. Clicking the action authorizes FR-NM-03 conversion of that exact selection into one source and selects it for this request; await Ready before synthesis. Apply normal source quotas and preserve the notes. Summarize/Outline use that note-source alone; Related ideas/Critique also use the explicitly selected existing sources. All factual output cites the resulting active C-01 chunks through C-02 and distinguishes user-note assertions from other source facts. Display the validated result as a ChatMessage; saving it as a note uses FR-NM-02.
 
 **User story:** As a writer, I want to select several raw notes and have the AI combine them into an outline, summarize them, critique my arguments, or suggest related ideas from my sources, so that I can turn scattered notes into structured documents.
 
@@ -227,8 +236,8 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 | `action_type` | Enum | `summarize` \| `outline` \| `related_ideas` \| `critique` | — |
 
 **Outputs & state**
-- Visible: Streamed synthesis response in Chat / saved as a new synthesized Note card in the Right Panel.
-- Persisted: New `Note` or `ChatMessage` containing the output.
+- Visible: Citation-validated synthesis response in Chat, with Save to note available.
+- Persisted: `ChatMessage` containing the output; a separate `Note` only on Save to note.
 - States: `NotesSelected` $\rightarrow$ `Synthesizing` $\rightarrow$ `Completed`.
 
 **Acceptance criteria (Gherkin)**
@@ -239,13 +248,20 @@ Scenario: Critique selected note against active notebook sources
   And an active source stating "Migration requires a 4-hour maintenance window"
   When the owner selects the note and clicks "Critique"
   Then the AI highlights the discrepancy between the note and the source with a citation
+
+Scenario: Summarize notes without inventing a separate grounding path
+  Given a notebook with selected non-empty notes, no selected sources, and one free source slot
+  When the owner clicks Summarize labelled as creating a source snapshot
+  Then FR-NM-03 creates and selects one source from those notes
+  And the model runs only after that source is Ready and obtained through C-02
+  And the validated summary cites that source and preserves the original notes
 ```
 
 **Edge & error cases**
-- `"Suggest related ideas"` clicked when $0$ sources are selected in the Left Panel $\rightarrow$ Prompts user to select at least one source or generates suggestions strictly from the selected notes' internal content.
+- `"Suggest related ideas"` clicked when $0$ sources are selected in the Left Panel $\rightarrow$ Prompts the user to select an existing comparison source before Related ideas/Critique. Summarize/Outline can start with notes alone because the disclosed conversion supplies a Ready source before generation. Failed conversion or exhausted quota produces an error and no model call.
 
 **Measurable criteria**
-- Time-to-First-Token for note operations $\le 2.5\text{ s}$.
+- After the note snapshot reaches Ready, validated answer TTFT for a standard note operation is $\le 2.5\text{ s}$; conversion uses the FR-NM-03 timing criterion and is shown as a separate progress phase.
 
 **Deviations from reference:** In newer Gemini Notebook UI iterations, some note-combining actions moved into Studio Report prompts; we retain the explicit 4-action bar (`FR-NM-04`) so users can act directly on subsets of notes.
 

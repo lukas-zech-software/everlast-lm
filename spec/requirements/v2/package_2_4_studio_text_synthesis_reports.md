@@ -6,6 +6,8 @@
 - **Gate criteria (SRS §5.4):** Gate v2.0 #3 — Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente.
 - **Out of scope:** Interactive Learning Overviews (`v4.0` — `FR-ST-12`), Mindmaps & Data Tables (`v3.0`), Flashcards, Quizzes, Slides, Infographics (`v4.0`), Audio & Video Overviews (`v5.0`).
 
+**Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
+
 ---
 
 ### FR-ST-10 — Standard Report Templates (Briefing Doc, Study Guide, FAQ, Timeline)
@@ -16,7 +18,7 @@
 | Priority (within package) | P1 |
 | Actors | Owner/Editor |
 | Depends on | FR-SI-03, FR-UI-01, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Ubiquitous:* The Right Panel (`Studio`) shall provide a `Reports` (`Berichte`) generator tile / modal backed by `StudioPluginRegistry` (`Contract C-03`) offering four standard 1-click report templates:
@@ -41,7 +43,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.5.4 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | `template_type` | Enum | `briefing_doc` \| `study_guide` \| `faq` \| `timeline` | — |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $|S_{\text{aktiv}}| \ge 1$ | All `Ready` sources |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
 
 **Outputs & state**
 - Visible: Asynchronous job row in the Right Panel Studio list; full formatted Markdown viewer on click.
@@ -58,11 +60,18 @@ Scenario: Generate all 4 standard report templates grounded in active sources
   And "Study Guide" contains a Glossary and Short-Answer Questions with Answer Key
   And "Timeline" contains chronological events and a "Cast of Characters" section
   And no report contains facts from unselected sources (Leakage = 0)
+
+Scenario: A queued report cannot publish from a replaced source revision
+  Given a report job captured Source A revision 1 at submission
+  When A is replaced by revision 2 before the job publishes
+  Then the job fails with a source-changed explanation
+  And no stale or silently regenerated report is published
+  And Retry requires a fresh explicitly scoped request
 ```
 
 **Edge & error cases**
 - User triggers `"Timeline"` on sources that contain zero dates or chronological events $\rightarrow$ Report states clearly which entities/actors exist and notes that no explicit chronological dates are present in the selected sources (never invents dates).
-- $|S_{\text{aktiv}}| = 0$ $\rightarrow$ Report template buttons are disabled.
+- $\lvert S_{\text{aktiv}}\rvert = 0$ $\rightarrow$ Report template buttons are disabled.
 
 **Measurable criteria**
 - $100\%$ of the $4$ standard templates generate valid, grounded Markdown documents (`Gate v2.0 #3`) within $\le 25.0\text{ s}$ (P95).
@@ -83,7 +92,7 @@ Scenario: Generate all 4 standard report templates grounded in active sources
 | Priority (within package) | P2 |
 | Actors | Owner/Editor |
 | Depends on | FR-ST-10, FR-SI-02, C-02, C-03 |
-| Observed | 2026-10-15, Gemini Notebook web |
+| Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor opens the `Reports` (`Create report`) modal in the Studio panel, the system shall analyze the `Source Guide` metadata of $S_{\text{aktiv}}$ and display $3\text{–}4$ **Dynamic Suggested Report Formats** tailored to the domain of the sources (e.g., `"Market Analysis"`, `"Methodology Comparison"`, `"Contradiction Report"`, `"Blog Post"`, `"Clinical Trial Summary"`).
@@ -125,7 +134,7 @@ Scenario: Studio suggests domain-relevant report formats based on active sources
 ```
 
 **Edge & error cases**
-- User submits an empty custom report prompt $\rightarrow$ Generate button remains disabled until $\ge 3$ non-whitespace characters are entered.
+- Empty/whitespace-only custom report prompt is rejected; Generate is enabled at one non-whitespace character, matching the 1–5,000 character limit.
 
 **Measurable criteria**
 - Dynamic report format suggestions load in $\le 3.0\text{ s}$ (cached per source-set hash).
