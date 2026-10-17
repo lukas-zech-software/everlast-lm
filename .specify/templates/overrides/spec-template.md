@@ -11,11 +11,15 @@
 ## Source Traceability & Package Scope *(mandatory)*
 
 <!--
-  Constitution Principle I (CC-01):
+  Constitution Principle I (CC-01) — Flow-back spec workflow:
   Every requirement, scenario, limit, and error state in this specification MUST be
   transcribed from the assigned package's FR cards and the binding cross-package rules
   in `spec/requirements/README.md`. Never invent unbacked behavior or specify deferred
   packages (such as Package 6.3 / FR-INT-01 under D5/DEV-03).
+  Whenever `/speckit-clarify`, `/speckit-plan`, `/speckit-analyze`, `/speckit-implement`,
+  or `/speckit-converge` resolves an open question, refines a contract/limit, or uncovers
+  an edge case, update this `spec.md` AND flow the resolution back upstream into the
+  package's FR card, the SRS, `docs/solution-architecture.md` (`Dn`), and GitHub issues.
 -->
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
@@ -25,6 +29,7 @@
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: `[List upstream packages or contracts (C-01..C-03) required by this package]`
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: `[Owner-only in v1.0–v5.0; Owner, Editor, Viewer Full, Viewer Chat-Only active from v6.0]`
 - **Data Residency (`D3`)**: `europe-west4` default `[Note any explicit region-map exception or "None"]`
+- **Upstream Flow-Back Status (`CC-01`)**: `[Confirm that any clarifications (/speckit-clarify), plan/analyze refinements, or implementation/convergence edge cases have been flowed back to the FR card, SRS, docs/solution-architecture.md (Dn), and GitHub issues]`
 
 ## User Scenarios & Testing *(mandatory)*
 

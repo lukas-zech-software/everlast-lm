@@ -37,6 +37,23 @@ Rows 1–6 are the minimum for a card to be usable.
 - **Open questions**: at most 3 may remain per package; resolve the rest before specifying.
 - **Specify**: run `/speckit-specify spec/requirements/v1/<package-file>.md` once per package.
   Each spec requirement cites its SRS ID, e.g. `FR-001 (FR-SI-03)`.
+- **Flow-back spec (keep cards and upstream specs synchronized)**: FR cards are living
+  sources of truth, not write-once inputs discarded after `/speckit-specify`. Any clarification,
+  refinement, or reality gap discovered in a downstream Spec Kit stage must flow back into
+  `specs/<feature>/spec.md` AND upstream into the governing tier:
+  - **`/speckit-clarify`**: write resolved open questions and ambiguities back into the
+    package's FR card (updating EARS, limits, Gherkin scenarios, or edge cases and removing the
+    resolved item from `Open questions`) and into the SRS / GitHub issue if scope- or index-level,
+    in addition to `specs/<feature>/spec.md`.
+  - **`/speckit-plan` & `/speckit-analyze`**: flow refined contracts (`C-01..C-03`), numeric/text
+    limits, error states, or technical choices back into `specs/<feature>/spec.md`, the package's
+    FR card / `spec/requirements/README.md`, or `docs/solution-architecture.md` (`Dn`) before
+    `/speckit-implement` starts.
+  - **`/speckit-implement` & `/speckit-converge`**: when implementation or convergence reveals a
+    reality gap, unstated edge case, or feasibility constraint, flow the resolution back to
+    `specs/<feature>/spec.md` and upstream into the FR card, SRS, or
+    `docs/solution-architecture.md` (`Dn`) (and affected GitHub issues), then rerun
+    `/speckit-analyze` rather than only patching code or appending unbacked tasks.
 - **Cadence**: cards for the current release first; the next release's cards may be written
   while the current one is implemented (Constitution Principle V).
 
@@ -45,12 +62,18 @@ Rows 1–6 are the minimum for a card to be usable.
 These rules apply to every card, including its scenarios and input defaults. They clarify
 the cited SRS requirements; they do not introduce new release packages.
 
-- **Authority and evidence:** The constitution, SRS, cards, and recorded architecture decisions
-  govern the target behavior in that order, with recorded deferrals applied explicitly.
-  Reference links and `Reference behaviour` paragraphs are background, not proof of current
-  product behavior. An observation without a dated capture is unverified. Symbolic IDs in Gherkin (such as `chk_10`) stand for schema-valid fixture IDs when tests are derived. Numeric limits and
-  UI choices in these cards are Everlast LM acceptance choices unless evidence says otherwise.
-  Unknown reference internals do not block a project choice already stated in a card.
+- **Authority, evidence, and flow-back:** The constitution, SRS, cards, and recorded architecture
+  decisions govern the target behavior in that order, with recorded deferrals applied explicitly.
+  Downstream Spec Kit stages (`/speckit-clarify`, `/speckit-plan`, `/speckit-analyze`,
+  `/speckit-implement`, `/speckit-converge`) must flow any resolved questions, contract/limit
+  refinements, or implementation edge cases back into both `specs/<feature>/spec.md` and the
+  applicable upstream tier (FR card, SRS, `docs/solution-architecture.md` `Dn`, and GitHub
+  issues) so upstream specs never drift from feature specs or code. Reference links and
+  `Reference behaviour` paragraphs are background, not proof of current product behavior. An
+  observation without a dated capture is unverified. Symbolic IDs in Gherkin (such as `chk_10`)
+  stand for schema-valid fixture IDs when tests are derived. Numeric limits and UI choices in
+  these cards are Everlast LM acceptance choices unless evidence says otherwise. Unknown
+  reference internals do not block a project choice already stated in a card.
 - **Roles and release order (FR-WM-04/05, NFR-SEC-02):** v1–v5 are owner-only. Editor,
   Viewer Full, and Viewer Chat-Only permissions mentioned in earlier cards apply only from
   v6. Owners and Editors may mutate source/note/Studio content; only Owners manage shares or
