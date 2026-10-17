@@ -1,10 +1,10 @@
 # Tasks: Text/PDF Ingestion & Inspector
 
-**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md).
+**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md), [checklist](checklists/ingestion-scoping-inspector.md).
 **Package Source**: `spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md` + [binding cross-package rules](../../spec/requirements/README.md).
 **SRS IDs in scope**: FR-SI-01, FR-SI-03, FR-SI-04, C-01, C-02, Gate v1.0.
-**Branch / worktree**: `spec/v1-functional-requirements` / `/private/tmp/everlast-v1-specs`. Baseline: approved main6f3d6b2 plus prior package commits on this branch.
-**Prerequisites**: Plan CC-01..CC-08 passes at design level; no unresolved spec clarifications. `/speckit-analyze` must run before implementation. Package 1.1 shared schemas, verified identity, notebook ownership, quota ledger and deletion fences must be integrated first. Package 1.3 consumes this package; citation fixtures avoid a circular dependency.
+**Branch / Base**: `spec/v1-functional-requirements` / `cfa42cf` (includes merged `D14` OpenTofu baseline `6f3d6b2` and reconciled package 1.1 tasks `54e6b60`).
+**Prerequisites**: Plan CC-01..CC-08 passes at design level (`e2725ee`); no unresolved spec clarifications (`8f538e9`). `/speckit-analyze` must run before implementation. Package 1.1 shared schemas, verified identity, notebook ownership, quota ledger and deletion fences must be integrated first. Package 1.3 consumes this package; citation fixtures avoid a circular dependency.
 
 Tests are mandatory (constitution II/CC-02), overriding optional-test skill wording. All tasks are open/unexecuted. Every behavior task waits for its named tests to fail for the expected requirement-related reason. Setup/import/configuration failure is not Red. Shared schemas, migration ordering, manifests, entrypoints and CI require one owner. This session claims documentation only; no runtime code or cloud resources are edited now.
 
