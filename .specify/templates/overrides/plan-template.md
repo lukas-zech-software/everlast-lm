@@ -79,7 +79,7 @@ apps/
 ├── live/                # everlast-live (Cloud Run, v5+): Gemini Live WebSocket voice gateway
 └── render/              # everlast-render (Cloud Run Job, v4+): ffmpeg / LibreOffice headless rendering
 
-infra/                   # Terraform IaC for Google Cloud (`europe-west4`)
+infra/                   # OpenTofu IaC for Google Cloud (`europe-west4`)
 ```
 
 **Structure & File Ownership Decision**: [Document the exact directories and files owned by this feature package, and list any serialized shared files (`packages/contracts`, `packages/db` migrations) that must merge first]

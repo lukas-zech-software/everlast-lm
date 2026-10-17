@@ -1,16 +1,16 @@
-name: Terraform Infrastructure
+name: OpenTofu Infrastructure
 
 on:
   pull_request:
     branches: [main]
     paths:
       - "infra/**"
-      - ".github/workflows/terraform.yml"
+      - ".github/workflows/opentofu.yml"
   push:
     branches: [main]
     paths:
       - "infra/**"
-      - ".github/workflows/terraform.yml"
+      - ".github/workflows/opentofu.yml"
   workflow_dispatch:
     inputs:
       environment:
@@ -23,7 +23,7 @@ on:
           - staging
           - prod
       action:
-        description: "Terraform action to execute"
+        description: "OpenTofu action to execute"
         required: true
         default: "plan"
         type: choice
@@ -38,12 +38,12 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: terraform-${{ github.workflow }}-${{ github.event.inputs.environment || github.ref }}
+  group: opentofu-${{ github.workflow }}-${{ github.event.inputs.environment || github.ref }}
   cancel-in-progress: false
 
 env:
   TF_IN_AUTOMATION: "true"
-  TERRAFORM_VERSION: "1.9.8"
+  OPENTOFU_VERSION: "1.10.0"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -63,25 +63,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
 
-      - name: Check Terraform formatting (repo-wide)
+      - name: Check OpenTofu formatting (repo-wide)
         if: matrix.environment == 'dev'
         working-directory: infra
-        run: terraform fmt -check -recursive
+        run: tofu fmt -check -recursive
 
-      - name: Initialize Terraform (backend disabled for static validation)
-        run: terraform init -backend=false
+      - name: Initialize OpenTofu (backend disabled for static validation)
+        run: tofu init -backend=false
 
-      - name: Validate Terraform configuration & module graph
-        run: terraform validate
+      - name: Validate OpenTofu configuration & module graph
+        run: tofu validate
 
   # ---------------------------------------------------------------------------
-  # 2. Authenticated Terraform Plan (Keyless Workload Identity Federation)
+  # 2. Authenticated OpenTofu Plan (Keyless Workload Identity Federation)
   #    Executes when GCP_WIF_PROVIDER is configured for the target environment.
   # ---------------------------------------------------------------------------
   plan:
@@ -114,12 +114,12 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Terraform
+      - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
-        uses: hashicorp/setup-terraform@v3
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
 
       - name: Authenticate to Google Cloud via Workload Identity Federation
         if: steps.wif_check.outputs.configured == 'true'
@@ -128,23 +128,23 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
 
-      - name: Initialize Terraform with GCS state backend
+      - name: Initialize OpenTofu with GCS state backend
         if: steps.wif_check.outputs.configured == 'true'
         run: |
-          terraform init \
+          tofu init \
             -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
-            -backend-config="prefix=terraform/state/${{ matrix.environment }}"
+            -backend-config="prefix=opentofu/state/${{ matrix.environment }}"
 
-      - name: Create Terraform execution plan
+      - name: Create OpenTofu execution plan
         if: steps.wif_check.outputs.configured == 'true'
         run: |
-          terraform plan \
+          tofu plan \
             -input=false \
             -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
             -out=tfplan.binary
-          terraform show -no-color tfplan.binary > tfplan.txt
+          tofu show -no-color tfplan.binary > tfplan.txt
 
-      - name: Upload Terraform plan artifact
+      - name: Upload OpenTofu plan artifact
         if: steps.wif_check.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
@@ -153,7 +153,7 @@ jobs:
           retention-days: 5
 
   # ---------------------------------------------------------------------------
-  # 3. Authenticated Terraform Apply (Protected GitHub Environment Gate)
+  # 3. Authenticated OpenTofu Apply (Protected GitHub Environment Gate)
   # ---------------------------------------------------------------------------
   apply:
     name: "Apply (${{ github.event.inputs.environment || 'dev' }})"
@@ -180,12 +180,12 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Setup Terraform
+      - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
-        uses: hashicorp/setup-terraform@v3
+        uses: opentofu/setup-opentofu@v1
         with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-          terraform_wrapper: false
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
 
       - name: Authenticate to Google Cloud via Workload Identity Federation
         if: steps.wif_check.outputs.configured == 'true'
@@ -194,20 +194,20 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
 
-      - name: Download verified Terraform plan artifact
+      - name: Download verified OpenTofu plan artifact
         if: steps.wif_check.outputs.configured == 'true'
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}
           path: infra/environments/${{ github.event.inputs.environment || 'dev' }}
 
-      - name: Initialize Terraform with GCS state backend
+      - name: Initialize OpenTofu with GCS state backend
         if: steps.wif_check.outputs.configured == 'true'
         run: |
-          terraform init \
+          tofu init \
             -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
-            -backend-config="prefix=terraform/state/${{ github.event.inputs.environment || 'dev' }}"
+            -backend-config="prefix=opentofu/state/${{ github.event.inputs.environment || 'dev' }}"
 
-      - name: Apply Terraform plan
+      - name: Apply OpenTofu plan
         if: steps.wif_check.outputs.configured == 'true'
-        run: terraform apply -input=false -auto-approve tfplan.binary
+        run: tofu apply -input=false -auto-approve tfplan.binary

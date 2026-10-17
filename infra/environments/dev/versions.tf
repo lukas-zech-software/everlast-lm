@@ -1,8 +1,8 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.6.0"
 
-  # Remote GCS backend configured via `-backend-config=backend.hcl` during `terraform init`.
-  # Use `terraform init -backend=false` for local syntax/schema validation without GCP credentials.
+  # Remote GCS backend configured via `-backend-config=backend.hcl` during `tofu init`.
+  # Use `tofu init -backend=false` for local syntax/schema validation without GCP credentials.
   backend "gcs" {}
 
   required_providers {

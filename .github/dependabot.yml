@@ -18,6 +18,7 @@ updates:
       prefix: chore
     open-pull-requests-limit: 5
 
+  # GitHub Dependabot uses the `terraform` ecosystem key to scan OpenTofu (.tf / .terraform.lock.hcl) providers
   - package-ecosystem: terraform
     directory: /infra/environments/dev
     schedule:

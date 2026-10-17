@@ -1,14 +1,14 @@
 # Everlast LM v1.0 ("Core Grounded Workspace") Infrastructure Stack
 # Traceability: SRS §5.3 v1.0 (Packages 1.1–1.4), C-01, C-02, FR-WM-01, FR-WM-04, FR-WM-07,
 # FR-SI-01 (Subset A), FR-SI-03, FR-SI-04, FR-GC-01..03, FR-GC-06, FR-UI-01, NFR-SEC-01,
-# NFR-EVAL-01..04, and docs/solution-architecture.md (D1–D4, D6, D13).
+# NFR-EVAL-01..04, and docs/solution-architecture.md (D1–D4, D6, D13, D14).
 
 locals {
   common_labels = {
     app         = "everlast-lm"
     environment = var.environment
     release     = "v1-0"
-    managed_by  = "terraform"
+    managed_by  = "opentofu"
   }
 }
 

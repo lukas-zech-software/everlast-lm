@@ -52,7 +52,7 @@ out/
 coverage/
 .nyc_output/
 
-# Terraform Infrastructure (infra/)
+# OpenTofu Infrastructure (infra/)
 infra/**/.terraform/
 infra/**/*.tfstate
 infra/**/*.tfstate.*

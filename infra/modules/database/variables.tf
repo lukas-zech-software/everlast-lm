@@ -40,7 +40,7 @@ variable "disk_size_gb" {
 }
 
 variable "deletion_protection" {
-  description = "Whether to enable Terraform and Cloud SQL deletion protection."
+  description = "Whether to enable OpenTofu and Cloud SQL deletion protection."
   type        = bool
   default     = false
 }

@@ -23,6 +23,7 @@
 | D11 | FR-SI-01 Google Docs/Slides import | v3 uses a minimal Google Drive adapter with delegated per-user read access and export to the existing Office normalization path. Alternatives: manual export (does not fulfill native linked import/re-sync), deferral to v6 (would remove assigned v3 scope). API enablement still needs owner approval; no specific corporate IdP is chosen. This does not reinstate Google Slides output export (D8). |
 | D12 | NFR-PERF-01 large Studio contexts | Above model context capacity, map-reduce over **all original scoped chunks**, retaining chunk-level evidence; Source Guides help routing only. Summary-only reduction is rejected because it can discard required facts. No new datastore or framework. |
 | D13 | FR-GC-02 validation and streaming | Buffer factual answers until complete citation validation, then publish. Status may stream while waiting but does not count toward TTFT. Immediate model-token streaming was rejected because invalid later citations would already have exposed an invalid answer. Apply the same rule before Live factual speech and Studio publication. |
+| D14 | IaC toolchain | **OpenTofu (`tofu` >= 1.6) in `infra/`** in place of HashiCorp Terraform for MPL-2.0 open-source licensing and native `.tf` / GCS state compatibility *(2026-10-17)* |
 
 ---
 
@@ -257,7 +258,7 @@ graph TD
 
 ### 5.3. Operational excellence
 * Structured JSON logs with `notebook_id`, `job_id` and `trace_id`. OpenTelemetry traces cover agent steps, retrieval and tool calls. Notebook usage analytics (`FR-WM-06`) record only aggregate daily UTC counters (`unique_users_count`, `queries_count`) in `NotebookDailyMetrics` and never log or expose private viewer prompts.
-* **IaC:** Terraform under `infra/` (Cloud Run, SQL, buckets, queues, service accounts, secrets). CI: Cloud Build or GitHub Actions running `node scripts/check-spec-integrity.mjs`, lint, type-check, unit/contract tests, and the **spec-gate eval suites**, deploying to staging, and then promoting.
+* **IaC:** OpenTofu under `infra/` (Cloud Run, SQL, buckets, queues, service accounts, secrets). CI: Cloud Build or GitHub Actions running `node scripts/check-spec-integrity.mjs`, lint, type-check, unit/contract tests, and the **spec-gate eval suites**, deploying to staging, and then promoting.
 * A replica staging environment for gate runs, as the skill recommends.
 
 ### 5.4. Cost optimization
@@ -305,7 +306,7 @@ graph TD
 **Next steps (skill Phase 3):**
 1. Approve this revision.
 2. Run the ADK TS spike (R3). Prototype the `chunks` schema plus the hybrid-search SQL against a local Postgres with pgvector, including an EVAL-04 leakage test.
-3. Write `implementation-instructions.md`: Terraform in `infra/`, per-release API enablement (requiring explicit owner approval; no proactive API enabling), and Cloud Run configs. Every `gcloud` CLI step in plans or execution must follow the mandatory 4-step `gcloud` skill guardrail: (Step 1) leaf-level syntax validation via `gcloud help <leaf_command>`, (Step 2) parameter verification including checking `--dry-run` / `--validate-only`, (Step 3) dry-run proposal where supported, and (Step 4) single-command execution with `--project=<PROJECT_ID>`, explicit location (`--region=europe-west4`), `--quiet`, data-reduction flags (`--limit`/`--filter`/`--format`) on all `list` commands, and explicit human-in-the-loop authorization for any denylisted operation (IAM, API enablement, delete, billing, org, KMS, or infra-manager apply).
+3. Write `implementation-instructions.md`: OpenTofu in `infra/`, per-release API enablement (requiring explicit owner approval; no proactive API enabling), and Cloud Run configs. Every `gcloud` CLI step in plans or execution must follow the mandatory 4-step `gcloud` skill guardrail: (Step 1) leaf-level syntax validation via `gcloud help <leaf_command>`, (Step 2) parameter verification including checking `--dry-run` / `--validate-only`, (Step 3) dry-run proposal where supported, and (Step 4) single-command execution with `--project=<PROJECT_ID>`, explicit location (`--region=europe-west4`), `--quiet`, data-reduction flags (`--limit`/`--filter`/`--format`) on all `list` commands, and explicit human-in-the-loop authorization for any denylisted operation (IAM, API enablement, delete, billing, org, KMS, or infra-manager apply).
 
 **Skills to load per phase:** `gcloud` (installed locally) for all `gcloud` CLI validation and guardrails; `gemini-api-dev` / `gemini-live-api-dev` (installed locally) for TTS, Live and image/video work; from the Google catalog: `cloud-sql-basics` (pgvector setup, Phase 3), `gemini-live-api` (v5), `agent-platform-eval-flywheel` (EVAL gates), `cloud-run-basics` (Phase 3), `google-cloud-solution-multi-agent-security` (v6), `google-cloud-solution-hybrid-search-alloydb` only if R7 forces an AlloyDB upgrade, and `developing-genkit-js` only if the R3 fallback is triggered.
 

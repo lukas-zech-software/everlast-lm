@@ -1,4 +1,4 @@
-# Copy to terraform.tfvars (gitignored) and adjust values for your dev GCP project.
+# Copy to opentofu.auto.tfvars (gitignored) and adjust values for your dev GCP project.
 project_id               = "everlast-lm-dev"
 region                   = "europe-west4"
 enable_project_services  = false # Set to true only after explicit project-owner approval to enable GCP APIs

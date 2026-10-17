@@ -20,7 +20,7 @@ variable "enable_model_armor" {
 }
 
 variable "disable_on_destroy" {
-  description = "Whether to disable APIs when the Terraform resource is destroyed."
+  description = "Whether to disable APIs when the OpenTofu resource is destroyed."
   type        = bool
   default     = false
 }

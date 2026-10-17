@@ -2,7 +2,7 @@
 -- Everlast LM v1.0 — Cloud SQL for PostgreSQL 16 Extension & Role Bootstrap
 -- Traceability: D1, D3, D4, FR-WM-01..07, FR-SI-01..10, FR-GC-01..07, NFR-SEC-01..03
 -- =============================================================================
--- Execute this script once per database (`everlast`) after Terraform provisions
+-- Execute this script once per database (`everlast`) after OpenTofu provisions
 -- the Cloud SQL instance and IAM service account users (`everlast-api-<env>`,
 -- `everlast-worker-<env>`). Application tables and HNSW/GIN indexes are managed
 -- by Drizzle ORM migrations in `packages/db`.
