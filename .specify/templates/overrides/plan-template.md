@@ -14,8 +14,11 @@
 ## Technical Context
 
 <!--
-  Fixed stack choices from Constitution v1.1.0 & `docs/solution-architecture.md` (D1–D13).
+  Fixed stack choices from Constitution v1.2.0 & `docs/solution-architecture.md` (D1–D14).
   Deviating from any choice below requires a prior recorded `Dn` decision in `docs/solution-architecture.md`.
+  Any contract, limit, error-state, or technical refinement introduced during planning or analysis MUST
+  flow back into `spec.md`, the package's FR card, the SRS, or `docs/solution-architecture.md` (`Dn`)
+  before `/speckit-implement` starts.
 -->
 
 **Language/Version**: TypeScript 5.x (strict mode, ESM) on Node.js 24 (`pnpm` workspaces)
@@ -34,7 +37,7 @@
 
 | Gate ID | Principle | Pre-Research Status | Post-Design Status | Verification Evidence / Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `CC-01` | **I. Traceability** | `[PASS / FAIL]` | `[PASS / FAIL]` | Every requirement, design element, and planned task cites its SRS ID (`FR-*`, `NFR-*`, `C-01..03`) and matches its FR card + `spec/requirements/README.md`. |
+| `CC-01` | **I. Traceability** | `[PASS / FAIL]` | `[PASS / FAIL]` | Every requirement, design element, and planned task cites its SRS ID (`FR-*`, `NFR-*`, `C-01..03`), matches its FR card + `spec/requirements/README.md`, and flows all clarifications, contract/limit refinements, and technical choices back into `spec.md` and the upstream source-of-truth tier. |
 | `CC-02` | **II. Test-First** | `[PASS / FAIL]` | `[PASS / FAIL]` | Spec-derived failing test tasks precede implementation tasks for every requirement, Gherkin scenario, and numeric/text limit. |
 | `CC-03` | **III. Scope & Snapshot** | `[PASS / FAIL]` | `[PASS / FAIL]` | All source reads go exclusively through `C-02` with explicit `Ready` source IDs, submission-time `(source_id, revision)` snapshots, and access re-checks. |
 | `CC-04` | **III. Citations & Leakage** | `[PASS / FAIL]` | `[PASS / FAIL]` | Pre-publication citation ID validation (`D13`, `NFR-EVAL-02/03`), immediate refusal on failure, and zero deselected/revoked source leakage (`NFR-EVAL-04`) across history, caches, and drilldowns. |

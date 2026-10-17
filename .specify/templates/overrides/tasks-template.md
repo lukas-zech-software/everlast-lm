@@ -111,10 +111,11 @@ description: "Task list template for feature implementation"
 
 ## Phase N: Polish, Eval Gates & Cross-Cutting Concerns
 
-**Purpose**: Package-wide deterministic/LLM eval verification and release-gate readiness
+**Purpose**: Package-wide deterministic/LLM eval verification, upstream spec flow-back synchronization, and release-gate readiness
 
 - [ ] TXXX [P] Verify deterministic citation-ID (`NFR-EVAL-02` = 1.0) and zero-leakage (`NFR-EVAL-04` = 0) eval suites in `packages/evals/test/[feature].eval.test.ts`
 - [ ] TXXX [P] Verify LLM-judged faithfulness (`NFR-EVAL-01` < 5 %) and refusal (`NFR-EVAL-03` ≥ 99 %) suites (if touching retrieval, prompt, or chat) in `packages/evals/test/[feature].judged.test.ts`
+- [ ] TXXX Verify Flow-back spec synchronization (`CC-01`): confirm any clarifications, contract/limit refinements, or implementation/convergence edge cases are flowed back into `specs/[###-feature-name]/spec.md` and upstream into `spec/requirements/v[N]/package_[N]_[M]_[name].md`, the SRS, `docs/solution-architecture.md` (`Dn`), and GitHub issues
 - [ ] TXXX Run `quickstart.md` end-to-end validation and `node scripts/check-spec-integrity.mjs` (`Gate v[N].0`)
 
 ---
@@ -127,7 +128,8 @@ description: "Task list template for feature implementation"
 - **Foundational (Phase 2)**: Depends on Setup completion — BLOCKS all user stories in this package
 - **User Stories (Phase 3+)**: All depend on Foundational phase completion
   - Within each story: **Spec-derived tests MUST be written and observed failing (`Red`) before implementation (`Green → Refactor`)**
-- **Polish & Eval Gates (Final Phase)**: Depends on all user stories in the package being complete
+- **Flow-Back on Reality Gaps (`/speckit-implement` & `/speckit-converge`)**: When implementation or convergence uncovers reality gaps, unstated edge cases, or feasibility constraints, flow the resolution back to `spec.md` AND upstream to the FR card / SRS / `docs/solution-architecture.md` (`Dn`), then rerun `/speckit-analyze` before completing implementation rather than only patching code or appending unbacked tasks
+- **Polish & Eval Gates (Final Phase)**: Depends on all user stories and any upstream spec flow-back updates in the package being complete
 
 ### Parallel Opportunities (`[P]`)
 

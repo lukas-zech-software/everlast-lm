@@ -18,6 +18,16 @@
   (`specs/<NNN>-<short-name>/`). `/speckit-specify` MUST transcribe all EARS statements,
   numeric limits, error states, and Gherkin acceptance scenarios from the package's FR cards
   and `spec/requirements/README.md` without inventing unbacked requirements.
+- **Flow-back spec rule (bidirectional traceability)**: Traceability operates both top-down and
+  bottom-up across the feature lifecycle. Whenever a downstream stage (`/speckit-clarify`,
+  `/speckit-plan`, `/speckit-analyze`, `/speckit-implement`, or `/speckit-converge`) resolves
+  an open question or ambiguity, refines a contract, limit, or error state, records a technical
+  choice, or uncovers a reality gap or edge case, that resolution MUST flow back into the
+  feature's `specs/<NNN>-<short-name>/spec.md` (and `plan.md`) AND upstream into the governing
+  source-of-truth tier (`spec/requirements/v<N>/package_<N>_<M>_*.md` FR cards,
+  `spec/requirements/README.md`, the SRS, `docs/solution-architecture.md` `Dn`, and affected
+  GitHub issues) rather than remaining isolated in `specs/<NNN>-<short-name>/` or application
+  code.
 - Scope changes MUST be recorded before planning starts: scope additions as an SRS amendment,
   and scope removals or deferrals as a recorded architecture decision (`Dn`) in
   `docs/solution-architecture.md`.
@@ -28,7 +38,8 @@
   `DEV-03`) MUST NOT be specified, planned, or implemented while their deferral remains active.
 
 **Rationale:** Coding agents fill every ambiguity with their own guess; binding them to a
-ranked, traceable specification hierarchy ensures deterministic, auditable delivery.
+ranked, traceable specification hierarchy—and flowing downstream clarifications and
+implementation discoveries back upstream—ensures deterministic, drift-free delivery.
 
 ### II. Test-First (NON-NEGOTIABLE)
 
@@ -259,6 +270,24 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   `/speckit-implement` (followed by `/speckit-converge` if post-implementation gaps remain).
   The bundled 4-step `.specify/workflows/speckit/workflow.yml` alone is insufficient, and
   creating artifacts under `docs/superpowers/` is forbidden.
+- **Flow-back spec workflow**: Upstream specifications (`spec/requirements/` FR cards,
+  `spec/System_Requirements_Specification_Gemeni_Notebook.md`, `docs/solution-architecture.md`,
+  and GitHub issues) and feature specifications (`specs/<NNN>-<package>/spec.md`) MUST stay
+  synchronized across every stage:
+  - **Clarify flow-back (`/speckit-clarify`)**: When open questions or ambiguities are resolved,
+    the resolution MUST be written into `specs/<NNN>-<package>/spec.md` AND flowed back into the
+    package's FR card (`spec/requirements/v<N>/package_<N>_<M>_*.md`, removing the open question)
+    and the SRS / GitHub issue if scope- or index-level.
+  - **Plan & Analyze flow-back (`/speckit-plan`, `/speckit-analyze`)**: When planning or
+    consistency analysis refines contracts (`C-01..C-03`), numeric/text limits, error states, or
+    technical choices, those refinements MUST flow back into `spec.md`, the package's FR cards /
+    `spec/requirements/README.md`, or `docs/solution-architecture.md` (`Dn`) before
+    `/speckit-implement` starts.
+  - **Implement & Converge flow-back (`/speckit-implement`, `/speckit-converge`)**: When
+    implementation or post-implementation convergence reveals reality gaps, unstated edge cases,
+    or feasibility constraints, the resolution MUST flow back to `spec.md` AND upstream to the
+    FR card / SRS / `docs/solution-architecture.md` (`Dn`) (and affected GitHub issues), followed
+    by re-running `/speckit-analyze`, rather than only patching code or appending unbacked tasks.
 - **Constitution Check Gate Table (`CC-01`..`CC-08`)**: Every `plan.md` (before Phase 0 research
   and again after Phase 1 design) and every `/speckit-analyze` run MUST evaluate these eight
   gates explicitly. Any justified exception MUST be recorded in the plan's Complexity Tracking
@@ -266,7 +295,7 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 
 | Gate ID | Principle | Required Verification in `plan.md` and `/speckit-analyze` |
 | :--- | :--- | :--- |
-| `CC-01` | I. Traceability | Every requirement, design element, and task cites its SRS ID (`FR-*`, `NFR-*`, `C-01..03`) and matches its FR card and `spec/requirements/README.md`. |
+| `CC-01` | I. Traceability | Every requirement, design element, and task cites its SRS ID (`FR-*`, `NFR-*`, `C-01..03`), matches its FR card and `spec/requirements/README.md`, and flows all downstream clarifications, contract/limit refinements, and implementation discoveries back into `spec.md` and the upstream source-of-truth tier. |
 | `CC-02` | II. Test-First | Spec-derived failing test tasks precede implementation tasks for every requirement, Gherkin scenario, and numeric/text limit. |
 | `CC-03` | III. Scope & Snapshot | All source reads go exclusively through `C-02` with explicit `Ready` source IDs, submission-time `(source_id, revision)` snapshots, and access re-checks. |
 | `CC-04` | III. Citations & Leakage | Pre-publication citation ID validation (`D13`, `NFR-EVAL-02/03`), immediate refusal on failure, and zero deselected/revoked source leakage (`NFR-EVAL-04`) across history, caches, and drilldowns. |
@@ -284,8 +313,9 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   - Task references in commits, issues, and handoffs MUST be qualified by spec path (for example,
     `specs/001-workspace-foundation T001`).
   - Edits to shared files (SRS, FR cards, constitution, `docs/solution-architecture.md`,
-    `AGENTS.md`, `packages/contracts`, root manifests, CI, and `infra/`) MUST be serialized
-    under a single assigned owner and merged before dependent package work.
+    `AGENTS.md`, `packages/contracts`, root manifests, CI, and `infra/`)—including upstream
+    spec flow-back updates—MUST be serialized under a single assigned owner and merged before
+    dependent package work.
 - **Sandbox & PR gates**:
   - Agents running with relaxed permissions MUST execute inside an isolated sandbox without
     production credentials.
@@ -307,4 +337,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-08`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
+**Version**: 1.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
