@@ -3,10 +3,11 @@
 **Branch**: `spec/v1-functional-requirements` | **Date**: 2026-10-17 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md`
 **SRS IDs**: FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, C-01, C-02, Gate v1.0
+**Input**: `specs/003-grounded-chat-citation-engine/spec.md`, clarified in `1c7b868`.
 
 ## Summary
 
-Implement exactly package 1.3 from [FR cards](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md) and [binding rules](../../spec/requirements/README.md). Prerequisite plan created before task generation; no application code is produced here. Main infrastructure baseline 6f3d6b2 was merged before this design; D14 OpenTofu supersedes older Terraform wording.
+Implement exactly package 1.3 from [FR cards](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md) and [binding rules](../../spec/requirements/README.md). Prerequisite plan created before task generation; no application code is produced here. Main infrastructure baseline `6f3d6b2` (`D14` OpenTofu in `infra/stacks/v1_foundation/`) is merged and aligned with packages 1.1 (`d797ca0`) and 1.2 (`e2725ee`).
 
 ## Technical Context
 
@@ -34,7 +35,7 @@ Pre-research scope review passed before selecting implementation details; post-d
 
 ## Project Structure and Ownership
 
-Documentation owned by this session: this package's `plan.md`, `research.md`, `data-model.md`, `contracts/interfaces.md`, `quickstart.md`, `tasks.md`. Worktree `/private/tmp/everlast-v1-specs`, branch `spec/v1-functional-requirements`. Runtime paths below are proposed package-owner boundaries; publish task/file reservations before implementation. Shared manifests, schema exports, migrations, entrypoints and CI remain serialized under one owner.
+Documentation owned by this session: this package's `plan.md`, `research.md`, `data-model.md`, `contracts/interfaces.md`, `quickstart.md`, `tasks.md` on branch `spec/v1-functional-requirements` (base `1c7b868`). Runtime paths below are proposed package-owner boundaries; publish task/file reservations before implementation. Shared manifests, schema exports, migrations, entrypoints and CI remain serialized under one owner.
 
 | Component | Exact intended files | Trace |
 | :--- | :--- | :--- |
@@ -57,7 +58,7 @@ Shared dependencies: `packages/contracts/src/document-chunk.ts`, `scoped-context
 
 The SRS/cards/README override lower-priority architecture prose: v1 source limits remain deployment configurable 50–300; daily generation quotas and all v2+ features are excluded. The 2 s notebook deletion metric applies to database/chunk removal per FR-WM-01; do not silently extend it to outstanding signed upload capabilities. Use the 1.1 immediate-access fence and tracked all-generation purge. Any unresolved change to these contracts requires source-aligned plan updates and rerun analyze before dependent implementation.
 
-Package1.1's older plan/task infrastructure wording must be reconciled with integrated D14 and actual infra paths at its T001 checkpoint. These package plans consume the approved baseline, not the former unintegrated infrastructure branch. No competing infrastructure files are created.
+Package 1.1's plan (`d797ca0`) is reconciled with integrated `D14` and actual `infra/stacks/v1_foundation/` paths. These package plans consume the approved baseline, and no competing infrastructure files are created.
 
 ## Complexity Tracking
 
