@@ -14,9 +14,9 @@ Authority: [constitution](../../.specify/memory/constitution.md), [SRS](../../sp
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-SI-01 | Text, Markdown, PDF & Copied Text Ingestion | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-01-subset-a--text-markdown-pdf--copied-text-ingestion) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-SI-03 | Granular Source Selection / Scoping | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-03--granular-source-selection--scoping) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-SI-04 | Integrated Source Inspector (Source Viewer) | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-04--integrated-source-inspector-source-viewer) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-SI-01 | Text, Markdown, PDF & Copied Text Ingestion | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-01-subset-a--text-markdown-pdf--copied-text-ingestion) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-SI-03 | Granular Source Selection / Scoping | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-03--granular-source-selection--scoping) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-SI-04 | Integrated Source Inspector (Source Viewer) | [Card](../../spec/requirements/v1/package_1_2_text_pdf_ingestion_inspector.md#fr-si-04--integrated-source-inspector-source-viewer) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
 
 - **Within-Release Prerequisites (C-01, C-02, Gate v1.0)**: Shared C-01/C-02 and package 1.1 identity, notebook and atomic quota behavior precede ingestion. Citation fixtures permit independent inspector tests; package 1.3 later supplies real citations.
 - **Role Phasing (FR-WM-04/05, NFR-SEC-02)**: Owner-only in v1–v5. All Editor/Viewer/Chat-only references transcribed below are future v6 conditions, not v1 permissions.
@@ -299,3 +299,12 @@ Scenario: Citation click scrolls deterministically to target chunk
 - **FR-SI-04 — Out of scope:** Editing source text inside the inspector; audio/video timestamp player inside the inspector (`v3.0`).
 - **FR-SI-04 — Deviations from reference:** In `v1.0`, the top of the Source Inspector displays only the document title and full text; the collapsible *Source Guide* (summary + key topics) at the top of the inspector is added in `v2.0` (`FR-SI-02`).
 - D5/DEV-03 defers FR-INT-01 and Gate v6.0 #3; D8/DEV-02 defers Google Slides export; D10 moves audio share links to v6. None is introduced by MVP specification.
+
+## Clarifications
+
+### Session 2026-10-17
+
+- Q: Which `C-01` locator variant is emitted for text-only sources (`.txt`, `.md`, `Copied text`) versus PDFs (`FR-SI-01`, `C-01`)? → A: Both PDF and text-only sources in v1.0 emit the `page_span` variant of the canonical `C-01` locator union (`page_span | time_span | dom_path`); PDFs populate physical `page` plus paragraph/character offsets, whereas text-only sources omit the optional physical `page` and populate paragraph/character offsets. `char_span` and `slide_number` are not separate locator union variants.
+- Q: How does opening a deselected source in the Source Inspector interact with `ScopedContextProvider` and active chat scoping (`FR-SI-03`, `FR-SI-04`, `C-02`)? → A: Opening a source via sidebar title click or historical citation executes an authorized singleton `ScopedContextProvider` (`C-02`) read for `{source_id}` without modifying the session's active chat checkbox selection ($S_{\text{aktiv}}$) or making the deselected source eligible for generation prompts.
+- Q: How are in-flight chat requests affected when the user toggles source checkboxes mid-stream (`FR-SI-03`, `C-02`)? → A: Each generation request captures an immutable `(source_id, revision)` snapshot of $S_{\text{aktiv}}$ at submission time; mid-stream checkbox changes apply only to subsequent requests, while deletion or authorization revocation of a captured source revision aborts the in-flight request before publication.
+
