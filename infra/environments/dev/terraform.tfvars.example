@@ -1,0 +1,33 @@
+# Copy to terraform.tfvars (gitignored) and adjust values for your dev GCP project.
+project_id               = "everlast-lm-dev"
+region                   = "europe-west4"
+enable_project_services  = false # Set to true only after explicit project-owner approval to enable GCP APIs
+enable_model_armor       = false
+enable_identity_platform = true
+enable_github_wif        = false
+github_repository        = "lukas-zech-software/everlast-lm"
+
+authorized_domains = [
+  "localhost",
+]
+
+cors_allowed_origins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+]
+
+db_tier              = "db-custom-1-3840"
+db_availability_type = "ZONAL"
+db_disk_size_gb      = 20
+db_activation_policy = "ALWAYS" # Set to "NEVER" between demo sessions to cut idle compute costs (§5.4)
+
+api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
+worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
+api_min_instances    = 0 # Set to 1 before live demos per §5.5 to avoid cold-start penalties
+api_max_instances    = 5
+worker_max_instances = 5
+mount_secrets        = false # Set to true once Secret Manager versions are populated
+
+max_sources_per_notebook = 50
+max_notebooks_per_user   = 100
+deletion_protection      = false

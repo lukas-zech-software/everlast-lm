@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars (gitignored) and adjust values for your staging GCP project.
+project_id               = "everlast-lm-staging"
+region                   = "europe-west4"
+enable_project_services  = false # Set to true only after explicit project-owner approval to enable GCP APIs
+enable_model_armor       = false
+enable_identity_platform = true
+enable_github_wif        = false
+github_repository        = "lukas-zech-software/everlast-lm"
+
+authorized_domains = [
+  "staging.everlast.example.com",
+]
+
+cors_allowed_origins = [
+  "https://staging.everlast.example.com",
+]
+
+db_tier              = "db-custom-1-3840"
+db_availability_type = "ZONAL"
+db_disk_size_gb      = 20
+db_activation_policy = "ALWAYS"
+
+api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
+worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
+api_min_instances    = 0
+api_max_instances    = 10
+worker_max_instances = 10
+mount_secrets        = false
+
+max_sources_per_notebook = 50
+max_notebooks_per_user   = 100
+deletion_protection      = false

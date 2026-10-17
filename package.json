@@ -16,6 +16,14 @@
   "type": "module",
   "directories": {
     "doc": "docs",
-    "spec": "spec"
+    "spec": "spec",
+    "infra": "infra"
+  },
+  "scripts": {
+    "check:specs": "node scripts/check-spec-integrity.mjs",
+    "infra:fmt": "terraform fmt -recursive infra",
+    "infra:fmt:check": "terraform fmt -check -recursive infra",
+    "infra:init:local": "terraform -chdir=infra/environments/dev init -backend=false && terraform -chdir=infra/environments/staging init -backend=false && terraform -chdir=infra/environments/prod init -backend=false",
+    "infra:validate": "terraform -chdir=infra/environments/dev validate && terraform -chdir=infra/environments/staging validate && terraform -chdir=infra/environments/prod validate"
   }
 }

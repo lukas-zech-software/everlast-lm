@@ -17,3 +17,24 @@ updates:
     commit-message:
       prefix: chore
     open-pull-requests-limit: 5
+
+  - package-ecosystem: terraform
+    directory: /infra/environments/dev
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"
+
+  - package-ecosystem: terraform
+    directory: /infra/environments/staging
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"
+
+  - package-ecosystem: terraform
+    directory: /infra/environments/prod
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"

@@ -1,0 +1,32 @@
+# Copy to terraform.tfvars (gitignored) and adjust values for your prod GCP project.
+project_id               = "everlast-lm-prod"
+region                   = "europe-west4"
+enable_project_services  = false # Set to true only after explicit project-owner approval to enable GCP APIs
+enable_model_armor       = false
+enable_identity_platform = true
+enable_github_wif        = false
+github_repository        = "lukas-zech-software/everlast-lm"
+
+authorized_domains = [
+  "app.everlast.example.com",
+]
+
+cors_allowed_origins = [
+  "https://app.everlast.example.com",
+]
+
+db_tier              = "db-custom-2-7680"
+db_availability_type = "REGIONAL"
+db_disk_size_gb      = 50
+db_activation_policy = "ALWAYS"
+
+api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
+worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
+api_min_instances    = 0
+api_max_instances    = 20
+worker_max_instances = 20
+mount_secrets        = false
+
+max_sources_per_notebook = 50
+max_notebooks_per_user   = 100
+deletion_protection      = true
