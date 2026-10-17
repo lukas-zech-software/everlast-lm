@@ -1,10 +1,10 @@
 # Tasks: UI Skeleton & Quality Gates
 
-**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md).
+**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md), [checklist](checklists/ui-eval-security-gates.md).
 **Package Source**: `spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md` + [binding cross-package rules](../../spec/requirements/README.md).
 **SRS IDs in scope**: FR-UI-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01, C-01, C-02, Gate v1.0.
-**Branch / worktree**: `spec/v1-functional-requirements` / `/private/tmp/everlast-v1-specs`. Baseline: approved main6f3d6b2 plus prior package commits on this branch.
-**Prerequisites**: Plan CC-01..CC-08 passes at design level; no unresolved spec clarifications. `/speckit-analyze` must run before implementation. 1.1–1.3 provide real notebook, source, inspector and chat features; UI shell and test datasets can be prepared early, but full Gate v1.0 requires the integrated runnable application.
+**Branch / worktree**: `spec/v1-functional-requirements` (`update_mvp_spec_workflows`). Baseline: `25d3127` (`origin/spec/v1-functional-requirements` plus clarified `spec.md` `47c4e90`, updated `plan.md` `cf2e17e`, checklist `5c3c5ef`, and reconciled 1.1–1.3 tasks `54e6b60`/`9f75352`/`25d3127`).
+**Prerequisites**: Plan CC-01..CC-08 passes at design level; all spec clarifications (`2026-10-17` session) resolved. `/speckit-analyze` must run before implementation. 1.1–1.3 provide real notebook, source, inspector and chat features (`D14` OpenTofu stack in `infra/stacks/v1_foundation/`); UI shell and test datasets can be prepared early, but full Gate v1.0 requires the integrated runnable application.
 
 Tests are mandatory (constitution II/CC-02), overriding optional-test skill wording. All tasks are open/unexecuted. Every behavior task waits for its named tests to fail for the expected requirement-related reason. Setup/import/configuration failure is not Red. Shared schemas, migration ordering, manifests, entrypoints and CI require one owner. This session claims documentation only; no runtime code or cloud resources are edited now.
 
