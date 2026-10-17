@@ -17,3 +17,25 @@ updates:
     commit-message:
       prefix: chore
     open-pull-requests-limit: 5
+
+  # GitHub Dependabot uses the `terraform` ecosystem key to scan OpenTofu (.tf / .terraform.lock.hcl) providers
+  - package-ecosystem: terraform
+    directory: /infra/environments/dev
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"
+
+  - package-ecosystem: terraform
+    directory: /infra/environments/staging
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"
+
+  - package-ecosystem: terraform
+    directory: /infra/environments/prod
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(infra)"

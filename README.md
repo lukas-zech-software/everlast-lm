@@ -351,7 +351,7 @@ goes wrong when several autonomous sessions share one repository:
   contracts, root manifests and lockfile, CI and infrastructure each have exactly one owner at a time and are merged
   before dependent work starts. Database migration order is a shared dependency.
 - **Runtime isolation.** Parallel dev servers, test databases and cloud test resources get distinct names and ports.
-  There are no competing migrations or Terraform runs against shared state. Agents with relaxed permissions run in
+  There are no competing migrations or OpenTofu runs against shared state. Agents with relaxed permissions run in
   sandboxes without production credentials, because a worktree is not a sandbox.
 - **Integration and handoff.** Everything merges through a scoped PR, in dependency order, after re-checking the diff
   against its base. Conflicts are resolved by the source-of-truth ranking, never by picking a side. A handoff lists
@@ -452,7 +452,7 @@ is a GitHub project, and GitHub already provides the needed building blocks:
 6. **Central feature allocation.** `AGENTS.md` and the release roadmap/epic issues (`#1`–`#5`) centrally reserve `specs/001-workspace-foundation` through `specs/004-ui-skeleton-quality-gates` and matching branch names before `/speckit-specify` runs, which removes the numbering race between parallel sessions.
 7. **Credential-free cloud access.** GitHub OIDC with Workload Identity Federation for Google Cloud, so there are no
    stored keys. Each PR gets its own test database (for example Postgres with pgvector in a container) and resource
-   names prefixed by branch. Terraform `apply` runs only from `main`, with state locking.
+   names prefixed by branch. OpenTofu `apply` runs only from `main`, with state locking.
 8. **Release gates as workflows.** The gate issues (#84–#89) are closed by a gate workflow that runs the full eval
    suite against a staging environment, protected by a GitHub environment with required reviewers.
 
@@ -460,7 +460,7 @@ is a GitHub project, and GitHub already provides the needed building blocks:
 
 ## Status: what is missing before implementation starts
 
-**Done:** SRS, constitution v1.1.0 (`CC-01`..`CC-08`), solution architecture (`D1`..`D13`), 53 FR cards, the deviation log, the Spec Kit setup (`agy` + Copilot skills, `git` + `github` extensions, `pipeline` workflow, `spec`/`plan`/`tasks` template overrides), `copilot-setup-steps.yml`, the multi-agent rules and v1 feature reservations in `AGENTS.md`, the GitHub project with 89 issues, and both the issue-versus-spec audit and the package-by-package requirements consistency audit.
+**Done:** SRS, constitution v1.1.0 (`CC-01`..`CC-08`), solution architecture (`D1`..`D14`), 53 FR cards, the deviation log, the Spec Kit setup (`agy` + Copilot skills, `git` + `github` extensions, `pipeline` workflow, `spec`/`plan`/`tasks` template overrides), `copilot-setup-steps.yml`, the multi-agent rules and v1 feature reservations in `AGENTS.md`, the GitHub project with 89 issues, and both the issue-versus-spec audit and the package-by-package requirements consistency audit.
 
 **Still to do, in order:**
 
@@ -477,7 +477,7 @@ is a GitHub project, and GitHub already provides the needed building blocks:
    test.
 5. **Convert analyzed v1 tasks to GitHub issues.** Once `/speckit-analyze` passes for a package, run `/speckit-github-taskstoissues` to create feature-qualified task issues (`[001-workspace-foundation] T001: ...`) under its epic.
 6. **Approve the cloud setup:** enable the v1 Google Cloud APIs (`aiplatform`, `sqladmin`, `cloudtasks`,
-   `secretmanager`, `identitytoolkit`, `documentai`) and write the Terraform baseline.
+   `secretmanager`, `identitytoolkit`, `documentai`) and write the OpenTofu baseline.
 
 Once steps 1 to 4 are done for a package, implementation agents can start on it in parallel, each in its own sandbox.
 
