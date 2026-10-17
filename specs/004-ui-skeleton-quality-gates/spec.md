@@ -14,8 +14,8 @@ Authority: [constitution](../../.specify/memory/constitution.md), [SRS](../../sp
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-UI-01 | Adaptive 3-Column Workspace Layout | [Card](../../spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md#fr-ui-01--adaptive-3-column-workspace-layout) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01 | Automated Evaluation & Security Gate Suite | [Card](../../spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-UI-01 | Adaptive 3-Column Workspace Layout | [Card](../../spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md#fr-ui-01--adaptive-3-column-workspace-layout) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01 | Automated Evaluation & Security Gate Suite | [Card](../../spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
 
 - **Within-Release Prerequisites (C-01, C-02, Gate v1.0)**: Shared C-01/C-02 and integrated packages 1.1–1.3 precede full gate execution. Test harnesses and UI shells may be built ahead of their consumers.
 - **Role Phasing (FR-WM-04/05, NFR-SEC-02)**: Owner-only in v1–v5. All Editor/Viewer/Chat-only references transcribed below are future v6 conditions, not v1 permissions.
@@ -220,3 +220,12 @@ Scenario: Deselected source does not leak via conversation history
 - **NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01 — Out of scope:** Audio/Video/Mindmap evaluation gates (introduced in `Gate v3.0`–`Gate v5.0`).
 - **NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01 — Deviations from reference:** Formalizes implicit product quality properties into hard, automated CI/CD release gates for agentic development.
 - D5/DEV-03 defers FR-INT-01 and Gate v6.0 #3; D8/DEV-02 defers Google Slides export; D10 moves audio share links to v6. None is introduced by MVP specification.
+
+## Clarifications
+
+### Session 2026-10-17
+
+- Q: Which evaluation checks run on every PR versus on retrieval/prompt/chat PRs and release gates (`NFR-EVAL-01..04`, `Gate v1.0`)? → A: Deterministic citation-ID (`NFR-EVAL-02` `Precision_ID = 1.0`) and context-scoping/leakage (`NFR-EVAL-04` `Leakage = 0`) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` `hallucination < 0.05`), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` `rejection >= 0.99`) run on PRs touching retrieval/prompt/chat and at every release gate.
+- Q: How do viewport breakpoints and `localStorage` panel preferences interact with citation click-through (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)? → A: Default layout is tabbed at `< 1024 px`, 3-column with `Studio` collapsed at `1024–1279 px`, and 3-column with both side panels expanded at `>= 1280 px`; explicit user collapse/expand preferences persist in browser `localStorage`, but clicking an inline citation `[n]` always un-collapses/switches to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing chat draft or scroll state.
+- Q: How is `NFR-SEC-01` enterprise no-training compliance verified independently of zero-retention claims (`NFR-SEC-01`, `D14`)? → A: Automated security checks verify that all LLM, OCR, and embedding endpoints use Vertex AI / Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), and audit reports separate no-training verification from data-retention settings.
+
