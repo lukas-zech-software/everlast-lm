@@ -1,14 +1,14 @@
 # Tasks: Workspace Foundation
 
-**Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/workspace-api.md), [shared context](contracts/shared-context.md), [quickstart](quickstart.md).
+**Input**: [spec.md](spec.md), [plan.md](plan.md), [research.md](research.md), [data-model.md](data-model.md), [contracts](contracts/workspace-api.md), [shared context](contracts/shared-context.md), [quickstart](quickstart.md), [checklist](checklists/workspace-isolation-quotas.md).
 **Package Source**: `spec/requirements/v1/package_1_1_workspace_foundation.md` + [binding cross-package rules](../../spec/requirements/README.md).
 **SRS IDs in Scope**: FR-WM-01, FR-WM-04, FR-WM-07; C-01/C-02; NFR-EVAL-04; Gate v1.0.
-**Branch / Worktree / Base**: `spec/v1-functional-requirements` / `/private/tmp/everlast-v1-specs` / `0ed1a04`.
-**Prerequisites**: Plan CC-01..CC-08 reviewed; spec has no open clarification markers. `/speckit-analyze` must review this task list before implementation. Shared upstream changes require reconciliation, not automatic adoption.
+**Branch / Base**: `spec/v1-functional-requirements` / `4fe9cfa`.
+**Prerequisites**: Plan CC-01..CC-08 reviewed (`d797ca0`); spec has no open clarification markers (`2468629`). `/speckit-analyze` must review this task list before implementation. Shared upstream changes require reconciliation, not automatic adoption.
 
 **Tests are mandatory** under constitution II/CC-02. Each production behavior task depends on its listed test tasks and their observed requirement-related Red failures. Setup may create empty adapters/interface stubs to make tests executable, but an import/configuration error is not Red. Store case IDs, command, failure reason, commit and later Green result in `specs/001-workspace-foundation/validation.md`; distinct task output directories permit independent test work. Never skip or weaken a spec-derived assertion without an SRS amendment.
 
-**Ownership**: This session owns only this tasks document. Implementation assignment must be published before editing code. The active infrastructure branch `feat/v1-terraform-and-architecture-alignment` has overlapping manifests/CI/infra and uncommitted governance changes; T001 is a mandatory coordination gate. No foreign worktree is modified. Every task below is unchecked and unexecuted.
+**Ownership**: This session owns only this tasks document. Implementation assignment must be published before editing code. The OpenTofu infrastructure baseline (`D14` in `infra/stacks/v1_foundation/`, `6f3d6b2`) is merged; T001 is a mandatory coordination gate before editing shared manifests, CI, or `infra/stacks/v1_foundation/`. No foreign worktree is modified. Every task below is unchecked and unexecuted.
 
 ## Format and State
 
@@ -20,7 +20,7 @@ Qualified task identity is `specs/001-workspace-foundation Tnnn`. [P] permits pa
 
 **Goal / Independent Test**: Establish an assigned, isolated foundation workspace and runnable harness without implementing behavior.
 
-- [ ] T001 Record owner, allowed files, base commit and shared-file handoff in `specs/001-workspace-foundation/implementation-handoff.md` and the shared issue/PR description (Gate v1.0). Reconcile the active `feat/v1-terraform-and-architecture-alignment` session before touching `package.json`, `.github/workflows/ci.yml`, `infra/` or architecture-governed configuration; integrate approved upstream changes, update affected plan/contracts and rerun analyze if they differ. Do not copy uncommitted foreign-worktree changes. **Depends on:** approved analyze and user/package ownership handoff.
+- [ ] T001 Record owner, allowed files, base commit and shared-file handoff in `specs/001-workspace-foundation/implementation-handoff.md` and the shared issue/PR description (Gate v1.0). Coordinate shared ownership before touching `package.json`, `.github/workflows/ci.yml`, `infra/stacks/v1_foundation/` (`D14`) or architecture-governed configuration; integrate approved upstream changes, update affected plan/contracts and rerun analyze if they differ. Do not copy uncommitted foreign-worktree changes. **Depends on:** approved analyze and user/package ownership handoff.
 
 - [ ] T002 Initialize only missing pnpm workspace scaffolding in `package.json`, `pnpm-workspace.yaml`, `pnpm-lock.yaml`, `tsconfig.base.json` and manifests/tsconfigs for `packages/contracts`, `packages/db`, `packages/evals`, `apps/api`, `apps/web`, `apps/worker` (Gate v1.0, C-01, C-02). Preserve integrated infrastructure scripts. Pin Node 24/TypeScript 5.x baseline and actual dependency versions; no new framework, ORM or datastore. **Depends on:** T001.
 
@@ -146,7 +146,7 @@ Qualified task identity is `specs/001-workspace-foundation Tnnn`. [P] permits pa
 
 - [ ] T042 Write failing infrastructure acceptance assertions before any remaining configuration edit in `infra/tests/workspace-policy.test.ts` (FR-WM-01, FR-WM-04, NFR-SEC-01): private/versioned application-content buckets, zero soft-delete retention, conflicting holds/retention detection, keyless least privilege, EU resources and isolated cleanup queue. First resolve T001 ownership and map assertions to the approved integrated infra layout; run with actual available runner, otherwise report UNAVAILABLE. **Depends on:** T041, T001.
 
-- [ ] T043 After the infrastructure owner handoff, satisfy T042 by reusing/updating the approved infra baseline; planned fallback paths are `infra/workspace.tf`, `infra/variables.tf`, `infra/outputs.tf` (FR-WM-01, NFR-SEC-01). Do not create competing resources if `infra/stacks/v1_foundation/main.tf` or modules already provide them; update plan path ownership and rerun analyze before such path/design changes. No apply/API activation without required approval. **Depends on:** T042.
+- [ ] T043 After the infrastructure owner handoff, satisfy T042 by reusing/updating the approved OpenTofu (`D14`) baseline in `infra/stacks/v1_foundation/main.tf`, `infra/stacks/v1_foundation/variables.tf`, `infra/stacks/v1_foundation/outputs.tf`, `infra/stacks/v1_foundation/versions.tf` (FR-WM-01, NFR-SEC-01). Do not create competing infrastructure stacks; update plan path ownership and rerun analyze before any path/design changes. No apply/API activation without required approval. **Depends on:** T042.
 
 - [ ] T044 Author and transfer failing cross-package integration assertions in `packages/db/test/workspace-cascade.integration.test.ts`, `packages/evals/test/workspace-consumers.test.ts` and `apps/worker/test/source-limits.integration.test.ts` before dependent behavior implementation (FR-WM-01, FR-WM-04, FR-WM-07, FR-GC-01, NFR-EVAL-02, NFR-EVAL-04). Cover real 2-source/15-chunk/1-thread cascade, identical-file independence, actual bytes/parsed words, C-02 inspection/retrieval, OMEGA refusal, uncited history leakage and D13 invalid-citation refusal; agree handoff with 1.2/1.3 owners. Missing downstream runners are UNAVAILABLE, not Red; downstream implementation waits for runnable requirement-related Red evidence. **Depends on:** T041.
 
