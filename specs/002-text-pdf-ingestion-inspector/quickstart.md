@@ -5,7 +5,6 @@ Trace: FR-SI-01, FR-SI-03, FR-SI-04, Gate v1.0. Application runners remain UNAVA
 ## Current commands
 
 ```sh
-cd /private/tmp/everlast-v1-specs
 SPECIFY_INIT_DIR="$PWD" SPECIFY_FEATURE_DIRECTORY="specs/002-text-pdf-ingestion-inspector" SPECIFY_FEATURE_NO_PERSIST=1 bash .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
 node scripts/check-spec-integrity.mjs
 git diff --check
