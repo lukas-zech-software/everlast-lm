@@ -1,6 +1,8 @@
 <h1><img alt="Everlast LM: spec-driven, agent-built re-implementation of Gemini Notebook" src="docs/assets/social-preview.png" width="100%"></h1>
 
-**A spec-driven, agent-built re-implementation of Gemini Notebook (formerly NotebookLM) on Google Cloud.**
+**A spec-driven, agent-built re-implementation of Gemini Notebook (formerly NotebookLM) on Google Cloud.**<sup>[1]</sup>
+
+<sub>**[1]** Everlast LM is an independent coding-challenge project. It is not affiliated with, endorsed by, or sponsored by Google, Everlast, or any other trademark owner. "Gemini Notebook" and "NotebookLM" are used only to describe the reference behaviour. All trademarks, copyrights and other intellectual property referenced in this repository belong to their respective owners and are used for identification and descriptive purposes only.</sub>
 
 <p>
   <a href="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml"><img alt="Spec integrity" src="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml/badge.svg"></a>
@@ -493,7 +495,3 @@ Once steps 1 to 4 are done for a package, implementation agents can start on it 
 Licensed under the [Apache License 2.0](LICENSE). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow,
 [`SECURITY.md`](SECURITY.md) for reporting vulnerabilities, and the [Code of Conduct](CODE_OF_CONDUCT.md).
 
----
-
-<sub>Everlast LM is an independent coding-challenge project. It is not affiliated with Google. "Gemini Notebook" and
-"NotebookLM" are used only to describe the reference behaviour.</sub>
