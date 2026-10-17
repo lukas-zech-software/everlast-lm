@@ -234,17 +234,17 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 
 ## Platform Constraints
 
-- **Fixed stack (`D1`–`D4`, `D6`)**: pnpm TypeScript monorepo end-to-end (user code inside the
+- **Fixed stack (`D1`–`D4`, `D6`, `D14`)**: pnpm TypeScript monorepo end-to-end (user code inside the
   `FR-GC-08` execution sandbox is exempt), Zod schemas in `packages/contracts`, Google ADK for
   TypeScript + `@google/genai`, Cloud Run services/jobs in `europe-west4` scaling to zero, one
   Cloud SQL for PostgreSQL instance (`relational` + `pgvector` + PostgreSQL FTS with Reciprocal
   Rank Fusion), Identity Platform (generic OIDC/SAML), Vitest + Playwright test/eval suites, and
-  Terraform in `infra/`.
+  OpenTofu in `infra/`.
 - **Architecture authority**: All technical choices in `docs/solution-architecture.md` (`D1`..`Dn`)
   are binding. Deviating from `docs/solution-architecture.md`, or introducing any new framework,
   datastore, programming language, or component with fixed idle cost, MUST be preceded by a
   recorded `Dn` decision evaluating alternatives.
-- **Infrastructure & APIs**: All Google Cloud resources MUST be provisioned as Terraform IaC in
+- **Infrastructure & APIs**: All Google Cloud resources MUST be provisioned as OpenTofu IaC in
   `infra/`. Enabling any new Google Cloud API or billable service requires project-owner
   approval.
 - **Model efficiency**: Every model call MUST select the smallest approved Gemini model tier

@@ -1,0 +1,213 @@
+name: OpenTofu Infrastructure
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/opentofu.yml"
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/opentofu.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (dev, staging, prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+      action:
+        description: "OpenTofu action to execute"
+        required: true
+        default: "plan"
+        type: choice
+        options:
+          - validate
+          - plan
+          - apply
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: opentofu-${{ github.workflow }}-${{ github.event.inputs.environment || github.ref }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: "true"
+  OPENTOFU_VERSION: "1.10.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Offline Static Analysis (runs on every PR & push without GCP credentials)
+  # ---------------------------------------------------------------------------
+  validate:
+    name: "Validate (${{ matrix.environment }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, staging, prod]
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup OpenTofu
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Check OpenTofu formatting (repo-wide)
+        if: matrix.environment == 'dev'
+        working-directory: infra
+        run: tofu fmt -check -recursive
+
+      - name: Initialize OpenTofu (backend disabled for static validation)
+        run: tofu init -backend=false
+
+      - name: Validate OpenTofu configuration & module graph
+        run: tofu validate
+
+  # ---------------------------------------------------------------------------
+  # 2. Authenticated OpenTofu Plan (Keyless Workload Identity Federation)
+  #    Executes when GCP_WIF_PROVIDER is configured for the target environment.
+  # ---------------------------------------------------------------------------
+  plan:
+    name: "Plan (${{ matrix.environment }})"
+    needs: [validate]
+    if: >-
+      (github.event_name == 'pull_request' ||
+       github.event_name == 'push' ||
+       (github.event_name == 'workflow_dispatch' && inputs.action != 'validate'))
+    runs-on: ubuntu-latest
+    environment: ${{ matrix.environment }}
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ github.event_name == 'workflow_dispatch' && fromJson(format('["{0}"]', inputs.environment)) || fromJson('["dev"]') }}
+    defaults:
+      run:
+        working-directory: infra/environments/${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check whether GCP WIF variables are configured
+        id: wif_check
+        run: |
+          if [ -z "${{ vars.GCP_WIF_PROVIDER }}" ] || [ -z "${{ vars.GCP_CI_SERVICE_ACCOUNT }}" ] || [ -z "${{ vars.GCP_TFSTATE_BUCKET }}" ] || [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping Remote Plan::GitHub Environment '${{ matrix.environment }}' does not yet have GCP_WIF_PROVIDER, GCP_CI_SERVICE_ACCOUNT, GCP_TFSTATE_BUCKET, and GCP_PROJECT_ID variables configured. Offline validation succeeded."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup OpenTofu
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+
+      - name: Initialize OpenTofu with GCS state backend
+        if: steps.wif_check.outputs.configured == 'true'
+        run: |
+          tofu init \
+            -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
+            -backend-config="prefix=opentofu/state/${{ matrix.environment }}"
+
+      - name: Create OpenTofu execution plan
+        if: steps.wif_check.outputs.configured == 'true'
+        run: |
+          tofu plan \
+            -input=false \
+            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
+            -out=tfplan.binary
+          tofu show -no-color tfplan.binary > tfplan.txt
+
+      - name: Upload OpenTofu plan artifact
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ matrix.environment }}-${{ github.sha }}
+          path: infra/environments/${{ matrix.environment }}/tfplan.binary
+          retention-days: 5
+
+  # ---------------------------------------------------------------------------
+  # 3. Authenticated OpenTofu Apply (Protected GitHub Environment Gate)
+  # ---------------------------------------------------------------------------
+  apply:
+    name: "Apply (${{ github.event.inputs.environment || 'dev' }})"
+    needs: [plan]
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'dev' }}
+    defaults:
+      run:
+        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check whether GCP WIF variables are configured
+        id: wif_check
+        run: |
+          if [ -z "${{ vars.GCP_WIF_PROVIDER }}" ] || [ -z "${{ vars.GCP_CI_SERVICE_ACCOUNT }}" ] || [ -z "${{ vars.GCP_TFSTATE_BUCKET }}" ] || [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Skipping Remote Apply::GitHub Environment variables are not yet configured."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup OpenTofu
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: opentofu/setup-opentofu@v1
+        with:
+          tofu_version: ${{ env.OPENTOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
+
+      - name: Download verified OpenTofu plan artifact
+        if: steps.wif_check.outputs.configured == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}
+          path: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+
+      - name: Initialize OpenTofu with GCS state backend
+        if: steps.wif_check.outputs.configured == 'true'
+        run: |
+          tofu init \
+            -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
+            -backend-config="prefix=opentofu/state/${{ github.event.inputs.environment || 'dev' }}"
+
+      - name: Apply OpenTofu plan
+        if: steps.wif_check.outputs.configured == 'true'
+        run: tofu apply -input=false -auto-approve tfplan.binary

@@ -42,7 +42,7 @@ Deviations from the original product: `DEV-xx` in SRS §5.5 plus a matching `Dn`
 - `[P]` is permission to parallelize only after prerequisites are satisfied, not permission to ignore shared files, contracts or test-first ordering. Pass the failing tests to the implementation owner before that implementation starts.
 - The package owner integrates worker results and maintains the canonical `tasks.md`. Workers report completed task IDs, commit references and test evidence; the owner marks tasks complete only after integrating and verifying them. Keep task references qualified by spec path (`[001-workspace-foundation] T001`) because `T001` is not globally unique.
 - Worktrees isolate files and indexes, but share Git refs and repository configuration. Do not force-checkout a branch already in use, rewrite another session's branch, alter shared Git configuration or remove its worktree. Clean up only worktrees you own after their work is preserved and no session is using them. See [Git worktree documentation](https://git-scm.com/docs/git-worktree).
-- Give concurrent dev servers, test databases, output directories and cloud test resources distinct names/ports. Do not run competing migrations or Terraform operations against shared state. Relaxed-permission agents require isolated sandboxes without production credentials; a worktree alone is not a sandbox.
+- Give concurrent dev servers, test databases, output directories and cloud test resources distinct names/ports. Do not run competing migrations or OpenTofu operations against shared state. Relaxed-permission agents require isolated sandboxes without production credentials; a worktree alone is not a sandbox.
 
 ## Pin Spec Kit to the session's feature
 
@@ -79,7 +79,7 @@ bash .specify/scripts/bash/check-prerequisites.sh --json --paths-only
 - Handoff with package/spec path, branch and commit, task IDs completed/remaining, changed files, validation commands/results, blockers and the next valid Spec Kit stage. Distinguish committed, uncommitted, integrated and verified work; do not mark blocked or untested tasks complete.
 
 ## Planned stack (not built yet)
-pnpm TypeScript monorepo, Zod contracts in `packages/contracts`, ADK TS + `@google/genai`, Cloud Run (`europe-west4`), Cloud SQL Postgres + pgvector + FTS, Vitest eval suites, Terraform in `infra/`. A new framework, datastore or fixed-cost component needs a recorded decision first.
+pnpm TypeScript monorepo, Zod contracts in `packages/contracts`, ADK TS + `@google/genai`, Cloud Run (`europe-west4`), Cloud SQL Postgres + pgvector + FTS, Vitest eval suites, OpenTofu in `infra/`. A new framework, datastore or fixed-cost component needs a recorded decision first.
 
 ## Gotchas
 - `{.agents,.github}/skills/speckit-*`, `.specify/scripts/` and `.specify/templates/*.md` are managed by Spec Kit (see `.specify/integrations/*.manifest.json`) and get overwritten on upgrade. Customise templates in `.specify/templates/overrides/<name>.md` (`spec-template.md`, `plan-template.md`, `tasks-template.md`).
