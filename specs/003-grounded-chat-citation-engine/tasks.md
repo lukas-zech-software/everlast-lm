@@ -1,10 +1,10 @@
 # Tasks: Grounded Chat & Citation Engine
 
-**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md).
+**Input**: [spec](spec.md), [plan](plan.md), [research](research.md), [data model](data-model.md), [interfaces](contracts/interfaces.md), [quickstart](quickstart.md), [checklist](checklists/grounding-citations-history.md).
 **Package Source**: `spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md` + [binding cross-package rules](../../spec/requirements/README.md).
 **SRS IDs in scope**: FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, C-01, C-02, Gate v1.0.
-**Branch / worktree**: `spec/v1-functional-requirements` / `/private/tmp/everlast-v1-specs`. Baseline: approved main6f3d6b2 plus prior package commits on this branch.
-**Prerequisites**: Plan CC-01..CC-08 passes at design level; no unresolved spec clarifications. `/speckit-analyze` must run before implementation. Integrated 1.1 identity/ownership/deletion fences and 1.2 C-02 retrieval/inspection, canonical C-01 chunks and session selection. 1.4 consumes chat/citation integration for the full release gate.
+**Branch / worktree**: `spec/v1-functional-requirements` (`update_mvp_spec_workflows`). Baseline: `9f75352` (`origin/spec/v1-functional-requirements` plus clarified `spec.md` `1c7b868`, updated `plan.md` `ff04006`, checklist `553800f`, and reconciled 1.1/1.2 tasks `54e6b60`/`9f75352`).
+**Prerequisites**: Plan CC-01..CC-08 passes at design level; all spec clarifications (`2026-10-17` session) resolved. `/speckit-analyze` must run before implementation. Integrated 1.1 identity/ownership/deletion fences (`D14` OpenTofu stack in `infra/stacks/v1_foundation/`) and 1.2 C-02 retrieval/inspection, canonical C-01 chunks and session selection. 1.4 consumes chat/citation integration for the full release gate.
 
 Tests are mandatory (constitution II/CC-02), overriding optional-test skill wording. All tasks are open/unexecuted. Every behavior task waits for its named tests to fail for the expected requirement-related reason. Setup/import/configuration failure is not Red. Shared schemas, migration ordering, manifests, entrypoints and CI require one owner. This session claims documentation only; no runtime code or cloud resources are edited now.
 
