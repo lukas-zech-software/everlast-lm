@@ -5,7 +5,6 @@ Trace: FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, Gate v1.0. Application runners re
 ## Current commands
 
 ```sh
-cd /private/tmp/everlast-v1-specs
 SPECIFY_INIT_DIR="$PWD" SPECIFY_FEATURE_DIRECTORY="specs/003-grounded-chat-citation-engine" SPECIFY_FEATURE_NO_PERSIST=1 bash .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
 node scripts/check-spec-integrity.mjs
 git diff --check
