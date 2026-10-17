@@ -5,7 +5,6 @@ Trace: FR-UI-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01,
 ## Current commands
 
 ```sh
-cd /private/tmp/everlast-v1-specs
 SPECIFY_INIT_DIR="$PWD" SPECIFY_FEATURE_DIRECTORY="specs/004-ui-skeleton-quality-gates" SPECIFY_FEATURE_NO_PERSIST=1 bash .specify/scripts/bash/check-prerequisites.sh --json --require-tasks --include-tasks
 node scripts/check-spec-integrity.mjs
 git diff --check
