@@ -7,7 +7,6 @@ Scope: FR-WM-01/04/07, C-01/C-02, NFR-EVAL-04, Gate v1.0. This is a validation g
 From the assigned worktree:
 
 ```sh
-cd /private/tmp/everlast-v1-specs
 SPECIFY_INIT_DIR="$PWD" \
 SPECIFY_FEATURE_DIRECTORY=specs/001-workspace-foundation \
 SPECIFY_FEATURE_NO_PERSIST=1 \
@@ -26,7 +25,7 @@ Next stage is `/speckit-tasks` with the same explicit environment, followed by `
 - Isolated PostgreSQL with the same extensions/schema behavior as target Cloud SQL; dedicated database name per worktree. Do not run migrations against another session's database.
 - Disposable private storage fixtures for integration; a real approved EU test bucket for versioning/soft-delete/upload-race proofs. An in-memory storage double is not proof of actual GCS semantics.
 - Verified Identity Platform configuration for live sign-in; deterministic verified-principal/token fixtures for local unit/contract tests. Production mode must not accept fixture identities or bypass token verification.
-- No credentials in fixtures, repository, or plain environment files. Use keyless identities and Secret Manager where secrets are needed. Do not enable a cloud API or apply Terraform merely to follow this document.
+- No credentials in fixtures, repository, or plain environment files. Use keyless identities and Secret Manager where secrets are needed. Do not enable a cloud API or apply OpenTofu (`infra/stacks/v1_foundation/`, `D14`) merely to follow this document.
 
 ## Planned Command Interface — UNAVAILABLE Until Tasks Implement It
 
