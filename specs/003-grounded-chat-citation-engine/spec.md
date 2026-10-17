@@ -14,10 +14,10 @@ Authority: [constitution](../../.specify/memory/constitution.md), [SRS](../../sp
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-GC-01 | Strict Grounding Policy | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-01--strict-grounding-policy) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-GC-02 | Precise Inline Citations | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-02--precise-inline-citations) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-GC-03 | Interactive Citation Verification (Hover & Click) | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-03--interactive-citation-verification-hover--click) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-GC-06 | Persistent Conversation History | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-06--persistent-conversation-history) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-GC-01 | Strict Grounding Policy | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-01--strict-grounding-policy) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-GC-02 | Precise Inline Citations | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-02--precise-inline-citations) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-GC-03 | Interactive Citation Verification (Hover & Click) | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-03--interactive-citation-verification-hover--click) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-GC-06 | Persistent Conversation History | [Card](../../spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-06--persistent-conversation-history) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
 
 - **Within-Release Prerequisites (C-01, C-02, Gate v1.0)**: Shared C-01/C-02 and packages 1.1 and 1.2 precede chat integration. This package provides chat/citations to package 1.4.
 - **Role Phasing (FR-WM-04/05, NFR-SEC-02)**: Owner-only in v1–v5. All Editor/Viewer/Chat-only references transcribed below are future v6 conditions, not v1 permissions.
@@ -376,3 +376,12 @@ Scenario: Searching the chat history jumps to a past message
 - **FR-GC-06 — Deviations from reference:** Note that historically early NotebookLM versions did not persist chat across sessions, whereas current Gemini Notebook / NotebookLM versions persist chat history per user. We enforce full persistence from `v1.0` as specified in `FR-GC-06`.
 - **FR-GC-06 — Open questions:** None for implementation. v1 implements a single persisted thread per user per notebook with search and clear/reset. Reference multi-thread behavior is unverified.
 - D5/DEV-03 defers FR-INT-01 and Gate v6.0 #3; D8/DEV-02 defers Google Slides export; D10 moves audio share links to v6. None is introduced by MVP specification.
+
+## Clarifications
+
+### Session 2026-10-17
+
+- Q: How does citation validation interact with SSE streaming and TTFT measurement (`FR-GC-01`, `FR-GC-02`, `D13`, `NFR-PERF-01`)? → A: Progress/status SSE events may be emitted during retrieval and generation (containing no draft factual answer and excluded from TTFT), while the factual answer draft is buffered server-side until deterministic `chunk_id` resolution against the submitted `C-02` snapshot completes (`Precision_ID = 1.0`). Any invalid citation withholds the entire draft and immediately publishes the refusal response without retry or citation stripping.
+- Q: Under what condition is a historical conversation turn eligible to be included in a subsequent prompt's context (`FR-GC-01`, `FR-GC-06`, `NFR-EVAL-04`)? → A: A historical turn (both user question and assistant answer, plus any derived summaries or tool outputs) is included if and only if its complete `active_source_revisions_snapshot` (not just its cited sources) is a subset of the new turn's active and authorized `(source_id, revision)` snapshot; turns with missing provenance are excluded.
+- Q: What happens to persisted historical messages, citation tooltips, and chat search when a source is deselected versus permanently deleted (`FR-GC-03`, `FR-GC-06`)? → A: Mere deselection leaves historical messages viewable and citation tooltips/click-through operational while excluding dependent turns from new prompt context; permanent source deletion or access revocation immediately hides/invalidates dependent historical generated content, cached snippets, and chat search hits, and disables citation click-through with a `"Source deleted"` tooltip.
+

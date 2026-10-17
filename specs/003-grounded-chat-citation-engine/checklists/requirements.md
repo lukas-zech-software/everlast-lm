@@ -31,9 +31,10 @@
 
 ## Notes
 
-- Reviewed against constitution v1.1.0, SRS, package cards, binding README rules and committed architecture D1–D13 on base b069757. Explicit source contracts, HTTP errors, DOM anchors and storage fields are retained because the project override requires exact transcription; they are not newly selected implementation details.
+- Reviewed and clarified via `/speckit-clarify` against constitution v1.1.0, SRS, package cards, binding README rules and committed architecture D1–D14 on base `24ee3db`. Explicit source contracts, HTTP errors, DOM anchors and storage fields are retained because the project override requires exact transcription; they are not newly selected implementation details.
 - Exact-content validation checks every EARS block, input/limit table, output/state block, Gherkin block, edge/error block and measurable-criteria block. Mandatory sections, relative link targets and absence of clarification markers are checked separately.
-- Cross-package qualifications override initial All Ready defaults, future-role wording and historical visibility after deletion/revocation. Snapshot, history/cache eligibility, singleton inspector reads, citation refusal and unit boundaries are explicit.
+- Cross-package qualifications override initial All Ready defaults, future-role wording and historical visibility after deletion/revocation. Snapshot, history/cache eligibility, singleton inspector reads, citation refusal and unit boundaries are explicit and recorded in `## Clarifications`.
 - Reference-product evidence and unknown reference internals are not implementation blockers; no external product claims were verified.
 - Checklist completion means specification readiness, not passing behavior tests or Gate v1.0. Lint, type-check, unit, contract, deterministic eval, LLM-judged eval and UI acceptance runners: UNAVAILABLE in this specs-only repository.
-- Next valid stage: `/speckit-plan` for this package with its feature directory explicitly pinned; no clarification markers remain. Plans/tasks/analyze/implementation are not performed by this specify stage.
+- Next valid stage: `/speckit-plan` for this package with its feature directory explicitly pinned; no clarification markers remain.
+
