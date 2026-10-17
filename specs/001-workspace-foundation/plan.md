@@ -3,13 +3,13 @@
 **Branch**: `spec/v1-functional-requirements` | **Date**: 2026-10-17 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v1/package_1_1_workspace_foundation.md`
 **SRS IDs in Scope**: FR-WM-01, FR-WM-04, FR-WM-07; C-01/C-02; NFR-SEC-01, NFR-EVAL-04 | **Release Gate**: Gate v1.0
-**Input**: `specs/001-workspace-foundation/spec.md`, committed in `581c55d`.
+**Input**: `specs/001-workspace-foundation/spec.md`, clarified in `2468629`.
 
 ## Summary
 
 Deliver authenticated, owner-only notebook creation/open/rename/permanent deletion and atomic baseline quotas. Define shared C-01/C-02 contracts first, then implement the notebook/isolation/quota foundation consumed by packages 1.2 and 1.3. Preserve the complete [specification](spec.md), [FR cards](../../spec/requirements/v1/package_1_1_workspace_foundation.md), [binding rules](../../spec/requirements/README.md) and [constitution](../../.specify/memory/constitution.md).
 
-This plan ends after Phase 1 design. It does not implement ingestion, chat, the full responsive workspace, Studio, or a release gate. Cross-package requirements in the spec define interfaces and integration checks; their downstream owners remain explicit below. No framework or datastore is added to [D1–D13](../../docs/solution-architecture.md#decisions).
+This plan ends after Phase 1 design. It does not implement ingestion, chat, the full responsive workspace, Studio, or a release gate. Cross-package requirements in the spec define interfaces and integration checks; their downstream owners remain explicit below. No framework or datastore is added to [D1–D14](../../docs/solution-architecture.md#decisions).
 
 ## Technical Context
 
@@ -36,7 +36,7 @@ Pre-research review was completed before Phase 0 on 2026-10-17. Post-design stat
 | CC-05 | Contracts & Pipelines | PASS | PASS | One implementation of each shared schema in packages/contracts. C-01 remains five fields; request envelope contains revisions. Deterministic foundation; C-03 implementation starts in v2. |
 | CC-06 | Release & Package Order | PASS | PASS | Shared baseline merges first, then 1.1, dependent packages and integrated gate. D5/DEV-03, D8/DEV-02 and D10 remain excluded. |
 | CC-07 | Security, RBAC & Residency | PASS | PASS | Verified principal plus ownership on every endpoint/worker; transactional quotas; private objects, revocation fences, keyless service identity and EU configuration. Deployment verification remains a prerequisite, not a completed check. |
-| CC-08 | Platform & Cost | PASS | PASS | Native TypeScript adapters within existing Cloud Run/SQL/Storage/Tasks stack. No new framework or fixed-cost component; no API activation or infrastructure changes in this stage. |
+| CC-08 | Platform & Cost | PASS | PASS | Native TypeScript adapters within existing Cloud Run/SQL/Storage/Tasks stack and OpenTofu (`D14`) baseline in `infra/stacks/v1_foundation/`. No new framework or fixed-cost component; no API activation or live infrastructure apply in this stage. |
 
 ## Project Structure
 
@@ -55,7 +55,7 @@ specs/001-workspace-foundation/
 └── checklists/requirements.md
 ```
 
-`tasks.md` is generated only in the next Spec Kit stage. The existing specs for packages 1.2–1.4 remain unmodified by this plan.
+`tasks.md` is updated in the `/speckit-tasks` stage. The existing specs for packages 1.2–1.4 remain unmodified by this plan.
 
 ### Source Code (planned, not created)
 
@@ -68,12 +68,12 @@ specs/001-workspace-foundation/
 | 1.1 owner | `apps/web/src/notebooks.ts`, `notebook-title.ts`, `delete-notebook.ts`, `quota-indicator.ts`, `main.ts`, `index.html`; `apps/web/test/workspace.spec.ts` | Home/cards/title/delete/capacity views and minimal Add sources handoff. No new UI framework (FR-WM-01/07). |
 | 1.1 owner | `apps/worker/src/notebook-cleanup.ts`, `apps/worker/test/notebook-cleanup.test.ts` | Idempotent cleanup adapter and stale-job rejection; cleanup only, no ingestion parsing (FR-WM-01/04). |
 | 1.1 owner | `packages/evals/fixtures/workspace-isolation.json`, `packages/evals/test/workspace-isolation.test.ts` | Two-owner/two-notebook and stale-snapshot deterministic fixtures (FR-WM-04, NFR-EVAL-04). |
-| 1.1 owner, serialized infra | `infra/workspace.tf`, `infra/variables.tf`, `infra/outputs.tf` | Planned existing-service IAM, storage purge policy, EU resources and cleanup queue bindings. Provision only after owner approval for any new API (NFR-SEC-01, FR-WM-01/04). |
+| 1.1 owner, serialized infra (`D14`) | `infra/stacks/v1_foundation/main.tf`, `infra/stacks/v1_foundation/variables.tf`, `infra/stacks/v1_foundation/outputs.tf`, `infra/stacks/v1_foundation/versions.tf` | OpenTofu (`D14`) baseline IAM, storage purge policy, `europe-west4` resources and cleanup queue bindings. Provision only after owner approval for any new API (NFR-SEC-01, FR-WM-01/04). |
 | 1.2, after shared baseline | `packages/db/migrations/0002_ingestion.sql`, `packages/db/src/scoped-context.ts`, `apps/worker/src/ingestion/`, `apps/api/src/routes/sources.ts`, `apps/web/src/sources/` | Add C-01 persistence/indexes and complete C-02 read adapter using 1.1 scope guard; parser/upload/inspector work, consuming the existing quota ledger. No duplicate schemas. |
 | 1.3, after 1.2 | `packages/db/migrations/0003_chat.sql`, `apps/api/src/chat/`, `apps/web/src/chat/` | Persist provenance and implement scoped history/cache access and D13 citation publication; integrate notebook deletion cascade. |
 | 1.4, after contracts/shell agreement | `apps/web/src/workspace-layout.ts`, `packages/evals/test/release-v1.test.ts` | Responsive layout and combined gate. Must coordinate shared entrypoint/CI changes with their current owner. |
 
-**Structure & File Ownership Decision**: This session owns planning artifacts only under `specs/001-workspace-foundation/` on branch `spec/v1-functional-requirements`, worktree `/private/tmp/everlast-v1-specs`, base `581c55d`. The table is an implementation ownership proposal for the package owner, not a reservation on behalf of unknown workers. Shared manifests, contracts, migration numbering, CI and infra must be claimed in a shared handoff and integrated before dependent implementation. No task IDs exist yet; no worker may infer an assigned task. Reservation/ownership for packages 1.2–1.4 is not changed.
+**Structure & File Ownership Decision**: This session owns planning artifacts under `specs/001-workspace-foundation/` on branch `spec/v1-functional-requirements` (base `2468629`). The table is an implementation ownership proposal for the package owner, not a reservation on behalf of unknown workers. Shared manifests, contracts, migration numbering, CI and `infra/stacks/v1_foundation/` (`D14`) must be claimed in a shared handoff and integrated before dependent implementation. Reservation/ownership for packages 1.2–1.4 is not changed.
 
 ## Design Sequence and Integration Boundaries
 
