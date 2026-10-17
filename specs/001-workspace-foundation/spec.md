@@ -14,9 +14,9 @@ Authority: [constitution](../../.specify/memory/constitution.md), [SRS](../../sp
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-WM-01 | Notebook CRUD | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-01--notebook-crud) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-WM-04 | Isolated Knowledge Context | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-04--isolated-knowledge-context) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
-| FR-WM-07 | Resource Quotas (Baseline v1.0) | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-07--resource-quotas-baseline-v10) | D1–D4, D6; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-WM-01 | Notebook CRUD | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-01--notebook-crud) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-WM-04 | Isolated Knowledge Context | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-04--isolated-knowledge-context) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
+| FR-WM-07 | Resource Quotas (Baseline v1.0) | [Card](../../spec/requirements/v1/package_1_1_workspace_foundation.md#fr-wm-07--resource-quotas-baseline-v10) | D1–D4, D6, D14; D13 for citation publication; D5 excludes cross-notebook integration |
 
 - **Within-Release Prerequisites (C-01, C-02, Gate v1.0)**: Define C-01/C-02 once before dependent implementation. This package supplies identity, notebooks and quotas to 1.2; 1.2 then supplies ingestion/inspector to 1.3; 1.4 integrates the release.
 - **Role Phasing (FR-WM-04/05, NFR-SEC-02)**: Owner-only in v1–v5. All Editor/Viewer/Chat-only references transcribed below are future v6 conditions, not v1 permissions.
@@ -352,3 +352,12 @@ As an owner, I see available capacity and receive clear limit errors before exce
 - **FR-WM-07 — Deviations from reference:** Quotas are exposed as configurable tenant parameters rather than tied to consumer Google One tiers.
 - **FR-WM-07 — Open questions:** None. Failed uploads release their slot immediately; the dismissible error row is not a source.
 - D5/DEV-03 defers FR-INT-01 and Gate v6.0 #3; D8/DEV-02 defers Google Slides export; D10 moves audio share links to v6. None is introduced by MVP specification.
+
+## Clarifications
+
+### Session 2026-10-17
+
+- Q: How does concurrent source-slot reservation interact with failed uploads and error-row dismissal (`FR-WM-07`, `FR-SI-01`)? → A: Source slots (`N_max = 50` default, configurable up to `300`) are reserved atomically before upload/ingestion begins; only `Uploading`, `Processing`, and `Ready` sources consume slots. Transition to `Failed` releases the slot immediately while leaving a dismissible UI error row whose dismissal does not alter quota counts.
+- Q: How is notebook title length measured across ASCII and non-ASCII inputs (`FR-WM-01`)? → A: Title length is evaluated in Unicode code points after trimming leading and trailing whitespace (`1` to `100` code points inclusive); whitespace-only or `> 100` code-point inputs are rejected without silent truncation.
+- Q: Does `ScopedContextProvider` allow omitting `active_source_ids` to fall back to all `Ready` sources (`FR-WM-04`, `C-02`)? → A: No. The UI initializes checkboxes to all `Ready` sources, but every `ScopedContextProvider` call must pass an explicit `active_source_ids` array and `(source_id, revision)` snapshot; omitted or empty scope is rejected (`InvalidScopeError`) and cross-notebook source IDs return HTTP `403 Forbidden` with zero chunks.
+
