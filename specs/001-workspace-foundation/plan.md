@@ -52,7 +52,9 @@ specs/001-workspace-foundation/
 ├── contracts/
 │   ├── workspace-api.md
 │   └── shared-context.md
-└── checklists/requirements.md
+└── checklists/
+    ├── requirements.md
+    └── workspace-isolation-quotas.md
 ```
 
 `tasks.md` is updated in the `/speckit-tasks` stage. The existing specs for packages 1.2–1.4 remain unmodified by this plan.

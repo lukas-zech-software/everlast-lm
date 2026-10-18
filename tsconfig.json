@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true
+  },
+  "files": [],
+  "references": [
+    { "path": "packages/contracts" },
+    { "path": "packages/db" },
+    { "path": "packages/evals" },
+    { "path": "apps/api" },
+    { "path": "apps/web" },
+    { "path": "apps/worker" }
+  ]
+}
