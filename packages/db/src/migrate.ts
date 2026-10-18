@@ -104,7 +104,7 @@ export function validateMigrationDdl(ddl: string): DdlValidationResult {
         },
         hasCheckConstraint: (colName: string, checkExpr?: string) => {
           const checkPattern = new RegExp(
-            `CHECK\\s*\\(\\s*${colName}\\s*${checkExpr ? checkExpr.replace(">", "\\>").replace("=", "\\=") : ""}[^)]*\\)`,
+            `CHECK\\s*\\(\\s*${colName}\\s*${checkExpr ? checkExpr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : ""}[^)]*\\)`,
             "i"
           );
           return checkPattern.test(body);
