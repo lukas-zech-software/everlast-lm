@@ -23,7 +23,7 @@ export function showDeleteConfirmationModal(
         <h3 class="modal-title">Delete notebook?</h3>
       </div>
       <div class="modal-body">
-        <p>Are you sure you want to delete <strong>${notebookTitle}</strong>? This action cannot be undone.</p>
+        <p>Are you sure you want to delete <strong><span id="delete-notebook-title"></span></strong>? This action cannot be undone.</p>
       </div>
       <div class="modal-footer">
         <button id="btn-cancel-delete" class="btn btn-secondary">Cancel</button>
@@ -31,6 +31,9 @@ export function showDeleteConfirmationModal(
       </div>
     </div>
   `;
+
+  const titleEl = backdrop.querySelector("#delete-notebook-title") as HTMLElement;
+  if (titleEl) titleEl.textContent = notebookTitle;
 
   document.body.appendChild(backdrop);
 
