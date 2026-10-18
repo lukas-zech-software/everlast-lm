@@ -32,6 +32,20 @@
       },
       "registered_skills": [],
       "installed_at": "2026-10-16T22:17:49.450216+00:00"
+    },
+    "agent-context": {
+      "version": "1.0.2",
+      "source": "local",
+      "manifest_hash": "sha256:270100175bb742c37b8d549f2233c5b79114869dac754883dbecac2a4813beef",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "agy": [
+          "speckit.agent-context.update"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-18T11:04:07.761316+00:00"
     }
   }
 }
