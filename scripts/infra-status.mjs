@@ -5,7 +5,7 @@
 // Traceability: D1, D3, D4, NFR-PERF-01/02, §5.4–§5.5
 // =============================================================================
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,9 +15,11 @@ const repoRoot = path.resolve(__dirname, '..');
 const env = process.argv[2] || 'dev';
 const envDir = path.join(repoRoot, 'infra', 'environments', env);
 
-function run(cmd, options = {}) {
+function run(cmd, argsOrOptions = [], maybeOptions = {}) {
+  const args = Array.isArray(argsOrOptions) ? argsOrOptions : [];
+  const options = Array.isArray(argsOrOptions) ? maybeOptions : argsOrOptions;
   try {
-    return execSync(cmd, {
+    return execFileSync(cmd, args, {
       cwd: options.cwd || repoRoot,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -30,7 +32,7 @@ function run(cmd, options = {}) {
 }
 
 function getAccessToken() {
-  return run('gcloud auth print-access-token');
+  return run('gcloud', ['auth', 'print-access-token']);
 }
 
 console.log(`\n=================================================================`);
@@ -49,7 +51,7 @@ try {
 console.log('Fetching OpenTofu state outputs...');
 let outputs = {};
 try {
-  const outputRaw = run(`tofu -chdir=${envDir} output -json`, {
+  const outputRaw = run('tofu', [`-chdir=${envDir}`, 'output', '-json'], {
     env: { GOOGLE_OAUTH_ACCESS_TOKEN: token },
   });
   outputs = JSON.parse(outputRaw);
