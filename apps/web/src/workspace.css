@@ -1,0 +1,315 @@
+/**
+ * Responsive 3-Column Workspace Styles (FR-UI-01)
+ * Enforces transition <= 200ms at 60fps (SC-001)
+ */
+
+:root {
+  --workspace-header-height: 56px;
+  --panel-side-width: 320px;
+  --panel-inspector-width: 520px;
+  --panel-collapsed-width: 48px;
+  --panel-transition-duration: 200ms;
+  --panel-transition-timing: cubic-bezier(0.4, 0, 0.2, 1);
+  --border-color: #e2e8f0;
+  --bg-color: #ffffff;
+  --bg-surface: #f8fafc;
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --accent-color: #2563eb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text-primary);
+  background-color: var(--bg-color);
+}
+
+.workspace-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Header */
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--workspace-header-height);
+  padding: 0 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-color);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: var(--accent-color);
+}
+
+.notebook-title {
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-profile {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+/* Tab Navigation (Tablet / Mobile < 1024px) */
+.workspace-tabs {
+  display: none;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all var(--panel-transition-duration) ease;
+}
+
+.tab-btn.active {
+  color: var(--accent-color);
+  border-bottom-color: var(--accent-color);
+  background: var(--bg-color);
+}
+
+/* Main Workspace Area */
+.workspace-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Panels */
+.workspace-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-color);
+  border-right: 1px solid var(--border-color);
+  overflow: hidden;
+  transition: width var(--panel-transition-duration) var(--panel-transition-timing),
+              flex-basis var(--panel-transition-duration) var(--panel-transition-timing),
+              max-width var(--panel-transition-duration) var(--panel-transition-timing);
+  will-change: width, flex-basis;
+}
+
+.workspace-panel:last-child {
+  border-right: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+}
+
+.panel-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.panel-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.panel-toggle-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-primary);
+}
+
+.panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* Left Panel: Sources */
+.panel-sources {
+  flex: 0 0 var(--panel-side-width);
+  width: var(--panel-side-width);
+}
+
+.panel-sources.inspector-expanded {
+  flex: 0 0 var(--panel-inspector-width);
+  width: var(--panel-inspector-width);
+}
+
+.panel-sources.collapsed {
+  flex: 0 0 var(--panel-collapsed-width);
+  width: var(--panel-collapsed-width);
+}
+
+.panel-sources.collapsed .panel-content,
+.panel-sources.collapsed .panel-title {
+  display: none;
+}
+
+/* Center Panel: Chat */
+.panel-chat {
+  flex: 1 1 auto;
+  min-width: 360px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-chat.expanded-full {
+  flex: 1 1 100%;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem;
+}
+
+.chat-input-bar {
+  padding: 1rem;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.active-source-counter {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.chat-input {
+  width: 100%;
+  resize: vertical;
+  min-height: 56px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.chat-submit {
+  align-self: flex-end;
+  padding: 0.5rem 1rem;
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+/* Right Panel: Studio */
+.panel-studio {
+  flex: 0 0 var(--panel-side-width);
+  width: var(--panel-side-width);
+}
+
+.panel-studio.collapsed {
+  flex: 0 0 var(--panel-collapsed-width);
+  width: var(--panel-collapsed-width);
+}
+
+.panel-studio.collapsed .panel-content,
+.panel-studio.collapsed .panel-title {
+  display: none;
+}
+
+.studio-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Viewport Breakpoints */
+@media (max-width: 1023px) {
+  .workspace-tabs {
+    display: flex;
+  }
+
+  .workspace-main {
+    display: block;
+  }
+
+  .workspace-panel {
+    display: none;
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    height: 100%;
+    border-right: none;
+  }
+
+  .workspace-panel.tab-active {
+    display: flex;
+  }
+
+  .panel-toggle-btn {
+    display: none;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .workspace-tabs {
+    display: none;
+  }
+}
+
+@media (min-width: 1280px) {
+  .workspace-tabs {
+    display: none;
+  }
+}

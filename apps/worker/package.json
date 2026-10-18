@@ -1,0 +1,19 @@
+{
+  "name": "@everlast/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@everlast/contracts": "workspace:*",
+    "@everlast/db": "workspace:*",
+    "@google-cloud/storage": "^7.15.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  }
+}

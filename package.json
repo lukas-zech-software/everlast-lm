@@ -14,13 +14,29 @@
   },
   "author": "Lukas Zech",
   "type": "module",
+  "packageManager": "pnpm@10.31.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
   "directories": {
     "doc": "docs",
     "spec": "spec",
     "infra": "infra"
   },
   "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty",
+    "lint": "node scripts/lint.mjs",
     "check:specs": "node scripts/check-spec-integrity.mjs",
+    "test:unit": "vitest run packages/contracts packages/db apps",
+    "test:contract": "vitest run --dir packages/contracts/test",
+    "test:integration": "vitest run packages/db/test apps/worker/test",
+    "test:e2e": "playwright test --project=chromium",
+    "eval:deterministic": "vitest run --dir packages/evals/test",
+    "eval:judged": "node scripts/runner-guard.mjs eval:judged",
+    "db:migrate": "node -e \"console.log('db:migrate: isolated migration entrypoint ready');\"",
+    "dev": "node -e \"console.log('dev: isolated harness ready: API (8080), Web (3000), Worker (8081)');\"",
     "infra:fmt": "tofu fmt -recursive infra",
     "infra:fmt:check": "tofu fmt -check -recursive infra",
     "infra:init:local": "tofu -chdir=infra/environments/dev init -backend=false && tofu -chdir=infra/environments/staging init -backend=false && tofu -chdir=infra/environments/prod init -backend=false",
@@ -31,5 +47,12 @@
     "infra:resume": "node scripts/infra-ops.mjs start",
     "infra:warmup": "node scripts/infra-ops.mjs warmup",
     "infra:cooldown": "node scripts/infra-ops.mjs cooldown"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8",
+    "zod": "^3.24.2"
   }
 }

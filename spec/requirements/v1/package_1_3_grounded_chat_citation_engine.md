@@ -39,13 +39,13 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| User message | UTF-8 text | $1$ to $10,000$ characters | — |
+| User message | UTF-8 text | $1$ to $10,000$ Unicode code points after outer trim | — |
 | `active_source_ids` | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
 | Conversation history | Array of turns | Persisted thread; only turns whose complete source/revision provenance remains active and authorized (including summaries, tool output and imported artifact text); missing provenance excludes the turn | — |
 
 **Outputs & state**
 - Visible: Citation-validated assistant Markdown message (buffered until the complete answer passes verification; status events may stream) in the center chat panel (or polite refusal message when ungrounded).
-- Persisted: `ChatMessage` record (`id`, `thread_id`, `notebook_id`, `user_id`, `role`, `content`, `active_source_ids_snapshot`, `created_at`).
+- Persisted: `ChatMessage` record (`id`, `thread_id`, `notebook_id`, `user_id`, `role`, `content`, `active_source_revisions_snapshot`, `created_at`).
 - States: `Idle` $\rightarrow$ `Retrieving` $\rightarrow$ `Streaming` $\rightarrow$ `Completed` (or `Error`).
 
 **Acceptance criteria (Gherkin)**
@@ -122,7 +122,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 
 **Outputs & state**
 - Visible: Interactive numbered badge `[n]` inline within the rendered markdown text.
-- Persisted: `citations` JSON array stored alongside the `ChatMessage` entity (`[{ badge_number, chunk_id, source_id, snippet, locator }]`).
+- Persisted: `citations` JSON array stored alongside the `ChatMessage` entity (`[{ badge_number, source_id, source_title, chunk_id, snippet, locator }]`).
 - States: `Verified` (rendered as active badge).
 
 **Acceptance criteria (Gherkin)**
@@ -188,7 +188,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Pointer `mouseenter` / `click` on `[n]` | DOM Event | Mapped to `citation` metadata (`source_id`, `chunk_id`, `snippet`, `locator`) | — |
+| Pointer `mouseenter` / `click` on `[n]` | DOM Event | Mapped to `citation` metadata (`badge_number`, `source_id`, `source_title`, `chunk_id`, `snippet`, `locator`) | — |
 | Tooltip snippet length | UTF-8 text | Full text of the cited chunk (structure-aware chunk targeting 300–600 tokens per architecture; scrollable inside the popover if long) | — |
 
 **Outputs & state**

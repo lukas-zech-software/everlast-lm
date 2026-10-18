@@ -1,0 +1,12 @@
+{
+  "commit_hash": "cc430e4202dfe37b6f4724d90f05172d19f5c5b7",
+  "timestamp": "2026-10-18T13:42:34.926Z",
+  "metrics": {
+    "hallucination_rate": 0.01,
+    "citation_precision": 1,
+    "negative_rejection_rate": 1,
+    "scoping_leakage_count": 0
+  },
+  "status": "GatePassed",
+  "failures": []
+}

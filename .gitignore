@@ -51,6 +51,8 @@ out/
 # Test & Coverage Outputs
 coverage/
 .nyc_output/
+test-results/
+playwright-report/
 
 # OpenTofu Infrastructure (infra/)
 infra/**/.terraform/

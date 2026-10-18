@@ -153,3 +153,11 @@ Scenario: Deselected source does not leak via conversation history
 **Out of scope:** Audio/Video/Mindmap evaluation gates (introduced in `Gate v3.0`–`Gate v5.0`).
 
 **Open questions:** `None`
+
+---
+
+## Clarifications (Flow-back from spec.md)
+
+- **Evaluation cadence (`NFR-EVAL-01..04`, `Gate v1.0`)**: Deterministic citation-ID (`NFR-EVAL-02` $\text{Precision}_{\text{ID}} = 1.0$) and context-scoping/leakage (`NFR-EVAL-04` $\text{Leakage} = 0$) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` $\epsilon_{\text{hallucination}} < 0.05$), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` $\ge 99\%$) run on PRs touching retrieval/prompt/chat and at every release gate.
+- **Viewport breakpoints and citation navigation (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)**: Default layout is tabbed at $< 1024\text{ px}$, 3-column with `Studio` collapsed at $1024\text{–}1279\text{ px}$, and 3-column with both side panels expanded at $\ge 1280\text{ px}$. Clicking an inline citation badge `[n]` switches/un-collapses to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing active chat draft or scroll state.
+- **Enterprise no-training verification (`NFR-SEC-01`, `D14`)**: Automated preflight security checks verify that all LLM, OCR, and embedding endpoints use Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), distinguishing enterprise no-training verification from zero-data-retention claims.
