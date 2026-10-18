@@ -74,7 +74,7 @@ module "async_tasks" {
 
   project_id  = var.project_id
   environment = var.environment
-  region      = var.region
+  region      = var.tasks_location
 
   depends_on = [module.project_services]
 }

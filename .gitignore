@@ -58,3 +58,5 @@ infra/**/*.tfstate
 infra/**/*.tfstate.*
 infra/**/*.tfvars
 infra/**/*.tfvars.json
+infra/**/backend.hcl
+infra/**/tfplan*

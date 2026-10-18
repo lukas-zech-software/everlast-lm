@@ -312,5 +312,17 @@ The GitHub Actions workflow in [`../.github/workflows/opentofu.yml`](../.github/
 ## 7. FinOps & Demo Operations (`D4` & Architecture §5.4–§5.5)
 
 - **Scale-to-Zero Compute:** Both `everlast-api` and `everlast-worker` default to `min_instance_count = 0`, incurring `$0` when idle.
-- **Pre-Demo Warm-Up (`NFR-PERF-01` / `NFR-PERF-02`):** Before live stakeholder evaluations or latency gate runs, set `api_min_instances = 1` in `opentofu.auto.tfvars` and apply so cold-start latency is eliminated. Revert to `0` immediately afterward.
-- **Pausing Cloud SQL Between Demo Phases:** Cloud SQL (`db-custom-1-3840`) is the only fixed-cost baseline resource (`~$50–$65/month` while active). Between active development/demo phases, set `db_activation_policy = "NEVER"` in `opentofu.auto.tfvars` and apply to stop compute billing while preserving SSD storage (`~$3.40/month` for 20 GB). Set back to `"ALWAYS"` before resuming work.
+- **Pre-Demo Warm-Up (`NFR-PERF-01` / `NFR-PERF-02`):** Before live stakeholder evaluations or latency gate runs, warm up Cloud Run to eliminate cold starts:
+  ```bash
+  npm run infra:warmup    # Sets api_min_instances = 1 and resumes Cloud SQL
+  npm run infra:cooldown  # Reverts api_min_instances = 0 for scale-to-zero ($0 idle)
+  ```
+- **Pausing Cloud SQL Between Demo Phases (`D4` & §5.4):** Cloud SQL (`db-custom-1-3840`) is the only fixed-cost baseline resource (`~$50–$65/month` while active). Stop compute billing while preserving SSD storage (`~$3.40/month` for 20 GB):
+  ```bash
+  npm run infra:pause     # Sets db_activation_policy = "NEVER" and pauses Cloud SQL
+  npm run infra:start     # Sets db_activation_policy = "ALWAYS" and resumes Cloud SQL
+  ```
+- **Resource Status Dashboard:** Inspect the live operational and cost status of all provisioned GCP resources at any time:
+  ```bash
+  npm run infra:status    # Displays live status of Cloud SQL, Cloud Run, Tasks, Buckets & Secrets
+  ```

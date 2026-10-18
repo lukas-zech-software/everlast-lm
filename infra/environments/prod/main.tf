@@ -4,6 +4,7 @@ module "v1_foundation" {
   project_id               = var.project_id
   environment              = "prod"
   region                   = var.region
+  tasks_location           = var.tasks_location
   enable_project_services  = var.enable_project_services
   enable_model_armor       = var.enable_model_armor
   enable_identity_platform = var.enable_identity_platform

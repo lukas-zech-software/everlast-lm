@@ -16,6 +16,7 @@ locals {
     "documentai.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "cloudresourcemanager.googleapis.com",
   ]
 
   optional_v1_apis = var.enable_model_armor ? ["modelarmor.googleapis.com"] : []
