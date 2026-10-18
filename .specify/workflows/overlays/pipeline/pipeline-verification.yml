@@ -1,0 +1,36 @@
+id: pipeline-verification
+extends: pipeline
+priority: 10
+enabled: true
+edits:
+- replace: converge
+  step:
+    id: converge
+    command: speckit.converge
+    integration: '{{ inputs.integration }}'
+    input:
+      args: '{{ inputs.spec }}'
+- insert_after: converge-loop
+  step:
+    id: final-convergence
+    command: speckit.converge
+    integration: '{{ inputs.integration }}'
+    input:
+      args: Assess the integrated feature after the final implementation pass for
+        {{ inputs.spec }}. Follow the append-only convergence contract and report
+        remaining findings. Do not implement additional work or claim that unavailable
+        checks passed.
+- insert_after: converge-loop
+  step:
+    id: review-completion
+    type: gate
+    message: Review the final convergence assessment and verification evidence for
+      the integrated feature. Approve only when no in-scope work remains, required
+      tasks are verified, analysis matches the current artifacts, and required tests/checks
+      passed on the final result. Reject when new convergence tasks, unresolved findings,
+      or required unavailable checks remain. A successful command exit is not evidence
+      of completion.
+    options:
+    - approve
+    - reject
+    on_reject: abort
