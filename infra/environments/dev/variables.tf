@@ -9,6 +9,12 @@ variable "region" {
   default     = "europe-west4"
 }
 
+variable "tasks_location" {
+  description = "EU Google Cloud region for Cloud Tasks queues (europe-west4 does not support Cloud Tasks; defaults to europe-west1)."
+  type        = string
+  default     = "europe-west1"
+}
+
 variable "enable_project_services" {
   description = "Explicit project-owner approval gate for enabling billable Google Cloud APIs (defaults to false)."
   type        = bool
