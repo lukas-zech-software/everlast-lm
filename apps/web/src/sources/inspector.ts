@@ -12,6 +12,11 @@ import type { InspectorContent, PageSpan } from "../lib/types.ts";
 export interface InspectorOptions {
   notebookId: string;
   onClose(): void;
+  /**
+   * Release v2: called after a source opened, with a slot above the text (Source Guide, FR-SI-02). `viaCitation`
+   * is true when the open targets a cited chunk; the slot must then stay empty so the scroll target never moves.
+   */
+  onOpened?(source: InspectorContent["source"], slot: HTMLElement, viaCitation: boolean): void;
 }
 
 export interface Inspector {
@@ -49,10 +54,12 @@ export function createInspector(options: InspectorOptions): Inspector {
   const title = h("h3", { class: "inspector-title", "data-testid": "inspector-title" });
   const closeButton = h("button", { class: "icon-btn", "data-testid": "inspector-close", "aria-label": "Close source", text: "✕" });
   const scroll = h("div", { class: "inspector-scroll", "data-testid": "inspector-scroll", tabindex: 0 });
+  const guideSlot = h("div", { class: "inspector-guide", "data-testid": "inspector-guide" });
   const element = h(
     "div",
     { class: "inspector", "data-testid": "source-inspector", hidden: true },
     h("div", { class: "inspector-head" }, title, closeButton),
+    guideSlot,
     scroll
   );
   let current: { sourceId: string; revision: number; nextCursor: string | null; chunks: InspectorContent["chunks"] } | null = null;
@@ -159,6 +166,8 @@ export function createInspector(options: InspectorOptions): Inspector {
     );
     current = { sourceId, revision: content.source.revision, nextCursor: content.next_cursor, chunks: content.chunks };
     title.textContent = content.source.title;
+    clear(guideSlot);
+    options.onOpened?.(content.source, guideSlot, Boolean(content.highlight));
     element.dataset.sourceId = sourceId;
     clear(scroll);
     // Every page above (and including) the cited page renders eagerly so nothing above the target can change

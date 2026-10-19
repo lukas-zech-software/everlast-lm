@@ -8,6 +8,7 @@ import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { createApp, type AppDeps } from "@everlast/api/app";
 import { LocalIdentityIssuer } from "@everlast/api/auth/identity";
 import { ChatService } from "@everlast/api/chat/service";
+import { createV2Runtime } from "@everlast/api/v2/runtime";
 import type { GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
 import { createWorkerHandler } from "@everlast/worker";
@@ -45,6 +46,7 @@ export async function startE2eServer(port: number) {
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   const worker = createWorkerHandler({ pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
   let pending: Promise<unknown> = Promise.resolve();
+  const v2 = createV2Runtime({ pool: db.pool, sourceLimit: Number(process.env.MAX_SOURCES_PER_NOTEBOOK ?? 50), model: new FixtureModel() });
   const deps: AppDeps = {
     pool: db.pool,
     config: {
@@ -59,7 +61,14 @@ export async function startE2eServer(port: number) {
     localIssuer: issuer,
     storage,
     embedder,
-    chat: new ChatService({ pool: db.pool, embedder, model: new FixtureModel() }),
+    chat: new ChatService({
+      pool: db.pool,
+      embedder,
+      model: new FixtureModel(),
+      resolvePreferences: (owner, notebook, locale) => v2.chatPreferences(owner, notebook, locale),
+    }),
+    // Release v2 PoC stores (D16); no generation client, so Source Guide/overview/follow-ups report 503.
+    v2,
     notifyJobs: () => {
       pending = pending.then(() => worker.drain());
     },

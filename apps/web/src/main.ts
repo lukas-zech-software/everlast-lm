@@ -2,8 +2,12 @@ import { startSession, type Session } from "./lib/auth.ts";
 import { clear, h } from "./lib/dom.ts";
 import { renderHome } from "./home.ts";
 import { renderWorkspace } from "./workspace/index.ts";
+import { initializeTheme } from "./workspace-preferences.ts";
 
 /** SPA entrypoint and router (FR-WM-01, FR-UI-01): `/` notebook home, `/notebook/{id}` workspace. */
+
+// Release v2 (FR-UI-02): saved light/dark/system theme before the first render.
+initializeTheme(document.documentElement);
 
 const root = document.getElementById("app")!;
 let session: Session;

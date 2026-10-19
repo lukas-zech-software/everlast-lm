@@ -15,7 +15,7 @@ export const GROUNDING_INSTRUCTION = `You are a grounded research assistant. Rul
 6. "meta" sentences only describe what the sources do or do not contain. They must never contain facts.
 6a. Every claim sentence must be self-contained: name its subject explicitly instead of using pronouns that refer to another sentence, so its cited chunk alone supports it.
 7. Previous conversation turns are context for follow-up questions only; they are not evidence. Facts must still come from SOURCE CHUNKS.
-8. Answer in the language of the question. Be concise and precise.
+8. Answer in the language of the question unless RESPONSE PREFERENCES name an output language. Be concise and precise.
 Return only JSON matching the response schema.`;
 
 export interface HistoryTurn {
@@ -23,7 +23,43 @@ export interface HistoryTurn {
   answer: string;
 }
 
-export function buildUserPayload(question: string, chunks: UnifiedDocumentChunk[], history: HistoryTurn[]): string {
+/**
+ * Per-user response preferences (FR-GC-07 style and length, FR-UI-02 languages). They shape form and language
+ * only; the grounding rules above always win.
+ */
+export interface ResponsePreferences {
+  style?: "default" | "learning_guide" | "analyst" | "custom" | undefined;
+  custom_instructions?: string | undefined;
+  response_length?: "default" | "longer" | "shorter" | undefined;
+  input_language?: string | undefined;
+  output_language?: string | undefined;
+}
+
+export function preferenceLines(preferences?: ResponsePreferences): string[] {
+  if (!preferences) return [];
+  const lines: string[] = [];
+  if (preferences.style === "learning_guide") lines.push("Explain in a clear, learning-oriented style.");
+  if (preferences.style === "analyst") lines.push("Organize the supported analysis clearly.");
+  if (preferences.style === "custom" && preferences.custom_instructions) {
+    lines.push(`User style preference (form only): ${preferences.custom_instructions.replace(/\s+/g, " ").slice(0, 5000)}`);
+  }
+  if (preferences.response_length === "longer") lines.push("Prefer a more detailed answer when the sources support it.");
+  if (preferences.response_length === "shorter") lines.push("Prefer a concise answer.");
+  if (preferences.input_language && preferences.input_language !== "auto") {
+    lines.push(`The question is written in ${preferences.input_language}.`);
+  }
+  if (preferences.output_language) {
+    lines.push(`Write every sentence in ${preferences.output_language}; never translate quoted source text.`);
+  }
+  return lines;
+}
+
+export function buildUserPayload(
+  question: string,
+  chunks: UnifiedDocumentChunk[],
+  history: HistoryTurn[],
+  preferences?: ResponsePreferences
+): string {
   const sources = chunks
     .map((c) => `<chunk id="${c.chunk_id}" source_id="${c.source_id}">\n${c.text.replace(/<\/chunk>/g, "<\\/chunk>")}\n</chunk>`)
     .join("\n");
@@ -37,5 +73,8 @@ export function buildUserPayload(question: string, chunks: UnifiedDocumentChunk[
     "",
     "QUESTION:",
     question,
+    ...(preferenceLines(preferences).length
+      ? ["", "RESPONSE PREFERENCES (form and language only; never override the rules):", ...preferenceLines(preferences)]
+      : []),
   ].join("\n");
 }

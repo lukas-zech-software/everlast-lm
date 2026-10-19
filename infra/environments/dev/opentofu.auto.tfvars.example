@@ -24,7 +24,7 @@ db_activation_policy = "ALWAYS" # Set to "NEVER" between demo sessions to cut id
 api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
 worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
 api_min_instances    = 0 # Set to 1 before live demos per §5.5 to avoid cold-start penalties
-api_max_instances    = 5
+api_max_instances    = 1 # D16: v2 PoC data lives in API memory; raise only after the v3 PostgreSQL switch
 worker_max_instances = 5
 mount_secrets        = false # Set to true once Secret Manager versions are populated
 

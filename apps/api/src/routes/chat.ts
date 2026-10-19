@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, isAppError } from "@everlast/contracts";
+import { AppError, OutputLanguageSchema, isAppError } from "@everlast/contracts";
 import { clearThread, getOrCreateThread, loadVisibleThread, searchThread } from "@everlast/db";
 import { readJson, sendJson, validationError } from "../http.ts";
 import type { Router } from "../router.ts";
@@ -18,6 +18,22 @@ const TurnBody = z
     request_id: z.string().uuid(),
   })
   .strict();
+
+/** First Accept-Language entry that is a supported output language (FR-UI-02 browser fallback). */
+export function browserLocaleOf(header: string | string[] | undefined): string | undefined {
+  if (typeof header !== "string") return undefined;
+  for (const entry of header.split(",")) {
+    const tag = entry.split(";")[0]?.trim();
+    if (!tag || tag === "*") continue;
+    try {
+      const locale = Intl.getCanonicalLocales(tag)[0];
+      if (locale && OutputLanguageSchema.safeParse(locale).success) return locale;
+    } catch {
+      // ignore malformed tags
+    }
+  }
+  return undefined;
+}
 
 function sse(res: import("node:http").ServerResponse, event: string, data: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -47,6 +63,7 @@ export function registerChatRoutes(router: Router, deps: AppDeps): void {
         message: parsed.data.message,
         activeSourceIds: parsed.data.active_source_ids,
         requestId: parsed.data.request_id,
+        browserLocale: browserLocaleOf(req.headers["accept-language"]),
       },
       abort.signal
     );

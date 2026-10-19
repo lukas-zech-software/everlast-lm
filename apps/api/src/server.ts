@@ -8,6 +8,8 @@ import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/iden
 import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv } from "./chat/model.ts";
+import { createV2Runtime } from "./v2/runtime.ts";
+import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
 
 /**
  * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 24 (type stripping, no build step).
@@ -75,10 +77,28 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
       : vertexConfigured
         ? new VertexEmbedder({ client: createVertexClient(vertexConfigFromEnv(env)), model: env.EMBEDDING_MODEL })
         : undefined);
+  const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
+  const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
+  // Release v2 proof of concept (D16): in-memory stores in this process; set V2_POC=off to serve v1 only.
+  const v2 =
+    extra.v2 ??
+    (env.V2_POC === "off"
+      ? undefined
+      : createV2Runtime({
+          pool,
+          sourceLimit: config.sourceLimit,
+          model,
+          ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
+        }));
   const chat =
     extra.chat ??
-    (embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1"
-      ? new ChatService({ pool, embedder, model: createGroundedModelFromEnv(env) })
+    (embedder && model
+      ? new ChatService({
+          pool,
+          embedder,
+          model,
+          ...(v2 ? { resolvePreferences: (ownerId: string, notebookId: string, locale?: string) => v2.chatPreferences(ownerId, notebookId, locale) } : {}),
+        })
       : undefined);
   const deps: AppDeps = {
     pool,
@@ -88,6 +108,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     storage: extra.storage ?? createObjectStorage(env),
     embedder,
     chat,
+    v2,
     notifyJobs: createJobNotifier(env),
     ...extra,
   };

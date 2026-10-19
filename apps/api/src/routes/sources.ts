@@ -11,6 +11,7 @@ import {
 } from "@everlast/contracts";
 import {
   acceptReceivedSource,
+  getNotebook,
   getSource,
   listSources,
   readSourceForInspection,
@@ -78,6 +79,11 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
 
   router.add("GET", "/api/notebooks/:id/sources", async ({ res, user, params }) => {
     const sources = await listSources(deps.pool, user.userId, params.id!);
+    if (deps.v2) {
+      // Release v2 (D16): Ready counts, Source Guides and the topic icon follow the sources the owner sees.
+      deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, params.id!));
+      deps.v2.syncSources(user.userId, params.id!, sources);
+    }
     sendJson(res, 200, { sources: sources.map(toSourceDto) });
   });
 

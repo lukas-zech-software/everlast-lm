@@ -146,6 +146,24 @@ export async function getSnapshotChunksByIds(
   return filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
 }
 
+/**
+ * Loads every chunk of a captured snapshot in reading order (whole-source generation such as Source Guides and
+ * Studio reports, D12). Hard-filtered on notebook and (source_id, revision) like retrieval; `limit` bounds work.
+ */
+export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, limit = 2000): Promise<UnifiedDocumentChunk[]> {
+  if (snapshot.sources.length === 0) return [];
+  const result = await db.query<ChunkRow>(
+    `SELECT c.chunk_id, c.source_id, c.revision, c.locator, c.token_count, c.text, 0::float8 AS score
+     FROM chunks c JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
+       ON s.source_id = c.source_id AND s.revision = c.revision
+     WHERE c.notebook_id = $1
+     ORDER BY c.source_id, c.sequence
+     LIMIT $4`,
+    [snapshot.notebook_id, snapshot.sources.map((p) => p.source_id), snapshot.sources.map((p) => p.revision), limit]
+  );
+  return filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
+}
+
 export interface InspectorPage {
   page_number: number;
   physical_page?: number;

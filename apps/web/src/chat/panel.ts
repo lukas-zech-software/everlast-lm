@@ -16,12 +16,18 @@ export interface ChatPanelOptions {
   selection: SelectionModel;
   onCitationClick(citation: Citation): void;
   onNotebookMissing(): void;
+  /** Release v2 additions (FR-GC-04/05/07/09): extra tools, an intro block and per-answer actions. */
+  tools?: HTMLElement[];
+  intro?: HTMLElement;
+  decorateAnswer?(bubble: HTMLElement, message: ChatMessage, fresh: boolean): void;
 }
 
 export interface ChatPanel {
   element: HTMLElement;
   load(): Promise<void>;
   updateSelection(): void;
+  /** Sends a prompt as if typed (starter prompts, guide topics, follow-ups). */
+  ask(text: string): void;
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -133,8 +139,9 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   const element = h(
     "div",
     { class: "chat-panel" },
-    h("div", { class: "chat-tools" }, search, clearButton),
+    h("div", { class: "chat-tools" }, search, ...(options.tools ?? []), clearButton),
     results,
+    ...(options.intro ? [options.intro] : []),
     messages,
     status,
     errorLine,
@@ -148,19 +155,22 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     messages.scrollTop = messages.scrollHeight;
   };
 
-  const renderMessage = (message: ChatMessage): HTMLElement => {
+  const renderMessage = (message: ChatMessage, fresh = false): HTMLElement => {
     const bubble = h("div", {
       class: `message message-${message.role} kind-${message.kind}`,
       "data-testid": `message-${message.role}`,
       "data-message-id": message.id,
     });
     if (message.role === "user") bubble.append(h("div", { class: "question-text", text: message.content ?? "" }));
-    else bubble.append(renderAnswerContent(message, options.onCitationClick));
+    else {
+      bubble.append(renderAnswerContent(message, options.onCitationClick));
+      if (message.kind === "answer" && message.content !== null) options.decorateAnswer?.(bubble, message, fresh);
+    }
     return bubble;
   };
 
-  const appendMessages = (list: ChatMessage[]) => {
-    for (const message of list) messages.append(renderMessage(message));
+  const appendMessages = (list: ChatMessage[], fresh = false) => {
+    for (const message of list) messages.append(renderMessage(message, fresh));
     scrollToEnd();
   };
 
@@ -206,7 +216,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
         }
       }
       pending.remove();
-      if (final) appendMessages(final);
+      if (final) appendMessages(final, true);
     } catch (err) {
       pending.remove();
       if (inflight?.signal.aborted || (err instanceof ApiError && err.code === "GenerationCancelled")) return;
@@ -291,5 +301,9 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       updateSelection();
     },
     updateSelection,
+    ask(text) {
+      input.value = text;
+      void submit();
+    },
   };
 }

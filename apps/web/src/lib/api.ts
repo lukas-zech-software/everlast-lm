@@ -57,6 +57,15 @@ export async function api<T>(path: string, init: { method?: string; json?: unkno
   return (await res.json()) as T;
 }
 
+/** `fetch` with the caller's bearer token, for controllers that take a fetcher (release v2 UI). */
+export const authFetch: typeof fetch = async (input, init = {}) => {
+  const headers = new Headers(init.headers);
+  for (const [name, value] of Object.entries(await authHeaders())) headers.set(name, value);
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401) tokens?.onUnauthenticated();
+  return res;
+};
+
 export interface SseEvent {
   event: string;
   data: unknown;

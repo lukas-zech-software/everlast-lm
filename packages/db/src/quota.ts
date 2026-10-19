@@ -344,3 +344,18 @@ export async function getQuotaSummary(
     max_source_words: MAX_SOURCE_WORDS,
   };
 }
+
+/** Ready-source count per notebook of one owner (notebook overview cards, FR-WM-03). */
+export async function countReadySources(db: Queryable, ownerId: string): Promise<Map<string, number>> {
+  const result = await db.query<{ notebook_id: string; ready: string }>(
+    `SELECT s.notebook_id, count(*) AS ready FROM sources s JOIN notebooks n ON n.id = s.notebook_id
+     WHERE n.owner_id = $1 AND s.status = 'Ready' GROUP BY s.notebook_id`,
+    [ownerId]
+  );
+  return new Map(result.rows.map((r) => [r.notebook_id, Number(r.ready)]));
+}
+
+/** Sources occupying a slot (Uploading, Processing, Ready) in one notebook. */
+export function countOccupiedSources(db: Queryable, notebookId: string): Promise<number> {
+  return countOccupied(db, notebookId);
+}

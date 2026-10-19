@@ -36,6 +36,14 @@
 - **Result: `GatePassed`** — Precision_ID 20/20 = 1.0, leakage 0, hallucination 0/20 = 0, semantic support 20/20 = 1.0, rejection 25/25 = 1.0; NFR-SEC-01 preflight all checks pass. Evidence: [`evidence/eval-report-v1.json`](evidence/eval-report-v1.json), [`evidence/gate-v1-ui.json`](evidence/gate-v1-ui.json).
 - **Run history (honest record)**: run 1 failed semantic support (20/22, HIS-008/HIS-013; hallucination 1/22) because the synthetic-corpus PDF fixture wrote `€` as `?` (non-WinAnsi encoding in `packages/testkit/src/pdf-builder.ts`; fixed, US1-B14 added). Run 2 failed semantic support (20/22, SYN-054/SYN-058): correct answers whose claim began with "Its …" were judged without the antecedent. Fixes: grounding rule 6a (self-contained claim sentences) and the judge receives preceding sentences for reference resolution only (never as evidence). Run 3 passed. All runs are in `reports/gate-audit.jsonl`.
 
+### Re-verification after merging release v2 (2026-10-19, D16)
+
+Merging `main` (v2 packages 2.1–2.4) into this branch changed shared API, chat prompt and web files. Re-run on the
+merged tree: Vitest 74 files / 567 tests, Playwright 33/33 (GATE-1 and GATE-3 included), `pnpm eval:deterministic`
+Precision_ID 160/160 and leakage 0 with 0 of 60 adversarial drafts published. The grounding instruction gained one
+clause (rule 8: answer in the requested output language when RESPONSE PREFERENCES name one); release-gate payloads
+carry no preferences, so the judged run is unaffected, and the planned re-run on the merged commit confirms it.
+
 ### Gate v1.0 status
 
 | Criterion | Status | Evidence |

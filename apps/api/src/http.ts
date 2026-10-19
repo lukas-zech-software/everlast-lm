@@ -66,3 +66,17 @@ export function sendError(res: ServerResponse, err: unknown, requestId: string):
 export function validationError(message: string): AppError {
   return new AppError("ValidationFailed", 422, message);
 }
+
+/**
+ * Lenient JSON body parser used by the release v2 routes (D16): an empty body is `{}`, malformed JSON throws a
+ * plain Error that the v2 handlers map to their own 400 responses. Size limits still apply.
+ */
+export async function parseJsonBody<T>(req: IncomingMessage, options?: { maxBytes?: number }): Promise<T> {
+  const text = (await readBody(req, options?.maxBytes ?? DEFAULT_JSON_LIMIT)).toString("utf8").trim();
+  if (!text) return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Invalid JSON body");
+  }
+}

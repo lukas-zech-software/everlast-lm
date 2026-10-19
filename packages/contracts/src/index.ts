@@ -8,3 +8,7 @@ export * from "./package-v1-2.ts";
 export * from "./package-v1-3.ts";
 export * from "./package-v1-4.ts";
 export * from "./uuid.ts";
+export * from "./package-v2-1.ts";
+export * from "./package-v2-2.ts";
+export * from "./package-v2-3.ts";
+export * from "./package-v2-4.ts";

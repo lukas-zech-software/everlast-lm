@@ -318,12 +318,18 @@ Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwi
 | **DEV-01** | `FR-ST-03` (Join-In), `Gate v5.0` #2 | Beide KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Zwischenfragen und setzen anschließend die Diskussion fort. | Playback pausiert. **Ein designierter Host** beantwortet die Live-Frage in seiner Host-Podcast-Stimme über Gemini Live (grounded über `C-02`). Playback wird anschließend an der Unterbrechungsstelle fortgesetzt. Der zweite Host nimmt nicht an der Live-Antwort teil. | 2026-10-16, Project Owner ([D7](../docs/solution-architecture.md#decisions)) |
 | **DEV-02** | `FR-ST-16` (Slide Decks) | Export als PPTX / PDF / Google Slides. | Export ausschließlich als `.pptx` und `.pdf`. Der Google-Slides-Export ist zurückgestellt, da er eine OAuth-Autorisierung pro Nutzer erfordert. | 2026-10-16, Project Owner ([D8](../docs/solution-architecture.md#decisions)) |
 | **DEV-03** | `FR-INT-01` (`@Notebook`), Paket 6.3, `Gate v6.0` #3 | `@Notebook`-Mention im zentralen Enterprise-Chat und Export von Chat-Threads als Notebook oder Quelle in v6.0. | Zurückgestellt. Paket 6.3 wird nicht spezifiziert; Gate v6.0 #3 ist nicht Teil der v6.0-Abnahme. Der Chat-Agent bleibt zustandslos hinter `C-02` und A2A-fähig. | 2026-10-16, Project Owner ([D5](../docs/solution-architecture.md#decisions)) |
+| **DEV-04** | v2.0-Pakete 2.1–2.4 (`FR-WM-02/03`, `FR-UI-02`, `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-01..04`, `FR-ST-10/11`), `Gate v2.0` | Persistente Speicherung aller v2-Daten (Präferenzen, Icons, Pins, Source Guides, Übersichten, Chat-Konfiguration, Feedback, Notizen, Studio-Artefakte). | **Proof of Concept:** v2-Daten liegen bis v3 im Prozessspeicher einer einzelnen API-Instanz und gehen bei Neustart oder Redeploy verloren. Zugriffskontrolle, Quellen und Chat bleiben unverändert in PostgreSQL (v1). Die Umstellung auf PostgreSQL ist bewusst nach v3 verschoben. | 2026-10-19, Project Owner ([D16](../docs/solution-architecture.md#decisions)) |
 
 ### 5.6 Konsistenzklärungen der FR-Karten (2026-10-16)
 
 Diese Klarstellungen lösen Widersprüche innerhalb der bestehenden IDs auf; sie ändern keine
 Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-APIs.
 
+- **v2.0 Proof of Concept (Beschluss Project Owner 2026-10-19, DEV-04/D16):** Die v2-Pakete
+  laufen vorerst mit Prozessspeicher statt PostgreSQL, damit früher ein lauffähiger Proof of
+  Concept bereitsteht. Datenpersistenz ist kein Ziel des PoC. Die Anbindung der v2-Daten an
+  PostgreSQL ist eine v3-Voraussetzung und wird vor Gate v3.0 umgesetzt; keine v2-Arbeit geht
+  dabei verloren.
 - **NFR-EVAL-01..04, alle Release-Gates (Beschluss Project Owner 2026-10-19):** Deterministische
   Prüfungen (`NFR-EVAL-02` ID-Präzision, `NFR-EVAL-04` Leakage) laufen auf jedem PR. Die
   LLM-bewerteten Prüfungen (`NFR-EVAL-01`, `NFR-EVAL-03`, semantische Zitatstützung) laufen einmal

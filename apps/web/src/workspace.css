@@ -14,8 +14,20 @@
   color: var(--text);
   background: var(--bg);
 }
+/* Dark tokens: the saved theme (data-theme, FR-UI-02) wins; without it the system preference applies. */
+:root[data-theme="dark"] {
+  --bg: #131318;
+  --panel: #1c1c23;
+  --text: #ececf1;
+  --muted: #9b9ba8;
+  --border: #2d2d37;
+  --accent: #8b85ff;
+  --accent-soft: #2b2a52;
+  --highlight: #5b4fb0;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --bg: #131318;
     --panel: #1c1c23;
     --text: #ececf1;
@@ -166,3 +178,37 @@ input, textarea { font: inherit; color: inherit; }
 .sources-pill { font-size: 0.75rem; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; white-space: nowrap; }
 .send-btn { border-radius: 999px; width: 40px; height: 40px; padding: 0; }
 .studio-placeholder { padding: 16px; }
+
+/* ---- Release v2 (D16 proof of concept): workspace comfort, Source Guide, chat control, saved responses ---- */
+.workspace-settings-host[hidden], .notebook-overview[hidden] { display: none; }
+.workspace-settings { display: grid; gap: 8px; padding: 16px; margin: 8px 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); max-width: 420px; }
+.workspace-settings h2 { margin: 0 0 4px; font-size: 1rem; }
+.workspace-settings label { font-weight: 600; font-size: 0.875rem; }
+.workspace-settings select, .notebook-sort, .notebook-icon-picker { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.notebook-overview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; }
+.notebook-overview-controls [aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.notebook-grid.notebook-list { display: flex; flex-direction: column; }
+.notebook-icon-picker { font-size: 1.25rem; padding: 2px 4px; border: none; background: transparent; cursor: pointer; }
+.notebook-pin { font-size: 1.1rem; }
+.notebook-pin[aria-pressed="true"] { color: var(--accent); }
+.workspace-notebook-icon { font-size: 1.25rem; }
+.inspector-guide:empty { display: none; }
+.inspector-guide { padding: 8px 12px; border-bottom: 1px solid var(--border); max-height: 35%; overflow: auto; }
+.source-guide-toggle { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font-weight: 600; }
+.source-guide-content button { margin: 4px 4px 0 0; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.notebook-overview { padding: 12px; margin: 0 0 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.notebook-overview h3 { margin: 0 0 6px; font-size: 1rem; }
+.notebook-overview button, .follow-up-chip { margin: 4px 6px 0 0; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; text-align: left; }
+.chat-config-label { font-size: 0.75rem; white-space: nowrap; }
+.chat-response-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font-size: 0.75rem; }
+.chat-response-actions button { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+.chat-response-actions [aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.chat-response-actions form { display: grid; gap: 4px; width: 100%; }
+.follow-ups { margin-top: 6px; }
+.field { display: grid; gap: 4px; }
+.field select, .field textarea { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+.saved-response-note { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }
+.saved-response-note h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.saved-response-note-content { white-space: pre-wrap; font-size: 0.875rem; }
+.saved-response-note-citations { margin: 6px 0 0; padding-left: 16px; font-size: 0.75rem; }
+.saved-response-note-citations button { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; }

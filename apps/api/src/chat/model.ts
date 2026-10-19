@@ -3,7 +3,7 @@ import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import type { Schema } from "@google/genai";
 import { GROUNDED_DRAFT_RESPONSE_SCHEMA, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
-import { buildUserPayload, GROUNDING_INSTRUCTION, type HistoryTurn } from "./prompt.ts";
+import { buildUserPayload, GROUNDING_INSTRUCTION, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
@@ -16,6 +16,7 @@ export interface GroundedModelInput {
   chunks: UnifiedDocumentChunk[];
   history: HistoryTurn[];
   signal?: AbortSignal | undefined;
+  preferences?: ResponsePreferences | undefined;
 }
 
 export interface GroundedModel {
@@ -82,7 +83,7 @@ export class AdkGroundedModel implements GroundedModel {
       for await (const event of this.runner.runAsync({
         userId,
         sessionId: session.id,
-        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history) }] },
+        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history, input.preferences) }] },
         abortSignal: controller.signal,
       })) {
         if (event.errorCode) throw new ModelUnavailableError(`Model error ${event.errorCode}`);

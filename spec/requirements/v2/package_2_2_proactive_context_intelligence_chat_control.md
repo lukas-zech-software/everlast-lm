@@ -21,7 +21,7 @@
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources.
+- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources. The persisted guide DTO records the source word count as validation metadata for the existing `<50`-word exception; it is not additional generated content.
 - *State:* While the Source Inspector (`FR-SI-04`) is open for a `Ready` source, the system shall render the collapsible `Source Guide` card at the top of the inspector above the full document text.
 - *Event:* When the user clicks a key topic chip inside the Source Guide, the system shall submit a grounded chat query focused on that topic to the Center Chat Panel.
 
@@ -64,7 +64,7 @@ Scenario: Clicking a key topic chip triggers a grounded chat turn
 
 **Edge & error cases**
 - Very short source ($< 50$ words) $\rightarrow$ Generates a $1$-sentence summary and $1\text{–}3$ topic chips without hallucinating padding.
-- Source Guide LLM call fails transiently $\rightarrow$ Retries with exponential backoff; full text in Source Inspector remains immediately readable.
+- Source Guide LLM call fails transiently $\rightarrow$ Retries at most twice (3 total attempts) with 100 ms then 200 ms exponential delays. Permanent errors and invalid structured output are not retried; after exhaustion the guide is `GuideFailed` while full text remains immediately readable.
 
 **Measurable criteria**
 - Asynchronous Source Guide generation completes in $< 10.0\text{ s}$ (P95) after chunking finishes (`Gate v2.0 #1`).
@@ -273,6 +273,8 @@ Scenario: Persona character boundary and Analyst preset
 **Open questions:** `None`
 
 ---
+
+**Shared save-note contract with FR-NM-02 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. Package 2.3 FR-NM-02 MUST consume this same request/response shape.
 
 ### FR-GC-09 — Response Actions & Quality Feedback
 

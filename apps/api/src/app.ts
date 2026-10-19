@@ -4,7 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import type { Pool } from "@everlast/db";
 import { AppError } from "@everlast/contracts";
-import { ensureUser } from "@everlast/db";
+import { ensureUser, getNotebook } from "@everlast/db";
 import { LocalObjectStorage, type Embedder, type ObjectStorage } from "@everlast/cloud";
 import { readBody, readJson, sendError, sendJson, sendNoContent, validationError } from "./http.ts";
 import { Router, type AuthUser, type RequestContext } from "./router.ts";
@@ -14,6 +14,7 @@ import { registerNotebookRoutes } from "./routes/notebooks.ts";
 import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
 import type { ChatService } from "./chat/service.ts";
+import type { V2Runtime } from "./v2/runtime.ts";
 
 /**
  * API application (FR-WM-01, FR-WM-04, FR-WM-07, FR-UI-01).
@@ -35,6 +36,8 @@ export interface AppDeps {
   chat?: ChatService | undefined;
   /** Feature route registrations added by later packages (sources, chat). */
   extraRoutes?: ((router: Router, deps: AppDeps) => void)[];
+  /** Release v2 proof-of-concept features (D16); their handlers run after notebook ownership is checked. */
+  v2?: V2Runtime | undefined;
 }
 
 const MIME: Record<string, string> = {
@@ -132,6 +135,12 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
     if (url.pathname.startsWith("/api/")) {
       const user = await authenticate(req);
       const match = router.match(method, url.pathname);
+      if (match === null && deps.v2) {
+        // v2 never decides access: the notebook must exist and belong to the caller in PostgreSQL first.
+        const notebookId = /^\/api\/notebooks\/([^/]+)\//.exec(url.pathname)?.[1];
+        if (notebookId) deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, decodeURIComponent(notebookId)));
+        for (const handler of deps.v2.handlers) if (await handler(req, res, user.userId)) return;
+      }
       if (match === null) throw new AppError("NotFound", 404, "API endpoint not found");
       if (match === "method") throw new AppError("MethodNotAllowed", 405, "Method not allowed");
       const ctx: RequestContext = { req, res, url, params: match.params, requestId, user };

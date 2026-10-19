@@ -11,7 +11,7 @@ import {
 } from "@everlast/db";
 import type { Embedder } from "@everlast/cloud";
 import { RequestScopedContextProvider } from "../services/source-context.ts";
-import type { HistoryTurn } from "./prompt.ts";
+import type { HistoryTurn, ResponsePreferences } from "./prompt.ts";
 import { ModelUnavailableError, UnverifiableDraftError, type GroundedModel, type GroundedModelInput } from "./model.ts";
 import type { GroundedDraft } from "./draft.ts";
 import { REFUSAL_UNVERIFIED, stripBadges, verifyDraft, type VerificationResult } from "./verifier.ts";
@@ -32,6 +32,8 @@ export interface TurnRequest {
   message: unknown;
   activeSourceIds: unknown;
   requestId: string;
+  /** First supported locale from Accept-Language (FR-UI-02 output-language fallback). */
+  browserLocale?: string | undefined;
 }
 
 export type TurnEvent =
@@ -54,6 +56,8 @@ export interface ChatServiceDeps {
   model: GroundedModel;
   retrievalLimit?: number;
   observer?: (observation: TurnObservation) => void;
+  /** Release v2 response preferences of the caller (style, length, languages). */
+  resolvePreferences?: (ownerId: string, notebookId: string, browserLocale?: string) => Promise<ResponsePreferences>;
 }
 
 /** Message length rule: 1–10,000 Unicode code points after outer trim, never truncated (FR-GC-01). */
@@ -146,7 +150,8 @@ export class ChatService {
         result = verifyDraft({ status: "not_in_sources", sentences: [] }, []);
       } else {
         yield { type: "status", phase: "generating" };
-        modelInput = { question, chunks, history, signal: controller.signal };
+        const preferences = await this.deps.resolvePreferences?.(request.ownerId, request.notebookId, request.browserLocale);
+        modelInput = { question, chunks, history, signal: controller.signal, ...(preferences ? { preferences } : {}) };
         try {
           draft = await this.deps.model.generate(modelInput);
         } catch (err) {

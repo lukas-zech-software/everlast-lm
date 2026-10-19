@@ -22,7 +22,7 @@
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall assign and display for every notebook an emoji/icon, title, creation/last-modified timestamp, and current count of `Ready` sources (`"<n> sources"` / `"<n> Quellen"`).
-- *Event:* When a new notebook is created, the system shall assign a default emoji icon and automatically update the icon based on the topic of the first uploaded source (unless manually overridden by the owner).
+- *Event:* When a new notebook is created, the system shall assign a default emoji icon and use the approved enterprise Flash-Lite topic-emoji selector (Solution Architecture §2.1 model-routing table; D3), based on the title of the first source to reach `Ready`, to update the icon (unless manually overridden by the owner). Selector failure does not fail ingestion and leaves the current icon unchanged.
 - *Event:* When the Owner/Editor clicks the emoji icon on the notebook card or in the workspace header and selects a new emoji from the picker, the system shall persist the chosen emoji immediately.
 - *Event:* When a source is added, removed, or renamed, or a note/artifact is modified, the system shall update the notebook's `updated_at` timestamp and source counter.
 
@@ -39,12 +39,12 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.1 FR
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Emoji icon | Unicode Emoji string | Single valid Unicode emoji grapheme cluster (including multi-code-point ZWJ and skin-tone sequences) | `"📓"` (auto-updated on first source ingest) |
+| Emoji icon | Unicode Emoji string | Single valid Unicode emoji grapheme cluster (including multi-code-point ZWJ and skin-tone sequences) | "📓" (Flash-Lite topic selection after first source reaches Ready, unless custom) |
 | Source count | Integer | $0 \le n \le N_{\text{max}}$ | $0$ |
 
 **Outputs & state**
 - Visible: Emoji, title, formatted date (e.g., `"Oct 15, 2026"`), and `"<n> sources"` on home cards and list rows.
-- Persisted: `icon_emoji`, `created_at`, `updated_at`, `source_count` on the `Notebook` entity.
+- Persisted: `icon_emoji`, `icon_source` (`default` / `topic` / `custom`), `created_at`, and `updated_at` on the `Notebook` entity. `ready_source_count` is derived from sources in `Ready` state.
 - States: `DefaultIcon` $\rightarrow$ `AutoTopicIcon` $\rightarrow$ `CustomUserIcon`.
 
 **Acceptance criteria (Gherkin)**
@@ -67,7 +67,7 @@ Scenario: Adding a source increments the card source counter
 - Source fails ingestion (`Failed` state) $\rightarrow$ Does not increment the `Ready` source counter shown on the card.
 
 **Measurable criteria**
-- Metadata updates reflect on the home overview within $\le 200\text{ ms}$ of navigation.
+- Metadata updates reflect on the home overview within $\le 200\text{ ms}$ from the successful notebook-list response to visible metadata in the supported Chromium browser test run.
 
 **Deviations from reference:** None.
 
@@ -96,7 +96,7 @@ Scenario: Adding a source increments the card source counter
 
 **Reference behaviour**
 1. Top-right of the home screen shows a view-switcher button group (Grid icon | List icon) and a sort dropdown defaulting to `Most recent`.
-2. Clicking List View switches the cards into a compact table showing Icon, Title, Role, Sources count, and Created/Modified date.
+2. Clicking List View switches the cards into a compact table showing Icon, Title, Role, Ready-source count, creation date, and last-modified date.
 3. Selecting `Title` sorts notebooks alphabetically.
 
 Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.1 FR-WM-03` (Local screenshot: `Unknown`)
@@ -153,7 +153,7 @@ Scenario: Switching between Grid and List view persists across page reloads
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the user selects `Light mode`, `Dark mode`, or `System` (`Device default`) from the top-right Settings menu, the system shall apply the selected color theme across all panels without reloading the page and persist the preference.
+- *Event:* When the user selects `Light mode`, `Dark mode`, or `System` (`Device default`) from the top-right Settings menu, the system shall apply the selected color theme across all panels without reloading the page and persist the preference. `System` shall follow the operating system/browser `prefers-color-scheme`; the initial theme shall be set before first visible paint.
 - *Event:* When a user configures input language globally or for a notebook, the system shall use that BCP-47 preference for typed/spoken input handling; `auto` detects input language without translating stored source text. Notebook defaults are editable only by Owner/Editor from v6; other users can override their own preferences.
 - *Event:* When the user selects an `Output language` (`Ausgabesprache`) in the global or notebook-level settings, the system shall instruct all chat, Source Guide, Note Assistant, and Studio synthesis agents to generate their responses in that target language, regardless of the language of the uploaded source documents.
 
@@ -171,7 +171,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.6 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Theme preference | Enum | `light` \| `dark` \| `system` | `system` |
-| Output language | BCP-47 language tag | Supported enterprise languages (e.g., `de-DE`, `en-US`, `fr-FR`, `es-ES`, `ja-JP`, etc. — $\ge 35$ languages) | Supported account locale, then browser locale, then `en-US`; no fixed German default |
+| Output language | BCP-47 language tag | Versioned supported set: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, `zh-TW` (exactly 40) | Supported account locale, then browser locale, then `en-US`; no fixed German default |
 
 **Outputs & state**
 - Visible: Immediate CSS theme switch; generated AI text appears in the configured target language.
@@ -193,7 +193,7 @@ Scenario: Cross-lingual grounded chat respects configured output language
 - Verbatim quote snippet inside citation hover tooltip (`FR-GC-03`) $\rightarrow$ Remains in the **original source language** so that exact document verification is never altered by translation.
 
 **Measurable criteria**
-- Theme switch completes in $\le 50\text{ ms}$ without flash of unstyled content (FOUC).
+- Theme switch completes in $\le 50\text{ ms}$ without flash of unstyled content (FOUC); initial theme is applied before first visible paint and System follows the OS/browser `prefers-color-scheme`.
 
 **Deviations from reference:** Allows per-notebook language override in addition to the global user language setting.
 
