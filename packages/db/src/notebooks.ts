@@ -10,6 +10,8 @@ import {
 import { recordCleanupOperation } from "./cleanup.js";
 import { deleteSourceSlotsForNotebook } from "./quota.js";
 import { deleteChatThreadsForNotebook } from "./chat-history.js";
+import { deleteNotesForNotebook } from "./notes.js";
+import { deleteSourcesForNotebook } from "./source-registry.js";
 
 /**
  * Notebook Repository (FR-WM-01, FR-WM-04, FR-WM-07).
@@ -190,6 +192,8 @@ export async function deleteNotebook(
   notebookStore.delete(notebookId);
   deleteSourceSlotsForNotebook(notebookId);
   deleteChatThreadsForNotebook(notebookId);
+  deleteNotesForNotebook(notebookId);
+  deleteSourcesForNotebook(notebookId);
   return true;
 }
 
