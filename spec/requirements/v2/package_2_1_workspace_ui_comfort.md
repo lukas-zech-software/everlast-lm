@@ -171,7 +171,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.6 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Theme preference | Enum | `light` \| `dark` \| `system` | `system` |
-| Output language | BCP-47 language tag | Versioned supported set: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, `zh-TW` ($\ge 35$) | Supported account locale, then browser locale, then `en-US`; no fixed German default |
+| Output language | BCP-47 language tag | Versioned supported set: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, `zh-TW` (exactly 40) | Supported account locale, then browser locale, then `en-US`; no fixed German default |
 
 **Outputs & state**
 - Visible: Immediate CSS theme switch; generated AI text appears in the configured target language.

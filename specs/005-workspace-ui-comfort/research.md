@@ -30,7 +30,7 @@ Date: 2026-10-19. Scope: Package 2.1 (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC
 - **Alternatives considered**: Regex that accepts only one code point (rejects many valid emoji); unrestricted text; deterministic title keyword mapping (not the D2-approved topic model and may misclassify); failing source ingestion when a decorative icon call is unavailable (unrelated to source readiness).
 
 ### Supported language set and fallback
-- **Decision**: Use a deterministic, documented list of at least 35 valid BCP-47 enterprise language tags and validate saved explicit preferences against the supported list. `auto` applies only to input language. Output resolution is job override > personal notebook override > notebook default > user default > supported browser locale > `en-US`.
+- **Decision**: Use a deterministic, documented list of exactly 40 valid BCP-47 enterprise language tags and validate saved explicit preferences against the supported list. `auto` applies only to input language. Output resolution is job override > personal notebook override > notebook default > user default > supported browser locale > `en-US`.
 - **Rationale**: The card sets a minimum language count and exact precedence; one shared list keeps settings choices and resolution consistent.
 - **Alternatives considered**: Accept arbitrary tags into the output picker (cannot guarantee available generation support); implicit runtime locale without a deterministic fallback (not reproducible).
 

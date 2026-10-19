@@ -34,7 +34,7 @@
 ## Acceptance Criteria and Non-Functional Requirements
 
 - [x] CHK015 Can the 200 ms metadata, 100 ms/500-notebook organization, and 50 ms theme targets be measured under a named or consistently defined environment? [Measurability, Spec §Success Criteria SC-001–SC-003]
-- [x] CHK016 Is the minimum of 35 output languages and supported locale fallback objectively acceptable without a fixed, versioned language-choice list? [Measurability, Spec §Success Criteria SC-004, FR-UI-02]
+- [x] CHK016 Are exactly 40 versioned output-language choices and the supported-locale fallback objectively specified? [Measurability, Spec §Success Criteria SC-004, FR-UI-02]
 - [x] CHK017 Are the visible results of all home overview and settings interactions objectively covered by acceptance scenarios, including a custom icon, first-source topic icon, error cases, and original-language citation text? [Coverage, Spec §User Scenarios & Testing, FR-WM-02, FR-WM-03, FR-UI-02, FR-GC-03]
 
 ## Edge Cases and Dependencies

@@ -27,14 +27,14 @@ Implement Package 2.1 only: notebook metadata and topic/default/custom emoji, Re
 
 | Gate ID | Principle | Pre-Research Status | Post-Design Status | Verification Evidence / Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| `CC-01` | I. Traceability | PASS | PASS | All planned requirements and files map to FR-WM-02, FR-WM-03, FR-UI-02, or FR-GC-03. No new behavior or upstream refinement is introduced. |
+| `CC-01` | I. Traceability | PASS | PASS | All planned requirements and files map to FR-WM-02, FR-WM-03, FR-UI-02, or FR-GC-03. List-date, fixed locale set, theme behavior, and architecture-approved topic-icon refinements are recorded in the feature spec and Package 2.1 FR card. |
 | `CC-02` | II. Test-First | PASS | PASS | Tasks put schema, repository, API and UI acceptance/boundary tests before each corresponding behavior implementation. |
 | `CC-03` | III. Scope & Snapshot | PASS | PASS | No source-content read or generation path is added; Ready counts are metadata only and do not affect the active source selection. |
 | `CC-04` | III. Citations & Leakage | PASS | PASS | No answer/artifact generation or citation path is changed. Citation quote language remains as required by FR-GC-03. |
 | `CC-05` | IV. Contracts & Pipelines | PASS | PASS | Additive package DTOs use shared Zod contracts; operations are deterministic. No C-01/C-02/C-03 contract is duplicated or altered. |
 | `CC-06` | V. Release & Package Order | PASS | PASS | Feature is Package 2.1 in v2.0; prerequisites are noted and language preference is established before Packages 2.2–2.4. No release gate is claimed complete. |
 | `CC-07` | VI. Security, RBAC & Residency | PASS | PASS | Every API operation remains behind existing authentication and notebook ownership checks; v2.0 is owner-only. Topic-emoji selection uses the keyless enterprise Vertex AI endpoint, no consumer key, and no region exception (D3, NFR-SEC-01). |
-| `CC-08` | Platform & Cost | PASS | PASS | Uses existing pnpm/TS/Zod/Vitest/native HTTP/browser stack and test stores; no framework, datastore, cloud API, model call, or fixed-cost component. |
+| `CC-08` | Platform & Cost | PASS | PASS | Uses existing pnpm/TS/Zod/Vitest/native HTTP/browser stack and test stores; no new framework, datastore, cloud product, or fixed-cost component; the only model call is the architecture-approved, bounded Vertex AI Flash-Lite topic-icon enrichment (D2/D3). |
 
 ## Project Structure and Ownership
 
@@ -53,7 +53,7 @@ Implement Package 2.1 only: notebook metadata and topic/default/custom emoji, Re
 - `apps/web/src/notebooks.ts` plus new `apps/web/src/workspace-preferences.ts` and `apps/web/src/workspace-preferences.css` (or existing stylesheet): overview grid/list, sorting, pin, metadata, empty state, settings controls and theme application. `apps/web/src/main.ts` / `index.html` are touched only for boot integration and flash-free initial theme.
 - `apps/api/src/chat/agent.ts` and `apps/api/src/routes/chat.ts`: carry effective input/output language into the current grounded-chat model adapter while retaining source-language citation snippets.
 - `apps/web/test/workspace-preferences.test.ts` and focused browser integration coverage: user-visible scenarios, storage persistence and performance targets.
-- `apps/worker/src/ingestion/topic-emoji.ts`, `apps/worker/test/topic-emoji.test.ts`, `apps/worker/src/ingestion/pipeline.ts`, and `apps/worker/package.json`: injected, testable Flash-Lite topic emoji selection; use enterprise Vertex AI configuration and fall back without failing ingestion.
+- `apps/worker/src/ingestion/topic-emoji.ts`, `apps/worker/test/topic-emoji.test.ts`, `apps/worker/src/ingestion/pipeline.ts`, `apps/worker/package.json`, and `pnpm-lock.yaml` when the approved client is added: injected, testable Flash-Lite topic emoji selection; use enterprise Vertex AI configuration and fall back without failing ingestion.
 
 **Ownership rule**: Keep the new contract in its own `package-v2-1.ts` as requested. Shared barrels, app manifests, lockfile, migrations, infrastructure and CI are not changed unless tests prove a necessary integration; any such change is serialized and minimal. Do not edit unrelated dirty files.
 

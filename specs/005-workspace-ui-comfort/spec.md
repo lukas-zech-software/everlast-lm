@@ -14,9 +14,10 @@ The normative scope below is transcribed from the SRS, Package 2.1 FR cards, and
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-WM-02 | Metadata & Visual Organization | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-02--metadata--visual-organization) | No deviation recorded |
+| FR-WM-02 | Metadata & Visual Organization | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-02--metadata--visual-organization) | D2 Flash-Lite topic-icon selection; D3 residency; no deviation |
 | FR-WM-03 | Home Overview, Sorting & Pinning | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-03--home-overview-sorting--pinning) | No deviation recorded |
 | FR-UI-02 | Theme & Language Configuration | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-ui-02--theme--language-configuration) | D3 data residency; no package-specific region exception |
+| FR-GC-03 | Citation fidelity constraint | [SRS](../../spec/System_Requirements_Specification_Gemeni_Notebook.md) | Preserve original-language citation quotations; no generation-scope expansion |
 
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: FR-WM-02 depends on FR-WM-01 and FR-SI-01; FR-WM-03 depends on FR-WM-01 and FR-WM-02; FR-UI-02 depends on FR-UI-01. Package 2.1 language preferences precede language-sensitive generators. Packages 2.2 and 2.3 share a save-note contract; Package 2.4 defines C-03, and those packages are outside this feature.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only in v2.0 (v1.0–v5.0); Editor, Viewer Full, and Viewer Chat-Only permissions are not active until v6.0.
@@ -45,7 +46,7 @@ As an owner managing multiple notebooks, I want recognizable notebook metadata a
 5. **Given** the owner has no notebooks, **When** the home overview opens, **Then** it displays a `"Create your first notebook"` call to action and hides or disables sorting controls (`FR-WM-03`).
 6. **Given** a new notebook with the default icon, **When** its first source reaches `Ready`, **Then** the approved Flash-Lite selector chooses a topic icon unless the owner has already chosen a custom icon; selector failure leaves the existing icon and source Ready (`FR-WM-02`, D2, D3).
 7. **Given** a notebook with two Ready sources, **When** another source fails ingestion, **Then** its displayed count remains `"2 sources"`; when a note or artifact is modified, **Then** the notebook's modified timestamp updates (`FR-WM-02`).
-8. **Given** the owner selects List view, **When** the overview displays notebooks, **Then** each row shows the icon, title, Owner role, Ready-source count, and creation or modified date (`FR-WM-03`).
+8. **Given** the owner selects List view, **When** the overview displays notebooks, **Then** each row shows the icon, title, Owner role, Ready-source count, creation date, and last-modified date (`FR-WM-03`).
 9. **Given** a changed sort order, **When** the owner reloads the overview, **Then** the selected sort order is retained (`FR-WM-03`).
 
 ### User Story 2 - Set display and language preferences (Priority: P2)
@@ -66,7 +67,7 @@ As an owner working across languages and display conditions, I want to choose a 
 3. **Given** a citation hover contains a verbatim source quotation, **When** the response language differs from the source language, **Then** the quotation remains in the original source language (`FR-UI-02`, FR-GC-03).
 4. **Given** input language is set to `auto`, **When** the owner provides typed or spoken input, **Then** the system detects the input language without translating stored source text (`FR-UI-02`).
 5. **Given** no theme preference exists, **When** the owner opens Settings, **Then** System is selected by default; selecting Light or Dark applies the choice across panels without reloading (`FR-UI-02`).
-6. **Given** the owner opens output-language settings, **When** the supported choices are displayed, **Then** at least 35 enterprise languages are available and account, browser, and `en-US` fallbacks are applied in that order when no explicit language is selected (`FR-UI-02`).
+6. **Given** the owner opens output-language settings, **When** the supported choices are displayed, **Then** exactly the 40 versioned enterprise locales are available; the effective language follows explicit job, personal notebook override, notebook default, user default, supported browser locale, and `en-US` fallback in that order (`FR-UI-02`).
 
 ### Edge Cases *(mandatory)*
 
@@ -93,7 +94,7 @@ As an owner working across languages and display conditions, I want to choose a 
 - **FR-009 (FR-WM-03)**: When the owner has no notebooks, the overview MUST display `"Create your first notebook"` and hide or disable sort controls.
 - **FR-010 (FR-UI-02)**: The owner MUST be able to select Light, Dark, or System theme. The default MUST be System, which follows the operating system/browser `prefers-color-scheme`. The selected theme MUST apply across all workspace panels without a page reload, be applied before first visible paint to avoid a flash of the previous theme, and persist as the owner's preference.
 - **FR-011 (FR-UI-02)**: The system MUST support global and notebook-level input-language preferences using BCP-47 language tags. Input language MUST default to `auto`; automatic detection MUST NOT translate stored source text. Spoken input uses the configured preference wherever spoken-input functionality is available.
-- **FR-012 (FR-UI-02)**: The system MUST support global and notebook-level output-language preferences using BCP-47 language tags and the following 40 supported enterprise locales: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, and `zh-TW`. In the absence of an explicit preference, the default MUST resolve from the account/user locale, then supported browser locale, then `en-US`. The list is versioned with the contract and only these supported locales are offered.
+- **FR-012 (FR-UI-02)**: The system MUST support global and notebook-level output-language preferences using BCP-47 language tags and the following 40 supported enterprise locales: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, and `zh-TW`. When no notebook/job-specific value applies, the global default MUST resolve from the account/user locale, then supported browser locale, then `en-US`. Notebook and job precedence is defined by FR-013. The list is versioned with the contract and only these supported locales are offered.
 - **FR-013 (FR-UI-02)**: Chat, Source Guide, Note Assistant, and Studio synthesis responses MUST use the effective output language regardless of the language of source documents. The effective preference MUST follow this precedence: explicit job language, personal notebook override, notebook default, user default, supported browser locale, then `en-US`.
 - **FR-014 (FR-UI-02, FR-GC-03)**: Verbatim quotations shown in citation previews MUST remain in the original source language.
 - **FR-015 (FR-WM-02, FR-WM-03, FR-UI-02)**: During v2.0, these capabilities MUST be available to the notebook Owner only. Editor and Viewer permissions and their personal notebook-level overrides MUST remain deferred until v6.0.
@@ -112,7 +113,7 @@ As an owner working across languages and display conditions, I want to choose a 
 - **SC-001 (FR-WM-02)**: Notebook metadata and Ready-source counts are current on the home overview within 200 ms of navigation, measured from the successful notebook-list response to visible metadata in the supported Chromium browser test run.
 - **SC-002 (FR-WM-03)**: Client sorting and switching view modes for 500 synthetic notebook records completes within 100 ms, measured with `performance.now()` in the supported Chromium browser test run.
 - **SC-003 (FR-UI-02)**: Theme changes apply across all panels within 50 ms in the supported Chromium browser test run; initial theme is applied before first visible paint, with no visible flash of the prior theme.
-- **SC-004 (FR-UI-02)**: At least 35 enterprise languages are available as output-language choices.
+- **SC-004 (FR-UI-02)**: Exactly 40 versioned enterprise locales are available as output-language choices.
 - **SC-005 (FR-WM-02, FR-WM-03, FR-UI-02)**: In scripted acceptance testing, 100% of notebook identification, view/sort/pin, and theme/language preference tasks produce the expected visible outcomes defined in the acceptance scenarios.
 
 ## Assumptions & Out of Scope
