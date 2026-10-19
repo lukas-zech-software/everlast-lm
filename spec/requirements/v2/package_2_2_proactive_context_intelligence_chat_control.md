@@ -274,6 +274,8 @@ Scenario: Persona character boundary and Analyst preset
 
 ---
 
+**Shared save-note contract with FR-NM-02 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. Package 2.3 FR-NM-02 MUST consume this same request/response shape.
+
 ### FR-GC-09 — Response Actions & Quality Feedback
 
 | Field | Value |

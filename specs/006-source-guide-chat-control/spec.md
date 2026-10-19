@@ -137,6 +137,10 @@ As an owner, I want to copy a useful answer, save it as a note, or submit struct
 - **History and cached content (C-02, FR-GC-01/06, NFR-EVAL-04)**: Overview and suggestion caches are bound to notebook, source IDs/revisions, effective authorization, output language, and generation parameters. Content from deselected sources is not inserted into new prompts; deleted or revoked content is unavailable through history, caches, or saved views subject to current authorization.
 - **Citation validation (FR-GC-01/02, NFR-EVAL-02)**: Invalid citation IDs cause an immediate refusal before factual content is displayed or saved. The system must not strip invalid citations and publish the remaining draft or silently retry.
 
+## Shared Save-to-Note Contract (`FR-GC-09`, `FR-NM-02`)
+
+Package 2.2 and Package 2.3 use one stable DTO. `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; the authenticated user ID is derived from the API identity and is never client-supplied. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. Saves are idempotent by `(authenticated user_id, source_message_id)`; repeated requests return the same note. Citation objects retain the Package 1.3 citation shape and are independently copied so chat deletion does not delete the note.
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
