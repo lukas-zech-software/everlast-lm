@@ -1,4 +1,4 @@
-import type { SourceSelectionController } from "./selection.js";
+import { SourceSelectionController, type SourceItem } from "./selection.js";
 
 /**
  * Presentation adapter for the Source List component (FR-SI-03).
@@ -132,4 +132,22 @@ export function renderSourceList(
       container.innerHTML = "";
     },
   };
+}
+
+export async function fetchNotebookSources(notebookId: string, fetcher: typeof fetch = fetch): Promise<SourceItem[]> {
+  const response = await fetcher(`/api/notebooks/${notebookId}/sources`);
+  if (!response.ok) throw new Error("Could not load authorized sources");
+  const payload = await response.json() as { sources?: unknown };
+  if (!Array.isArray(payload.sources)) throw new Error("Authorized source list is invalid");
+  return payload.sources.map((source: any) => {
+    if (source.notebook_id !== notebookId || typeof source.id !== "string" || typeof source.title !== "string" || !["application/pdf", "text/plain", "text/markdown", "copied_text"].includes(source.media_type) || !["Uploading", "Processing", "Ready", "Failed"].includes(source.status) || !Number.isSafeInteger(source.revision_id) || source.revision_id < 1) throw new Error("Authorized source list contains an invalid or foreign record");
+    return { id: source.id, notebook_id: source.notebook_id, title: source.title, media_type: source.media_type, status: source.status, revision_id: source.revision_id } as SourceItem;
+  });
+}
+
+export async function mountNotebookSourceList(container: HTMLElement, notebookId: string, fetcher: typeof fetch = fetch): Promise<SourceSelectionController> {
+  const sources = await fetchNotebookSources(notebookId, fetcher);
+  const controller = new SourceSelectionController({ notebookId, initialSources: sources });
+  renderSourceList(container, { controller });
+  return controller;
 }

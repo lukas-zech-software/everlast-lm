@@ -76,6 +76,10 @@ export async function handleChatRoute(
       });
       return true;
     }
+    if (!deps.agent || !deps.getChunksForSources || !deps.persistTurn) {
+      sendJson(res, 503, { error: { code: "Unavailable", message: "Grounded chat runtime is not configured" } });
+      return true;
+    }
 
     try {
       const activeSourceIds: string[] = validationResult.data.active_source_ids;

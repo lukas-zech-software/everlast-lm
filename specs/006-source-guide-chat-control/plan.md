@@ -7,7 +7,7 @@
 
 ## Summary
 
-Implement Package 2.2 on the existing v1 TypeScript monorepo without changing shared C-01/C-02 contracts. Source Guide and overview/follow-up generation are deterministic TypeScript pipelines around an injected structured-model client; no ADK `LlmAgent` loop is introduced (`FR-SI-02`, `FR-GC-04`, `FR-GC-05`, D1/D2). Source reads use only `C-02` and immutable source/revision snapshots. Add package-local Zod DTOs, an in-memory repository matching existing test adapters, authenticated API route dispatch, and browser-side controllers/renderers. The Save-to-note request and response are a stable shared contract for `FR-GC-09` and `FR-NM-02`; its shape is flowed back to the feature spec and both package cards before implementation.
+Implement Package 2.2 on the existing v1 TypeScript monorepo without changing shared C-01/C-02 contracts. Source Guide and overview/follow-up generation are deterministic TypeScript pipelines around an injected structured-model client; no ADK `LlmAgent` loop is introduced (`FR-SI-02`, `FR-GC-04`, `FR-GC-05`, D1/D2). Source reads use only the canonical `ScopedContextProvider` at the C-02 boundary and immutable `(source_id, revision)` snapshots; authorization and revision state are rechecked after reads and before publication. Runtime composition accepts injected provider, scope validator, Ready-source metadata reader, and structured model; it fails closed when production generation is unconfigured. Add package-local Zod DTOs (including explicit `source_word_count` and a hashed SHA-256 authorization partition key), an in-memory repository matching existing test adapters, authenticated API route dispatch, and browser-side controllers/renderers. The Save-to-note request and response are a stable shared contract for `FR-GC-09` and `FR-NM-02`; its shape is flowed back to the feature spec and both package cards before implementation.
 
 ## Technical Context
 
@@ -43,7 +43,7 @@ Gate v1 deterministic evals pass with the API-key variables unset. Implementatio
 | :--- | :--- | :--- |
 | Contracts | `packages/contracts/src/package-v2-2.ts`; one export in `packages/contracts/src/index.ts`; `packages/contracts/test/package-v2-2.test.ts` | `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02` |
 | Repository | `packages/db/src/package-v2-2.ts`; one export in `packages/db/src/index.ts`; `packages/db/test/package-v2-2.test.ts` | `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02` |
-| Pipelines | `apps/worker/src/package-v2-2.ts`; `apps/worker/test/package-v2-2.test.ts` | `FR-SI-02`, `FR-GC-04/05`, `C-02` |
+| Pipelines | `apps/worker/src/package-v2-2.ts`, `apps/worker/src/package-v2-2-runtime.ts`; worker C-02/runtime tests | `FR-SI-02`, `FR-GC-04/05`, `C-02` |
 | API | `apps/api/src/routes/package-v2-2.ts`; minimal route registration in `apps/api/src/server.ts`; `apps/api/test/package-v2-2.test.ts` | `FR-GC-04/05/07/09`, `FR-NM-02`, `FR-WM-04/05` |
 | Web | `apps/web/src/source-guide.ts`, `apps/web/src/chat-control.ts`, integration in `apps/web/src/main.ts`; corresponding focused tests under `apps/web/test/` | `FR-SI-02`, `FR-GC-04/05/07/09` |
 | Design docs/upstream flow-back | `specs/006-source-guide-chat-control/{plan,research,data-model,quickstart}.md`, `contracts/interfaces.md`, checklist, tasks, analysis; targeted additions to feature and Package 2.2/2.3 cards | `CC-01`, `FR-GC-09`, `FR-NM-02` |

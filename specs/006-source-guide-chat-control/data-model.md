@@ -18,8 +18,8 @@ All records are scoped to the listed SRS IDs. Inputs use shared UUID and chunk t
 
 ## Follow-up suggestions (`FR-GC-05`)
 
-- Attached to latest assistant `ChatMessage`: `suggested_followups[]`, source/revision snapshot, `generated_at`.
-- Invariants: hidden while streaming and after scope changes; 0–3 supported suggestions ≤100 code points, all based on current C-02 scoped chunks; refusal suggestions may point only to topics actually represented in that scope.
+- Persisted in a user/notebook/message-keyed sidecar associated with the latest assistant `ChatMessage`: `suggested_followups[]`, exact source/revision snapshot, and `generated_at`.
+- Invariants: hidden while streaming and after scope changes; re-authorize every source and revision before returning a saved suggestion; 0–3 supported suggestions ≤100 code points, all based on current C-02 scoped chunks; refusal suggestions may point only to topics actually represented in that scope.
 
 ## ChatConfiguration (`FR-GC-07`)
 

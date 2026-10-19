@@ -11,6 +11,7 @@ import {
 
 export interface WorkspaceLayoutOptions {
   activeNotebookId?: string | null;
+  notebookTitle?: string;
   initialSourceCount?: number;
   initialDraft?: string;
   initialTab?: "sources" | "chat" | "studio";
@@ -87,6 +88,8 @@ export function renderWorkspaceLayout(
       <div class="user-profile" data-testid="user-profile">User</div>
     </div>
   `;
+  const notebookTitle = header.querySelector(".notebook-title") as HTMLElement | null;
+  if (notebookTitle && options?.notebookTitle?.trim()) notebookTitle.textContent = options.notebookTitle.trim();
   container.appendChild(header);
 
   // 2. Tabs Bar (for narrow viewports < 1024px)
@@ -140,7 +143,7 @@ export function renderWorkspaceLayout(
         <button type="submit">Save</button><button type="button" id="chat-settings-cancel">Cancel</button>
       </form>
     </dialog>
-    <div id="notebook-overview" class="notebook-overview"></div>
+    <div id="notebook-overview" class="notebook-overview"><p class="overview-empty-state">Add a source to get started.</p></div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-bar">
       <div class="active-source-counter">${sourceCount === 1 ? "1 source" : `${sourceCount} sources`}</div>
@@ -159,7 +162,7 @@ export function renderWorkspaceLayout(
       <button class="panel-toggle-btn" data-action="toggle-right" aria-label="Toggle Studio panel">⮞</button>
     </div>
     <div class="panel-content studio-content">
-      <div class="studio-placeholder">Notes and Studio tools will appear here</div>
+      <div class="studio-placeholder">Saved response notes will appear here</div>
     </div>
   `;
   main.appendChild(rightPanel);

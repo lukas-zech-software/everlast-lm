@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { SourceGuideController } from "../src/source-guide.js";
-import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges } from "../src/chat-control.js";
+import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges, formatChatConfigurationLabel } from "../src/chat-control.js";
 import { setupMockDOM } from "./mock-dom.js";
 
 const source = "22222222-2222-4222-8222-222222222222";
@@ -32,6 +32,7 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     control.setOverview({ overview_md: "overview", starter_prompts: ["Start"] });
     control.setFollowUps(["Explore evidence"]);
     control.updateScope([{ source_id: source, revision: 3 }], "en-US");
+    control.setFollowUps(["Stale suggestion"], signature);
     expect(control.getOverview()).toBeNull();
     expect(control.getFollowUps()).toEqual([]);
     expect(signature).not.toBe(scopeSignature([{ source_id: source, revision: 3 }], "en-US"));
@@ -52,6 +53,15 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     expect(writeText).toHaveBeenCalledWith("Claim");
   });
 
+  it("loads and displays the specific active style and response length (FR-GC-07)", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ style: "analyst", response_length: "longer" }), { status: 200 }));
+    const control = new ChatControlController({ notebookId: notebook, submit: vi.fn(), fetcher: fetcher as typeof fetch });
+    const config = await control.loadConfiguration();
+    expect(config).toMatchObject({ style: "analyst", response_length: "longer" });
+    expect(control.getConfiguration()).toMatchObject({ style: "analyst", response_length: "longer" });
+    expect(formatChatConfigurationLabel(config!)).toBe("Style: Analyst · Length: Longer");
+  });
+
   it("retains previous chat settings when validation or API save fails", async () => {
     const fetcher = vi.fn(async () => new Response("", { status: 422 }));
     const control = new ChatControlController({ notebookId: notebook, submit: vi.fn(), fetcher: fetcher as typeof fetch });
@@ -61,6 +71,34 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     expect(control.getConfiguration()).toMatchObject({ style: "default", response_length: "default" });
   });
 
+
+  it("submits optional bounded feedback comments and keeps the active rating state", async () => {
+    const dom = setupMockDOM(1440);
+    const container = dom.document.createElement("div");
+    const requests: string[] = [];
+    const fetcher = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(String(init?.body));
+      return new Response("{}", { status: 200 });
+    });
+    renderResponseActions(container as any, { notebookId: notebook, messageId: "33333333-3333-4333-8333-333333333333", content: "Answer", citations: [], fetcher: fetcher as typeof fetch, clipboard: { writeText: vi.fn() } });
+    container.querySelector('[data-action="feedback-down"]')?.click();
+    const form = container.querySelector("form")!;
+    expect(form.getAttribute("hidden")).toBeNull();
+    const category = form.querySelector("select")!;
+    const comment = form.querySelector("textarea")!;
+    category.value = "other";
+    comment.value = "😀".repeat(1001);
+    form.dispatchEvent({ type: "submit", preventDefault() {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(fetcher).not.toHaveBeenCalled();
+    comment.value = "😀".repeat(1000);
+    const start = performance.now();
+    form.dispatchEvent({ type: "submit", preventDefault() {} });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(performance.now() - start).toBeLessThan(200);
+    expect(JSON.parse(requests[0]!)).toMatchObject({ rating: "down", category: "other", comment: "😀".repeat(1000) });
+    expect(container.querySelector('[data-action="feedback-down"]')?.getAttribute("aria-pressed")).toBe("true");
+  });
 
   it("renders copy and idempotent save actions for an assistant response", async () => {
     const dom = setupMockDOM(1440);

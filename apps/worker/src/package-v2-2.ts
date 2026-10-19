@@ -7,6 +7,9 @@ import {
   type NotebookOverview,
   type SourceGuide,
   type SourceRevisionPair,
+  createScopedContextEnvelope,
+  type ScopedContextProvider,
+  type ScopedContextEnvelope,
 } from "@everlast/contracts";
 import { getOverview, getSourceGuide, saveOverview, saveSourceGuide } from "@everlast/db";
 
@@ -24,6 +27,48 @@ export interface SourceReadRequest {
 }
 export interface PackageV22SourceReader {
   readReadySources(request: SourceReadRequest): Promise<ScopedSourceMaterial[]>;
+}
+
+export interface PackageV22SourceMetadata {
+  source_id: string;
+  revision: number;
+  title: string;
+  word_count: number;
+}
+
+export function createC02PackageV22SourceReader(input: {
+  provider: ScopedContextProvider;
+  validateScope: (userId: string, request: ScopedContextEnvelope) => Promise<{ snapshot: SourceRevisionPair[] }>;
+  getSourceMetadata: (notebookId: string, userId: string, scope: SourceRevisionPair[]) => Promise<PackageV22SourceMetadata[]>;
+}): PackageV22SourceReader {
+  return {
+    async readReadySources(request) {
+      const scope = [...request.source_revisions].sort((a, b) => a.source_id.localeCompare(b.source_id));
+      if (!scope.length || new Set(scope.map((pair) => pair.source_id)).size !== scope.length) throw new Error("C-02 requires a nonempty unique source scope");
+      const envelope = createScopedContextEnvelope({ notebook_id: request.notebook_id, active_source_ids: scope.map((pair) => pair.source_id), source_revisions: scope, principal: { subject: request.user_id }, purpose: "generation" });
+      const assertAuthorized = async () => {
+        const authorized = await input.validateScope(request.user_id, envelope);
+        const expected = scope.map((pair) => `${pair.source_id}:${pair.revision}`).sort();
+        const actual = authorized.snapshot.map((pair) => `${pair.source_id}:${pair.revision}`).sort();
+        if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error("C-02 source snapshot is stale or unauthorized");
+      };
+      await assertAuthorized();
+      const [chunks, metadata] = await Promise.all([
+        input.provider.getScopedContext(request.notebook_id, envelope.active_source_ids),
+        input.getSourceMetadata(request.notebook_id, request.user_id, scope),
+      ]);
+      const revisionById = new Map(scope.map((pair) => [pair.source_id, pair.revision]));
+      if (chunks.some((chunk) => revisionById.get(chunk.source_id) !== chunk.revision)) throw new Error("Source reader returned a chunk outside the requested scope");
+      const expected = scope.map((pair) => `${pair.source_id}:${pair.revision}`).sort();
+      const actual = metadata.map((source) => `${source.source_id}:${source.revision}`).sort();
+      if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error("Ready source metadata does not match the requested scope");
+      await assertAuthorized();
+      return scope.map((pair) => {
+        const source = metadata.find((item) => item.source_id === pair.source_id && item.revision === pair.revision)!;
+        return { ...source, chunks: chunks.filter((chunk) => chunk.source_id === pair.source_id && chunk.revision === pair.revision).map(({ chunk_id, text, source_id, revision }) => ({ chunk_id, text, source_id, revision })) };
+      });
+    },
+  };
 }
 export interface StructuredGenerationClient {
   generateSourceGuide(input: { source: ScopedSourceMaterial; output_language: string }): Promise<Pick<SourceGuide, "summary_md" | "key_topics" | "supporting_chunk_ids">>;
@@ -50,11 +95,13 @@ export async function generateSourceGuide(input: {
 }): Promise<SourceGuide> {
   const snapshot = [{ source_id: input.source_id, revision: input.revision }];
   const pending: SourceGuide = { notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision, status: "GuidePending", source_word_count: 0, summary_md: "Generation pending", key_topics: [], supporting_chunk_ids: [] };
-  await saveSourceGuide(pending);
+  let authorized = false;
   try {
     const sources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: snapshot });
     if (sources.length !== 1 || sources[0]?.source_id !== input.source_id || sources[0]?.revision !== input.revision) throw new Error("Source snapshot is not current and authorized");
     const source = sources[0]!;
+    authorized = true;
+    await saveSourceGuide(pending);
     if (source.chunks.some((chunk) => chunk.source_id !== input.source_id || chunk.revision !== input.revision)) throw new Error("Source reader returned chunks outside the requested revision");
     const wordCount = source.word_count || countWords(textOf(source));
     let generated: Awaited<ReturnType<StructuredGenerationClient["generateSourceGuide"]>> | undefined;
@@ -71,14 +118,19 @@ export async function generateSourceGuide(input: {
     }
     if (!generated) throw new Error("Source Guide generation returned no result");
     validateSupport(generated.supporting_chunk_ids, sources);
+    const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: snapshot });
+    assertExactScope(snapshot, currentSources);
+    validateSupport(generated.supporting_chunk_ids, currentSources);
     const ready = SourceGuideSchema.parse({
       notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision,
       status: "GuideReady", source_word_count: wordCount, ...generated, generated_at: new Date().toISOString(),
     });
     return await saveSourceGuide(ready);
   } catch (error) {
-    const failed: SourceGuide = { ...pending, status: "GuideFailed", error: error instanceof Error ? error.message : "Guide generation failed" };
-    await saveSourceGuide(failed);
+    if (authorized) {
+      const failed: SourceGuide = { ...pending, status: "GuideFailed", error: error instanceof Error ? error.message : "Guide generation failed" };
+      await saveSourceGuide(failed);
+    }
     throw error;
   }
 }
@@ -100,7 +152,9 @@ export async function generateNotebookOverview(input: {
   const cached = await getOverview(cacheKey);
   if (cached?.authorization_key === input.user_id) return cached;
   const result = await input.model.generateOverview({ sources, output_language: input.output_language });
-  validateSupport(result.supporting_chunk_ids, sources);
+  const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: scope });
+  assertExactScope(scope, currentSources);
+  validateSupport(result.supporting_chunk_ids, currentSources);
   return saveOverview(NotebookOverviewSchema.parse({ notebook_id: input.notebook_id, source_revisions: scope, authorization_key: createHash("sha256").update(input.user_id).digest("hex"), output_language: input.output_language, generation_parameters: parameters, cache_key: cacheKey, ...result, generated_at: new Date().toISOString() }));
 }
 
@@ -113,7 +167,9 @@ export async function generateFollowUps(input: {
   const sources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: input.source_revisions });
   assertExactScope(input.source_revisions, sources);
   const result = await input.model.generateFollowUps({ answer: input.answer, sources, output_language: input.output_language });
-  validateSupport(result.supporting_chunk_ids, sources);
+  const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: input.source_revisions });
+  assertExactScope(input.source_revisions, currentSources);
+  validateSupport(result.supporting_chunk_ids, currentSources);
   return FollowUpSuggestionsSchema.parse({ ...result, source_revisions: input.source_revisions, generated_at: new Date().toISOString() });
 }
 

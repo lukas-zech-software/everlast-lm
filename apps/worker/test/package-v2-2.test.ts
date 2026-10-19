@@ -56,6 +56,7 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     const overview = await generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });
     const changed = await generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "fr", reader, model });
     const otherOwner = await generateNotebookOverview({ notebook_id: notebook, user_id: "another-owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });
+    expect(overview.authorization_key).toMatch(/^[a-f0-9]{64}$/);
     expect(changed.cache_key).not.toBe(overview.cache_key);
     expect(otherOwner.cache_key).not.toBe(overview.cache_key);
     await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 4 }], output_language: "en", reader, model })).rejects.toThrow(/stale or incomplete/);
@@ -66,6 +67,25 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model, streaming: true })).rejects.toThrow(/after answer completion/);
     const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });
     expect(result.suggested_followups).toHaveLength(1);
+  });
+
+  it("meets deterministic local completion budgets and invalidates cached overview after scope revocation", async () => {
+    let authorized = true;
+    const revocableReader: PackageV22SourceReader = { readReadySources: async (request) => {
+      if (!authorized) throw new Error("C-02 authorization revoked");
+      return request.source_revisions.map((pair) => ({ ...material, source_id: pair.source_id, revision: pair.revision, chunks: material.chunks.map((item) => ({ ...item, source_id: pair.source_id, revision: pair.revision })) }));
+    } };
+    const within = async <T>(limitMs: number, operation: () => Promise<T>) => {
+      const start = performance.now();
+      const result = await operation();
+      expect(performance.now() - start).toBeLessThan(limitMs);
+      return result;
+    };
+    await within(10_000, () => generateSourceGuide({ notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language: "en", reader: revocableReader, model }));
+    await within(6_000, () => generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader: revocableReader, model }));
+    await within(1_000, () => generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader: revocableReader, model }));
+    authorized = false;
+    await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader: revocableReader, model })).rejects.toThrow(/revoked/);
   });
 
   it("schedules the guide callback only after ingestion reaches Ready", async () => {

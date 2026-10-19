@@ -22,4 +22,13 @@ SRS trace: `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`
 - `git diff --check` — **PASS** — no whitespace errors.
 - `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` — **PASS** — 6 files, 29 tests.
 
-The implementation uses injected authorized source readers, structured generation clients, and API dependencies. The Map-backed repository is a local/test adapter, not durable production persistence. No production enterprise model endpoint is configured; deterministic fake timings do not establish cloud P95 or regional/no-training compliance. Gate v2.0 #2 remains pending Package 2.3 FR-NM-03 note conversion and subsequent citation evidence.
+## Convergence implementation verification
+
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm exec vitest run packages/contracts/test/package-v2-2.test.ts packages/db/test/package-v2-2.test.ts apps/worker/test/package-v2-2.test.ts apps/worker/test/package-v2-2-context.test.ts apps/worker/test/package-v2-2-runtime.test.ts apps/api/test/package-v2-2.test.ts apps/web/test/source-guide.test.ts apps/web/test/source-list-loader.test.ts apps/web/test/saved-response-note.test.ts apps/web/test/source-selection.test.ts apps/web/test/package-v2-2.integration.test.ts` — **PASS** — 11 files, 53 tests.
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm typecheck` — **PASS** — TypeScript project references compile.
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm lint` — **PASS** — repository lint, integrity and TypeScript checks.
+- `node scripts/check-spec-integrity.mjs` — **PASS** — 98 Markdown files, 55 SRS links, 15 feature artifact sets.
+- `git diff --check` — **PASS** — clean.
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` — **PASS** — 6 files, 29 tests.
+
+The new local performance tests use injected deterministic readers/generators and verify the documented guide, overview, follow-up, copy/feedback and note-render budgets; they are not cloud P95 evidence. C-02 reader authorization and source revision are rechecked around reads/publication, and cached follow-ups are reauthorized against the submitted assistant snapshot. Runtime/API composition is dependency-injected; absent production source-list, grounded-chat, or model configuration fails closed. The Map-backed repository remains a local/test adapter, not durable production persistence. No production enterprise model endpoint is configured, so regional/no-training compliance and cloud P95 remain deployment evidence. Gate v2.0 #2 remains pending Package 2.3 FR-NM-03 note conversion and subsequent citation evidence.

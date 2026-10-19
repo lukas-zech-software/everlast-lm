@@ -11,13 +11,13 @@ Trace: `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`, `FR-NM-02`, `
 ## Focused validation
 
 ```sh
-pnpm exec vitest run packages/contracts/test/package-v2-2.test.ts packages/db/test/package-v2-2.test.ts apps/worker/test/package-v2-2.test.ts apps/api/test/package-v2-2.test.ts apps/web/test/source-guide.test.ts apps/web/test/package-v2-2.integration.test.ts
-pnpm typecheck
-pnpm lint
+env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm exec vitest run packages/contracts/test/package-v2-2.test.ts packages/db/test/package-v2-2.test.ts apps/worker/test/package-v2-2.test.ts apps/worker/test/package-v2-2-context.test.ts apps/worker/test/package-v2-2-runtime.test.ts apps/api/test/package-v2-2.test.ts apps/web/test/source-guide.test.ts apps/web/test/source-list-loader.test.ts apps/web/test/saved-response-note.test.ts apps/web/test/package-v2-2.integration.test.ts
+env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm typecheck
+env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm lint
 node scripts/check-spec-integrity.mjs
 ```
 
-Expected: all focused tests pass; invalid limits, empty scope, unsupported chunk IDs, stale revisions, authorization mismatches and duplicate note saves reject without publishing content.
+Expected: all focused tests pass; the worker runtime is built only from the canonical C-02 provider and fails closed without an injected model; invalid limits, empty scope, unsupported chunk IDs, stale revisions, authorization mismatches and duplicate note saves reject without publishing content.
 
 ## Acceptance scenarios
 

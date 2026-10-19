@@ -3,6 +3,7 @@ import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV22Store, saveSourceGuide } from "@everlast/db";
 import { handlePackageV22Route, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.js";
+import { handleChatRoute } from "../src/routes/chat.js";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";
@@ -90,10 +91,40 @@ describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-
     const message = "55555555-5555-4555-8555-555555555555";
     await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Supported answer", active_source_revisions_snapshot: [{ source_id: source, revision: 2 }] });
     const generateFollowUps = vi.fn(async ({ source_revisions }: { source_revisions: { source_id: string; revision: number }[] }) => ({ suggested_followups: ["What evidence supports it?"], supporting_chunk_ids: [chunk], source_revisions, generated_at: new Date().toISOString() }));
-    const call = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST" });
+    const call = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
     await handlePackageV22Route(call.req, call.res, "owner", { ...deps, generateFollowUps });
     expect(call.result().status).toBe(200);
+    expect(generateFollowUps).toHaveBeenCalledTimes(1);
     expect(generateFollowUps).toHaveBeenCalledWith({ notebook_id: notebook, user_id: "owner", answer: "Supported answer", source_revisions: [{ source_id: source, revision: 2 }] });
+    const cached = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
+    await handlePackageV22Route(cached.req, cached.res, "owner", { ...deps, generateFollowUps });
+    expect(cached.result().status).toBe(200);
+    expect(generateFollowUps).toHaveBeenCalledTimes(1);
+    const staleScope = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 1 }] } });
+    await handlePackageV22Route(staleScope.req, staleScope.res, "owner", { ...deps, generateFollowUps });
+    expect(staleScope.result().status).toBe(409);
+    expect(generateFollowUps).toHaveBeenCalledTimes(1);
   });
 
+  it("fails closed for authenticated chat turns when grounded runtime is unconfigured (FR-GC-01/02, C-02)", async () => {
+    const call = invoke(`/api/notebooks/${notebook}/chat/turns`, { method: "POST", body: { message: "Question", active_source_ids: [source] } });
+    await handleChatRoute(call.req, call.res, {}, "owner");
+    expect(call.result()).toMatchObject({ status: 503, body: { error: { code: "Unavailable" } } });
+  });
+
+});
+
+it("lists only owner-scoped source selection data and rejects cross-notebook records (FR-SI-02, C-02)", async () => {
+  const id = "66666666-6666-4666-8666-666666666666";
+  const listSources = vi.fn(async () => [{ id, notebook_id: notebook, title: "Brief", media_type: "application/pdf", status: "Ready", revision_id: 2 }]);
+  const good = invoke(`/api/notebooks/${notebook}/sources`);
+  await handlePackageV22Route(good.req, good.res, "owner", { ...deps, listSources });
+  expect(good.result()).toMatchObject({ status: 200, body: { sources: [{ id, status: "Ready", revision_id: 2 }] } });
+  expect(listSources).toHaveBeenCalledWith("owner", notebook);
+  const unavailable = invoke(`/api/notebooks/${notebook}/sources`);
+  await handlePackageV22Route(unavailable.req, unavailable.res, "owner", deps);
+  expect(unavailable.result()).toMatchObject({ status: 503, body: { error: { code: "Unavailable" } } });
+  const bad = invoke(`/api/notebooks/${notebook}/sources`);
+  await handlePackageV22Route(bad.req, bad.res, "owner", { ...deps, listSources: vi.fn(async () => [{ id, notebook_id: "77777777-7777-4777-8777-777777777777", title: "Leak", media_type: "application/pdf", status: "Ready", revision_id: 2 }]) });
+  expect(bad.result().status).toBe(403);
 });

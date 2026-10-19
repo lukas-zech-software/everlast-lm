@@ -45,8 +45,15 @@ export function createServer(options?: { service?: WorkspaceService; projectId?:
         };
         const featureHandled = await handlePackageV22Route(req, res, ownerContext.ownerId, packageV22);
         if (featureHandled) return;
-        const chatHandled = options?.chat ? await handleChatRoute(req, res, options.chat, ownerContext.ownerId) : false;
-        if (chatHandled) return;
+        if (/^\/api\/notebooks\/[0-9a-f-]{36}\/chat(?:\/|$)/i.test(url.pathname)) {
+          const notebookId = url.pathname.match(/^\/api\/notebooks\/([0-9a-f-]{36})\/chat/i)?.[1];
+          if (!notebookId || !(await service.getNotebook(ownerContext.ownerId, notebookId))) {
+            sendJson(res, 404, { error: { code: "NotFound", message: "Notebook not found" } });
+            return;
+          }
+          const chatHandled = await handleChatRoute(req, res, options?.chat ?? {}, ownerContext.ownerId);
+          if (chatHandled) return;
+        }
         const handled = await handleNotebookRoute(req, res, service, ownerContext.ownerId);
         if (!handled) {
           sendJson(res, 404, {

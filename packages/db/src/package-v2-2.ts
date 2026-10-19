@@ -3,17 +3,19 @@ import type {
   ChatConfiguration,
   MessageFeedback,
   MessageFeedbackInput,
+  FollowUpSuggestions,
   NotebookOverview,
   SavedResponseNote,
   SourceGuide,
 } from "@everlast/contracts";
-import { ChatConfigurationSchema, ChatMessageSchema, MessageFeedbackSchema, NotebookOverviewSchema, SavedResponseNoteSchema, SourceGuideSchema } from "@everlast/contracts";
+import { ChatConfigurationSchema, ChatMessageSchema, FollowUpSuggestionsSchema, MessageFeedbackSchema, NotebookOverviewSchema, PersistedMessageFollowUpsSchema, SavedResponseNoteSchema, SourceGuideSchema } from "@everlast/contracts";
 import { getChatMessages, persistChatMessage } from "./chat-history.js";
 
 const guideStore = new Map<string, SourceGuide>();
 const overviewStore = new Map<string, NotebookOverview>();
 const configStore = new Map<string, ChatConfiguration>();
 const feedbackStore = new Map<string, MessageFeedback>();
+const followUpStore = new Map<string, import("@everlast/contracts").PersistedMessageFollowUps>();
 const noteStore = new Map<string, SavedResponseNote>();
 const noteIdempotency = new Map<string, string>();
 const noteOperations = new Map<string, Promise<SavedResponseNote>>();
@@ -29,6 +31,7 @@ export function resetPackageV22Store(): void {
   overviewStore.clear();
   configStore.clear();
   feedbackStore.clear();
+  followUpStore.clear();
   noteStore.clear();
   noteIdempotency.clear();
   noteOperations.clear();
@@ -82,6 +85,26 @@ export async function saveMessageFeedback(input: MessageFeedbackInput & { notebo
   const validated = MessageFeedbackSchema.parse({ ...input, created_at: new Date().toISOString() });
   feedbackStore.set(feedbackKey(input.notebook_id, input.user_id, input.message_id), validated);
   return validated;
+}
+
+
+const followUpKey = (notebookId: string, userId: string, messageId: string) => `${notebookId}:${userId}:${messageId}`;
+
+export async function saveMessageFollowUps(input: { notebook_id: string; user_id: string; message_id: string; followups: FollowUpSuggestions }): Promise<FollowUpSuggestions> {
+  const messages = await getChatMessages(undefined, input.notebook_id, input.user_id);
+  const message = messages.find((candidate) => candidate.id === input.message_id && candidate.role === "assistant");
+  if (!message) throw new Error("Assistant message not found for user in notebook");
+  const expected = (message.active_source_revisions_snapshot ?? []).map((item) => `${item.source_id}:${item.revision}`).sort();
+  const actual = input.followups.source_revisions.map((item) => `${item.source_id}:${item.revision}`).sort();
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error("Follow-up snapshot does not match the assistant message snapshot");
+  const validated = FollowUpSuggestionsSchema.parse(input.followups);
+  const record = PersistedMessageFollowUpsSchema.parse({ notebook_id: input.notebook_id, user_id: input.user_id, message_id: input.message_id, suggestions: validated });
+  followUpStore.set(followUpKey(input.notebook_id, input.user_id, input.message_id), record);
+  return record.suggestions;
+}
+
+export async function getMessageFollowUps(notebookId: string, userId: string, messageId: string): Promise<FollowUpSuggestions | null> {
+  return followUpStore.get(followUpKey(notebookId, userId, messageId))?.suggestions ?? null;
 }
 
 export async function getMessageFeedback(notebookId: string, userId: string, messageId: string): Promise<MessageFeedback | null> {

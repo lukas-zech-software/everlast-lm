@@ -21,9 +21,10 @@ Each source read is performed through the injected existing `ScopedContextProvid
 | Method and path | Request / response | Rules |
 | :--- | :--- | :--- |
 | `GET /api/notebooks/{notebook_id}/sources/{source_id}/guide?revision={revision}` | SourceGuide or pending/failed state | Owner-authenticated; Ready source; guide read does not affect selection (`FR-SI-02`). |
+| `GET /api/notebooks/{notebook_id}/sources` | `{ sources: NotebookSourceSelection[] }` → owner-authorized notebook source records | Only notebook owner; Ready status/revision exposed to selection controller; no cross-notebook records (`FR-SI-02`, C-02). |
 | `POST /api/notebooks/{notebook_id}/overview` | `{ source_revisions: [{ source_id, revision }], output_language: BCP-47 }` → NotebookOverview | Empty scope rejected; exact scope/cache key; stale result not published (`FR-GC-04`, C-02). |
 | `GET/PUT /api/notebooks/{notebook_id}/chat/configuration` | ChatConfiguration → saved ChatConfiguration | Owner only; invalid Custom config retains saved value (`FR-GC-07`). |
-| `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/follow-ups` | `{}` → FollowUpSuggestions | Caller-owned completed assistant message; exact stored scope snapshot; stale snapshots fail closed (`FR-GC-05`, C-02). |
+| `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/follow-ups` | `{ source_revisions: SourceRevisionPair[] }` → FollowUpSuggestions | Caller-owned completed assistant message; submitted/current scope must equal its exact stored snapshot; re-authorize every Ready revision; persist by user/message and reject stale cached suggestions (`FR-GC-05`, C-02). |
 | `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/feedback` | `{ rating, category?, comment? }` → MessageFeedback | Message must be caller's own notebook assistant message; update unique user/message record (`FR-GC-09`). |
 | `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` | `{ notebook_id, message_id }` → `{ note: SavedResponseNote }` | Message must be caller's assistant message; owner-only; idempotent per authenticated user/message; citation links preserved (`FR-GC-09`, `FR-NM-02`). |
 
@@ -31,6 +32,7 @@ The route module receives repository/service dependencies and derives user ident
 
 ## Browser modules (`apps/web/src`)
 
+- Notebook shell loads and mounts owner-authorized `GET /sources` records, publishes initial and changed revision snapshots, and immediately clears empty-scope content (C-02).
 - Source Inspector renders a collapsible Source Guide before full source text and sends selected topics through the grounded chat turn callback (`FR-SI-02`).
 - Overview controller clears prior content synchronously on cache-key/scope change; starter prompts call the existing grounded chat turn callback (`FR-GC-04`).
 - Follow-up chips remain hidden while streaming and clear when scope changes; clicks call the next-turn callback (`FR-GC-05`).

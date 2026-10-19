@@ -10,6 +10,16 @@ const trimmedText = (min: number, max: number, label: string) =>
     `${label} must contain ${min}–${max} Unicode code points after trimming`
   );
 
+export const NotebookSourceSelectionSchema = z.object({
+  id: uuid,
+  notebook_id: uuid,
+  title: z.string().min(1),
+  media_type: z.enum(["application/pdf", "text/plain", "text/markdown", "copied_text"]),
+  status: z.enum(["Uploading", "Processing", "Ready", "Failed"]),
+  revision_id: z.number().int().positive(),
+}).strict();
+export type NotebookSourceSelection = z.infer<typeof NotebookSourceSelectionSchema>;
+
 export const SourceGuideStatusSchema = z.enum(["GuidePending", "GuideReady", "GuideFailed"]);
 export type SourceGuideStatus = z.infer<typeof SourceGuideStatusSchema>;
 
@@ -68,6 +78,14 @@ export const FollowUpSuggestionsSchema = z.object({
   if (result.suggested_followups.length > 0 && result.supporting_chunk_ids.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["supporting_chunk_ids"], message: "follow-up suggestions require supporting chunks" });
 });
 export type FollowUpSuggestions = z.infer<typeof FollowUpSuggestionsSchema>;
+
+export const PersistedMessageFollowUpsSchema = z.object({
+  notebook_id: uuid,
+  user_id: z.string().min(1),
+  message_id: uuid,
+  suggestions: FollowUpSuggestionsSchema,
+}).strict();
+export type PersistedMessageFollowUps = z.infer<typeof PersistedMessageFollowUpsSchema>;
 
 export const ChatStyleSchema = z.enum(["default", "learning_guide", "analyst", "custom"]);
 export const ResponseLengthSchema = z.enum(["default", "longer", "shorter"]);

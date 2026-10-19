@@ -16,7 +16,7 @@ const citation = {
 
 describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", () => {
   it("exports strict schemas for each package record", () => {
-    for (const name of ["SourceGuideSchema", "NotebookOverviewSchema", "ChatConfigurationSchema", "MessageFeedbackInputSchema", "SaveResponseNoteRequestSchema", "SavedResponseNoteSchema"]) {
+    for (const name of ["NotebookSourceSelectionSchema", "PersistedMessageFollowUpsSchema", "SourceGuideSchema", "NotebookOverviewSchema", "ChatConfigurationSchema", "MessageFeedbackInputSchema", "SaveResponseNoteRequestSchema", "SavedResponseNoteSchema"]) {
       expect((v22 as Record<string, unknown>)[name], name).toBeDefined();
     }
   });
@@ -46,6 +46,15 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
     expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: Array(4).fill("question") }).success).toBe(false);
     expect(v22.StarterPromptSchema.safeParse("🌱".repeat(120)).success).toBe(true);
     expect(v22.StarterPromptSchema.safeParse("🌱".repeat(121)).success).toBe(false);
+  });
+
+  it("validates source selection and persisted message follow-up envelopes", () => {
+    const sourceRecord = { id: source, notebook_id: notebook, title: "Brief", media_type: "application/pdf", status: "Ready", revision_id: 2 };
+    expect(v22.NotebookSourceSelectionSchema.safeParse(sourceRecord).success).toBe(true);
+    expect(v22.NotebookSourceSelectionSchema.safeParse({ ...sourceRecord, notebook_id: "not-a-uuid" }).success).toBe(false);
+    const suggestions = { suggested_followups: ["Explore evidence"], supporting_chunk_ids: [chunk], source_revisions: [{ source_id: source, revision: 2 }], generated_at: new Date().toISOString() };
+    expect(v22.PersistedMessageFollowUpsSchema.safeParse({ notebook_id: notebook, user_id: "owner", message_id: message, suggestions }).success).toBe(true);
+    expect(v22.PersistedMessageFollowUpsSchema.safeParse({ notebook_id: notebook, user_id: "owner", message_id: message, suggestions, other: true }).success).toBe(false);
   });
 
   it("validates configuration custom bounds and feedback empty/over-limit comments", () => {

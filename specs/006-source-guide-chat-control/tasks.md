@@ -113,13 +113,34 @@ Deliver the P1 Source Guide first, then P1 Overview and P1 response actions, whi
 
 ## Phase 9: Convergence
 
-- [ ] T037 Bind Package 2.2 worker source reads and publication rechecks to the canonical shared `ScopedContextProvider` contract; remove or adapt the unconnected package-specific reader boundary and prove exact Ready ID/revision/auth snapshots in worker tests per Constitution III/IV and C-02 (partial, CRITICAL).
-- [ ] T038 Complete Package 2.2 application composition for worker and API runtime: supply the authorized reader, injected structured generator, Ready-trigger scheduling, overview/follow-up dependencies, and authenticated chat route; verify the shell’s required endpoints are available with deterministic local adapters and fail closed without production configuration per FR-SI-02, FR-GC-01/02/04/05, C-02 (partial, CRITICAL).
-- [ ] T039 Load and mount the owner-authorized Ready source list and selection controller from the notebook shell; publish initial and subsequent exact revision snapshots to Source Guide, overview, and follow-up controllers per FR-SI-02, FR-GC-04/05, C-02 (partial, HIGH).
-- [ ] T040 Render the full saved-response note, title, and preserved citation links in the Right/Studio Panel after the stable `/note` response; cover zero-citation and idempotent repeat saves per FR-GC-09, FR-NM-02 (partial, HIGH).
-- [ ] T041 Persist follow-up suggestions with the latest assistant message and its source/revision snapshot; retrieve only current, authorized suggestions and invalidate them on scope changes per FR-GC-05, FR-020, C-02 (partial, HIGH).
-- [ ] T042 Render the required populated notebook identity and the “Add a source to get started” empty state, clearing it synchronously on scope/source deletion per FR-GC-04, FR-GC-06/07 (partial, MEDIUM).
-- [ ] T043 Add an optional 0–1,000 Unicode-code-point comment field to negative-feedback UI, submit it with the selected category, and retain the active rating state per FR-GC-09, FR-014 (partial, MEDIUM).
-- [ ] T044 Display the active style and response length (not a generic active-preferences label) in the chat header after configuration load/save per FR-GC-07, FR-010 (partial, MEDIUM).
-- [ ] T045 Add deterministic local timing and stale/revoked-scope cache tests for Source Guide, overview, follow-ups, copy/feedback, and saved-note rendering; document local-only evidence without claiming cloud P95 per SC-001–005, NFR-EVAL-04 (partial, MEDIUM).
-- [ ] T046 Flow the `source_word_count` DTO and hashed authorization partition refinements into `plan.md`, then refresh `analysis.md` for bidirectional traceability per Constitution I, CC-01 (partial, MEDIUM).
+### Tests (Red before implementation)
+
+- [X] T037 Write/run failing C-02 reader tests for exact principal, Ready IDs, revisions, foreign chunks and pre/post authorization changes in `apps/worker/test/package-v2-2-context.test.ts` (`C-02`, `NFR-EVAL-04`).
+- [X] T038 Write/run failing deterministic runtime composition and Ready-callback tests in `apps/worker/test/package-v2-2-runtime.test.ts` (`FR-SI-02`, `FR-GC-04/05`, `C-02`).
+- [X] T039 Write/run failing API tests for owner-authorized source listing, stale/current follow-up snapshots, persistence and unconfigured authenticated chat behavior in `apps/api/test/package-v2-2.test.ts` (`FR-SI-02`, `FR-GC-01/02/05`, `C-02`, `FR-WM-04/05`).
+- [X] T040 Write/run failing authorized source-list loading and shell scope-publication tests in `apps/web/test/source-list-loader.test.ts` and `apps/web/test/package-v2-2.integration.test.ts` (`FR-SI-02`, `FR-GC-04/05`, `C-02`).
+- [X] T041 Write/run failing full saved-note, citation-link, zero-citation and idempotent-render tests in `apps/web/test/saved-response-note.test.ts` (`FR-GC-09`, `FR-NM-02`).
+- [X] T042 Write/run failing repository tests for message-keyed, owner-isolated follow-up persistence and exact snapshot validation in `packages/db/test/package-v2-2.test.ts` (`FR-GC-05`, `C-02`).
+- [X] T043 Write/run failing optional negative-feedback comment tests for Unicode bounds, request payload and active rating in `apps/web/test/source-guide.test.ts` (`FR-GC-09`, FR-014).
+- [X] T044 Write/run failing preference-load/header-label tests and notebook identity/empty-state presentation tests in `apps/web/test/source-guide.test.ts` and `apps/web/test/package-v2-2.integration.test.ts` (`FR-GC-07`, FR-GC-04/06, FR-010).
+- [X] T045 Write/run failing deterministic local latency and revoked-scope-cache tests for guide, overview, follow-ups, copy/feedback and saved-note rendering in worker/web tests (`SC-001–005`, `NFR-EVAL-04`).
+- [X] T046 Add test assertions for the `source_word_count` generation rule, hashed authorization partition, canonical C-02 runtime, and stable note/follow-up contracts (`CC-01`, `FR-SI-02`, `FR-GC-04/05`).
+
+### Implementation (Green → Refactor)
+
+- [X] T047 Bind worker reads and publication rechecks to the shared `ScopedContextProvider`, caller principal, exact Ready ID/revision snapshot and metadata (`C-02`, `NFR-EVAL-04`).
+- [X] T048 Compose an injectable deterministic worker runtime and Ready callback; make unconfigured generation and authenticated chat fail closed (`FR-SI-02`, `FR-GC-01/02/04/05`, `C-02`, `FR-WM-04/05`).
+- [X] T049 Add owner-authorized source-list API and mount the selection controller in the shell; publish initial/changed revision snapshots without mutating chat selection when a Source Guide is opened (`FR-SI-02`, `FR-GC-04/05`, `C-02`).
+- [X] T050 Render the complete saved response, title and citation links in Studio; replace duplicate idempotent note renders (`FR-GC-09`, `FR-NM-02`).
+- [X] T051 Persist follow-up metadata by authenticated owner/notebook/message with the exact assistant snapshot; reauthorize current Ready revisions before returning a cached suggestion (`FR-GC-05`, C-02).
+- [X] T052 Display populated notebook identity/source count and the correct empty state; clear synchronously on empty scope or source deletion (`FR-GC-04/06/07`).
+- [X] T053 Add the optional 0–1,000 Unicode-code-point feedback comment form and retain the active rating (`FR-GC-09`, FR-014).
+- [X] T054 Load and display the specific active chat style and response length after configuration load/save (`FR-GC-07`, FR-010).
+- [X] T055 Record local-only timing/cache evidence and refresh the focused quickstart/validation documentation without claiming cloud P95 (`SC-001–005`, `NFR-EVAL-04`).
+- [X] T056 Flow runtime/DTO refinements into plan/contracts/data model and refreshed analysis; all convergence findings resolved (`CC-01`).
+
+## Dependencies and execution order
+
+- Tests T037–T045 precede implementation T047–T055. Documentation/analysis T046 and T056 close the traceability loop; all phase tasks are complete.
+- Original Package 2.2 tasks T001–T036 remain unchanged and complete. Every task cites its SRS/constitution gate, and all task references outside this file use `[006-source-guide-chat-control] Tnnn`.
+- Package 2.3 owns note conversion and the full Gate v2.0 #2 roundtrip. This feature implements the shared FR-GC-09/FR-NM-02 note contract only.
