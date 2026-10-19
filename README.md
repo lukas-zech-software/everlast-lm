@@ -5,37 +5,97 @@
 <sub>**[1]** Everlast LM is an independent coding-challenge project. It is not affiliated with, endorsed by, or sponsored by Google, Everlast, or any other trademark owner. "Gemini Notebook" and "NotebookLM" are used only to describe the reference behaviour. All trademarks, copyrights and other intellectual property referenced in this repository belong to their respective owners and are used for identification and descriptive purposes only.</sub>
 
 <p>
+  <a href="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml"><img alt="Spec integrity" src="https://github.com/lukas-zech-software/everlast-lm/actions/workflows/spec-integrity.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/lukas-zech-software/everlast-lm?color=blue"></a>
   <a href="https://github.com/lukas-zech-software/everlast-lm/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/lukas-zech-software/everlast-lm"></a>
   <a href="https://github.com/lukas-zech-software/everlast-lm/issues"><img alt="Open issues" src="https://img.shields.io/github/issues/lukas-zech-software/everlast-lm?label=roadmap%20issues"></a>
-  <a href="https://github.com/lukas-zech-software/everlast-lm/milestones"><img alt="Milestones" src="https://img.shields.io/github/milestones/open/lukas-zech-software/everlast-lm?label=release%20milestones"></a>
   <a href="https://github.com/users/lukas-zech-software/projects/2"><img alt="Roadmap" src="https://img.shields.io/badge/roadmap-GitHub%20Project-24292f?logo=github"></a>
 </p>
 <p>
-  <img alt="Phase" src="https://img.shields.io/badge/phase-specification%20complete-2ea44f">
-  <img alt="Implementation" src="https://img.shields.io/badge/implementation-not%20started-lightgrey">
+  <a href="docs/gate-v1-live-evaluation.md"><img alt="Gate v1.0" src="https://img.shields.io/badge/Gate%20v1.0-passed-2ea44f"></a>
+  <img alt="Implementation" src="https://img.shields.io/badge/implementation-v1%20done%20%C2%B7%20v2%20in%20review-yellow">
+  <img alt="Deployment" src="https://img.shields.io/badge/deployment-infra%20only-lightgrey">
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
-  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v1.1.0-informational"></a>
+  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v2.0.0-informational"></a>
   <a href="https://github.com/github/spec-kit"><img alt="Spec Kit" src="https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue?logo=github"></a>
-  <a href="https://www.conventionalcommits.org"><img alt="Conventional Commits" src="https://img.shields.io/badge/commits-conventional-fe5196"></a>
 </p>
 <p>
-  <img alt="Agents" src="https://img.shields.io/badge/agents-Antigravity%20%C2%B7%20Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Copilot-8a2be2">
-  <img alt="ACP" src="https://img.shields.io/badge/connected%20via-Agent%20Client%20Protocol-8a2be2">
-  <img alt="TypeScript" src="https://img.shields.io/badge/planned-TypeScript-3178C6?logo=typescript&logoColor=white">
-  <img alt="Google Cloud" src="https://img.shields.io/badge/target-Google%20Cloud%20%C2%B7%20europe--west4-4285F4?logo=googlecloud&logoColor=white">
-  <img alt="Gemini" src="https://img.shields.io/badge/models-Gemini%20on%20Agent%20Platform-8E75B2?logo=googlegemini&logoColor=white">
+  <img alt="Agents" src="https://img.shields.io/badge/agents-Claude%20Code%20%C2%B7%20Codex%20%C2%B7%20Antigravity%20%C2%B7%20Gemini%20CLI-8a2be2">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-Node%2024-3178C6?logo=typescript&logoColor=white">
+  <img alt="Google Cloud" src="https://img.shields.io/badge/Google%20Cloud-europe--west4-4285F4?logo=googlecloud&logoColor=white">
+  <img alt="Gemini" src="https://img.shields.io/badge/models-Gemini%20on%20Vertex%20AI-8E75B2?logo=googlegemini&logoColor=white">
   <img alt="PostgreSQL" src="https://img.shields.io/badge/retrieval-Postgres%20%2B%20pgvector-4169E1?logo=postgresql&logoColor=white">
+  <img alt="OpenTofu" src="https://img.shields.io/badge/IaC-OpenTofu-FFDA18?logo=opentofu&logoColor=black">
 </p>
 
 > **The challenge:** *"Build a NotebookLM clone. Implementation, scope and structure are up to you."*
 >
-> **What I did:** I treated it as a real product rather than a demo. First the full reference product was turned into a
-> formal requirements specification that coding agents can work from. Then a project constitution, a binding solution
-> architecture, release gates and a GitHub roadmap were written so that **several coding agents can implement it in
-> parallel, test-first, and with little supervision**. This repository is the result of that phase. Almost every file
-> in it was written by coding agents. My job was steering, reviewing and making decisions.
+> **What I did:** I treated it as a real product rather than a demo. The reference product was first turned into a
+> formal requirements specification. A constitution, a binding architecture, release gates, a GitHub roadmap and
+> automated infrastructure followed, so that coding agents could build it test-first with little supervision. Then
+> agents implemented the first release and passed its quality gate against the live Gemini models. Almost every file
+> here was written by coding agents. My job was steering, reviewing and making decisions.
+
+---
+
+## Timeline
+
+Five days, from the first requirements document to a passed v1 release gate. Each phase built on the one before.
+
+| Date | Phase | What was introduced |
+| :- | :- | :- |
+| 2026-10-15 | 1. Requirements gathering | SRS with 55 requirement IDs, 6 releases and 6 release gates; constitution v1.0.0 |
+| 2026-10-16 | 2. Refining the requirements | 53 FR cards (EARS + Gherkin), GitHub roadmap with 89 issues, two audits, decisions D1–D13 |
+| 2026-10-17 | 3. Breaking out the infrastructure | Every package mapped to Google Cloud resources; OpenTofu chosen (D14) |
+| 2026-10-17 | 4. Lining everything up | Constitution v1.1.0 / v1.2.0 with executable gate checks and flow-back; Spec Kit pipeline and templates |
+| 2026-10-17/18 | 5. Infrastructure, automated | OpenTofu modules, policy tests, plan/apply workflow, dev environment provisioned, FinOps tooling |
+| 2026-10-18 | 6. First v1 implementation | Spec Kit specs, plans and tasks for packages 1.1–1.4; a 23,000-line implementation PR |
+| 2026-10-19 | 7. Convergence and Gate v1.0 | Gap check found the v1 build mostly stubbed; rewrite on real dependencies; constitution v2.0.0; D15; **Gate v1.0 passed** on Vertex AI |
+| 2026-10-19 | 8. v2 in parallel | Packages 2.1–2.4 built by parallel sessions and merged; package 3.1 specification under review |
+
+**1. Requirements gathering.** The Gemini web app broke the reference product into functions. That became the
+[SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md): six domains, 55 IDs, four measurable quality
+metrics, three architectural contracts (`C-01`..`C-03`) and one gate per release. The same day a constitution fixed
+the non-negotiables: traceability, test-first, grounding, contracts, gates, and EU data residency.
+
+**2. Refining the requirements.** Each requirement was expanded into an FR card with numbers, states, error cases and
+acceptance scenarios. The SRS was turned into a GitHub project with 89 issues. Two audits followed: issues against
+the cards (23 drifted issues fixed) and a [consistency audit](docs/requirements-consistency-audit.md) of all
+19 packages against SRS, constitution and architecture. Every audit found real contradictions. Their resolutions
+became architecture decisions D1–D13 and the deviation log `DEV-01`..`DEV-03`.
+
+**3. Breaking out the infrastructure.** The [architecture](docs/solution-architecture.md) was checked package by
+package: which Google Cloud resource each requirement needs, in which region, with which identity. This produced the
+v1 resource list (Cloud Run, Cloud SQL with pgvector, Cloud Storage, Cloud Tasks, Secret Manager, Document AI,
+Identity Platform) and decision D14, OpenTofu instead of Terraform.
+
+**4. Lining everything up.** Constitution v1.1.0 turned the principles into an 8-point gate table (`CC-01`..`CC-08`)
+that every Spec Kit stage checks. Project templates force SRS citations and test-first task order. v1.2.0 added
+*flow-back*: what implementation learns must be written back into spec, plan, FR card, SRS or a decision. `AGENTS.md`
+gained the rules for parallel agent sessions in separate worktrees.
+
+**5. Infrastructure, automated.** [`infra/`](infra/README.md) holds OpenTofu modules, one release stack and three
+environments, all keyless (Workload Identity Federation). A GitHub workflow plans on every PR and applies behind
+protected environments. Billable APIs stay off until the owner approves. The dev environment was provisioned in
+`europe-west4`, together with scripts that show cost and status and stop the database when it is idle. Three region
+assumptions failed here (see [Lessons](#lessons-assumptions-that-did-not-hold)).
+
+**6. First v1 implementation.** Spec Kit produced spec, plan, checklists and tasks for packages 1.1–1.4. One agent
+session then delivered all four packages in a single 23,000-line PR. It reported every task done and every test
+green.
+
+**7. Convergence and Gate v1.0.** `/speckit-converge` compared the code with the specs and found 29 gaps. The
+"database" was in-memory, the login check did not verify signatures, the model adapter invented answers, and the eval
+script printed hardcoded passing metrics. All four packages were rebuilt on PostgreSQL, real RS256 tokens, the ADK
+chat agent and a real evaluation pipeline, and the earlier evidence was marked as superseded. Constitution v2.0.0
+changed how often the expensive model-judged evals run. D15 moved canonical source text into Postgres. The live
+evaluation on Vertex AI passed on the third run; the [stakeholder report](docs/gate-v1-live-evaluation.md) explains
+the method, the two failed runs and the results.
+
+**8. v2 in parallel.** While v1 was being converged, other sessions specified and implemented the four v2 packages
+(workspace comfort, Source Guide and chat control, notes, text reports) and merged them. They were built on the
+earlier v1 code, so they have to be re-verified on the converged code base (see [Status](#status-what-is-missing-for-a-first-usable-prototype)).
 
 ---
 
@@ -43,76 +103,257 @@
 
 1. [At a glance](#at-a-glance)
 2. [The approach](#the-approach)
-3. [Repository map](#repository-map)
-4. [Source of truth](#source-of-truth)
-5. [Requirements: how deep the specification goes](#requirements-how-deep-the-specification-goes)
-6. [The constitution](#the-constitution)
-7. [Target architecture](#target-architecture)
-8. [Spec Kit workflow](#spec-kit-workflow)
-9. [Built for many agents at once](#built-for-many-agents-at-once)
+3. [Requirements](#requirements)
+4. [The constitution](#the-constitution)
+5. [Architecture](#architecture)
+6. [Infrastructure](#infrastructure)
+7. [Implementation](#implementation)
+8. [Quality gates and evaluation](#quality-gates-and-evaluation)
+9. [Working with many agents](#working-with-many-agents)
 10. [GitHub project and roadmap](#github-project-and-roadmap)
 11. [How this repository was built](#how-this-repository-was-built)
-12. [Next steps: independent agent sessions in the cloud](#next-steps-independent-agent-sessions-in-the-cloud)
-13. [Status: what is missing before implementation starts](#status-what-is-missing-before-implementation-starts)
+12. [Lessons: assumptions that did not hold](#lessons-assumptions-that-did-not-hold)
+13. [Repository map](#repository-map)
+14. [Status: what is missing for a first usable prototype](#status-what-is-missing-for-a-first-usable-prototype)
 
 ---
 
 ## At a glance
 
-| Area | What is in place |
+| Area | State |
 | :- | :- |
-| **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) in 6 functional domains, plus 3 architectural contracts (`C-01`..`C-03`) |
-| **Releases** | 6 incremental releases (v1.0 MVP to v6.0 Enterprise), 19 function packages, 6 automated release gates |
-| **FR cards** | 53 detailed requirement cards: **150 EARS statements**, **96 Gherkin acceptance scenarios**, about 36,000 words |
-| **Architecture** | 13 recorded decisions (`D1`..`D13`), 3 documented spec deviations (`DEV-01`..`DEV-03`), 8 tracked risks |
-| **Governance** | Constitution v1.1.0 with 6 principles and 8 executable gate checks (`CC-01`..`CC-08`), test-first marked non-negotiable |
-| **Agent tooling** | GitHub Spec Kit (`agy` / `.agents/skills` and `.github/skills`), `git` + `github` extensions, and `pipeline` workflow; one shared `AGENTS.md` |
-| **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2) with 89 issues, 6 milestones, 3 views |
-| **Application code** | None yet, on purpose. See [Status](#status-what-is-missing-before-implementation-starts) |
+| **Requirements** | 55 IDs in 6 domains, 3 contracts, 6 releases, 19 packages, 53 FR cards with 150 EARS statements and 96 Gherkin scenarios |
+| **Governance** | Constitution v2.0.0: 6 principles, 8 gate checks (`CC-01`..`CC-08`), test-first non-negotiable |
+| **Architecture** | 15 decisions (`D1`..`D15`), 3 accepted deviations (`DEV-01`..`DEV-03`) |
+| **Infrastructure** | OpenTofu modules + stack + 3 environments; dev environment provisioned in `europe-west4`; app image not deployed yet |
+| **v1.0 (MVP)** | Packages 1.1–1.4 implemented; **Gate v1.0 passed** on 2026-10-19 |
+| **v2.0** | Packages 2.1–2.4 implemented and merged; re-verification and Gate v2.0 pending |
+| **Tests (v1)** | 320 unit/integration tests on real PostgreSQL, 30 browser journeys, 222-case deterministic eval on every PR |
+| **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2): 89 issues, 6 milestones |
 
 ---
 
 ## The approach
 
-Coding agents are fast and consistent, but they fill every gap in a requirement with their own guess. The cheapest way
-to get correct results from them is to remove the gaps first. That means a classic, almost waterfall-like order:
-analyse the requirements completely, write them down formally, and derive everything else from that document. It is a
-little ironic that the newest technology brings back the oldest planning method.
-
-The pipeline this repository is built for:
+Coding agents are fast, but they fill every gap in a requirement with a guess. The cheapest way to get correct
+results is to remove the gaps first: analyse the requirements completely, write them down formally, and derive
+everything else from that. The newest technology brings back the oldest planning method.
 
 ```mermaid
 flowchart LR
-    A["Reference product<br/>(Gemini Notebook)"] --> B["SRS<br/>55 requirement IDs"]
+    A["Reference product"] --> B["SRS<br/>55 IDs"]
     B --> C["FR cards<br/>EARS + Gherkin"]
     C --> D["Spec Kit spec<br/>per package"]
-    D --> E["plan.md<br/>Constitution Check"]
-    E --> F["tasks.md<br/>tests first"]
-    F --> G["Failing tests<br/>(Red)"]
-    G --> H["Agent implements<br/>in a sandbox (Green)"]
-    H --> I["Release gate<br/>automated evals"]
-    I -->|"Gate v(k) passes"| D
+    D --> E["plan + tasks<br/>tests first"]
+    E --> F["Agent implements<br/>Red → Green"]
+    F --> G["Converge<br/>spec vs. code"]
+    G -->|gaps| F
+    G --> H["Release gate<br/>live evals"]
+    H -->|"Gate v(k) passes"| D
 ```
 
-Key ideas:
+- **The specification is the single source of truth.** Specs, plans, tasks and tests cite a requirement ID. Behaviour
+  without an ID is not built.
+- **Tests come from the spec, not from the code.** They are written first and seen to fail. They define "done" for an
+  unsupervised agent.
+- **Completion claims are not evidence.** Phase 7 showed that a green report can hide stubs. A separate convergence
+  pass and evidence from real dependencies now decide what counts as done.
+- **Every release is a runnable product.** Releases build on each other through stable contracts.
 
-- **The specification is the single source of truth.** Specs, plans, tasks and tests must cite a requirement ID.
-  Behaviour that cannot be traced to an ID is not built.
-- **Tests come from the spec, not from the code.** For every requirement, spec-derived tests are written and seen to
-  fail before any implementation starts. They prove that an unsupervised agent built the right thing.
-- **Agents run in sandboxes.** Because the tests define "done", an implementation agent can run with relaxed
-  permissions, but only in an isolated sandbox without production credentials.
-- **Every release is a runnable product.** The six releases build on each other through stable contracts, so a later
-  release never has to break an accepted one.
+I had worked this way before AI agents existed: at CHECK24 we moved a team from user stories to executable Gherkin
+specifications. Agents make it much cheaper, because writing and maintaining the specification is now the fast part.
 
-I had worked this way before AI coding agents existed: at CHECK24 we moved a development workflow from user stories to
-executable Gherkin specifications. Agents make the approach much cheaper, because writing and maintaining the
-specification is now the fast part.
+---
 
-> **A note on scope and cost.** The challenge set no limits on scope or time. I used that freedom to use current
-> technology (ADK for TypeScript, Gemini on Agent Platform, pgvector hybrid search) and to evaluate tools I had wanted
-> to try for a while. For a real client project, parts of this would need a separate evaluation, because some Google
-> Cloud agent components are still in beta and running costs were not optimised beyond "scale to zero".
+## Requirements
+
+The [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) is the index: every function has an ID, every
+release has a gate, and the quality targets are measurable. Hallucination below 5 % (`NFR-EVAL-01`), citation
+precision of 1.0 (`NFR-EVAL-02`), at least 99 % refusals of out-of-source questions (`NFR-EVAL-03`) and zero leakage
+from deselected sources (`NFR-EVAL-04`).
+
+The [FR cards](spec/requirements/README.md) hold the binding detail: limits with numbers, states, error messages and
+Gherkin scenarios that become tests. `Unknown` is allowed, guessing is not. An example of the depth needed: a
+deselected source must not leak back through *chat history*, a case a simple leakage test would miss.
+
+Cards are reviewed before they are specified, because every detail becomes a test the build must pass. Every review
+found real problems: dropped requirements, clashes with decisions, "A or B" wording that cannot be tested. The SRS and
+issues are in German (the challenge was set in German); everything else is in English.
+
+---
+
+## The constitution
+
+[`constitution.md`](.specify/memory/constitution.md) overrides every other document and is checked at every Spec Kit
+stage through gates `CC-01`..`CC-08`.
+
+| # | Principle | In one line |
+| :-: | :- | :- |
+| I | Spec Traceability | Everything cites an SRS ID; FR card limits are copied verbatim |
+| II | **Test-First (non-negotiable)** | Spec-derived tests fail first; they may not be weakened without an SRS amendment |
+| III | Grounding and Scoping | Only selected, ready sources; citations validated before an answer is published |
+| IV | Architectural Contracts | `C-01`..`C-03` defined once; breaking changes need an amendment and migration |
+| V | Release Gates | v(k+1) is implemented only after Gate v(k) passes |
+| VI | Security, Quotas and Residency | Enterprise EU endpoints, no developer API keys, atomic quotas |
+
+Versions so far: 1.0.0 (ratified), 1.0.1 (FR cards binding), 1.1.0 (gate table), 1.2.0 (flow-back), 2.0.0
+(model-judged evals once per release gate instead of on every PR).
+
+---
+
+## Architecture
+
+Full document: [`docs/solution-architecture.md`](docs/solution-architecture.md). A lean, serverless TypeScript
+monorepo in which everything scales to zero except one Postgres instance.
+
+```mermaid
+graph LR
+    U([SPA]) -->|OIDC + SSE| API["everlast-api<br/>auth · routes · ADK chat agent"]
+    API --> SCP["C-02 ScopedContextProvider"]
+    API -->|Cloud Tasks| WRK["everlast-worker<br/>ingestion · cleanup · Studio"]
+    WRK --> SCP
+    SCP -->|"hybrid search + hard source filter"| SQL[("Cloud SQL Postgres<br/>pgvector · FTS · source text")]
+    API --> GEM["Gemini on Vertex AI<br/>europe-west4"]
+    WRK --> GEM
+    WRK --> DAI["Document AI OCR<br/>EU"]
+    API --> GCS[("Cloud Storage<br/>raw uploads")]
+```
+
+| Decision | Choice |
+| :- | :- |
+| D1 Retrieval | pgvector + full-text search with Reciprocal Rank Fusion in Cloud SQL. We own chunk IDs, so citation precision and zero leakage hold by construction |
+| D2 Language | TypeScript end-to-end; contracts as shared Zod schemas |
+| D3 Residency | EU by default, with a recorded per-service region map |
+| D4 Operating model | Cloud Run + one Postgres, scale to zero |
+| D5, D7, D8, D10 | Scope changes: `@Notebook` deferred, single-host live voice, no Google Slides export, audio links in v6 |
+| D6 Identity | Generic OIDC/SAML through Identity Platform until an IdP is chosen |
+| D9, D11, D12 | Deterministic SVG infographics; Docs/Slides import via Drive; large contexts processed over all original chunks |
+| D13 Citation validation | An answer is checked completely before it is shown; status events may stream meanwhile |
+| D14 IaC | OpenTofu |
+| D15 Source text | Canonical page text in Postgres, committed with the chunks, so deletion is immediate and atomic |
+
+Only parts that must make choices are agents (grounded chat, research, note assistant). Ingestion and every Studio
+generator are plain deterministic jobs, which keeps latency, cost and randomness down.
+
+---
+
+## Infrastructure
+
+[`infra/`](infra/README.md) is OpenTofu in three layers: domain modules (services, identity, storage, database,
+queues, compute), one release stack (`v1_foundation`) and environment roots for `dev`, `staging` and `prod`.
+Policy rules, such as a private EU bucket that purges immediately, are checked by `tofu test`.
+
+Everything is keyless. GitHub Actions authenticate through Workload Identity Federation, Cloud Run uses service
+accounts, and Cloud SQL uses IAM database login. `opentofu.yml` plans on every PR and applies only from `main` or
+behind a protected environment. Enabling a billable API needs the owner's approval.
+
+The dev environment exists: Cloud Run services for API and worker, Cloud SQL Postgres 16 with pgvector, two Cloud
+Tasks queues, the bucket, Secret Manager and a Document AI processor. The FinOps scripts (`infra:status`, warm-up,
+stopping the database) keep the fixed cost near zero. The database is currently stopped. **Cloud Run still runs
+Google's placeholder image**; the application has not been deployed yet.
+
+---
+
+## Implementation
+
+A pnpm monorepo running TypeScript directly on Node 24, without a build step for the backend.
+
+| Part | What it does |
+| :- | :- |
+| `apps/api` | HTTP API and the SPA host: Identity Platform token checks, notebooks, uploads, grounded chat over SSE |
+| `apps/worker` | Ingestion (PDF via pdfjs, OCR via Document AI, chunking, embeddings), deletion cleanup, Studio jobs |
+| `apps/web` | Vanilla TypeScript SPA: three-panel workspace, source inspector, chat with clickable citations |
+| `packages/contracts` | Zod schemas for `C-01`..`C-03` and the API |
+| `packages/db` | PostgreSQL schema and migrations, locking, job outbox, hybrid retrieval (`C-02`) |
+| `packages/cloud` | Adapters for Cloud Storage, Vertex AI embeddings and Document AI, with labelled local doubles |
+| `packages/evals` | Synthetic corpus, 222-case golden dataset, LLM judge, metrics and gate reports |
+| `packages/testkit` | Test-only fixtures, such as a PDF builder |
+
+v1 lets a user sign in, create notebooks, upload PDF, Markdown and text, inspect a source, and ask questions that
+are answered only from the selected sources. Every claim carries a numbered citation that scrolls to the exact
+passage. If the sources do not contain the answer, the assistant says so. One container image runs as API or worker.
+Locally, `pnpm db:test:up` starts Postgres with pgvector in Docker and `pnpm dev` starts API, worker and SPA.
+
+---
+
+## Quality gates and evaluation
+
+Two kinds of checks, with different costs:
+
+- **On every PR** (CI, no cloud access): lint, typecheck, unit and integration tests against real PostgreSQL, browser
+  journeys, and the deterministic eval. It runs all 222 golden cases for citation precision and leakage, plus an attack
+  run with a model that tries to cite passages it was never given.
+- **Once per release gate** (Vertex AI): the model-judged suite. Gemini 2.5 Flash answers, Gemini 2.5 Flash-Lite
+  judges hallucination, citation support and refusals, on a fixed, representative 50-case sample. A data-protection
+  preflight confirms enterprise endpoints, EU regions and that no developer API key is present.
+
+Gate v1.0 passed on 2026-10-19: 0 % hallucination, 100 % citation precision and support, 100 % refusals, zero
+leakage, and citation clicks landing on the exact passage (95th percentile 54 ms). The
+[stakeholder report](docs/gate-v1-live-evaluation.md) explains why the live run is needed, how it was done, the two
+failed runs before it, and one gap: half of the answerable multi-document questions were declined instead of
+answered. Raw evidence: [gate report](specs/004-ui-skeleton-quality-gates/evidence/eval-report-v1.md).
+
+---
+
+## Working with many agents
+
+[`AGENTS.md`](AGENTS.md) is the one manual every agent reads; `CLAUDE.md` imports it and Gemini CLI points at it.
+
+- **One worktree per session.** Every piece of work starts in its own Git worktree and branch, never on `main`.
+- **One package per branch.** A release is split into its packages. Dependent packages run one after another, each
+  branching from the previous one's result; only independent packages may run in parallel.
+- **Pinned feature context.** Each session pins its Spec Kit feature in `.specify/feature.json`, so parallel sessions
+  never write into each other's specs.
+- **Serialised shared files.** SRS, constitution, architecture, contracts, CI and infrastructure have one owner at a
+  time and are merged before dependent work.
+- **Pipeline with a final review.** The [pipeline workflow](.specify/workflows/pipeline/workflow.yml) runs
+  specify → clarify → plan → tasks → analyze → implement → converge; a
+  [verification overlay](docs/spec-kit-workflow-overlays.md) adds a closing convergence check and a human review.
+
+---
+
+## GitHub project and roadmap
+
+The [roadmap project](https://github.com/users/lukas-zech-software/projects/2) was generated from the SRS: one roadmap
+issue, 19 package epics, 57 requirement issues, 3 contract issues, 3 technical tasks and 6 gate issues, with one
+milestone per release. Each issue carries acceptance criteria, test notes, dependencies and a link to its FR card. An
+audit against the later FR cards found and fixed 23 drifted issues. Labels such as `spec-drift` and
+`needs-clarification` keep that visible.
+
+---
+
+## How this repository was built
+
+Apart from small tooling files such as `.gitignore`, no file here was written by hand.
+
+| Tool | Used for |
+| :- | :- |
+| **Gemini** (web app with Canvas) | First breakdown of the reference product into requirement IDs |
+| **Antigravity** | Google Cloud resource and architecture design |
+| **Codex**, **Gemini CLI**, **OpenCode** (Muse) via ACP in JetBrains Air | Requirements analysis, specs, infrastructure and implementation sessions |
+| **GitHub Copilot** | Coding agent and autofix on the implementation and infrastructure PRs |
+| **Claude Code** (Opus) | Constitution amendments, card reviews, audits, convergence of v1, the live gate run, commits and PRs |
+
+What made it work: GitHub Spec Kit instead of free-form prompting; one shared `AGENTS.md`; agent skills for repeatable
+procedures; MCP servers for live GitHub and documentation context; conventional commits with co-author trailers.
+All agents run on personal subscription plans, so long runs happen one after another rather than as a large fan-out.
+
+---
+
+## Lessons: assumptions that did not hold
+
+| Assumption | What happened | What changed |
+| :- | :- | :- |
+| A green agent report means the work is done | The first v1 PR passed its own tests with in-memory stores, unsigned tokens, invented answers and hardcoded eval metrics | Convergence against the spec, evidence from real dependencies, test doubles labelled in code, earlier evidence marked superseded |
+| Release gates are respected because the rules say so | v2 was built and merged while Gate v1.0 was still open, trusting the stubbed eval output | Gates need enforcement in CI and branch rules, not only in documents |
+| Parallel sessions integrate cleanly | v2 was built on the pre-convergence v1 code; merging the two touches 21 conflicting files | Strict merge order and rebasing on the latest gate-passing base |
+| Judged evals can run on every PR | Too slow and costly, and they need cloud credentials in CI | Constitution v2.0.0: once per release gate on a fixed 50-case sample; deterministic checks stay on every PR |
+| A managed RAG service fits | Vertex RAG Engine needed an always-on Spanner instance and had no TypeScript SDK | D1: pgvector + full-text search in the one Postgres |
+| Everything runs in `europe-west4` | Cloud Tasks is not offered there; Document AI only in the EU multi-region | Recorded region map (D3): `europe-west1` for queues, `eu` for OCR |
+| Source text can live in Cloud Storage | A second purge path, not atomic with publishing a source | D15: canonical text in Postgres |
+| The LLM judge is ground truth | It failed correct answers twice: a test PDF rendered "€" as "?", and "its budget" was judged without context | Fixture fixed, claim sentences name their subject, judge sees prior sentences for reference only. Thresholds unchanged |
+| Passing the gate means the product answers well | Gate measures safety, not coverage: 7 of 14 answerable multi-document questions were declined | Multi-hop retrieval and an answer-coverage metric are next |
+| Developer shells are clean | Consumer Gemini API keys in shell profiles tripped the data-protection preflight | Evals and agents run with those variables unset |
 
 ---
 
@@ -120,373 +361,42 @@ specification is now the fast part.
 
 ```text
 everlast-lm/
-├── README.md                     ← you are here
-├── AGENTS.md                     ← shared operating manual for every coding agent (workflow, ownership, isolation)
-├── CLAUDE.md                     ← imports AGENTS.md, plus one Claude-specific rule
-├── spec/
-│   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: index of all requirement IDs and release gates
-│   ├── requirements/
-│   │   ├── README.md             ← how FR cards are written + binding cross-package rules & prerequisites
-│   │   ├── _fr-card-template.md  ← EARS + Gherkin card template
-│   │   └── v1/ … v6/             ← one file per function package, one card per requirement (19 files, 53 cards)
-│   └── evidence/                 ← screenshots and recordings of the reference product, per FR
-├── docs/
-│   ├── solution-architecture.md  ← binding technical choices, decisions D1–D13, risks, release mapping
-│   └── requirements-consistency-audit.md ← package-by-package audit across all 19 packages / 53 FR cards
-├── scripts/
-│   └── check-spec-integrity.mjs  ← CI check: links/anchors, FR card coverage, and Spec Kit CC-01/CC-02 checks
-├── .specify/                     ← GitHub Spec Kit
-│   ├── memory/constitution.md    ← project constitution v1.1.0 (Principles I–VI and gates CC-01..CC-08)
-│   ├── templates/overrides/      ← repo customisations of Spec Kit templates (spec, plan, and test-first tasks)
-│   ├── workflows/pipeline/       ← full Spec Kit pipeline workflow (specify → clarify → plan → tasks → analyze → implement → converge)
-│   ├── extensions/               ← installed Spec Kit extensions (git and github)
-│   ├── scripts/bash/             ← Spec Kit helper scripts (managed)
-│   └── integrations/             ← install manifests for Spec Kit
-├── .agents/skills/speckit-*      ← Spec Kit skills for Antigravity (agy) and Codex
-└── .github/
-    ├── skills/speckit-*          ← Spec Kit skills for GitHub Copilot
-    ├── workflows/                ← CI (spec integrity, copilot setup steps), actions pinned to commit SHAs
-    ├── ISSUE_TEMPLATE/           ← spec change request form
-    └── CODEOWNERS                ← owner review for the serialised shared files
+├── AGENTS.md, CLAUDE.md          ← shared agent manual (worktrees, packages, ownership)
+├── spec/                         ← SRS, FR cards per release (v1–v6), evidence of the reference product
+├── specs/<NNN>-<package>/        ← Spec Kit output per package: spec, plan, tasks, validation, evidence
+├── docs/                         ← architecture (D1–D15), audits, Gate v1.0 report, workflow overlays
+├── apps/                         ← api, worker, web
+├── packages/                     ← contracts, db, cloud, evals, testkit
+├── infra/                        ← OpenTofu modules, release stack, dev/staging/prod roots
+├── scripts/                      ← spec integrity check, dev/start/db helpers, infra status and FinOps
+├── Dockerfile                    ← one image for API and worker
+├── .specify/                     ← constitution, template overrides, pipeline workflow and overlays
+└── .github/                      ← CI, OpenTofu workflow, CODEOWNERS, issue templates, Spec Kit skills
 ```
 
-The SRS and the GitHub issues are in German, because the challenge was set in German. FR cards, architecture,
-constitution and every generated spec are in English.
-
 ---
 
-## Source of truth
+## Status: what is missing for a first usable prototype
 
-Agents get a strict order of precedence, so that no conflict has to be resolved by guessing:
+v1 works end to end locally and passed its quality gate against the live models. To give a real user a URL to sign
+in and work with, these steps remain, in order:
 
-| Rank | Document | Binding for |
-| :-: | :- | :- |
-| 1 | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | Principles, cross-package invariants and gates `CC-01`..`CC-08`. Overrides everything. |
-| 2 | [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) | **What** is built: all IDs, contracts, release packages and gates |
-| 3 | [FR cards & rules](spec/requirements/README.md) | The detail of each requirement (limits, states, errors, acceptance scenarios) and cross-package rules |
-| 4 | [Solution architecture](docs/solution-architecture.md) | **How** it is built: decisions `D1`..`D13` |
-
-Changes follow fixed rules. New scope is added as an SRS amendment. Removing or deferring scope needs a recorded
-architecture decision. A deliberate difference from the reference product is logged twice: as a `DEV-xx` entry in SRS
-§5.5 and as the matching `Dn` decision. IDs are never renumbered.
-
----
-
-## Requirements: how deep the specification goes
-
-### Layer 1: the SRS (index)
-
-The [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) breaks the product into six domains (Workspace,
-Ingestion, Grounded Chat, Notes, Studio, Ecosystem/UI) and gives every function an ID. It also defines:
-
-- **Formal quality metrics** that can be evaluated automatically: hallucination rate < 5 % (`NFR-EVAL-01`),
-  citation-ID precision = 1.0 (`NFR-EVAL-02`), correct refusal of out-of-source questions ≥ 99 % (`NFR-EVAL-03`), and
-  zero leakage from deselected sources (`NFR-EVAL-04`).
-- **Three architectural contracts** that are fixed early so later releases cannot break earlier ones:
-  `C-01 UnifiedDocumentChunk`, `C-02 ScopedContextProvider` (the only path to source content), and
-  `C-03 StudioGeneratorPlugin` (every Studio feature is a plugin; open-closed).
-- **Six release gates** with concrete automated acceptance criteria. Implementation of v(k+1) may not start before
-  Gate v(k) passes.
-- **A deviation log** (§5.5) for accepted differences from the reference product.
-
-### Layer 2: FR cards (binding detail)
-
-Each requirement is expanded into a card that `/speckit-specify` can turn into a spec without inventing anything.
-Every card has the same structure:
-
-| Section | Content |
-| :- | :- |
-| Header table | Release and package, priority, actors (including roles that only arrive in v6), dependencies, date observed |
-| **Requirement (EARS)** | Ubiquitous, event-driven, state-driven and unwanted-behaviour statements |
-| User story and reference behaviour | Numbered steps as observed in the reference product, with evidence links |
-| Inputs and limits | Fields, formats, sizes and defaults, **with numbers** |
-| Outputs and state | What is visible, what is persisted, state transitions |
-| **Acceptance criteria (Gherkin)** | Scenarios that become spec-derived tests |
-| Edge and error cases | Empty, too large, concurrent, deleted meanwhile; exact messages where they matter |
-| Measurable criteria | Thresholds tied to gate criteria (for example "TTFT ≤ 2.5 s P95 over 20 runs") |
-| Deviations, out of scope, open questions | `Unknown` is allowed, guessing is not; at most 3 open questions per package |
-
-A short excerpt from [`FR-GC-01`](spec/requirements/v1/package_1_3_grounded_chat_citation_engine.md#fr-gc-01--strict-grounding-policy):
-
-> *Unwanted:* If a previous turn in the conversation history cites a source that is not in the current S_aktiv, then
-> the system shall exclude that turn (question and answer) from the context of the new turn, so that content from
-> deselected sources cannot re-enter the prompt via history (`NFR-EVAL-04`).
-
-This is the level of detail a test generator needs. A naive implementation would pass a simple leakage test and still
-leak through chat history.
-
-### Layer 3: review before specification
-
-Once a card is specified, every detail in it becomes a test that the build must pass. So each release's cards are
-reviewed before `/speckit-specify` runs on them. The review looks for contradictions (between cards, SRS, constitution
-and architecture), impossible or untestable statements, and format problems. Every batch reviewed so far had real
-findings: requirements dropped during card writing, clashes with architecture decisions, and "A or B" wording that
-cannot be tested. All 19 packages have now been reviewed and reconciled; the
-[requirements consistency audit](docs/requirements-consistency-audit.md) lists every correction per package.
-
----
-
-## The constitution
-
-[`constitution.md`](.specify/memory/constitution.md) (v1.1.0) is the guardrail every Spec Kit stage checks against,
-enforced through an 8-point Constitution Check Gate Table (`CC-01`..`CC-08`):
-
-| # | Principle | In one line |
-| :-: | :- | :- |
-| I | Spec Traceability (`CC-01`) | Every spec, plan, task and test cites an SRS ID and transcribes FR card EARS/Gherkin and numeric/unit limits verbatim |
-| II | **Test-First (`CC-02`, non-negotiable)** | Spec-derived failing tests precede implementation, must fail first, and may not be weakened without an SRS amendment |
-| III | Grounding and Scoping (`CC-03`, `CC-04`) | Explicit `Ready` snapshot scoping, history/cache/drilldown hygiene, and pre-publication citation validation (`D13`) |
-| IV | Architectural Contracts (`CC-05`) | `C-01`..`C-03` defined once in `packages/contracts`; breaking changes after a gate need amendment, `Dn` and migration |
-| V | Release Gates (`CC-06`) | v(k+1) implementation waits for Gate v(k) and within-release prerequisites (`spec/requirements/README.md`) |
-| VI | Security, Quotas and Residency (`CC-07`, `CC-08`) | Enterprise EU (`europe-west4`) endpoints, role phasing (`v1–v5` Owner-only, `v6` RBAC), atomic source slots, ADK vs. deterministic boundaries |
-
-It also fixes the platform (TypeScript end-to-end, Google Cloud, Gemini via enterprise endpoints) and requires a
-recorded decision with alternatives before any new framework, datastore or fixed-cost component is added.
-
----
-
-## Target architecture
-
-Full document: [`docs/solution-architecture.md`](docs/solution-architecture.md). In short: a **lean, serverless
-TypeScript monorepo** in which everything scales to zero except one Postgres instance.
-
-```mermaid
-graph LR
-    U([SPA]) -->|OIDC + SSE| API["everlast-api<br/>BFF · RBAC · ADK chat agent"]
-    U -->|WebSocket audio, v5| LIVE["everlast-live<br/>Gemini Live gateway"]
-    API --> SCP["C-02 ScopedContextProvider"]
-    LIVE --> SCP
-    API -->|Cloud Tasks| WRK["everlast-worker<br/>ingestion · Source Guide · Studio plugins"]
-    WRK --> SCP
-    WRK --> RND["everlast-render<br/>Cloud Run Job · ffmpeg · LibreOffice"]
-    SCP -->|"hybrid search + hard source filter"| SQL[("Cloud SQL Postgres<br/>relational · pgvector · FTS")]
-    API --> GEM["Gemini on Agent Platform<br/>(EU endpoints)"]
-    WRK --> GEM
-```
-
-| # | Decision | Choice |
-| :- | :- | :- |
-| D1 | Retrieval | pgvector + Postgres full-text search with Reciprocal Rank Fusion in the one Cloud SQL instance. We own chunk IDs and locators, so citation precision and zero leakage hold by construction. (Revised from RAG Engine, which needed an always-on Spanner instance.) |
-| D2 | Language | TypeScript end-to-end; contracts are shared Zod schemas in `packages/contracts` |
-| D3 | Residency | EU (`europe-west4`) by default; exceptions in a per-feature region map |
-| D4 | Operating model | Cloud Run + one Postgres, scale to zero; Cloud SQL is the only fixed cost |
-| D5 | `@Notebook` integration | Deferred (`DEV-03`); Gate v6.0 #3 is not part of v6.0 acceptance; the chat agent stays A2A-ready |
-| D6 | Identity | Generic OIDC/SAML via Identity Platform until an IdP is chosen |
-| D7 | Live "Join-In" voice | Accepted deviation `DEV-01`: one designated host answers live questions |
-| D8 | Google Slides export | Deferred (`DEV-02`): `.pptx` and `.pdf` only, because Slides needs per-user OAuth |
-| D9 | Infographics | Deterministic SVG from a structured layout, no image model, so numbers stay traceable |
-| D10 | Audio link sharing | Moved to v6.0, because share-link access depends on the v6 sharing roles; v5.0 ships player and export |
-| D11 | Google Docs/Slides import | Delegated v3 import through the Office normalization path; Google Slides output export stays deferred |
-| D12 | Large Studio contexts | Process all original scoped chunks in bounded batches; summaries alone are not lossless evidence |
-| D13 | Citation validation | Validate complete factual answers before publication or live speech; progress events do not count as TTFT |
-
-A design choice worth pointing out: the platform's "agents" from the SRS were sorted into **truly agentic** components
-(grounded chat, research, note assistant: ADK `LlmAgent` with tools) and **deterministic pipelines** (ingestion, every
-Studio generator, rendering: plain job handlers with structured output). That keeps latency, cost and
-non-determinism down where the model does not need to choose its own steps.
-
----
-
-## Spec Kit workflow
-
-[GitHub Spec Kit](https://github.com/github/spec-kit) drives all feature work. One function package from the SRS
-becomes one Spec Kit feature, owned by one session for its whole lifecycle:
-
-```text
-/speckit-specify spec/requirements/v1/package_1_1_workspace_foundation.md
-  → /speckit-clarify   (only if clarification markers remain)
-  → /speckit-plan
-  → /speckit-tasks
-  → /speckit-analyze
-  → /speckit-implement
-  → /speckit-converge  (if post-implementation gaps remain)
-```
-
-| Stage | Exit criterion before the next stage |
-| :- | :- |
-| Specify / clarify | English spec grounded in the package's FR cards and `spec/requirements/README.md`, every requirement citing its SRS ID, no open markers |
-| Plan | Constitution Check (`CC-01`..`CC-08`) passes before research **and** after design; dependencies, shared contracts and file boundaries are explicit |
-| Tasks | Spec-derived test tasks come before the implementation tasks they cover; dependencies and file paths recorded; `[P]` only for truly independent tasks |
-| Analyze | Spec, plan and tasks reviewed together against `CC-01`..`CC-08`; constitution violations and blocking coverage or contract conflicts resolved |
-| Implement | Tests run and fail for the right reason first, then Green → Refactor |
-
-Customisations on top of stock Spec Kit:
-
-- **Agent skills and extensions.** Spec Kit 1.2.1 is configured with `.agents/skills` (Antigravity `agy` and Codex) and
-  `.github/skills` (GitHub Copilot), plus the `git` and `github` extensions (`speckit-github-taskstoissues` qualified by
-  `[<feature-slug>] T001` so task IDs never collide across packages).
-- **Full `pipeline` workflow.** Because the stock `.specify/workflows/speckit/workflow.yml` skips clarify and analyze,
-  [`.specify/workflows/pipeline/workflow.yml`](.specify/workflows/pipeline/workflow.yml) provides the complete
-  `specify → clarify → plan → tasks → analyze → analyze-gate → implement → converge` pipeline.
-- **Customised `spec`, `plan` and `tasks` templates.** Project overrides in
-  [`.specify/templates/overrides/spec-template.md`](.specify/templates/overrides/spec-template.md),
-  [`.specify/templates/overrides/plan-template.md`](.specify/templates/overrides/plan-template.md) and
-  [`.specify/templates/overrides/tasks-template.md`](.specify/templates/overrides/tasks-template.md) enforce SRS ID
-  citations (`CC-01`), the 8-point Constitution Check Gate Table (`CC-01`..`CC-08`), TypeScript monorepo paths, and
-  mandatory test-first task ordering (`CC-02`), while surviving Spec Kit upgrades.
-- **Single requirement source.** The global "brainstorm → plan" workflow some agents bring with them is explicitly
-  turned off for this repository, so there is exactly one path from requirement to code.
-
----
-
-## Built for many agents at once
-
-[`AGENTS.md`](AGENTS.md) is the one operating manual that every agent reads (Codex and OpenCode read it natively,
-`CLAUDE.md` imports it, and `.gemini/settings.json` points Gemini CLI at it). Besides the workflow, it covers what
-goes wrong when several autonomous sessions share one repository:
-
-- **Isolation.** Every writing session gets its own Git worktree and branch. A second terminal in the same checkout
-  does not count. Sessions never switch branches, stash, reset or clean in another session's checkout, and only remove
-  worktrees they own.
-- **Ownership and claims.** Work is assigned through a shared, visible record (issue or PR description) that names the
-  owner, spec path, task IDs, allowed files, branch, base commit, dependencies and acceptance checks. There is one owner
-  per task and per shared file at a time, and ownership is handed over explicitly.
-- **Splitting a package.** Only after `/speckit-analyze`, with fixed interface contracts and disjoint file ownership.
-  The package owner keeps the canonical `tasks.md`, integrates worker results and marks tasks done only after
-  verifying them. Task IDs are always qualified by spec path, because `T001` is not unique across features.
-- **Pinning Spec Kit to a session.** Spec Kit resolves the active feature from `SPECIFY_FEATURE_DIRECTORY`, then from a
-  local pointer file, and not from the Git branch. Sessions therefore set `SPECIFY_INIT_DIR` and
-  `SPECIFY_FEATURE_DIRECTORY` explicitly, verify the resolved paths with `check-prerequisites.sh --paths-only` before
-  writing, and use `SPECIFY_FEATURE_NO_PERSIST=1`. Feature numbers are allocated centrally, because parallel worktrees
-  would otherwise pick the same next number.
-- **Serialised shared files.** SRS, constitution, architecture decisions, `AGENTS.md`, Spec Kit config, shared
-  contracts, root manifests and lockfile, CI and infrastructure each have exactly one owner at a time and are merged
-  before dependent work starts. Database migration order is a shared dependency.
-- **Runtime isolation.** Parallel dev servers, test databases and cloud test resources get distinct names and ports.
-  There are no competing migrations or OpenTofu runs against shared state. Agents with relaxed permissions run in
-  sandboxes without production credentials, because a worktree is not a sandbox.
-- **Integration and handoff.** Everything merges through a scoped PR, in dependency order, after re-checking the diff
-  against its base. Conflicts are resolved by the source-of-truth ranking, never by picking a side. A handoff lists
-  branch, commit, completed and remaining task IDs, validation results, blockers and the next valid Spec Kit stage,
-  and keeps committed, integrated and verified work apart.
-- **Release gates still apply.** Specifying and planning later releases may run ahead, but worktrees do not waive the
-  rule that v(k+1) is implemented only after Gate v(k).
-
----
-
-## GitHub project and roadmap
-
-**[Everlast LM – Produkt-Roadmap](https://github.com/users/lukas-zech-software/projects/2)** makes the plan
-visible and gives agents an assignable unit of work. It was generated from the SRS.
-
-| Issue type | Count | Issues | Purpose |
-| :- | :-: | :- | :- |
-| Roadmap | 1 | #1 | Overview of all releases and their dependencies |
-| Package epics | 19 | #2–#20 | One per function package, with its requirements and contracts as **sub-issues** |
-| Requirements | 57 | #21–#77 | One per SRS ID (`FR-SI-01` and `FR-WM-07` are split across two releases), each with acceptance criteria, test notes and dependencies |
-| Architecture contracts | 3 | #78–#80 | `C-01`, `C-02`, `C-03` |
-| Technical tasks | 3 | #81–#83 | Derived platform work, such as auth and persistence |
-| Release gates | 6 | #84–#89 | One per release; the gate criteria as checklist, depending on every requirement of that release |
-
-- **Milestones:** six, one per release (v1.0 MVP to v6.0), each accepted through its gate issue.
-- **Issue bodies:** goal, release and package, link to the specification baseline, acceptance criteria as a checklist,
-  test and evidence notes, dependencies on other issues, and the release gate the issue counts towards.
-- **Custom fields:** Release, Funktionspaket (package), Domäne (domain), Arbeitstyp (work type), Status.
-- **Views:** release overview (table), status board (kanban), package epics by release.
-- **Labels:** `type:*`, `domain:*`, `needs-clarification` and `spec-drift`.
-
-The issues were generated from the first SRS baseline. The FR cards and later architecture decisions came afterwards, so a full audit
-compared all 89 issues against the current specification. **All 55 requirement IDs are covered.** The audit flagged 23
-issues as `spec-drift`, and all 23 are now resolved: open questions that the FR cards answer were written into the
-issues, criteria that contradicted decisions were aligned (D7 single-host Join-In, D8 no Google Slides export, D10 link
-sharing in v6.0), and the deferred `@Notebook` integration (D5 / DEV-03) is labelled `status:deferred` and removed from
-the v6.0 gate. Every issue and milestone links to its current SRS section and FR card on `main`. At that audit baseline, six issues retained
-`needs-clarification` for planning questions such as analytics data retention. The subsequent
-[requirements consistency audit](docs/requirements-consistency-audit.md) updates the source specifications;
-its new acceptance details must be reconciled when deriving Spec Kit tasks and refreshing issue criteria.
-
----
-
-## How this repository was built
-
-Apart from small tooling files such as `.gitignore`, **no file in this repository was written by hand.** All
-requirements analysis, specification, review, architecture, Git and GitHub work was done by coding agents that I
-directed, reviewed and corrected.
-
-| Tool | Connected via | Used for |
-| :- | :- | :- |
-| **Gemini** (web app with Canvas) | Browser | First breakdown of the reference product into functions and requirement IDs, which became the SRS baseline |
-| **Antigravity** (Google's agentic IDE) | Native Google Cloud integrations | Drafting the Google Cloud resource and architecture design |
-| **WebStorm + JetBrains Air** | IDE; Air is the agent client | Hosting the agents below in the IDE through the **Agent Client Protocol (ACP)** |
-| **Codex** | ACP in JetBrains Air | Requirements analysis, architecture, focused editing tasks |
-| **Gemini CLI** | ACP in JetBrains Air | Analysis and editing tasks |
-| **OpenCode** with the **Muse** model | ACP in JetBrains Air | Analysis and editing tasks |
-| **Claude Code** (Opus) | Terminal (the only agent driven directly from the shell) | Constitution amendments, FR card reviews, architecture revisions, `AGENTS.md`, issue audit, commits |
-
-Techniques that made this work:
-
-- **Specification-first, gated workflow** (GitHub Spec Kit) instead of free-form prompting.
-- **Agent skills** for repeatable procedures: Spec Kit commands for three agents, plus Google Cloud architecture skills
-  for the solution design.
-- **Model Context Protocol (MCP) servers** for live context: GitHub (issues, project), Gemini API documentation,
-  library documentation, and the IDE.
-- **One shared instruction file** (`AGENTS.md`) instead of a separate prompt per agent, so every agent follows the same
-  rules.
-- **Conventional commits** with co-author trailers, so the history shows which work was agent-generated.
-
-The specification phase so far has taken two days (first commit on 2026-10-15).
-
----
-
-## Next steps: independent agent sessions in the cloud
-
-`AGENTS.md` already defines the rules for parallel sessions on one machine. To run many sessions independently on
-cloud instances, the coordination has to move from local conventions into GitHub, where it can be enforced. Spec Kit
-is a GitHub project, and GitHub already provides the needed building blocks:
-
-1. **Shared prerequisites first.** Scaffold the pnpm monorepo, publish `packages/contracts` (`C-01`..`C-03` as Zod
-   schemas) and the database migration baseline. Every parallel package depends on these, so they are merged before
-   any fan-out.
-2. **CI as the enforced gate.** A first workflow already runs on every PR and blocks merges into `main`: it checks
-   that every link and anchor in the specification resolves and that every SRS ID has an FR card. Next come lint,
-   type-check, unit, contract and the deterministic eval suites (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run once per release gate on a fixed
-   stratified 50-case sample of the golden dataset. The existing `main` ruleset then requires these checks as well.
-3. **Issues as the claim and handoff record.** Each Spec Kit task slice becomes an issue (`/speckit-github-taskstoissues`, qualified by `[<feature-slug>] T001` so task IDs never collide across packages) carrying the `AGENTS.md` assignment fields: spec path, task IDs, allowed files, base commit,
-   dependencies and acceptance checks. The assignee is the claim. Sub-issues and native issue dependencies (today the
-   dependencies are listed in the issue text) express order, and the project's Status field shows progress.
-4. **Cloud agents pick up issues.** An issue is assigned to a cloud coding agent: GitHub Copilot coding agent, Codex
-   cloud tasks, Claude Code through GitHub Actions or on the web, or the Gemini CLI GitHub Action. Each runs in an
-   ephemeral sandbox on its own branch and ends with a PR. Environment setup is defined in
-   [`.github/workflows/copilot-setup-steps.yml`](.github/workflows/copilot-setup-steps.yml), so every agent sees the same toolchain.
-5. **Ownership enforced, not just agreed.** `CODEOWNERS` for the serialised shared files (SRS, constitution,
-   architecture, contracts, CI, `infra/`), so changes there need the package owner's review. A **merge queue**
-   integrates PRs in dependency order and re-runs checks on the combined result.
-6. **Central feature allocation.** `AGENTS.md` and the release roadmap/epic issues (`#1`–`#5`) centrally reserve `specs/001-workspace-foundation` through `specs/004-ui-skeleton-quality-gates` and matching branch names before `/speckit-specify` runs, which removes the numbering race between parallel sessions.
-7. **Credential-free cloud access.** GitHub OIDC with Workload Identity Federation for Google Cloud, so there are no
-   stored keys. Each PR gets its own test database (for example Postgres with pgvector in a container) and resource
-   names prefixed by branch. OpenTofu `apply` runs only from `main`, with state locking.
-8. **Release gates as workflows.** The gate issues (#84–#89) are closed by a gate workflow that runs the full eval
-   suite against a staging environment, protected by a GitHub environment with required reviewers.
-
----
-
-## Status: what is missing before implementation starts
-
-**Done:** SRS, constitution v1.1.0 (`CC-01`..`CC-08`), solution architecture (`D1`..`D14`), 53 FR cards, the deviation log, the Spec Kit setup (`agy` + Copilot skills, `git` + `github` extensions, `pipeline` workflow, `spec`/`plan`/`tasks` template overrides), `copilot-setup-steps.yml`, the multi-agent rules and v1 feature reservations in `AGENTS.md`, the GitHub project with 89 issues, and both the issue-versus-spec audit and the package-by-package requirements consistency audit.
-
-**Still to do, in order:**
-
-1. **Requirements consistency audit & v1 issue alignment: complete.** All 19 packages / 53 cards have been reviewed against the
-   constitution, SRS and architecture, including deferred package 6.3, and the v1 Epics (`#2`–`#5`), Gate `#84`, and Roadmap `#1` reserve `specs/001-workspace-foundation`..`specs/004-ui-skeleton-quality-gates` and reference the binding audit rules; see the
-   [package-by-package audit](docs/requirements-consistency-audit.md).
-2. **Carry the corrected acceptance criteria into planning.** The shared card rules apply to every package.
-   Runtime feasibility and performance remain to be established by the specified spikes and release tests.
-3. **Run the Spec Kit stages for v1.** `/speckit-specify` → clarify → plan → tasks → `/speckit-analyze` (the
-   verification pass across spec, plan and tasks), once for each of packages 1.1 to 1.4 (`specs/001-workspace-foundation` to `specs/004-ui-skeleton-quality-gates`). This produces the concrete, test-first task lists that implementation agents need. No
-   `specs/` directory exists yet.
-4. **Shared prerequisites:** the monorepo scaffold, the contracts package and CI from the [next steps](#next-steps-independent-agent-sessions-in-the-cloud),
-   plus the two-day ADK-for-TypeScript spike (risk R3) and a local pgvector prototype with an `NFR-EVAL-04` leakage
-   test.
-5. **Convert analyzed v1 tasks to GitHub issues.** Once `/speckit-analyze` passes for a package, run `/speckit-github-taskstoissues` to create feature-qualified task issues (`[001-workspace-foundation] T001: ...`) under its epic.
-6. **Approve the cloud setup:** enable the v1 Google Cloud APIs (`aiplatform`, `sqladmin`, `cloudtasks`,
-   `secretmanager`, `identitytoolkit`, `documentai`) and write the OpenTofu baseline.
-
-Once steps 1 to 4 are done for a package, implementation agents can start on it in parallel, each in its own sandbox.
-
-> **Why this is progressing step by step.** All agents here run on personal subscription plans, not on API billing.
-> Usage windows and rate limits mean the long review and specification runs happen one after another rather than as a
-> large parallel fan-out. The process and the repository are designed for that fan-out. The budget is the only thing
-> holding it back.
+1. **Re-verify v2 on the converged v1 code.** Packages 2.1–2.4 were built and tested against the earlier v1 code
+   (in-memory stores, stubbed eval). Their tests must pass on PostgreSQL and the real auth and chat pipeline before
+   `main` can be deployed. Gate v2.0 has not run yet.
+2. **Build and deploy the application.** The Dockerfile exists, but no image is in Artifact Registry and no workflow
+   builds, pushes and rolls it out. Cloud Run still serves the placeholder image. Database migrations must run as part
+   of the rollout.
+3. **Set up sign-in.** Configure an Identity Platform provider (an OIDC test tenant) and the SPA's client settings,
+   then run the open live checks for sign-in, token revocation and bucket purge (001 T046).
+4. **Wire the runtime configuration.** Bucket, Document AI processor, Vertex project, Cloud Tasks queue and invoker
+   as Cloud Run settings; secrets mounted; Cloud SQL started.
+5. **Give CI its cloud identity.** Set the Workload Identity variables so deploys and the release-gate eval run from
+   GitHub without personal credentials, then re-run the gate on the merged commit.
+6. **Smoke-test the deployed environment.** Upload a PDF, ask a question, click a citation; measure time to first
+   answer (target 2.5 s, not gated in v1) and cold starts.
+7. **Recommended before real users:** multi-hop retrieval, so questions that chain facts across documents get
+   answered, and answer coverage as a reported metric.
 
 ---
 
@@ -494,4 +404,3 @@ Once steps 1 to 4 are done for a package, implementation agents can start on it 
 
 Licensed under the [Apache License 2.0](LICENSE). See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the workflow,
 [`SECURITY.md`](SECURITY.md) for reporting vulnerabilities, and the [Code of Conduct](CODE_OF_CONDUCT.md).
-
