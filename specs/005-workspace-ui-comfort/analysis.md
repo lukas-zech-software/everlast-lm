@@ -94,3 +94,7 @@ Scope: `FR-WM-02`, `FR-WM-03`, `FR-UI-02` against the revised Package 2.1 card (
 | Source Guide per language (`FR-UI-02`) | Stored per (source, revision, language) | `spec.md` FR-013 references `specs/006` as owner | Consistent |
 
 No CRITICAL or HIGH inconsistency remains between card, `spec.md` and `plan.md`. No upstream card change was needed.
+
+### Post-implementation re-analysis (T059)
+
+Code, tests and artifacts agree: every convergence task T040–T059 is `[X]`; each implementation task (T044, T046, T048, T050, T052, T054, T056, T058) follows a test task whose Red was recorded in [validation.md](validation.md); SRS IDs are cited in tests and tasks (`CC-01`, `CC-02`). No remaining contradiction with the revised card was found. Open limits are unchanged: D16 in-memory v2 stores, live Flash-Lite and judged evals `UNAVAILABLE`.

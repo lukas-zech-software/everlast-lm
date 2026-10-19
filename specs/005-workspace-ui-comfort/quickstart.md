@@ -9,7 +9,7 @@ Prerequisites: Node.js 24, pnpm via Corepack (version from `package.json`), depe
 3. Topic emoji selector behavior: `pnpm exec vitest run apps/worker/test/topic-emoji.test.ts`
 4. Authenticated API behavior: `pnpm exec vitest run apps/api/test/workspace-preferences.test.ts`
 5. Overview, settings, persistence and theme behavior: `pnpm exec vitest run apps/web/test/workspace-preferences.test.ts`
-6. Combined feature regression: `pnpm exec vitest run packages/contracts/test/package-v2-1.test.ts packages/db/test/workspace-preferences.test.ts apps/worker/test/topic-emoji.test.ts apps/api/test/workspace-preferences.test.ts apps/api/test/chat-language.test.ts apps/web/test/workspace-preferences.test.ts`
+6. Combined feature regression: `pnpm exec vitest run packages/contracts/test/package-v2-1.test.ts packages/db/test/workspace-preferences.test.ts apps/worker/test/topic-emoji.test.ts apps/api/test/workspace-preferences.test.ts apps/api/test/chat-preferences.test.ts apps/web/test/workspace-preferences.test.ts`
 7. Chromium acceptance and performance: `pnpm test:e2e --grep "Workspace comfort Chromium acceptance"`
 
 Expected outcomes: invalid icon input is rejected without mutation; Ready counts exclude non-Ready sources; pinned notebooks stay first under every sort; list/grid, sort and theme persist; foreign-owner requests fail; language precedence and source-language citation quotes remain intact; operations do not alter source selection.
