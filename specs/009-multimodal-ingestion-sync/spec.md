@@ -1,6 +1,6 @@
 # Feature Specification: Multimodal Ingestion & Sync
 
-**Feature Branch**: `v3-specify-20261019/009-multimodal-ingestion-sync`
+**Feature Branch**: `clarify-v3/009-multimodal-ingestion-sync`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md`
@@ -19,7 +19,15 @@
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: Existing v1 ingestion, quotas, Inspector and C-01/C-02; v2 Source Guide and C-03. Package 3.1 supplies adapters consumed by 3.2 and 3.3; 3.4 benchmarks integrated v3. Gate v2 must pass before v3 implementation, but specification may proceed now.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only in v1–v5. Card references to Editors and other viewer roles apply from v6 only.
 - **Data Residency (`D3`)**: `europe-west4` default; no exception introduced. Company content uses enterprise no-training endpoints (`NFR-SEC-01`); zero retention is not asserted.
-- **Upstream Flow-Back Status (`CC-01`)**: This specification transcribes existing decisions and binding cross-package rules; no new clarification, scope change, or technical decision requires upstream amendment. Subsequent refinements must flow back into the card and applicable SRS/architecture tier.
+- **Upstream Flow-Back Status (`CC-01`)**: The 2026-10-19 clarification decisions on overlapping re-sync requests and transcription timing have been flowed back into the package 3.1 FR card. They refine FR-SI-05/FR-SI-01 acceptance without changing shared contracts, release scope or architecture decisions. Subsequent refinements must flow back into the applicable upstream tier.
+
+## Clarifications
+
+### Session 2026-10-19
+
+- Q: What should happen when another manual or automatic re-sync request arrives while the same source is already being refreshed? → A: Option B. Reject the additional request with `Sync already in progress`; the caller must retry after the current refresh finishes. Do not queue a follow-up refresh.
+
+- Q: Which start and end points should define the 45-second transcription target for a 30-minute audio recording? → A: Option A. Start when uploaded audio is accepted for transcription and end when its timestamped transcript is available. Include queue waiting; exclude upload and later indexing.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -67,7 +75,8 @@ The owner drops an MP3, WAV or M4A file or chooses YouTube/Video URL. Background
 **Acceptance Scenarios**:
 
 1. **Given** an open notebook, **When** the owner uploads the 10-minute `Interview.mp3`, **Then** transcription creates chunks each carrying a valid `time_span` with `start_ms`, `end_ms` and `mm:ss`; **When** citation [1] references 04:15, **Then** the Inspector opens Interview.mp3, highlights 04:15 and seeks to 04:15. (`FR-SI-01`, `FR-SI-04`, `FR-GC-03`, `Gate v3.0 #1`)
-2. **Given** a video with neither captions nor accessible audio, **When** submitted, **Then** it fails with `No transcript available for this video`. (`FR-SI-01`)
+2. **Given** a 30-minute audio fixture has been uploaded, **When** it is accepted for transcription, **Then** measure elapsed time through queue waiting until its timestamped transcript is available; across the declared benchmark runs P95 is ≤45 seconds, excluding upload and later indexing. (`FR-SI-01`)
+3. **Given** a video with neither captions nor accessible audio, **When** submitted, **Then** it fails with `No transcript available for this video`. (`FR-SI-01`)
 
 ### User Story 4 - Keep source identity and content current (Priority: P1)
 
@@ -84,7 +93,8 @@ The owner uses the source's three-dot menu to rename or confirm removal, or the 
 1. **Given** the intranet roadmap contains `Release v1 in May`, **When** it changes to `Release v1 in June` and the owner selects Re-sync, **Then** chunks are atomically replaced and a new explicitly scoped answer says June. **When** the next sync returns HTTP 503, **Then** a sync error toast appears and June chunks remain intact. (`FR-SI-05`, `C-01/C-02`)
 2. **Given** a valid new title, **When** Rename source is saved, **Then** sidebar, Inspector and citation tooltips show it. **Given** confirmed Remove source, **Then** its chunks are unavailable on the next chat turn and the source counter decreases. (`FR-SI-05`, `FR-WM-07`)
 3. **Given** a historical citation to a replaced chunk, **When** re-sync commits, **Then** it says `Source updated`; authorized viewers may see its historical snippet and explicitly open the current source at the top, without an exact-passage jump or stale evidence in a new prompt. (`FR-SI-05`, `FR-GC-03`, `NFR-EVAL-04`)
-4. **Given** generation captured a source revision, **When** it is deleted, replaced or authorization is revoked before publication, **Then** generation fails without stale output or silent substitution. (`FR-SI-05`, `C-02/C-03`, `NFR-SEC-02`)
+4. **Given** a source refresh is active, **When** another manual request or webhook requests re-sync for that source, **Then** reject it with `Sync already in progress`, leave the active refresh unchanged and queue no follow-up; the caller may retry after completion. (`FR-SI-05`)
+5. **Given** generation captured a source revision, **When** it is deleted, replaced or authorization is revoked before publication, **Then** generation fails without stale output or silent substitution. (`FR-SI-05`, `C-02/C-03`, `NFR-SEC-02`)
 
 ### Edge Cases *(mandatory)*
 
@@ -92,6 +102,7 @@ The owner uses the source's three-dot menu to rename or confirm removal, or the 
 - **Titles (`FR-SI-05`)**: Trim outer whitespace and count Unicode code points; reject empty, >200-point and whitespace-only names. Default title is the original filename or page title.
 - **Network safety (`FR-SI-01`, `NFR-SEC-02`)**: Check resolved addresses before every connection/redirect, including DNS rebinding and IPv4-mapped IPv6. Always block loopback, metadata and link-local destinations. Private/ULA destinations require explicit enterprise tenant policy and user access; hostname allowlisting never bypasses forbidden addresses.
 - **Extraction (`FR-SI-01`)**: Unreachable/paywalled/empty pages fail clearly; unsupported JavaScript-only shells do not trigger an unapproved browser dependency. Google Docs/Slides use delegated import, not generic scraping. Reject insufficient/revoked delegated access.
+- **Overlapping re-sync (`FR-SI-05`)**: While one refresh is active for a source, reject additional manual/webhook requests with `Sync already in progress`. Do not cancel the active operation or queue a follow-up; callers must retry after completion.
 - **Re-sync failure (`FR-SI-05`)**: Any access, size, safety, parsing, embedding or network failure preserves the previous Ready revision and slot; no partial chunk replacement. ReSyncing is an operation indicator, not a new source eligibility state.
 - **Deletion/revocation (`FR-SI-05`, `FR-GC-03`, `NFR-EVAL-04`)**: Remove retrieval access, cached snippets, generated-content exposure, exports and signed media access; hide affected history/artifacts or show unavailable placeholders. Deleted citations say `Source deleted` with click-through disabled. Cancel/fail captured in-flight work.
 - **Scope (`FR-SI-03`, `C-02`)**: Empty or omitted selection disables and rejects source-based generation; All Ready sources is only an initial UI selection. Selection is local to user/session/notebook. Inspector reads use authorized singleton scope without changing chat selection or source eligibility.
@@ -114,7 +125,7 @@ The owner uses the source's three-dot menu to rename or confirm removal, or the 
 - **FR-009 (`FR-SI-05`)**: When Rename source / Quelle umbenennen is saved, validate a 1–200-code-point trimmed title and update sidebar, Inspector and all citation tooltips.
 - **FR-010 (`FR-SI-05`, `FR-WM-07`, `NFR-EVAL-04`)**: When Remove source / Quelle entfernen is confirmed, remove the Source and chunks, decrement the counter and enforce deletion hygiene immediately on subsequent reads.
 - **FR-011 (`FR-SI-05`, `FR-SI-02`, `C-01`)**: For URL/connected-document sources only, Re-sync / Neu synchronisieren / Click to sync or a webhook MUST fetch and stage a replacement, validate limits/safety/parsing/embeddings, atomically publish fresh non-reused chunk IDs, update `content_hash` and `last_synced_at`, and regenerate the Source Guide.
-- **FR-012 (`FR-SI-05`, `FR-SI-03`)**: While re-sync runs, show Syncing.../ReSyncing with source remaining Ready and old committed revision readable. On success expose the new revision; on any failure preserve the old revision and show a sync error.
+- **FR-012 (`FR-SI-05`, `FR-SI-03`)**: While re-sync runs, show Syncing.../ReSyncing with source remaining Ready and old committed revision readable. On success expose the new revision; on any failure preserve the old revision and show a sync error. Reject additional manual/webhook refresh requests for that source with `Sync already in progress`; keep the active operation unchanged and queue no follow-up. Callers must retry after completion.
 - **FR-013 (`FR-SI-05`, `FR-GC-03`, `C-02/C-03`)**: Preserve historical updated-source semantics and enforce submission snapshots, access rechecks before reads/publication, and failure on replaced/deleted/revoked revisions as described above. Never retarget old chunk IDs.
 - **FR-014 (`FR-SI-03`, `C-02`, `NFR-EVAL-04`)**: Ingestion writes C-01; all agent/Guide/Inspector source reads MUST use C-02 with explicit authorized scope. Enforce empty-selection rejection, local selection and history filtering. Cache identity MUST include notebook, selected IDs/revisions, authorization, language and relevant generation parameters.
 - **FR-015 (`FR-GC-02`, `C-03`, `NFR-EVAL-01..04`)**: Enforce pre-publication grounding/refusal rules. Source Guide regeneration is asynchronous and source-grounded; no ingestion path may bypass scoped reads or expose invalid generated evidence.
@@ -132,12 +143,14 @@ The owner uses the source's three-dot menu to rename or confirm removal, or the 
 ### Measurable Outcomes
 
 - **SC-001 (`FR-SI-01`, `Gate v3.0 #1`)**: 100% of ingested audio/video chunks expose valid clickable mm:ss positions; the Interview.mp3 04:15 citation highlights and seeks to 04:15.
-- **SC-002 (`FR-SI-01`)**: A 30-minute audio fixture completes transcription in ≤45 seconds P95 on a declared test fixture/environment.
+- **SC-002 (`FR-SI-01`)**: A 30-minute audio fixture completes transcription in ≤45 seconds P95 on a declared test fixture/environment, measured from acceptance of the uploaded audio for transcription until its timestamped transcript is available. Include queue waiting; exclude upload and later indexing.
 - **SC-003 (`FR-SI-01`, `C-01`)**: All required Office fixture text, tables, notes and visual descriptions are available and navigable in the viewer; every format uses the existing location contract.
 - **SC-004 (`FR-SI-05`, `NFR-EVAL-04`)**: Deleted source content is absent on the next chat turn (0 ms retrieval staleness); every failed re-sync fixture preserves its previous complete revision and quota slot.
 - **SC-005 (`FR-SI-05`, `FR-WM-07`)**: Boundary fixtures accept 1/200-point titles and inclusive byte/word limits, reject empty/over-limit values without truncation, and leave quota accounting correct under concurrent imports.
 - **SC-006 (`FR-SI-01/05`, `NFR-SEC-02`)**: All unauthorized/revoked import, redirect, network and re-sync fixtures are rejected; no quarantined source becomes Ready and no stale in-flight generation publishes.
 - **SC-007 (`NFR-EVAL-01..04`, `FR-GC-02`)**: Applicable integrated release evidence shows citation-ID validity 1.0, leakage 0, hallucination <5%, out-of-source rejection ≥99% and semantic citation support checks. This package's specification alone does not demonstrate those gates or the full v3 release gate.
+
+- **SC-008 (`FR-SI-05`)**: Every overlapping manual/webhook re-sync request is rejected with `Sync already in progress`; exactly the already-active refresh continues and no follow-up is queued. A fresh request after completion can start normally.
 
 ## Assumptions & Out of Scope
 

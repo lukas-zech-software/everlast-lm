@@ -62,6 +62,14 @@ Scenario: Audio upload produces chunks with clickable mm:ss timestamp locators (
   When the user clicks a chat citation [1] referencing a statement at 04:15 in "Interview.mp3"
   Then the Source Inspector opens "Interview.mp3", highlights the segment at 04:15, and seeks the player to 04:15
 
+Scenario: Audio transcription timing includes queue waiting
+  Given a declared 30-minute audio fixture has completed upload
+  When the uploaded audio is accepted for transcription
+  Then timing starts at acceptance and includes queue waiting
+  And timing ends when the timestamped transcript is available
+  And P95 across the declared benchmark runs is at most 45 seconds
+  And upload and later indexing are excluded
+
 Scenario: Paywalled or unreachable Web URL fails with clear message
   Given a Web URL returning HTTP 403 Forbidden or no extractable article content
   When the owner submits the URL in the "Website" dialog
@@ -84,7 +92,7 @@ Scenario: Google Slides import preserves notes and deterministic locators
 
 **Measurable criteria**
 - $100\%$ of ingested audio/video chunks contain valid `time_span` (`mm:ss`) locators (`Gate v3.0 #1`).
-- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95).
+- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95), measured from acceptance of the uploaded audio for transcription until its timestamped transcript is available. Include queue waiting; exclude upload and later indexing. Use a declared fixture/environment.
 
 **Deviations from reference:** Use the architecture's fetch + Readability path with deterministic snapshots. A page containing only an unsupported JavaScript shell fails clearly; no unapproved headless-browser dependency is implied.
 
@@ -109,6 +117,8 @@ Scenario: Google Slides import preserves notes and deterministic locators
 - *Event:* When the Owner/Editor selects `"Remove source"` (`"Quelle entfernen"`) and confirms, the system shall delete the `Source` and its `UnifiedDocumentChunk` records from the notebook and decrement the source counter.
 - *Event:* Where a source originates from a mutable external link (Web URL or linked cloud/intranet document), when the Owner/Editor clicks `"Re-sync"` (`"Neu synchronisieren"` / `"Click to sync"`) in the Source Inspector or via a webhook event, the system shall re-fetch the latest content, stage and validate the replacement (limits, safety, parsing and embeddings), then atomically replace the source's `UnifiedDocumentChunk` set with fresh non-reused chunk IDs, and regenerate its `Source Guide` (`FR-SI-02`).
 
+- *State:* While a source re-sync is active, the system shall reject additional manual or webhook re-sync requests for that source with `"Sync already in progress"`, leave the active refresh unchanged, and queue no follow-up refresh. The caller must retry after the active refresh finishes.
+
 **User story:** As a project lead working with living web pages and cloud documents, I want to rename or remove sources and re-sync external sources when the upstream document changes, so that my notebook never works on stale information.
 
 **Reference behaviour**
@@ -132,6 +142,14 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 **Acceptance criteria (Gherkin)**
 
 ```gherkin
+Scenario: Overlapping re-sync requests are rejected without a queued follow-up
+  Given a source re-sync is already active
+  When another manual request or webhook requests re-sync for that source
+  Then the additional request is rejected with "Sync already in progress"
+  And the active refresh continues unchanged and no follow-up is queued
+  When the caller submits a new request after the active refresh finishes
+  Then the new request can start normally
+
 Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chunks on network failure
   Given a Web URL source "https://intranet.corp/roadmap" ingested with content "Release v1 in May"
   When the upstream page changes to "Release v1 in June" and the owner clicks "Re-sync"
