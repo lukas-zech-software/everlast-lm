@@ -1,6 +1,6 @@
 # Feature Specification: Quantitative Code Execution Sandbox
 
-**Feature Branch**: `v3-specify-20261019/010-code-execution-sandbox`
+**Feature Branch**: `clarify-v3/010-code-execution-sandbox`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
@@ -21,7 +21,14 @@
 - **Within-Release Prerequisites**: Package 3.1 extends C-01 adapters without changing the locator union; package 3.2 consumes existing contracts. FR-GC-01, FR-SI-03 and C-02 are direct dependencies. Package 3.3 remains separate; package 3.4 benchmarks the integrated v3 result. Gate v2.0 must pass before v3 implementation; specification may proceed beforehand.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only for v3. Editor, Viewer Full and Viewer Chat-Only chat use applies from v6.0, with each role's existing authorization boundaries.
 - **Data Residency (`D3`, `NFR-SEC-01`)**: Default `europe-west4`; no new exception is authorized here. Any exception needs a documented per-feature region map and recorded approval. Enterprise endpoints must contractually exclude training on company data; no unverified zero-retention claim.
-- **Upstream Flow-Back Status (`CC-01`)**: Transcription of existing decisions, with no new behavioral clarification or scope change. Future refinements must update this spec and the governing FR card, SRS or architecture and affected issues before implementation.
+- **Upstream Flow-Back Status (`CC-01`)**: The 2026-10-19 statistical-intent and execution-attempt clarifications are synchronized with the package 3.2 FR card and architecture sandbox wording. No release scope or SRS index change is required. Future refinements must update this spec and the governing FR card, SRS or architecture and affected issues before implementation.
+
+## Clarifications
+
+### Session 2026-10-19
+
+- Q: When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, should the assistant ask before calculating? → A: Option A — Ask which interpretation is intended before calculating.
+- Q: After an automatic correction retry, which execution attempts should the saved record and “View executed code” drawer retain? → A: Option A — Save and show both attempts in order, clearly marking the final attempt and its published outputs.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -40,13 +47,16 @@ As an analyst, I want exact sums, growth rates, regressions and plots from my se
 ```gherkin
 Scenario: Sandbox computes exact arithmetic and renders plot from active source data (Gate v3.0 #2; FR-GC-08)
   Given an active source containing a table of 12 monthly server latency values
+  And the intended sample or population interpretation is identified by the request, sources, or a clarification answer
   When the user asks "What is the exact standard deviation of the monthly latency and plot the trend?"
   Then the Code Execution Agent executes Python in the sandbox
   And the response includes the exact calculated standard deviation labelled "Computed", an inline chart image, and citation [1]
 ```
 
-1. **Given** an explicit Ready-source selection, **When** a quantitative request is submitted, **Then** “Running code…” appears within 2.5 s, and completion exposes computed values, downloadable PNG/SVG charts, source citations and collapsible “View executed code” / “Code anzeigen” with source and stdout (`FR-GC-08`).
+1. **Given** an explicit Ready-source selection and resolved statistical intent, **When** a quantitative request is submitted, **Then** “Running code…” appears within 2.5 s, and completion exposes computed values, downloadable PNG/SVG charts, source citations and collapsible “View executed code” / “Code anzeigen” with source and stdout (`FR-GC-08`).
 2. **Given** figures in `$M` and `$B`, **When** they are combined, **Then** the visible Python comments explicitly explain unit normalization and both sources are cited (`FR-GC-08`).
+3. **Given** a statistical question has multiple valid interpretations and neither request nor sources selects one, **When** the assistant prepares the calculation, **Then** it asks a focused follow-up and waits for the answer before calculating; it does not silently select an interpretation (`FR-GC-08`).
+4. **Given** the first execution fails and the correction retry completes, **When** the owner opens “View executed code”, **Then** both attempts appear in execution order, with the final attempt and its published outputs explicitly identified (`FR-GC-08`).
 
 ### User Story 2 - Keep calculations isolated and failures honest (Priority: P1)
 
@@ -91,6 +101,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 
 ### Edge Cases *(mandatory)*
 
+- **Ambiguous statistical intent (`FR-GC-08`)**: When neither request nor sources determines the intended interpretation, ask a focused follow-up before calculating. A request such as unspecified sample versus population standard deviation cannot proceed on an unstated assumption.
 - **Limits (`FR-GC-08`)**: Enforce at most 1 vCPU, 512 MB RAM, 64 MB temporary `/tmp` storage and 15.0 s wall-clock execution per run. An infinite loop is killed at 15.0 s; timeout and memory violations never receive a retry. Temporary storage is not permission to alter input source data.
 - **Conflicting units (`FR-GC-08`)**: Normalize explicitly in visible code comments, citing both input sources.
 - **Concurrent changes (`C-02`, `FR-SI-05`)**: Snapshot revisions cannot silently be replaced during a request; recheck authorization before reads and publication.
@@ -107,19 +118,20 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **FR-004 (`FR-GC-08`, `NFR-PERF-01`)**: When execution starts, “Running code…” MUST appear within ≤2.5 s of submission. This is progress, not an answer token, and does not satisfy standard chat TTFT; code-execution turns use their own timing criteria.
 - **FR-005 (`FR-GC-08`, `FR-GC-02`)**: On completion, the grounded response MUST embed exact computed numerical values individually labelled `Computed`, generated inline PNG/SVG charts with a download button, a collapsible “View executed code” (“Code anzeigen”) block containing Python source and stdout, and `[n]` citations to the source data used.
 - **FR-006 (`FR-GC-08`)**: If generated code raises an exception, the system MUST allow exactly one automatic self-correction retry. If that retry fails, or any run times out or violates memory limits, the system MUST terminate the sandbox container and report the error transparently without guessing a number. Timeout and memory violations MUST receive zero retries.
-- **FR-007 (`FR-GC-08`)**: The system MUST retain `code_execution_trace` with `code`, `stdout`, `stderr`, `exit_code` and `artifacts: [chart_urls]` on `ChatMessage`. Execution states MUST be `CodeGenerating → SandboxRunning → Succeeded` or `TimedOut` / `Failed`.
+- **FR-007 (`FR-GC-08`)**: The system MUST retain `code_execution_trace` on `ChatMessage` as an ordered record of every execution attempt, including the failed first attempt when a correction retry occurs. Each attempt MUST retain `code`, `stdout`, `stderr`, `exit_code` and `artifacts: [chart_urls]`. The saved record and “View executed code” drawer MUST identify the final attempt and its published outputs and show both attempts in execution order after a retry; failed-attempt artifacts MUST NOT be presented as published results. Execution states MUST be `CodeGenerating → SandboxRunning → Succeeded` or `TimedOut` / `Failed`.
 - **FR-008 (`FR-GC-08`)**: Conflicting units MUST be normalized explicitly in visible Python comments and both sources cited.
 - **FR-009 (`FR-SI-03`, `C-01`, `C-02`, `NFR-EVAL-04`)**: Every request MUST use an explicit Ready-source selection and read only through C-02 using existing C-01 chunks. “All Ready sources” is initial UI selection only, never fallback for omitted/empty scope. Selection is local to the user's browser session and notebook; empty scope disables generation and is rejected server-side.
 - **FR-010 (`C-02`, `FR-SI-05`, `NFR-SEC-02`)**: Requests MUST capture source IDs/revisions at submission, recheck notebook/document access before reading and publishing, and fail without stale publication when a captured revision is deleted, replaced or unauthorized. Checkbox changes affect subsequent requests only; newer content MUST NOT be silently substituted.
 - **FR-011 (`FR-GC-01/03/06`, `C-02`, `NFR-EVAL-04`)**: Sandbox inputs, caches, history and generated prompts MUST obey the same scope. Cache keys MUST include notebook, exact source IDs/revisions, effective authorization, output language and relevant generation parameters. Prior turns whose snapshot includes an out-of-scope revision MUST be excluded from new context. Authorized history stays viewable after mere deselection; follow-ups use current scope and prompt for missing sources rather than restoring old selections. Deletion/revocation MUST hide affected historical content and invalidate cached snippets, exports and signed media URLs.
 - **FR-012 (`FR-GC-01/02`, `NFR-EVAL-01..04`)**: Every source-derived claim MUST cite scoped chunks; complete factual answers MUST be buffered until citation-ID validation succeeds. Validation failure MUST produce immediate refusal, without stripped-citation drafts or silent retry answers. Computed results MUST cite their input data.
 - **FR-013 (`FR-WM-04/05`, `NFR-SEC-01/02`)**: v3 MUST enforce Owner-only notebook/document authorization server-side and enterprise no-training endpoints. Future v6 chat roles retain their restrictions; Chat-Only scope is resolved server-side to authorized Ready sources without exposing raw-source, Notes or Studio access.
+- **FR-014 (`FR-GC-08`)**: When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, the assistant MUST ask a focused follow-up and wait for the answer before calculating. Clarification-only turns do not start execution or show “Running code…”. The execution-status timing applies to the submission that supplies sufficient statistical intent to start computation. It MUST NOT silently choose an interpretation.
 
 ### Key Entities
 
 - **Execution request and source snapshot** (`FR-GC-08`, `C-02`): Quantitative question, notebook, exact selected Ready source IDs/revisions and effective authorization; input data is read-only and scope cannot expand during execution.
 - **Sandbox execution** (`FR-GC-08`): Ephemeral bounded computation, generated code and at most one exception retry; states `CodeGenerating`, `SandboxRunning`, `Succeeded`, `TimedOut`, `Failed`.
-- **ChatMessage execution trace** (`FR-GC-08`, `FR-GC-06`): Persisted code, stdout, stderr, exit code and chart URLs, subject to current access and deletion hygiene.
+- **ChatMessage execution trace** (`FR-GC-08`, `FR-GC-06`): Ordered execution attempts, each retaining code, stdout, stderr, exit code and chart URLs, with the final attempt and its published outputs identified. Both attempts remain visible in the code drawer after a retry, subject to current access and deletion hygiene.
 - **Computed result and chart** (`FR-GC-08`, `FR-GC-02`): Numerical result labelled `Computed`, PNG/SVG chart and downloadable artifact, linked to validated citations and inspectable executed code.
 
 ## Success Criteria *(mandatory)*
@@ -132,6 +144,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **SC-004 (`FR-GC-08`)**: Boundary fixtures demonstrate enforcement of 1 vCPU, 512 MB RAM, 64 MB temporary disk and 15.0 s per run; exception cases receive exactly one retry opportunity, timeout/memory violations zero, and terminal failures publish no guessed number.
 - **SC-005 (`C-02`, `NFR-EVAL-02/04`)**: Scope/revision/authorization and citation fixtures achieve citation-ID precision 1.0 and leakage 0, including stale in-flight outputs, history, caches and chart downloads.
 - **SC-006 (`NFR-EVAL-01/03`, Gate v3.0)**: Applicable judged grounding checks retain hallucination <5%, out-of-source rejection ≥99% and semantic citation support. Deterministic citation/leakage suites run every PR once available; judged checks run for retrieval/prompt/chat PRs and before release gates. This package alone does not establish the full v3 gate.
+- **SC-007 (`FR-GC-08`)**: An ambiguous statistical request fixture triggers a focused clarification before any calculation; once its interpretation is resolved, the calculation matches that interpretation. A correction-retry fixture preserves and displays both attempts in order and identifies the final attempt and published outputs without publishing failed-attempt results.
 
 ## Assumptions & Out of Scope
 

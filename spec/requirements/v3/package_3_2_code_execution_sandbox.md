@@ -27,6 +27,8 @@
 - *Event:* When sandbox execution completes, the system shall embed the computed numerical results, each marked with a `Computed` label, generated charts (PNG/SVG), and a collapsible `"View executed code"` (`"Code anzeigen"`) inspection block inside the assistant's grounded chat response alongside source citations `[n]` to the source data used.
 - *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($512\text{ MB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
 
+- *Event:* When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, the assistant shall ask a focused follow-up and wait for the answer before calculating, rather than silently choosing an interpretation. Clarification-only turns do not start execution or show “Running code…”; execution-status timing applies to the submission that supplies sufficient statistical intent to start computation.
+
 **User story:** As a financial or data analyst, I want the chat assistant to calculate exact sums, growth rates, regressions, and charts by running real Python code on numbers from my sources, so that I never suffer from LLM arithmetic hallucinations.
 
 **Reference behaviour**
@@ -46,7 +48,7 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 
 **Outputs & state**
 - Visible: Exact computed values, inline rendered chart image (PNG/SVG with download button), collapsible code block (`stdout` + Python source), and source citations `[n]`.
-- Persisted: `code_execution_trace` (`code`, `stdout`, `stderr`, `exit_code`, `artifacts: [chart_urls]`) stored on the `ChatMessage` entity.
+- Persisted: `code_execution_trace` stored on `ChatMessage` as an ordered record of every execution attempt. Each attempt retains `code`, `stdout`, `stderr`, `exit_code`, and `artifacts: [chart_urls]`. After an automatic correction retry, save and show both attempts in execution order in the “View executed code” drawer, explicitly identifying the final attempt and its published outputs. Failed-attempt artifacts are not published results; existing scope, authorization and deletion hygiene apply to every attempt.
 - States: `CodeGenerating` $\rightarrow$ `SandboxRunning` $\rightarrow$ `Succeeded` (or `TimedOut` / `Failed`).
 
 **Acceptance criteria (Gherkin)**
@@ -54,9 +56,25 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 ```gherkin
 Scenario: Sandbox computes exact arithmetic and renders plot from active source data (Gate v3.0 #2)
   Given an active source containing a table of 12 monthly server latency values
+  And the intended sample or population interpretation is identified by the request, sources, or a clarification answer
   When the user asks "What is the exact standard deviation of the monthly latency and plot the trend?"
   Then the Code Execution Agent executes Python in the sandbox
   And the response includes the exact calculated standard deviation labelled "Computed", an inline chart image, and citation [1]
+
+Scenario: Ambiguous statistical intent is clarified before computation (FR-GC-08)
+  Given a statistical request has multiple valid interpretations
+  And neither the request nor its sources identifies the intended interpretation
+  When the assistant prepares the calculation
+  Then it asks a focused follow-up and waits for the answer before calculating
+  And it does not silently choose an interpretation
+
+Scenario: Correction retry preserves inspectable execution history (FR-GC-08)
+  Given the first execution raises an exception
+  And the automatic correction retry completes
+  When the user opens "View executed code"
+  Then both attempts appear in execution order
+  And the final attempt and its published outputs are explicitly identified
+  And failed-attempt artifacts are not presented as published results
 
 Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #2)
   Given a prompt attempting to execute "import urllib.request; urllib.request.urlopen('https://example.com')"
@@ -76,5 +94,7 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 **Deviations from reference:** Exposes the executed Python snippet in a collapsible `"View executed code"` drawer for enterprise auditability.
 
 **Out of scope:** Installing arbitrary third-party `pip` packages at runtime.
+
+**Clarifications (2026-10-19):** The project owner selected a focused follow-up before ambiguous statistical calculations and ordered persistence/display of both execution attempts after a retry, with the final attempt and published outputs identified.
 
 **Open questions:** `None`
