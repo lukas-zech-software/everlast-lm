@@ -15,6 +15,7 @@ export interface IngestionJobInput {
   byte_size_override?: number;
   word_count_override?: number;
   onStateChange?: (state: string) => void;
+  onReady?: (result: IngestionJobResult) => void | Promise<void>;
 }
 
 export interface IngestionJobResult {
@@ -50,6 +51,8 @@ export function generateUUIDv7(): string {
 
 export class IngestionPipeline {
   private processedAttempts = new Set<string>();
+
+  constructor(private readonly options?: { onReady?: (result: IngestionJobResult) => void | Promise<void> }) {}
 
   async process(input: IngestionJobInput): Promise<IngestionJobResult> {
     // 1. Idempotency Check: reject duplicate attempts
@@ -315,6 +318,8 @@ export class IngestionPipeline {
     };
 
     input.onStateChange?.("Ready");
+    const readyHook = input.onReady ?? this.options?.onReady;
+    if (readyHook) void Promise.resolve().then(() => readyHook(result)).catch(() => undefined);
     this.processedAttempts.add(input.attempt_id);
     return result;
   }

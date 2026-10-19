@@ -11,7 +11,7 @@ Trace: `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`, `FR-NM-02`, `
 ## Focused validation
 
 ```sh
-pnpm exec vitest run packages/contracts/test/package-v2-2.test.ts packages/db/test/package-v2-2.test.ts apps/worker/test/package-v2-2.test.ts apps/api/test/package-v2-2.test.ts apps/web/test/source-guide.test.ts apps/web/test/chat-control.test.ts
+pnpm exec vitest run packages/contracts/test/package-v2-2.test.ts packages/db/test/package-v2-2.test.ts apps/worker/test/package-v2-2.test.ts apps/api/test/package-v2-2.test.ts apps/web/test/source-guide.test.ts apps/web/test/package-v2-2.integration.test.ts
 pnpm typecheck
 pnpm lint
 node scripts/check-spec-integrity.mjs

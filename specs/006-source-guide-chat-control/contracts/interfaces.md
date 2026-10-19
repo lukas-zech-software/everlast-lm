@@ -4,8 +4,8 @@ Contracts cite `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`, `FR-N
 
 ## Shared Zod DTOs (`packages/contracts/src/package-v2-2.ts`)
 
-- `SourceGuideSchema`: source/revision, summary, topics, supporting C-01 chunk IDs, guide status.
-- `NotebookOverviewSchema`: notebook ID, exact source/revision snapshot, authorization/language cache keys, overview and supported starter prompts.
+- `SourceGuideSchema`: source/revision, source word count (for `<50` topic rules), summary, topics, supporting C-01 chunk IDs, guide status.
+- `NotebookOverviewSchema`: notebook ID, exact source/revision snapshot, SHA-256 authorization partition key, language/cache parameters, overview and supported starter prompts.
 - `ChatConfigurationSchema`: style and response length enums; custom instructions 1–5,000 trimmed Unicode code points only for `custom`.
 - `MessageFeedbackInputSchema`: message UUID, up/down rating, negative category when down, optional comment 0–1,000 trimmed code points.
 - `SaveResponseNoteRequestSchema`: `{ notebook_id: UUID, message_id: UUID }`.
@@ -20,9 +20,10 @@ Each source read is performed through the injected existing `ScopedContextProvid
 
 | Method and path | Request / response | Rules |
 | :--- | :--- | :--- |
-| `GET /api/notebooks/{notebook_id}/sources/{source_id}/guide` | SourceGuide or pending/failed state | Owner-authenticated; Ready source; guide read does not affect selection (`FR-SI-02`). |
-| `POST /api/notebooks/{notebook_id}/overview` | `{ active_source_ids: UUID[], output_language: BCP-47 }` → NotebookOverview | Empty scope rejected; exact scope/cache key; stale result not published (`FR-GC-04`, C-02). |
-| `PUT /api/notebooks/{notebook_id}/chat/config` | ChatConfiguration → saved ChatConfiguration | Owner only; invalid Custom config retains saved value (`FR-GC-07`). |
+| `GET /api/notebooks/{notebook_id}/sources/{source_id}/guide?revision={revision}` | SourceGuide or pending/failed state | Owner-authenticated; Ready source; guide read does not affect selection (`FR-SI-02`). |
+| `POST /api/notebooks/{notebook_id}/overview` | `{ source_revisions: [{ source_id, revision }], output_language: BCP-47 }` → NotebookOverview | Empty scope rejected; exact scope/cache key; stale result not published (`FR-GC-04`, C-02). |
+| `GET/PUT /api/notebooks/{notebook_id}/chat/configuration` | ChatConfiguration → saved ChatConfiguration | Owner only; invalid Custom config retains saved value (`FR-GC-07`). |
+| `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/follow-ups` | `{}` → FollowUpSuggestions | Caller-owned completed assistant message; exact stored scope snapshot; stale snapshots fail closed (`FR-GC-05`, C-02). |
 | `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/feedback` | `{ rating, category?, comment? }` → MessageFeedback | Message must be caller's own notebook assistant message; update unique user/message record (`FR-GC-09`). |
 | `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` | `{ notebook_id, message_id }` → `{ note: SavedResponseNote }` | Message must be caller's assistant message; owner-only; idempotent per authenticated user/message; citation links preserved (`FR-GC-09`, `FR-NM-02`). |
 

@@ -21,7 +21,7 @@
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources.
+- *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources. The persisted guide DTO records the source word count as validation metadata for the existing `<50`-word exception; it is not additional generated content.
 - *State:* While the Source Inspector (`FR-SI-04`) is open for a `Ready` source, the system shall render the collapsible `Source Guide` card at the top of the inspector above the full document text.
 - *Event:* When the user clicks a key topic chip inside the Source Guide, the system shall submit a grounded chat query focused on that topic to the Center Chat Panel.
 

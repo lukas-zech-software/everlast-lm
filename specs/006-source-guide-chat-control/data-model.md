@@ -5,14 +5,14 @@ All records are scoped to the listed SRS IDs. Inputs use shared UUID and chunk t
 ## SourceGuide (`FR-SI-02`)
 
 - Identity: `(notebook_id, source_id, revision)`; source ID is a UUID and revision a positive integer.
-- Fields: `status: GuidePending | GuideReady | GuideFailed`; `summary_md`; `key_topics[]`; `supporting_chunk_ids[]`; `generated_at?`; `error?`.
+- Fields: `status: GuidePending | GuideReady | GuideFailed`; `source_word_count`; `summary_md`; `key_topics[]`; `supporting_chunk_ids[]`; `generated_at?`; `error?`.
 - Scope invariant: generation requests C-02 with exactly `[source_id]`; every C-01 chunk belongs to that source and captured revision; the guide never alters user selection.
 - Validation: `<50` source words → one sentence and 1–3 topics; otherwise 100–250 summary words (or shorter only when evidence is insufficient) and 5–10 topics; topic ≤40 code points; topic/summary supporting chunk IDs must exist in scoped C-01 set. Never pad unsupported material.
 - Transition: `GuidePending → GuideReady | GuideFailed`; retries are transient and bounded, source remains Ready and viewable on failure.
 
 ## NotebookOverview (`FR-GC-04`)
 
-- Cache identity: exact `notebook_id`, sorted `(source_id, revision)` pairs, effective authorization key, output language, and generation parameters.
+- Cache identity: exact `notebook_id`, sorted `(source_id, revision)` pairs, SHA-256 effective authorization partition key, output language, and generation parameters. The raw user ID is never stored in or returned as the authorization key.
 - Fields: `overview_md`; `starter_prompts[]`; `supporting_chunk_ids[]`; cache key; `generated_at`.
 - Invariants: nonempty explicit Ready scope through C-02; 3–5 supported prompts ≤120 code points; all support IDs in snapshot; invalidate/hide immediately on any cache-key change or empty/deleted scope.
 

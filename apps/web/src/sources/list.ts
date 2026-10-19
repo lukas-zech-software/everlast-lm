@@ -16,6 +16,17 @@ export function renderSourceList(
 ): { destroy: () => void } {
   const { controller, onSourceTitleClick } = options;
 
+  function dispatchScopeChange(): void {
+    if (typeof window === "undefined") return;
+    const revisions = controller.getSources()
+      .filter((source) => controller.getSelectedSourceIds().includes(source.id))
+      .map((source) => ({ source_id: source.id, revision: source.revision_id }));
+    const event = typeof CustomEvent !== "undefined"
+      ? new CustomEvent("everlast:chat-scope-changed", { detail: { source_revisions: revisions, language: "en-US" } })
+      : { type: "everlast:chat-scope-changed", detail: { source_revisions: revisions, language: "en-US" } };
+    window.dispatchEvent(event as Event);
+  }
+
   function updateDom(): void {
     const sources = controller.getSources();
     const selectedIds = new Set(controller.getSelectedSourceIds());
@@ -73,6 +84,7 @@ export function renderSourceList(
 
       masterCheckbox.addEventListener("change", () => {
         controller.toggleMaster();
+        dispatchScopeChange();
       });
     }
 
@@ -83,6 +95,7 @@ export function renderSourceList(
         const sourceId = cb.dataset?.sourceId || cb.getAttribute?.("data-source-id");
         if (sourceId) {
           controller.toggleSource(sourceId, e.target?.checked ?? cb.checked);
+          dispatchScopeChange();
         }
       });
     }
@@ -92,6 +105,13 @@ export function renderSourceList(
       titleEl.addEventListener("click", () => {
         const sourceId = titleEl.dataset?.sourceId || titleEl.getAttribute?.("data-source-id");
         if (sourceId) {
+          const source = controller.getSources().find((item) => item.id === sourceId);
+          if (source?.status === "Ready" && typeof window !== "undefined") {
+            const event = typeof CustomEvent !== "undefined"
+              ? new CustomEvent("everlast:source-selected", { detail: { source_id: source.id, revision: source.revision_id } })
+              : { type: "everlast:source-selected", detail: { source_id: source.id, revision: source.revision_id } };
+            window.dispatchEvent(event as Event);
+          }
           onSourceTitleClick?.(sourceId);
         }
       });

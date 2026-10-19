@@ -23,7 +23,7 @@ This specification transcribes Package 2.2 and applicable binding cross-package 
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: FR-SI-02 depends on FR-SI-01, FR-SI-04, C-01, and C-02. FR-GC-04 depends on FR-SI-02, FR-GC-01, and C-02. FR-GC-05 depends on FR-GC-01 and C-02. FR-GC-07 depends on FR-GC-01. FR-GC-09 depends on FR-GC-01 and FR-NM-01 and shares one save-note contract with FR-NM-02 in Package 2.3. Package 2.1 language preferences precede language-sensitive generators.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: v2.0 is Owner-only. Editor, Viewer Full, and Viewer Chat-Only permissions are deferred until v6.0. Copy and feedback behavior for other roles is specified only for that later phase.
 - **Data Residency (`D3`)**: EU preferred; `europe-west4` is the default, with only documented feature-specific region exceptions.
-- **Upstream Flow-Back Status (`CC-01`)**: No clarifications or downstream refinements have been made. The current requirements are transcribed from the Package 2.2 cards and binding cross-package rules.
+- **Upstream Flow-Back Status (`CC-01`)**: Implementation records `source_word_count` in the Source Guide DTO to validate the existing `<50`-word topic rule, and uses a SHA-256 authorization partition rather than exposing the raw owner ID in overview cache metadata. These refinements are documented in the Package 2.2 card and implementation contracts; the shared save-note DTO remains unchanged.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -145,7 +145,7 @@ Package 2.2 and Package 2.3 use one stable DTO. `POST /api/notebooks/{notebook_i
 
 ### Functional Requirements
 
-- **FR-001 (FR-SI-02)**: When a source reaches `Ready`, the system MUST asynchronously generate a concise summary and key topic chips using only that source's chunks through C-02 with an explicit singleton scope `[source_id]`; it MUST persist the summary, topics, and supporting chunk IDs on that source.
+- **FR-001 (FR-SI-02)**: When a source reaches `Ready`, the system MUST asynchronously generate a concise summary and key topic chips using only that source's chunks through C-02 with an explicit singleton scope `[source_id]`; it MUST persist the summary, topics, source word count used for the short-source rule, and supporting chunk IDs on that source.
 - **FR-002 (FR-SI-02)**: The Source Guide summary MUST target 100–250 words, or be shorter when evidence is insufficient. For a source with fewer than 50 words, it MUST instead provide a one-sentence summary and 1–3 topic chips; otherwise the guide MUST target 5–10 topic chips. Each topic chip MUST be at most 40 characters; the system MUST NOT add unsupported material to meet a target.
 - **FR-003 (FR-SI-02)**: While a Ready source is open in the Source Inspector, the system MUST display a collapsible Source Guide above the full document text. Clicking a topic chip MUST submit a grounded chat query focused on that topic.
 - **FR-004 (FR-SI-02)**: Source Guide generation MUST NOT change or populate the user's active chat selection. Full-text viewing MUST remain available if guide generation fails; transient failures MUST retry with exponential backoff.

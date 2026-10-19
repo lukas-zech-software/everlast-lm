@@ -9,3 +9,4 @@ export * from "./source-view.js";
 export * from "./chat-history.js";
 export * from "./chat-search.js";
 export type { Pool, PoolClient } from "pg";
+export * from "./package-v2-2.js";

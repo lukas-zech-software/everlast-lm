@@ -116,6 +116,7 @@ export function renderWorkspaceLayout(
         <button id="add-source-btn" class="btn btn-sm btn-add-source" ${sourceCount >= 50 ? "disabled" : ""}>Add sources</button>
       </div>
       <div class="sources-list" id="sources-list"></div>
+      <div id="source-guide-panel" class="source-guide-panel"></div>
       <div class="source-inspector-container" id="source-inspector" style="display: none;"></div>
     </div>
   `;
@@ -127,7 +128,19 @@ export function renderWorkspaceLayout(
   centerPanel.innerHTML = `
     <div class="panel-header">
       <span class="panel-title">Chat</span>
+      <span id="chat-config-indicator" aria-live="polite"></span>
+      <button type="button" id="chat-settings-open">Chat settings</button>
     </div>
+    <dialog id="chat-config-dialog">
+      <form id="chat-config-form">
+        <h2>Chat settings</h2>
+        <label>Style <select name="style"><option value="default">Default</option><option value="learning_guide">Learning guide</option><option value="analyst">Analyst</option><option value="custom">Custom</option></select></label>
+        <label id="custom-instructions-row" hidden>Custom instructions <textarea name="custom_instructions" maxlength="5000"></textarea><span id="custom-instructions-count">0 / 5000</span></label>
+        <label>Response length <select name="response_length"><option value="default">Default</option><option value="shorter">Shorter</option><option value="longer">Longer</option></select></label>
+        <button type="submit">Save</button><button type="button" id="chat-settings-cancel">Cancel</button>
+      </form>
+    </dialog>
+    <div id="notebook-overview" class="notebook-overview"></div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-bar">
       <div class="active-source-counter">${sourceCount === 1 ? "1 source" : `${sourceCount} sources`}</div>

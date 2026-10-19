@@ -8,9 +8,11 @@ import http from "node:http";
 import { verifyBearerToken, resolveOwnerContext } from "./auth/identity.js";
 import { WorkspaceService } from "./services/workspace.js";
 import { handleNotebookRoute } from "./routes/notebooks.js";
+import { handlePackageV22Route, type PackageV22ApiDependencies } from "./routes/package-v2-2.js";
+import { handleChatRoute, type ChatServiceDependencies } from "./routes/chat.js";
 import { sendJson } from "./http.js";
 
-export function createServer(options?: { service?: WorkspaceService; projectId?: string }) {
+export function createServer(options?: { service?: WorkspaceService; projectId?: string; packageV22?: PackageV22ApiDependencies; chat?: ChatServiceDependencies }) {
   const service = options?.service || new WorkspaceService();
   const projectId = options?.projectId || process.env.GOOGLE_CLOUD_PROJECT || "everlast-test-project";
 
@@ -37,6 +39,14 @@ export function createServer(options?: { service?: WorkspaceService; projectId?:
 
         const ownerContext = resolveOwnerContext(identity);
 
+        const packageV22 = options?.packageV22 ?? {
+          authorizeNotebook: async (userId: string, notebookId: string) => Boolean(await service.getNotebook(userId, notebookId)),
+          authorizeSource: async () => ({ exists: false, ready: false, revision: 0 }),
+        };
+        const featureHandled = await handlePackageV22Route(req, res, ownerContext.ownerId, packageV22);
+        if (featureHandled) return;
+        const chatHandled = options?.chat ? await handleChatRoute(req, res, options.chat, ownerContext.ownerId) : false;
+        if (chatHandled) return;
         const handled = await handleNotebookRoute(req, res, service, ownerContext.ownerId);
         if (!handled) {
           sendJson(res, 404, {

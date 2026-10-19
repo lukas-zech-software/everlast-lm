@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { parseJsonBody, sendJson } from "../http.js";
 import { GroundedChatAgent, ChatGroundingError } from "../chat/agent.js";
 import { filterEligibleHistory, createSubmissionSnapshot } from "../chat/context.js";
+import { getChatConfiguration } from "@everlast/db";
 import {
   UserMessageInputSchema,
   type ChatMessage,
@@ -103,6 +104,7 @@ export async function handleChatRoute(
       );
 
       const agent = deps.agent ?? new GroundedChatAgent();
+      const configuration = await getChatConfiguration(notebookId, userId);
       const turnResult = await agent.generateTurn({
         notebookId,
         threadId: notebookId, // 1 thread per notebook in v1.0
@@ -111,6 +113,7 @@ export async function handleChatRoute(
         activeSourceIds,
         chunks,
         history: eligibleHistory,
+        configuration,
       });
 
       let persistedIds = { userMessageId: "generated-user-id", assistantMessageId: "generated-asst-id" };
