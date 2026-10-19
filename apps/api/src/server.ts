@@ -8,9 +8,11 @@ import http from "node:http";
 import { verifyBearerToken, resolveOwnerContext } from "./auth/identity.js";
 import { WorkspaceService } from "./services/workspace.js";
 import { handleNotebookRoute } from "./routes/notebooks.js";
+import { handleWorkspacePreferencesRoute } from "./routes/workspace-preferences.js";
+import { handleChatRoute, type ChatServiceDependencies } from "./routes/chat.js";
 import { sendJson } from "./http.js";
 
-export function createServer(options?: { service?: WorkspaceService; projectId?: string }) {
+export function createServer(options?: { service?: WorkspaceService; projectId?: string; chatDependencies?: ChatServiceDependencies }) {
   const service = options?.service || new WorkspaceService();
   const projectId = options?.projectId || process.env.GOOGLE_CLOUD_PROJECT || "everlast-test-project";
 
@@ -37,7 +39,26 @@ export function createServer(options?: { service?: WorkspaceService; projectId?:
 
         const ownerContext = resolveOwnerContext(identity);
 
-        const handled = await handleNotebookRoute(req, res, service, ownerContext.ownerId);
+        const chatPath = url.pathname.match(/^\/api\/notebooks\/([^/]+)\/chat(?:\/|$)/);
+        if (chatPath) {
+          const notebookId = chatPath[1]!;
+          const notebook = await service.getNotebook(ownerContext.ownerId, notebookId);
+          if (!notebook) {
+            const raw = service.getNotebookRaw(notebookId);
+            sendJson(res, raw && raw.owner_id !== ownerContext.ownerId ? 403 : 404, {
+              error: { code: raw && raw.owner_id !== ownerContext.ownerId ? "Forbidden" : "NotebookNotFound", message: "Notebook is unavailable" },
+            });
+            return;
+          }
+        }
+        const chatDependencies: ChatServiceDependencies = {
+          ...options?.chatDependencies,
+          resolveLanguagePreferences: options?.chatDependencies?.resolveLanguagePreferences
+            ?? ((notebookId, userId, browserLocale) => service.resolveLanguagePreferences(userId, notebookId, browserLocale)),
+        };
+        const handled = await handleNotebookRoute(req, res, service, ownerContext.ownerId)
+          || await handleWorkspacePreferencesRoute(req, res, service, ownerContext.ownerId)
+          || await handleChatRoute(req, res, chatDependencies, ownerContext.ownerId);
         if (!handled) {
           sendJson(res, 404, {
             error: {

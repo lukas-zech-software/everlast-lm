@@ -13,6 +13,17 @@ import {
   reserveSourceSlot,
   dismissSourceError,
   getOccupiedSourceCount,
+  getReadySourceCount,
+  buildNotebookOverview,
+  sortNotebookOverview,
+  getNotebookMetadata,
+  getOwnerWorkspacePreferences,
+  getOwnerNotebookPreferences,
+  patchOwnerWorkspacePreferences,
+  patchOwnerNotebookPreferences,
+  setNotebookIcon,
+  setNotebookPinned,
+  recordNotebookOpened,
   type CleanupOperation,
   type ScopeValidationResult,
   type AdmissionResult,
@@ -27,6 +38,12 @@ import {
   type UpdateNotebookInput,
   type ScopedContextRequest,
   type SourceAdmissionAttempt,
+  type NotebookSortOrder,
+  type NotebookOverviewItem,
+  type OwnerWorkspacePreferences,
+  type OwnerNotebookPreferences,
+  InputLanguageSchema,
+  resolveOutputLanguage,
 } from "@everlast/contracts";
 
 export interface QuotaSummary {
@@ -52,13 +69,28 @@ export class WorkspaceService {
   async getNotebook(
     ownerId: string,
     notebookId: string
-  ): Promise<{ notebook: Notebook; quota: QuotaSummary } | null> {
+  ): Promise<{ notebook: NotebookOverviewItem; quota: QuotaSummary } | null> {
     const notebook = await getNotebookById(undefined, notebookId, ownerId);
-    if (!notebook) {
-      return null;
-    }
-    const quota = await this.getNotebookQuota(ownerId, notebookId);
-    return { notebook, quota };
+    if (!notebook) return null;
+    const [metadata, preference] = await Promise.all([
+      getNotebookMetadata(notebookId),
+      getOwnerNotebookPreferences(ownerId, notebookId),
+    ]);
+    const [quota, readyCount] = await Promise.all([
+      this.getNotebookQuota(ownerId, notebookId),
+      getReadySourceCount(notebookId),
+    ]);
+    return {
+      notebook: {
+        ...notebook,
+        ...metadata,
+        ready_source_count: readyCount,
+        is_pinned: preference.is_pinned,
+        last_opened_at: preference.last_opened_at,
+        owner_role: "Owner",
+      },
+      quota,
+    };
   }
 
   getNotebookRaw(notebookId: string): Notebook | null {
@@ -66,9 +98,90 @@ export class WorkspaceService {
   }
 
   async listNotebooks(
-    ownerId: string
-  ): Promise<{ notebooks: Notebook[]; notebooks_used: number; notebook_limit: number }> {
-    return listNotebooksByOwner(undefined, ownerId);
+    ownerId: string,
+    requestedSort?: NotebookSortOrder
+  ): Promise<{ notebooks: NotebookOverviewItem[]; notebooks_used: number; notebook_limit: number }> {
+    const [list, preferences] = await Promise.all([
+      listNotebooksByOwner(undefined, ownerId),
+      getOwnerWorkspacePreferences(ownerId),
+    ]);
+    const items = await buildNotebookOverview(ownerId, list.notebooks);
+    return {
+      ...list,
+      notebooks: sortNotebookOverview(items, requestedSort ?? preferences.sort_order),
+    };
+  }
+
+  async updateNotebookIcon(ownerId: string, notebookId: string, icon: string): Promise<boolean> {
+    return setNotebookIcon(ownerId, notebookId, icon);
+  }
+
+  async markNotebookOpened(ownerId: string, notebookId: string): Promise<OwnerNotebookPreferences> {
+    return recordNotebookOpened(ownerId, notebookId);
+  }
+
+  async getOwnerPreferences(ownerId: string): Promise<OwnerWorkspacePreferences> {
+    return getOwnerWorkspacePreferences(ownerId);
+  }
+
+  async patchOwnerPreferences(
+    ownerId: string,
+    patch: Partial<Omit<OwnerWorkspacePreferences, "owner_id">>
+  ): Promise<OwnerWorkspacePreferences> {
+    return patchOwnerWorkspacePreferences(ownerId, patch);
+  }
+
+  async getNotebookPreferences(ownerId: string, notebookId: string): Promise<OwnerNotebookPreferences> {
+    return getOwnerNotebookPreferences(ownerId, notebookId);
+  }
+
+  async patchNotebookPreferences(
+    ownerId: string,
+    notebookId: string,
+    patch: Partial<Omit<OwnerNotebookPreferences, "owner_id" | "notebook_id" | "last_opened_at">>
+  ): Promise<OwnerNotebookPreferences> {
+    return patchOwnerNotebookPreferences(ownerId, notebookId, patch);
+  }
+
+  async resolveLanguagePreferences(
+    ownerId: string,
+    notebookId: string,
+    browserLocale?: string,
+    jobInputLanguage?: string,
+    jobOutputLanguage?: string,
+  ): Promise<{ input_language: string; output_language: string }> {
+    const [user, notebook] = await Promise.all([
+      getOwnerWorkspacePreferences(ownerId),
+      getOwnerNotebookPreferences(ownerId, notebookId),
+    ]);
+    const inputCandidates = [
+      jobInputLanguage,
+      notebook.input_language_override,
+      notebook.notebook_input_language,
+      user.input_language,
+      "auto",
+    ];
+    let inputLanguage = "auto";
+    for (const candidate of inputCandidates) {
+      if (candidate && InputLanguageSchema.safeParse(candidate).success) {
+        inputLanguage = candidate;
+        break;
+      }
+    }
+    return {
+      input_language: inputLanguage,
+      output_language: resolveOutputLanguage({
+        jobLanguage: jobOutputLanguage ?? null,
+        personalOverride: notebook.output_language_override,
+        notebookDefault: notebook.notebook_output_language,
+        userDefault: user.output_language,
+        browserLocale: browserLocale ?? null,
+      }),
+    };
+  }
+
+  async pinNotebook(ownerId: string, notebookId: string, isPinned: boolean): Promise<OwnerNotebookPreferences> {
+    return setNotebookPinned(ownerId, notebookId, isPinned);
   }
 
   async updateNotebookTitle(

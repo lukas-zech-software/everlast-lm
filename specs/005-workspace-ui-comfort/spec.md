@@ -14,7 +14,7 @@ The normative scope below is transcribed from the SRS, Package 2.1 FR cards, and
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-WM-02 | Metadata & Visual Organization | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-02--metadata--visual-organization) | D2 Flash-Lite topic-icon selection; D3 residency; no deviation |
+| FR-WM-02 | Metadata & Visual Organization | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-02--metadata--visual-organization) | Solution Architecture §2.1 Flash-Lite topic-icon routing; D3 residency; no deviation |
 | FR-WM-03 | Home Overview, Sorting & Pinning | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-wm-03--home-overview-sorting--pinning) | No deviation recorded |
 | FR-UI-02 | Theme & Language Configuration | [Package 2.1](../../spec/requirements/v2/package_2_1_workspace_ui_comfort.md#fr-ui-02--theme--language-configuration) | D3 data residency; no package-specific region exception |
 | FR-GC-03 | Citation fidelity constraint | [SRS](../../spec/System_Requirements_Specification_Gemeni_Notebook.md) | Preserve original-language citation quotations; no generation-scope expansion |
@@ -44,7 +44,7 @@ As an owner managing multiple notebooks, I want recognizable notebook metadata a
 3. **Given** three notebooks where `"Beta"` is pinned and `"Alpha"` and `"Zeta"` are not, **When** the owner sorts by title, **Then** `"Beta"` appears first, followed by `"Alpha"` and `"Zeta"` (`FR-WM-03`).
 4. **Given** the home overview in grid view, **When** the owner switches to list view and reloads the overview, **Then** list view remains selected (`FR-WM-03`).
 5. **Given** the owner has no notebooks, **When** the home overview opens, **Then** it displays a `"Create your first notebook"` call to action and hides or disables sorting controls (`FR-WM-03`).
-6. **Given** a new notebook with the default icon, **When** its first source reaches `Ready`, **Then** the approved Flash-Lite selector chooses a topic icon unless the owner has already chosen a custom icon; selector failure leaves the existing icon and source Ready (`FR-WM-02`, D2, D3).
+6. **Given** a new notebook with the default icon, **When** its first source reaches `Ready`, **Then** the approved Flash-Lite selector chooses a topic icon unless the owner has already chosen a custom icon; selector failure leaves the existing icon and source Ready (`FR-WM-02`, Solution Architecture §2.1, D3).
 7. **Given** a notebook with two Ready sources, **When** another source fails ingestion, **Then** its displayed count remains `"2 sources"`; when a note or artifact is modified, **Then** the notebook's modified timestamp updates (`FR-WM-02`).
 8. **Given** the owner selects List view, **When** the overview displays notebooks, **Then** each row shows the icon, title, Owner role, Ready-source count, creation date, and last-modified date (`FR-WM-03`).
 9. **Given** a changed sort order, **When** the owner reloads the overview, **Then** the selected sort order is retained (`FR-WM-03`).
@@ -84,7 +84,7 @@ As an owner working across languages and display conditions, I want to choose a 
 ### Functional Requirements
 
 - **FR-001 (FR-WM-02)**: The system MUST display each notebook's emoji/icon, title, creation date, last-modified date, and count of sources in `Ready` state on the home overview. The count MUST use the localized `"<n> sources"` or `"<n> Quellen"` label, and dates MUST use a readable localized format.
-- **FR-002 (FR-WM-02)**: When a notebook is created, the system MUST assign the default "📓" icon and use the approved enterprise Flash-Lite topic-emoji selector (D2, D3), based on the title of the first source to reach `Ready`, to update the icon unless the owner has manually selected an icon. Selector failure MUST NOT fail ingestion and MUST leave the current icon unchanged.
+- **FR-002 (FR-WM-02)**: When a notebook is created, the system MUST assign the default "📓" icon and use the approved enterprise Flash-Lite topic-emoji selector (Solution Architecture §2.1, D3), based on the title of the first source to reach `Ready`, to update the icon unless the owner has manually selected an icon. Selector failure MUST NOT fail ingestion and MUST leave the current icon unchanged.
 - **FR-003 (FR-WM-02)**: The owner MUST be able to select a single valid Unicode emoji grapheme cluster, including multi-code-point emoji sequences, from the icon picker on a notebook card or workspace header; the choice MUST be saved immediately. Invalid non-emoji input MUST be rejected without changing the current icon.
 - **FR-004 (FR-WM-02)**: When a source is added, removed, or renamed, or a note or artifact is modified, the system MUST update the notebook's last-modified timestamp and keep its displayed Ready-source count current.
 - **FR-005 (FR-WM-03)**: The home overview MUST offer Grid and List views and sort choices for Most recently opened, Title (A–Z), and Created date (newest first). Most recently opened MUST sort by the owner's last-opened time and use creation time for a notebook that has never been opened. The default view MUST be Grid and the default sort MUST be Most recently opened.

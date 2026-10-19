@@ -9,6 +9,8 @@ export interface GroundedTurnInput {
   activeSourceIds: string[];
   chunks: UnifiedDocumentChunk[];
   history: ChatMessage[];
+  inputLanguage?: string;
+  outputLanguage?: string;
 }
 
 export interface GroundedTurnResult {
@@ -26,6 +28,8 @@ export interface ModelCompletionParams {
   userPrompt: string;
   history: ChatMessage[];
   chunks: UnifiedDocumentChunk[];
+  inputLanguage: string;
+  outputLanguage: string;
 }
 
 export interface ModelCompletionResult {
@@ -128,10 +132,12 @@ export class GroundedChatAgent {
     let completion: ModelCompletionResult;
     try {
       completion = await this.modelAdapter.complete({
-        systemInstructions: SYSTEM_PROMPT_GUARDRAILS,
         userPrompt: trimmedMessage,
         history: input.history,
         chunks: input.chunks,
+        inputLanguage: input.inputLanguage ?? "auto",
+        outputLanguage: input.outputLanguage ?? "en-US",
+        systemInstructions: `${SYSTEM_PROMPT_GUARDRAILS}\n\nInput language preference: ${input.inputLanguage ?? "auto"}. Treat auto as language detection; never translate source text. Respond in ${input.outputLanguage ?? "en-US"}. Preserve every citation quotation exactly in its original source language.`,
       });
     } catch (err) {
       // Map timeout or rate limit errors to the exact contractual message

@@ -14,7 +14,7 @@ Request: `{ "icon_emoji": "🧬" }`.
 - `403`: notebook belongs to another owner.
 - `404`: notebook not found.
 
-Custom icon selection sets sticky custom state. On the first source transition to Ready, the worker calls the D2-approved Flash-Lite topic selector through Vertex AI using only the source title and media type. A valid result is stored only when no custom icon exists. Model/configuration/output errors do not fail ingestion or overwrite the current icon. The call uses the enterprise endpoint in `europe-west4` and keyless auth (D3, NFR-SEC-01).
+Custom icon selection sets sticky custom state. On the first source transition to Ready, the worker calls the Flash-Lite topic selector specified in Solution Architecture §2.1 through Vertex AI using only the source title and media type. A valid result is stored only when no custom icon exists. Model/configuration/output errors do not fail ingestion or overwrite the current icon. The call uses the enterprise endpoint in `europe-west4` and keyless auth (D3, NFR-SEC-01).
 
 ### `POST /api/notebooks/:id/opened`
 Records the current owner's `last_opened_at`; does not change notebook `updated_at`. Returns `204` on success; standard `403`/`404` otherwise.
@@ -37,6 +37,7 @@ The current `packages/db` local adapter is in-memory. It preserves state across 
 ## Browser interface
 
 - Home overview uses accessible Grid/List controls, a sort selector, pin/unpin buttons, icon and metadata, and an empty-state call to action. Local storage keys are versioned and validated; corrupt values fall back to `grid`, `recent`, `system`.
-- Theme is applied to the document root before visible app paint and changes without reload. System theme follows `prefers-color-scheme`; all workspace panels and home controls use theme variables.
+- Theme is applied to the document root before visible app paint and changes without reload. System theme follows initial and subsequent `prefers-color-scheme` changes; all workspace panels and home controls use theme variables.
+- Settings are reachable from both the home overview and an active workspace. Saved global settings hydrate on reload; notebook input/output defaults hydrate and persist through the notebook-scoped API controls.
 - Emoji picker selection updates visible cards/header immediately and persists through the icon API; failed persistence restores the authoritative current icon and announces the error accessibly.
 - Preferences never change active source selections. Citation quote previews remain verbatim and un-translated.

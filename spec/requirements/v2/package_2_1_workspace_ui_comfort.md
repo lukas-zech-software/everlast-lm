@@ -22,7 +22,7 @@
 
 **Requirement (EARS)**
 - *Ubiquitous:* The system shall assign and display for every notebook an emoji/icon, title, creation/last-modified timestamp, and current count of `Ready` sources (`"<n> sources"` / `"<n> Quellen"`).
-- *Event:* When a new notebook is created, the system shall assign a default emoji icon and use the approved enterprise Flash-Lite topic-emoji selector (D2, D3), based on the title of the first source to reach `Ready`, to update the icon (unless manually overridden by the owner). Selector failure does not fail ingestion and leaves the current icon unchanged.
+- *Event:* When a new notebook is created, the system shall assign a default emoji icon and use the approved enterprise Flash-Lite topic-emoji selector (Solution Architecture §2.1 model-routing table; D3), based on the title of the first source to reach `Ready`, to update the icon (unless manually overridden by the owner). Selector failure does not fail ingestion and leaves the current icon unchanged.
 - *Event:* When the Owner/Editor clicks the emoji icon on the notebook card or in the workspace header and selects a new emoji from the picker, the system shall persist the chosen emoji immediately.
 - *Event:* When a source is added, removed, or renamed, or a note/artifact is modified, the system shall update the notebook's `updated_at` timestamp and source counter.
 
