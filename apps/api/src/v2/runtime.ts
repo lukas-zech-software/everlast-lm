@@ -210,7 +210,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     },
     ...(options.generation ? { model: options.generation } : {}),
     resolveOwner: async (notebookId) => ownerOf(notebookId),
+    // FR-UI-02: background work has no browser locale, so notebook > user > en-US.
+    resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
+  // On-demand guides for another output language (FR-SI-02): one background run per (source, revision, language).
+  const guideRuns = new Set<string>();
+  const startGuide = (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => {
+    const key = `${input.notebook_id}:${input.source_id}:${input.revision}:${input.output_language}`;
+    if (guideRuns.has(key)) return;
+    guideRuns.add(key);
+    // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
+    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
+  };
   const v22Deps: PackageV22ApiDependencies = {
     // The API checked notebook ownership in PostgreSQL before any v2 handler runs.
     authorizeNotebook: async (userId, notebookId) => ownerOf(notebookId) === userId,
@@ -223,8 +234,9 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         throw err;
       }
     },
+    resolveOutputLanguage: async (userId, notebookId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
     ...(options.generation
-      ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps }
+      ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps, startGuide }
       : {}),
   };
 

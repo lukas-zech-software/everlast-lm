@@ -49,6 +49,8 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let studio: HTMLElement | null = null;
   let openCitation: (sourceId: string, chunkId: string) => void = () => undefined;
   let revisions: SourceRevision[] = [];
+  // Current browser-local selection (C-02, FR-SI-02): topic chips send only for selected sources.
+  let selectedSourceIds = new Set<string>();
 
   // ---- Settings (theme, languages) ---------------------------------------------------------------------
   const settingsPanel = h("div", { class: "workspace-settings-host", "data-testid": "workspace-settings", hidden: true });
@@ -152,6 +154,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   const guide = new SourceGuideController({
     notebookId,
     fetcher: authFetch,
+    isSelected: (sourceId) => selectedSourceIds.has(sourceId),
     onTopic: (topic) => ask(`Explain “${topic}” using only the selected sources and cite supporting passages.`),
   });
 
@@ -183,9 +186,9 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
       })
         .then(async (res) => {
           if (!res.ok) return;
-          const { suggested_followups } = (await res.json()) as { suggested_followups?: string[] };
+          const { suggested_followups } = (await res.json()) as { suggested_followups?: { text: string }[] };
           const chips = h("div", { class: "follow-ups", "data-testid": "follow-ups" });
-          for (const prompt of suggested_followups ?? []) {
+          for (const prompt of (suggested_followups ?? []).map((chip) => chip.text)) {
             const chip = h("button", { class: "follow-up-chip", text: prompt });
             chip.addEventListener("click", () => {
               chips.remove();
@@ -203,6 +206,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     },
     onSelectionChange(sources, selectedIds) {
       const selected = new Set(selectedIds);
+      selectedSourceIds = selected;
       revisions = sources
         .filter((s) => selected.has(s.id) && s.status === "Ready" && s.revision !== null)
         .map((s) => ({ source_id: s.id, revision: s.revision! }))

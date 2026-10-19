@@ -12,7 +12,7 @@ const reader: PackageV22SourceReader = { readReadySources: async ({ source_revis
 const model: StructuredGenerationClient = {
   generateSourceGuide: async () => ({ summary_md: "A supported summary of the provided source.", key_topics: ["Topic one", "Topic two", "Topic three", "Topic four", "Topic five"], supporting_chunk_ids: [chunk] }),
   generateOverview: async () => ({ overview_md: "Overview grounded in the current notebook sources.", starter_prompts: ["Prompt one", "Prompt two", "Prompt three"], supporting_chunk_ids: [chunk] }),
-  generateFollowUps: async () => ({ suggested_followups: ["What evidence supports this?"], supporting_chunk_ids: [chunk] }),
+  generateFollowUps: async () => ({ suggested_followups: [{ text: "What evidence supports this?", supporting_chunk_ids: [chunk] }] }),
 };
 beforeEach(() => resetPackageV22Store());
 
@@ -116,4 +116,17 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     expect(callback).toHaveBeenCalledWith(event);
   });
 
+
+  it("drops only follow-up chips whose support falls outside the current C-02 scope (FR-GC-05, FR-008, C-02)", async () => {
+    const outside = "018f6b40-0009-7000-8000-000000000009";
+    const mixed = { ...model, generateFollowUps: async () => ({ suggested_followups: [
+      { text: "What evidence supports this?", supporting_chunk_ids: [chunk] },
+      { text: "What does the other notebook say?", supporting_chunk_ids: [outside] },
+      { text: "Which claim is strongest?", supporting_chunk_ids: [chunk, outside] },
+    ] }) };
+    const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model: mixed });
+    expect(result.suggested_followups.map((c) => c.text)).toEqual(["What evidence supports this?"]);
+    expect(result.suggested_followups[0]!.supporting_chunk_ids).toEqual([chunk]);
+    expect(result.output_language).toBe("en");
+  });
 });

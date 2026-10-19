@@ -3,6 +3,8 @@ import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV22Store, saveSourceGuide } from "@everlast/db";
 import { handlePackageV22Route, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
+import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
+import { getMessageFollowUps } from "@everlast/db";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";
@@ -31,7 +33,7 @@ describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-
   });
 
   it("returns a guide only for the exact authorized Ready revision", async () => {
-    await saveSourceGuide({ notebook_id: notebook, source_id: source, revision: 2, status: "GuideReady", source_word_count: 60, summary_md: "A concise source summary.", key_topics: ["a", "b", "c", "d", "e"], supporting_chunk_ids: [chunk] });
+    await saveSourceGuide({ notebook_id: notebook, source_id: source, revision: 2, output_language: "en-US", status: "GuideReady", source_word_count: 60, summary_md: "A concise source summary.", key_topics: ["a", "b", "c", "d", "e"], supporting_chunk_ids: [chunk] });
     const call = invoke(`/api/notebooks/${notebook}/sources/${source}/guide?revision=2`);
     await handlePackageV22Route(call.req, call.res, "owner", deps);
     expect(call.result()).toMatchObject({ status: 200, body: { status: "GuideReady", revision: 2 } });
@@ -89,12 +91,12 @@ describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-
   it("generates follow-ups only from the owning assistant message snapshot", async () => {
     const message = "55555555-5555-4555-8555-555555555555";
     await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Supported answer", active_source_revisions_snapshot: [{ source_id: source, revision: 2 }] });
-    const generateFollowUps = vi.fn(async ({ source_revisions }: { source_revisions: { source_id: string; revision: number }[] }) => ({ suggested_followups: ["What evidence supports it?"], supporting_chunk_ids: [chunk], source_revisions, generated_at: new Date().toISOString() }));
+    const generateFollowUps = vi.fn(async ({ source_revisions }: { source_revisions: { source_id: string; revision: number }[] }) => ({ suggested_followups: [{ text: "What evidence supports it?", supporting_chunk_ids: [chunk] }], source_revisions, output_language: "en-US", generated_at: new Date().toISOString() }));
     const call = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
     await handlePackageV22Route(call.req, call.res, "owner", { ...deps, generateFollowUps });
     expect(call.result().status).toBe(200);
     expect(generateFollowUps).toHaveBeenCalledTimes(1);
-    expect(generateFollowUps).toHaveBeenCalledWith({ notebook_id: notebook, user_id: "owner", answer: "Supported answer", source_revisions: [{ source_id: source, revision: 2 }] });
+    expect(generateFollowUps).toHaveBeenCalledWith({ notebook_id: notebook, user_id: "owner", answer: "Supported answer", source_revisions: [{ source_id: source, revision: 2 }], output_language: "en-US" });
     const cached = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
     await handlePackageV22Route(cached.req, cached.res, "owner", { ...deps, generateFollowUps });
     expect(cached.result().status).toBe(200);
@@ -122,4 +124,74 @@ it("lists only owner-scoped source selection data and rejects cross-notebook rec
   const bad = invoke(`/api/notebooks/${notebook}/sources`);
   await handlePackageV22Route(bad.req, bad.res, "owner", { ...deps, listSources: vi.fn(async () => [{ id, notebook_id: "77777777-7777-4777-8777-777777777777", title: "Leak", media_type: "application/pdf", status: "Ready", revision_id: 2 }]) });
   expect(bad.result().status).toBe(403);
+});
+
+describe("Package 2.2 output-language keyed guide and follow-ups (FR-SI-02, FR-GC-05, FR-UI-02, SRS §5.6)", () => {
+  it("serves the guide for the effective or requested language and starts on-demand generation for a missing one", async () => {
+    await saveSourceGuide({ notebook_id: notebook, source_id: source, revision: 2, output_language: "de-DE", status: "GuideReady", source_word_count: 60, summary_md: "Eine kurze Zusammenfassung.", key_topics: ["a", "b", "c", "d", "e"], supporting_chunk_ids: [chunk] });
+    const startGuide = vi.fn();
+    const languageDeps = { ...deps, resolveOutputLanguage: vi.fn(async () => "de-DE"), startGuide };
+    const effective = invoke(`/api/notebooks/${notebook}/sources/${source}/guide?revision=2`);
+    await handlePackageV22Route(effective.req, effective.res, "owner", languageDeps);
+    expect(call(effective)).toMatchObject({ status: 200, body: { output_language: "de-DE", summary_md: "Eine kurze Zusammenfassung." } });
+    expect(languageDeps.resolveOutputLanguage).toHaveBeenCalledWith("owner", notebook);
+    expect(startGuide).not.toHaveBeenCalled();
+    const missing = invoke(`/api/notebooks/${notebook}/sources/${source}/guide?revision=2&language=fr-FR`);
+    await handlePackageV22Route(missing.req, missing.res, "owner", languageDeps);
+    expect(call(missing)).toMatchObject({ status: 202, body: { status: "GuidePending", output_language: "fr-FR" } });
+    expect(startGuide).toHaveBeenCalledWith({ notebook_id: notebook, user_id: "owner", source_id: source, revision: 2, output_language: "fr-FR" });
+    const invalid = invoke(`/api/notebooks/${notebook}/sources/${source}/guide?revision=2&language=xx-unknown`);
+    await handlePackageV22Route(invalid.req, invalid.res, "owner", languageDeps);
+    expect(call(invalid).status).toBe(400);
+  });
+
+  it("generates follow-ups in and caches them under the effective output language", async () => {
+    const message = "88888888-8888-4888-8888-888888888888";
+    await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Supported answer", active_source_revisions_snapshot: [{ source_id: source, revision: 2 }] });
+    let language = "de-DE";
+    const generateFollowUps = vi.fn(async (input: { source_revisions: { source_id: string; revision: number }[]; output_language?: string }) => ({ suggested_followups: [{ text: `Frage ${input.output_language}`, supporting_chunk_ids: [chunk] }], source_revisions: input.source_revisions, output_language: input.output_language!, generated_at: new Date().toISOString() }));
+    const languageDeps = { ...deps, generateFollowUps, resolveOutputLanguage: vi.fn(async () => language) };
+    const body = { source_revisions: [{ source_id: source, revision: 2 }] };
+    const first = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body });
+    await handlePackageV22Route(first.req, first.res, "owner", languageDeps);
+    expect(call(first)).toMatchObject({ status: 200, body: { output_language: "de-DE" } });
+    expect(generateFollowUps).toHaveBeenLastCalledWith(expect.objectContaining({ output_language: "de-DE" }));
+    const cached = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body });
+    await handlePackageV22Route(cached.req, cached.res, "owner", languageDeps);
+    expect(generateFollowUps).toHaveBeenCalledTimes(1);
+    language = "fr-FR";
+    const other = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body });
+    await handlePackageV22Route(other.req, other.res, "owner", languageDeps);
+    expect(call(other)).toMatchObject({ status: 200, body: { output_language: "fr-FR" } });
+    expect(generateFollowUps).toHaveBeenCalledTimes(2);
+  });
+});
+
+function call(invocation: ReturnType<typeof invoke>) {
+  return invocation.result();
+}
+
+it("persists only the in-scope follow-up chips on the assistant message (FR-GC-05, FR-008, C-02)", async () => {
+  const message = "99999999-9999-4999-8999-999999999999";
+  const outside = "018f6b40-0009-7000-8000-000000000009";
+  await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Supported answer", active_source_revisions_snapshot: [{ source_id: source, revision: 2 }] });
+  const runtime = createPackageV22Runtime({
+    provider: { getScopedContext: async () => [{ chunk_id: chunk, text: "Evidence", source_id: source, revision: 2, token_count: 1, locator: { page_number: 1, start_offset: 0, end_offset: 8 } }] },
+    validateScope: async (_user, envelope) => ({ snapshot: envelope.source_revisions ?? [] }),
+    getSourceMetadata: async () => [{ source_id: source, revision: 2, title: "Brief", word_count: 60 }],
+    model: {
+      generateSourceGuide: async () => { throw new Error("unused"); },
+      generateOverview: async () => { throw new Error("unused"); },
+      generateFollowUps: async () => ({ suggested_followups: [
+        { text: "What evidence supports it?", supporting_chunk_ids: [chunk] },
+        { text: "What is outside the scope?", supporting_chunk_ids: [outside] },
+      ] }),
+    },
+    resolveOwner: async () => "owner",
+  });
+  const req = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
+  await handlePackageV22Route(req.req, req.res, "owner", { ...deps, generateFollowUps: runtime.generateFollowUps });
+  expect(req.result()).toMatchObject({ status: 200, body: { suggested_followups: [{ text: "What evidence supports it?", supporting_chunk_ids: [chunk] }] } });
+  expect(req.result().body.suggested_followups).toHaveLength(1);
+  expect((await getMessageFollowUps(notebook, "owner", message, "en-US"))?.suggested_followups.map((c) => c.text)).toEqual(["What evidence supports it?"]);
 });

@@ -23,7 +23,7 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
 
   it("enforces source guide short-source and normal source boundaries", () => {
     const schema = v22.SourceGuideSchema;
-    const base = { notebook_id: notebook, source_id: source, revision: 1, status: "GuideReady", source_word_count: 12, supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
+    const base = { notebook_id: notebook, source_id: source, revision: 1, output_language: "en-US", status: "GuideReady", source_word_count: 12, supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
     expect(schema.safeParse({ ...base, summary_md: "One sentence.", key_topics: ["Topic"] }).success).toBe(true);
     expect(schema.safeParse({ ...base, source_word_count: 49, summary_md: "One sentence.", key_topics: Array(4).fill("Topic") }).success).toBe(false);
     expect(schema.safeParse({ ...base, source_word_count: 50, summary_md: "A full source summary.", key_topics: Array(4).fill("Topic") }).success).toBe(false);
@@ -34,16 +34,17 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
   });
 
   it("enforces the normal-source topic, prompt and follow-up code-point boundaries", () => {
-    const guide = { notebook_id: notebook, source_id: source, revision: 1, status: "GuideReady", source_word_count: 50, summary_md: "A full-source summary.", supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
+    const guide = { notebook_id: notebook, source_id: source, revision: 1, output_language: "en-US", status: "GuideReady", source_word_count: 50, summary_md: "A full-source summary.", supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: Array(5).fill("🌱".repeat(40)) }).success).toBe(true);
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["a", "b", "c", "d"] }).success).toBe(false);
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["🌱".repeat(41), "b", "c", "d", "e"] }).success).toBe(false);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(100)).success).toBe(true);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(101)).success).toBe(false);
-    const followupBase = { supporting_chunk_ids: [chunk], source_revisions: [{ source_id: source, revision: 1 }], generated_at: new Date().toISOString() };
+    const followupBase = { source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US", generated_at: new Date().toISOString() };
+    const chip = (text: string, ids = [chunk]) => ({ text, supporting_chunk_ids: ids });
     expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: [] }).success).toBe(true);
-    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: ["same", "same"] }).success).toBe(false);
-    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: Array(4).fill("question") }).success).toBe(false);
+    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: [chip("same"), chip("same")] }).success).toBe(false);
+    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...followupBase, suggested_followups: ["a", "b", "c", "d"].map((t) => chip(t)) }).success).toBe(false);
     expect(v22.StarterPromptSchema.safeParse("🌱".repeat(120)).success).toBe(true);
     expect(v22.StarterPromptSchema.safeParse("🌱".repeat(121)).success).toBe(false);
   });
@@ -52,7 +53,7 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
     const sourceRecord = { id: source, notebook_id: notebook, title: "Brief", media_type: "application/pdf", status: "Ready", revision_id: 2 };
     expect(v22.NotebookSourceSelectionSchema.safeParse(sourceRecord).success).toBe(true);
     expect(v22.NotebookSourceSelectionSchema.safeParse({ ...sourceRecord, notebook_id: "not-a-uuid" }).success).toBe(false);
-    const suggestions = { suggested_followups: ["Explore evidence"], supporting_chunk_ids: [chunk], source_revisions: [{ source_id: source, revision: 2 }], generated_at: new Date().toISOString() };
+    const suggestions = { suggested_followups: [{ text: "Explore evidence", supporting_chunk_ids: [chunk] }], source_revisions: [{ source_id: source, revision: 2 }], output_language: "en-US", generated_at: new Date().toISOString() };
     expect(v22.PersistedMessageFollowUpsSchema.safeParse({ notebook_id: notebook, user_id: "owner", message_id: message, suggestions }).success).toBe(true);
     expect(v22.PersistedMessageFollowUpsSchema.safeParse({ notebook_id: notebook, user_id: "owner", message_id: message, suggestions, other: true }).success).toBe(false);
   });
@@ -88,5 +89,14 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
     const note = { id: message, notebook_id: notebook, source_message_id: message, title: "Answer", content_md: "Text [1]", citations_json: [citation], origin_type: "saved_response", read_only: true, created_at: new Date().toISOString() };
     expect(v22.SavedResponseNoteSchema.safeParse(note).success).toBe(true);
     expect(v22.SavedResponseNoteSchema.safeParse({ ...note, user_id: "client supplied" }).success).toBe(false);
+  });
+
+  it("gives each follow-up chip its own nonempty supporting chunk IDs (FR-GC-05, FR-008, C-02)", () => {
+    const base = { source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US", generated_at: new Date().toISOString() };
+    expect(v22.FollowUpChipSchema.safeParse({ text: "🌱".repeat(100), supporting_chunk_ids: [chunk] }).success).toBe(true);
+    expect(v22.FollowUpChipSchema.safeParse({ text: "🌱".repeat(101), supporting_chunk_ids: [chunk] }).success).toBe(false);
+    expect(v22.FollowUpChipSchema.safeParse({ text: "Question?", supporting_chunk_ids: [] }).success).toBe(false);
+    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...base, suggested_followups: [{ text: "One?", supporting_chunk_ids: [chunk] }, { text: "Two?", supporting_chunk_ids: [chunk] }] }).success).toBe(true);
+    expect(v22.FollowUpSuggestionsSchema.safeParse({ ...base, suggested_followups: [{ text: "One?", supporting_chunk_ids: [chunk] }], supporting_chunk_ids: [chunk] }).success).toBe(false);
   });
 });

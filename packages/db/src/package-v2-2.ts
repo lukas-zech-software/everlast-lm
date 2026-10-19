@@ -20,7 +20,7 @@ const noteStore = new Map<string, SavedResponseNote>();
 const noteIdempotency = new Map<string, string>();
 const noteOperations = new Map<string, Promise<SavedResponseNote>>();
 
-const guideKey = (notebookId: string, sourceId: string, revision: number) => `${notebookId}:${sourceId}:${revision}`;
+const guideKey = (notebookId: string, sourceId: string, revision: number, language: string) => `${notebookId}:${sourceId}:${revision}:${language}`;
 const authorizationKey = (userId: string) => createHash("sha256").update(userId).digest("hex");
 const settingKey = (notebookId: string, userId: string) => `${notebookId}:${userId}`;
 const feedbackKey = (notebookId: string, userId: string, messageId: string) => `${notebookId}:${userId}:${messageId}`;
@@ -37,13 +37,19 @@ export function resetPackageV22Store(): void {
   noteOperations.clear();
 }
 
-export async function getSourceGuide(notebookId: string, sourceId: string, revision: number): Promise<SourceGuide | null> {
-  return guideStore.get(guideKey(notebookId, sourceId, revision)) ?? null;
+/**
+ * Guide identity is (notebook, source, revision, output language) (FR-SI-02, FR-UI-02). Without a language the
+ * caller accepts any language of that revision (Studio suggestions), preferring a ready guide.
+ */
+export async function getSourceGuide(notebookId: string, sourceId: string, revision: number, outputLanguage?: string): Promise<SourceGuide | null> {
+  if (outputLanguage !== undefined) return guideStore.get(guideKey(notebookId, sourceId, revision, outputLanguage)) ?? null;
+  const candidates = [...guideStore.values()].filter((g) => g.notebook_id === notebookId && g.source_id === sourceId && g.revision === revision);
+  return candidates.find((g) => g.status === "GuideReady") ?? candidates[0] ?? null;
 }
 
 export async function saveSourceGuide(guide: SourceGuide): Promise<SourceGuide> {
   const validated = SourceGuideSchema.parse(guide);
-  guideStore.set(guideKey(validated.notebook_id, validated.source_id, validated.revision), validated);
+  guideStore.set(guideKey(validated.notebook_id, validated.source_id, validated.revision, validated.output_language), validated);
   return validated;
 }
 
@@ -88,7 +94,7 @@ export async function saveMessageFeedback(input: MessageFeedbackInput & { notebo
 }
 
 
-const followUpKey = (notebookId: string, userId: string, messageId: string) => `${notebookId}:${userId}:${messageId}`;
+const followUpKey = (notebookId: string, userId: string, messageId: string, language: string) => `${notebookId}:${userId}:${messageId}:${language}`;
 
 export async function saveMessageFollowUps(input: { notebook_id: string; user_id: string; message_id: string; followups: FollowUpSuggestions }): Promise<FollowUpSuggestions> {
   const messages = await getChatMessages(undefined, input.notebook_id, input.user_id);
@@ -99,12 +105,13 @@ export async function saveMessageFollowUps(input: { notebook_id: string; user_id
   if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new Error("Follow-up snapshot does not match the assistant message snapshot");
   const validated = FollowUpSuggestionsSchema.parse(input.followups);
   const record = PersistedMessageFollowUpsSchema.parse({ notebook_id: input.notebook_id, user_id: input.user_id, message_id: input.message_id, suggestions: validated });
-  followUpStore.set(followUpKey(input.notebook_id, input.user_id, input.message_id), record);
+  followUpStore.set(followUpKey(input.notebook_id, input.user_id, input.message_id, validated.output_language), record);
   return record.suggestions;
 }
 
-export async function getMessageFollowUps(notebookId: string, userId: string, messageId: string): Promise<FollowUpSuggestions | null> {
-  return followUpStore.get(followUpKey(notebookId, userId, messageId))?.suggestions ?? null;
+/** Follow-ups are cached per assistant message and output language (FR-GC-05, FR-UI-02). */
+export async function getMessageFollowUps(notebookId: string, userId: string, messageId: string, outputLanguage: string): Promise<FollowUpSuggestions | null> {
+  return followUpStore.get(followUpKey(notebookId, userId, messageId, outputLanguage))?.suggestions ?? null;
 }
 
 export async function getMessageFeedback(notebookId: string, userId: string, messageId: string): Promise<MessageFeedback | null> {

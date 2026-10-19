@@ -56,10 +56,22 @@ describe("Package 2.2 in-memory repository (FR-GC-09, FR-NM-02, NFR-EVAL-04)", (
 
 it("persists follow-ups against the assistant message's exact snapshot and isolates owners (FR-GC-05, C-02)", async () => {
   const assistantId = "55555555-5555-4555-8555-555555555555";
-  const followups = { suggested_followups: ["What does the claim mean?"], supporting_chunk_ids: [chunkId], source_revisions: [{ source_id: sourceId, revision: 1 }], generated_at: timestamp };
+  const followups = { suggested_followups: [{ text: "What does the claim mean?", supporting_chunk_ids: [chunkId] }], source_revisions: [{ source_id: sourceId, revision: 1 }], output_language: "en-US", generated_at: timestamp };
   await persistChatMessage(undefined, { id: assistantId, thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "assistant", content: "Claim", active_source_revisions_snapshot: [{ source_id: sourceId, revision: 1 }], citations: [citation], created_at: timestamp });
   await expect(repo.saveMessageFollowUps({ notebook_id: notebookId, user_id: userId, message_id: assistantId, followups })).resolves.toEqual(followups);
-  expect(await repo.getMessageFollowUps(notebookId, userId, assistantId)).toEqual(followups);
-  expect(await repo.getMessageFollowUps(notebookId, "owner-two", assistantId)).toBeNull();
+  expect(await repo.getMessageFollowUps(notebookId, userId, assistantId, "en-US")).toEqual(followups);
+  expect(await repo.getMessageFollowUps(notebookId, userId, assistantId, "de-DE")).toBeNull();
+  expect(await repo.getMessageFollowUps(notebookId, "owner-two", assistantId, "en-US")).toBeNull();
   await expect(repo.saveMessageFollowUps({ notebook_id: notebookId, user_id: userId, message_id: assistantId, followups: { ...followups, source_revisions: [{ source_id: sourceId, revision: 2 }] } })).rejects.toThrow(/snapshot/);
+});
+
+it("keys Source Guides by notebook, source, revision and output language; another language is a miss (FR-SI-02, FR-UI-02)", async () => {
+  const guide = { notebook_id: notebookId, source_id: sourceId, revision: 2, output_language: "de-DE", status: "GuideReady" as const, source_word_count: 30, summary_md: "Eine Zusammenfassung.", key_topics: ["Thema"], supporting_chunk_ids: [chunkId] };
+  await repo.saveSourceGuide(guide);
+  expect(await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE")).toMatchObject({ output_language: "de-DE", summary_md: "Eine Zusammenfassung." });
+  expect(await repo.getSourceGuide(notebookId, sourceId, 2, "en-US")).toBeNull();
+  expect(await repo.getSourceGuide(notebookId, sourceId, 3, "de-DE")).toBeNull();
+  await repo.saveSourceGuide({ ...guide, output_language: "en-US", summary_md: "An English summary." });
+  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE"))?.summary_md).toBe("Eine Zusammenfassung.");
+  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "en-US"))?.summary_md).toBe("An English summary.");
 });

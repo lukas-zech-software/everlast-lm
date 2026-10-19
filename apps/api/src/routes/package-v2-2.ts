@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { ChatConfigurationSchema, FollowUpSuggestionsSchema, MessageFeedbackInputSchema, NotebookOverviewSchema, SaveResponseNoteRequestSchema, SaveResponseNoteResponseSchema, SourceGuideSchema, NotebookSourceSelectionSchema } from "@everlast/contracts";
+import { ChatConfigurationSchema, FollowUpSuggestionsSchema, MessageFeedbackInputSchema, NotebookOverviewSchema, OutputLanguageSchema, SaveResponseNoteRequestSchema, SaveResponseNoteResponseSchema, SourceGuideSchema, NotebookSourceSelectionSchema } from "@everlast/contracts";
 import {
   getOverviewForUser,
   getSourceGuide,
@@ -23,7 +23,11 @@ export interface PackageV22ApiDependencies {
   saveConfiguration?: typeof saveChatConfiguration;
   saveFeedback?: typeof saveMessageFeedback;
   saveNote?: typeof saveResponseNote;
-  generateFollowUps?: (input: { notebook_id: string; user_id: string; answer: string; source_revisions: { source_id: string; revision: number }[] }) => Promise<unknown>;
+  generateFollowUps?: (input: { notebook_id: string; user_id: string; answer: string; source_revisions: { source_id: string; revision: number }[]; output_language: string }) => Promise<unknown>;
+  /** Notebook's effective output language for the caller (FR-UI-02); default `en-US`. */
+  resolveOutputLanguage?: (userId: string, notebookId: string) => Promise<string>;
+  /** Starts Source Guide generation in the background for a language that has no guide yet (FR-SI-02). */
+  startGuide?: (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => void;
   getFollowUps?: typeof getMessageFollowUps;
   saveFollowUps?: typeof saveMessageFollowUps;
   getThreadMessages?: (notebookId: string, userId: string) => Promise<import("@everlast/contracts").ChatMessage[]>;
@@ -57,12 +61,19 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
     return true;
   }
 
+  const outputLanguageOf = async () => (deps.resolveOutputLanguage ? await deps.resolveOutputLanguage(userId, notebookId) : "en-US");
+
   const guideMatch = suffix.match(/^sources\/([0-9a-f-]{36})\/guide$/i);
   if (method === "GET" && guideMatch) {
     const sourceId = guideMatch[1]!;
     const requestedRevision = Number(url.searchParams.get("revision"));
     if (!Number.isSafeInteger(requestedRevision) || requestedRevision < 1) {
       sendJson(res, 400, { error: { code: "ValidationError", message: "revision must be a positive integer" } });
+      return true;
+    }
+    const requestedLanguage = url.searchParams.get("language");
+    if (requestedLanguage !== null && !OutputLanguageSchema.safeParse(requestedLanguage).success) {
+      sendJson(res, 400, { error: { code: "ValidationError", message: "language must be a supported output language" } });
       return true;
     }
     if (!(await deps.authorizeNotebook(userId, notebookId))) {
@@ -78,9 +89,12 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
       sendJson(res, 409, { error: { code: "SourceNotReady", message: "Requested source revision is not Ready" } });
       return true;
     }
-    const guide = await (deps.getGuide ?? getSourceGuide)(notebookId, sourceId, requestedRevision);
+    // FR-SI-02 / FR-UI-02: the guide for the effective (or requested) output language; generate a missing one on demand.
+    const language = requestedLanguage ?? (await outputLanguageOf());
+    const guide = await (deps.getGuide ?? getSourceGuide)(notebookId, sourceId, requestedRevision, language);
     if (!guide) {
-      sendJson(res, 202, { status: "GuidePending", notebook_id: notebookId, source_id: sourceId, revision: requestedRevision });
+      deps.startGuide?.({ notebook_id: notebookId, user_id: userId, source_id: sourceId, revision: requestedRevision, output_language: language });
+      sendJson(res, 202, { status: "GuidePending", notebook_id: notebookId, source_id: sourceId, revision: requestedRevision, output_language: language });
       return true;
     }
     sendJson(res, 200, SourceGuideSchema.parse(guide));
@@ -174,8 +188,10 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
         const access = await deps.authorizeSource(userId, notebookId, pair.source_id, pair.revision);
         if (!access.exists || !access.ready || access.revision !== pair.revision) throw new Error("Follow-up source snapshot is stale or inaccessible");
       }
+      // FR-GC-05 / FR-UI-02: generated in, and cached under, the effective output language.
+      const language = await outputLanguageOf();
       const getFollowUps = deps.getFollowUps ?? getMessageFollowUps;
-      const saved = await getFollowUps(notebookId, userId, messageId);
+      const saved = await getFollowUps(notebookId, userId, messageId, language);
       if (saved) {
         const savedSnapshot = saved.source_revisions.map((item) => `${item.source_id}:${item.revision}`).sort();
         if (JSON.stringify(savedSnapshot) !== JSON.stringify(expected)) throw new Error("Stored follow-up snapshot is stale");
@@ -186,9 +202,10 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
         sendJson(res, 503, { error: { code: "Unavailable", message: "Follow-up generation is not configured" } });
         return true;
       }
-      const result = FollowUpSuggestionsSchema.parse(await deps.generateFollowUps({ notebook_id: notebookId, user_id: userId, answer: message.content, source_revisions: snapshot }));
+      const result = FollowUpSuggestionsSchema.parse(await deps.generateFollowUps({ notebook_id: notebookId, user_id: userId, answer: message.content, source_revisions: snapshot, output_language: language }));
       const resultSnapshot = result.source_revisions.map((item) => `${item.source_id}:${item.revision}`).sort();
       if (JSON.stringify(expected) !== JSON.stringify(resultSnapshot)) throw new Error("Generated follow-up source snapshot does not match the assistant message");
+      if (result.output_language !== language) throw new Error("Generated follow-ups do not match the effective output language");
       await (deps.saveFollowUps ?? saveMessageFollowUps)({ notebook_id: notebookId, user_id: userId, message_id: messageId, followups: result });
       sendJson(res, 200, result);
     } catch (error) {
