@@ -4,6 +4,14 @@ import {
   type ViewportBreakpoint,
 } from "@everlast/contracts";
 import {
+  applyTheme,
+  hydrateWorkspaceSettings,
+  loadWorkspacePreferences,
+  renderWorkspaceSettings,
+  saveWorkspacePreferences,
+  type WorkspaceSettingsState,
+} from "./workspace-preferences.js";
+import {
   loadPanelPreferences,
   savePanelPreferences,
   type PanelPreferences,
@@ -11,9 +19,13 @@ import {
 
 export interface WorkspaceLayoutOptions {
   activeNotebookId?: string | null;
+  notebookTitle?: string;
   initialSourceCount?: number;
   initialDraft?: string;
   initialTab?: "sources" | "chat" | "studio";
+  notebookIcon?: string;
+  apiBase?: string;
+  authToken?: string;
 }
 
 export interface WorkspaceLayoutController {
@@ -81,13 +93,66 @@ export function renderWorkspaceLayout(
   header.innerHTML = `
     <div class="header-left">
       <span class="logo">Everlast LM</span>
-      <span class="notebook-title" data-testid="notebook-title">Research Notebook</span>
+      <span class="workspace-notebook-icon" aria-hidden="true">${options?.notebookIcon ?? "📓"}</span>
+      <span class="notebook-title" data-testid="notebook-title">${options?.notebookTitle ?? "Research Notebook"}</span>
     </div>
     <div class="header-right">
+      <button id="workspace-settings-toggle" type="button" aria-expanded="false">Settings</button>
       <div class="user-profile" data-testid="user-profile">User</div>
     </div>
   `;
+  const notebookTitle = header.querySelector(".notebook-title") as HTMLElement | null;
+  if (notebookTitle && options?.notebookTitle?.trim()) notebookTitle.textContent = options.notebookTitle.trim();
   container.appendChild(header);
+  const settingsContainer = doc.createElement("div");
+  settingsContainer.id = "workspace-settings";
+  settingsContainer.hidden = true;
+  container.appendChild(settingsContainer);
+  const authHeaders = options?.authToken ? { Authorization: `Bearer ${options.authToken}` } : {};
+  let workspaceSettings: WorkspaceSettingsState = {
+    ...loadWorkspacePreferences(),
+    input_language: "auto",
+    output_language: null,
+    notebook_input_language: null,
+    notebook_output_language: null,
+  };
+  const renderSettings = () => renderWorkspaceSettings(settingsContainer, workspaceSettings, {
+    root: doc.documentElement as HTMLElement,
+    ...(notebookId ? { notebookId } : {}),
+    onUpdate: async (next, changedKey) => {
+      workspaceSettings = next;
+      const isNotebookSetting = changedKey === "notebook_input_language" || changedKey === "notebook_output_language";
+      const endpoint = isNotebookSetting
+        ? `${options?.apiBase ?? ""}/api/notebooks/${encodeURIComponent(notebookId ?? "")}/preferences`
+        : `${options?.apiBase ?? ""}/api/preferences`;
+      const key = changedKey;
+      let value: unknown = next[changedKey];
+      if (value === "" && isNotebookSetting) value = null;
+      await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ [key]: value }),
+      }).catch(() => undefined);
+      if (changedKey === "theme") saveWorkspacePreferences(next);
+    },
+  });
+  const settingsToggle = header.querySelector("#workspace-settings-toggle");
+  settingsToggle?.addEventListener("click", () => {
+    settingsContainer.hidden = !settingsContainer.hidden;
+    settingsToggle.setAttribute("aria-expanded", String(!settingsContainer.hidden));
+    if (!settingsContainer.hidden) renderSettings();
+  });
+  if (notebookId) {
+    void hydrateWorkspaceSettings(workspaceSettings, {
+      ...(options?.apiBase ? { apiBase: options.apiBase } : {}),
+      headers: authHeaders,
+      notebookId,
+    }).then((loaded) => {
+      workspaceSettings = loaded;
+      applyTheme(loaded.theme, doc.documentElement as HTMLElement);
+      if (!settingsContainer.hidden) renderSettings();
+    });
+  }
 
   // 2. Tabs Bar (for narrow viewports < 1024px)
   const tabsBar = doc.createElement("nav");
@@ -116,6 +181,7 @@ export function renderWorkspaceLayout(
         <button id="add-source-btn" class="btn btn-sm btn-add-source" ${sourceCount >= 50 ? "disabled" : ""}>Add sources</button>
       </div>
       <div class="sources-list" id="sources-list"></div>
+      <div id="source-guide-panel" class="source-guide-panel"></div>
       <div class="source-inspector-container" id="source-inspector" style="display: none;"></div>
     </div>
   `;
@@ -127,7 +193,19 @@ export function renderWorkspaceLayout(
   centerPanel.innerHTML = `
     <div class="panel-header">
       <span class="panel-title">Chat</span>
+      <span id="chat-config-indicator" aria-live="polite"></span>
+      <button type="button" id="chat-settings-open">Chat settings</button>
     </div>
+    <dialog id="chat-config-dialog">
+      <form id="chat-config-form">
+        <h2>Chat settings</h2>
+        <label>Style <select name="style"><option value="default">Default</option><option value="learning_guide">Learning guide</option><option value="analyst">Analyst</option><option value="custom">Custom</option></select></label>
+        <label id="custom-instructions-row" hidden>Custom instructions <textarea name="custom_instructions" maxlength="5000"></textarea><span id="custom-instructions-count">0 / 5000</span></label>
+        <label>Response length <select name="response_length"><option value="default">Default</option><option value="shorter">Shorter</option><option value="longer">Longer</option></select></label>
+        <button type="submit">Save</button><button type="button" id="chat-settings-cancel">Cancel</button>
+      </form>
+    </dialog>
+    <div id="notebook-overview" class="notebook-overview"><p class="overview-empty-state">Add a source to get started.</p></div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-bar">
       <div class="active-source-counter">${sourceCount === 1 ? "1 source" : `${sourceCount} sources`}</div>

@@ -2,14 +2,29 @@
   "version": "1.2.1.dev0",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "agy"
+    "agy",
+    "claude",
+    "codex",
+    "copilot"
   ],
   "integration_settings": {
     "agy": {
       "script": "sh",
       "invoke_separator": "-"
+    },
+    "claude": {
+      "script": "sh",
+      "invoke_separator": "-"
+    },
+    "codex": {
+      "script": "sh",
+      "invoke_separator": "-"
+    },
+    "copilot": {
+      "script": "sh",
+      "invoke_separator": "-"
     }
   },
-  "integration": "agy",
-  "default_integration": "agy"
+  "integration": "codex",
+  "default_integration": "codex"
 }

@@ -73,6 +73,8 @@ Scenario: Create and auto-save a manual note
 
 ---
 
+**Shared save-note contract with FR-GC-09 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. Package 2.2 FR-GC-09 MUST consume this same request/response shape.
+
 ### FR-NM-02 — Save Chat Response as Note
 
 | Field | Value |
@@ -188,7 +190,7 @@ Scenario: Multiple notes produce one bounded source
 
 **Edge & error cases**
 - Notebook is already at $N_{\text{max}}$ sources (`50 / 50`) $\rightarrow$ `"Convert to source"` is disabled with tooltip `"Source limit reached"`.
-- Combined note body is empty/whitespace-only $\rightarrow$ conversion is disabled. A single note retains its title; a multi-note source uses `Combined notes`. Reject combined content over either source limit without consuming a slot; never silently truncate.
+- Combined note body is empty/whitespace-only $\rightarrow$ conversion is disabled. A single note retains its title; a multi-note source uses `Combined notes`. Reject combined content over either source limit without consuming a slot; never silently truncate. "Displayed order" means `display_order` ascending; a note title over 100 code points is clamped for the source title (full title kept as first heading); "Convert all notes" has no note-count cap.
 
 **Measurable criteria**
 - Converting a note ($\le 5,000$ words) into a citable `Ready` source completes in $\le 2.0\text{ s}$ (`Gate v2.0 #2`).

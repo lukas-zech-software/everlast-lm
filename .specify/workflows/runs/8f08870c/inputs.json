@@ -1,0 +1,9 @@
+{
+  "inputs": {
+    "spec": "v2.0",
+    "integration": "codex",
+    "with_constitution": false,
+    "with_checklist": false,
+    "skip_clarify": false
+  }
+}

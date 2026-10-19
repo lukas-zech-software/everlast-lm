@@ -14,6 +14,8 @@ export interface MockNotebook {
   created_at: string;
   updated_at: string;
   sources_used?: number;
+  icon_emoji?: string;
+  icon_source?: "default" | "topic" | "custom";
 }
 
 export function startTestServer() {
@@ -71,10 +73,37 @@ export function startTestServer() {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
           sources_used: sourcesUsed,
+          icon_emoji: "📓",
+          icon_source: "default",
         };
         notebooks.set(id, nb);
         res.writeHead(201, { "Content-Type": "application/json" });
         res.end(JSON.stringify({ notebook: nb }));
+      });
+      return;
+    }
+
+    const iconMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/icon$/);
+    if (method === "PATCH" && iconMatch) {
+      const notebook = notebooks.get(iconMatch[1]!);
+      if (!notebook) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: { code: "NotebookNotFound", message: "Notebook not found" } }));
+        return;
+      }
+      let bodyStr = "";
+      req.on("data", (chunk) => { bodyStr += chunk; });
+      req.on("end", () => {
+        try {
+          const body = JSON.parse(bodyStr);
+          notebook.icon_emoji = body.icon_emoji;
+          notebook.icon_source = "custom";
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ notebook }));
+        } catch {
+          res.writeHead(400);
+          res.end();
+        }
       });
       return;
     }
