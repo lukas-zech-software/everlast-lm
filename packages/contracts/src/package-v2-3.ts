@@ -46,16 +46,22 @@ const SAFE_SCHEME = /^(https?|mailto):/i;
 
 /** Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. */
 export function sanitizeNoteMarkdown(markdown: string): string {
-  return markdown
-    .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "")
-    .replace(/<\/?[a-z!][^>]*>/gi, "")
-    .replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
-      const cleaned = url.replace(/[\u0000-\u0020]/g, "");
-      if (/^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned)) {
-        return bang ? "" : text;
-      }
-      return match;
-    });
+  let sanitized = markdown;
+  let previous: string;
+  do {
+    previous = sanitized;
+    sanitized = sanitized
+      .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "")
+      .replace(/<\/?[a-z!][^>]*>/gi, "");
+  } while (sanitized !== previous);
+
+  return sanitized.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
+    const cleaned = url.replace(/[\u0000-\u0020]/g, "");
+    if (/^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned)) {
+      return bang ? "" : text;
+    }
+    return match;
+  });
 }
 
 const TitleSchema = z
