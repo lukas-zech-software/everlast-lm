@@ -78,6 +78,11 @@
 - [X] [008-studio-text-reports] T034 Verify flow-back (CC-01): spec §Plan Refinements and FR card edge cases match the implementation; record any gap in `spec.md` and the FR card
 - [X] [008-studio-text-reports] T035 Run `pnpm typecheck`, `pnpm lint`, the feature vitest files and `node scripts/check-spec-integrity.mjs`; report Playwright and LLM-judged evals (`NFR-EVAL-01/03`) as `UNAVAILABLE` (Gate v2.0 #3)
 
+## Phase 6: Convergence
+
+- [X] [008-studio-text-reports] T036 Failing test then `InlineStudioDispatcher` (non-blocking `StudioJobDispatcher` that schedules `StudioJobRunner.run` without awaiting; errors contained) (FR-006, FR-ST-10, C-03) in `apps/worker/test/studio-dispatcher.test.ts`, `apps/worker/src/studio/dispatcher.ts`
+- [X] [008-studio-text-reports] T037 Re-run `pnpm typecheck`, `pnpm lint`, full vitest and `node scripts/check-spec-integrity.mjs` after convergence; Playwright E2E, LLM-judged evals (`NFR-EVAL-01/03`), the production Gemini adapter and `server.ts` wiring remain `UNAVAILABLE`/deferred (Gate v2.0 #3)
+
 ## Dependencies & Execution Order
 
 - Phase 1 → Phase 2 (T003→T004→T006→T010; T007→T008) → US1 → US2 → Polish. US2 tasks depend on T017–T022 (plugin and pipeline) and T023–T024 for UI/API files they extend.
