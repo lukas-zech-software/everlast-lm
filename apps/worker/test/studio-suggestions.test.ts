@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { SourceGuideState } from "@everlast/contracts";
-import { ReportSuggestionService } from "../src/studio/reports/suggestions.js";
-import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.js";
-import type { ReportModelClient } from "../src/studio/reports/model.js";
-import { FakeGuides, NB, OWNER, VENDOR_A, VENDOR_B } from "./studio-fixtures.js";
+import { ReportSuggestionService } from "../src/studio/reports/suggestions.ts";
+import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
+import type { ReportModelClient } from "../src/studio/reports/model.ts";
+import { FakeGuides, NB, OWNER, VENDOR_A, VENDOR_B } from "./studio-fixtures.ts";
 
 const snap = [VENDOR_A, VENDOR_B].map((source_id) => ({ source_id, revision: 1 }));
 const ready = (id: string): SourceGuideState => ({ source_id: id, revision: 1, status: "Ready", summary: "s", key_topics: ["architecture"] });

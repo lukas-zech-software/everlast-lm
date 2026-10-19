@@ -12,7 +12,7 @@ import {
   OutputLanguageSchema,
   resolveOutputLanguage,
   SUPPORTED_OUTPUT_LANGUAGES,
-} from "../src/package-v2-1.js";
+} from "../src/package-v2-1.ts";
 
 describe("Package 2.1 contracts (FR-WM-02, FR-WM-03, FR-UI-02)", () => {
   it("uses expected notebook icon and preference defaults", () => {

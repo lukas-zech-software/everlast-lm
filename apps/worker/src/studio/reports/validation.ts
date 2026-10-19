@@ -1,5 +1,5 @@
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import type { ReportBlock } from "./model.js";
+import type { ReportBlock } from "./model.ts";
 
 /** Pre-render grounding check: every item/row cites a scoped chunk; dates and quotes are literal substrings (FR-014, NFR-EVAL-02). */
 export function validateReportBlocks(blocks: ReportBlock[], chunks: UnifiedDocumentChunk[]): string | null {

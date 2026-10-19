@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV22Store, saveSourceGuide } from "@everlast/db";
-import { handlePackageV22Route, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.js";
-import { handleChatRoute } from "../src/routes/chat.js";
+import { handlePackageV22Route, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";
@@ -106,11 +105,7 @@ describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-
     expect(generateFollowUps).toHaveBeenCalledTimes(1);
   });
 
-  it("fails closed for authenticated chat turns when grounded runtime is unconfigured (FR-GC-01/02, C-02)", async () => {
-    const call = invoke(`/api/notebooks/${notebook}/chat/turns`, { method: "POST", body: { message: "Question", active_source_ids: [source] } });
-    await handleChatRoute(call.req, call.res, {}, "owner");
-    expect(call.result()).toMatchObject({ status: 503, body: { error: { code: "Unavailable" } } });
-  });
+  // Unconfigured grounded chat fails closed with 503 in the v1 chat route (apps/api/test/chat.test.ts).
 
 });
 

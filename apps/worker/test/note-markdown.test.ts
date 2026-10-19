@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { UnifiedDocumentChunkSchema } from "@everlast/contracts";
-import { createNoteMarkdownIngestor } from "../src/ingestion/note-markdown.js";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
+import { createNoteMarkdownIngestor } from "../src/ingestion/note-markdown.ts";
 
 describe("FR-SI-01, C-01, FR-NM-03: note markdown ingestion adapter", () => {
   const input = (markdown: string) => ({
@@ -14,8 +13,8 @@ describe("FR-SI-01, C-01, FR-NM-03: note markdown ingestion adapter", () => {
     markdown,
   });
 
-  it("produces valid C-01 chunks through the real pipeline", async () => {
-    const ingestor = createNoteMarkdownIngestor(new IngestionPipeline());
+  it("produces valid C-01 chunks through the Markdown ingestion path", async () => {
+    const ingestor = createNoteMarkdownIngestor();
     const i = input("# Raw data\n\nProject codename is TITAN-77.");
     const r = await ingestor.ingest(i);
     expect(r.status).toBe("Ready");
@@ -29,7 +28,7 @@ describe("FR-SI-01, C-01, FR-NM-03: note markdown ingestion adapter", () => {
   });
 
   it("reports Failed for empty markdown", async () => {
-    const r = await createNoteMarkdownIngestor(new IngestionPipeline()).ingest(input("   "));
+    const r = await createNoteMarkdownIngestor().ingest(input("   "));
     expect(r.status).toBe("Failed");
     expect(r.chunks).toEqual([]);
   });

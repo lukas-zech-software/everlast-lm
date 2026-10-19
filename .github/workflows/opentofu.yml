@@ -61,10 +61,10 @@ jobs:
         working-directory: infra/environments/${{ matrix.environment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup OpenTofu
-        uses: opentofu/setup-opentofu@v2
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: ${{ env.OPENTOFU_VERSION }}
           tofu_wrapper: false
@@ -102,7 +102,7 @@ jobs:
         working-directory: infra/environments/${{ matrix.environment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check whether GCP WIF variables are configured
         id: wif_check
@@ -116,14 +116,14 @@ jobs:
 
       - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
-        uses: opentofu/setup-opentofu@v2
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: ${{ env.OPENTOFU_VERSION }}
           tofu_wrapper: false
 
       - name: Authenticate to Google Cloud via Workload Identity Federation
         if: steps.wif_check.outputs.configured == 'true'
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
@@ -146,7 +146,7 @@ jobs:
 
       - name: Upload OpenTofu plan artifact
         if: steps.wif_check.outputs.configured == 'true'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tfplan-${{ matrix.environment }}-${{ github.sha }}
           path: infra/environments/${{ matrix.environment }}/tfplan.binary
@@ -168,7 +168,7 @@ jobs:
         working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Check whether GCP WIF variables are configured
         id: wif_check
@@ -182,21 +182,21 @@ jobs:
 
       - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
-        uses: opentofu/setup-opentofu@v2
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: ${{ env.OPENTOFU_VERSION }}
           tofu_wrapper: false
 
       - name: Authenticate to Google Cloud via Workload Identity Federation
         if: steps.wif_check.outputs.configured == 'true'
-        uses: google-github-actions/auth@v3
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
 
       - name: Download verified OpenTofu plan artifact
         if: steps.wif_check.outputs.configured == 'true'
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: tfplan-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}
           path: infra/environments/${{ github.event.inputs.environment || 'dev' }}

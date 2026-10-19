@@ -1,10 +1,10 @@
 import type { ReportSubtype, StudioFailureCode, StudioGenerationOutcome, StudioProgress } from "@everlast/contracts";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import { batchChunks, type BatchLimits } from "./batching.js";
-import type { Finding, ReportBlock, ReportModelClient } from "./model.js";
-import { renderReport } from "./render.js";
-import { TEMPLATES } from "./templates.js";
-import { validateReportBlocks } from "./validation.js";
+import { batchChunks, type BatchLimits } from "./batching.ts";
+import type { Finding, ReportBlock, ReportModelClient } from "./model.ts";
+import { renderReport } from "./render.ts";
+import { TEMPLATES } from "./templates.ts";
+import { validateReportBlocks } from "./validation.ts";
 
 export interface GenerateReportInput {
   subtype: ReportSubtype;

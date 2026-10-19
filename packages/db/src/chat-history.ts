@@ -1,282 +1,279 @@
 import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
-import type { ChatThread, ChatMessage } from "@everlast/contracts";
-
-// In-memory backing stores for local tests and harness
-const threadStore = new Map<string, ChatThread>(); // key: `${notebookId}:${userId}`
-const messageStore = new Map<string, ChatMessage>(); // key: messageId
-
-export function resetChatStore(): void {
-  threadStore.clear();
-  messageStore.clear();
-}
+import type { Pool } from "pg";
+import { AppError, type ChunkLocator, type SourceRevisionPair } from "@everlast/contracts";
+import { toIso, withTransaction, type Queryable } from "./transaction.ts";
+import { requireOwnedNotebook } from "./notebooks.ts";
+import { verifyScopeSnapshot, type ScopeSnapshot } from "./scope-guard.ts";
 
 /**
- * Deletes all chat threads and messages for a notebook (e.g. upon notebook deletion cascade).
+ * Persistent single thread per (notebook, user) with complete provenance (FR-GC-06, FR-GC-01, NFR-EVAL-04).
+ * Messages store the full submission snapshot as provenance and citation references only; snippets, titles and
+ * locators are resolved at read time from current authorized chunks, so deleted sources never leak.
  */
-export function deleteChatThreadsForNotebook(notebookId: string): void {
-  for (const [key, thread] of threadStore.entries()) {
-    if (thread.notebook_id === notebookId) {
-      threadStore.delete(key);
-    }
-  }
-  for (const [id, msg] of messageStore.entries()) {
-    if (msg.notebook_id === notebookId) {
-      messageStore.delete(id);
-    }
+
+export interface StoredCitation {
+  badge_number: number;
+  source_id: string;
+  chunk_id: string;
+  revision: number;
+}
+
+export interface ChatThreadRecord {
+  id: string;
+  notebook_id: string;
+  user_id: string;
+  generation_epoch: number;
+}
+
+export interface StoredMessage {
+  id: string;
+  seq: number;
+  turn_id: string;
+  request_id: string;
+  role: "user" | "assistant";
+  kind: "question" | "answer" | "refusal";
+  content: string;
+  provenance: SourceRevisionPair[];
+  citations: StoredCitation[];
+  created_at: string;
+}
+
+export interface HydratedCitation {
+  badge_number: number;
+  source_id: string;
+  chunk_id: string;
+  status: "available" | "deleted";
+  source_title: string | null;
+  snippet: string | null;
+  locator: ChunkLocator | null;
+}
+
+export interface VisibleMessage {
+  id: string;
+  turn_id: string;
+  role: "user" | "assistant";
+  kind: "question" | "answer" | "refusal";
+  /** null when the generated content depends on a deleted/revoked source (hidden, not cached). */
+  content: string | null;
+  unavailable_reason: "source_deleted" | null;
+  citations: HydratedCitation[];
+  created_at: string;
+}
+
+export class GenerationCancelledError extends AppError {
+  constructor(message = "The chat was cleared or the request was cancelled") {
+    super("GenerationCancelled", 409, message);
+    this.name = "GenerationCancelledError";
   }
 }
 
-/**
- * Get or create the unique chat thread for a notebook and user (FR-GC-06, C-01, C-02).
- * Enforces exactly one thread per (notebook_id, user_id) pair.
- */
-export async function getOrCreateChatThread(
-  client: PoolClient | undefined,
-  notebookId: string,
-  userId: string
-): Promise<ChatThread> {
-  if (client) {
-    const selectRes = await client.query(
-      `SELECT id, notebook_id, user_id, generation_epoch, created_at, updated_at
-       FROM chat_threads
-       WHERE notebook_id = $1 AND user_id = $2`,
-      [notebookId, userId]
-    );
-
-    if (selectRes.rows.length > 0) {
-      const row = selectRes.rows[0];
-      return {
-        id: row.id,
-        notebook_id: row.notebook_id,
-        user_id: row.user_id,
-        generation_epoch: row.generation_epoch,
-        created_at: new Date(row.created_at).toISOString(),
-        updated_at: new Date(row.updated_at).toISOString(),
-      };
-    }
-
-    const threadId = randomUUID();
-    const insertRes = await client.query(
-      `INSERT INTO chat_threads (id, notebook_id, user_id, generation_epoch, created_at, updated_at)
-       VALUES ($1, $2, $3, 1, NOW(), NOW())
-       ON CONFLICT (notebook_id, user_id)
-       DO UPDATE SET updated_at = NOW()
-       RETURNING id, notebook_id, user_id, generation_epoch, created_at, updated_at`,
-      [threadId, notebookId, userId]
-    );
-
-    const row = insertRes.rows[0];
-    return {
-      id: row.id,
-      notebook_id: row.notebook_id,
-      user_id: row.user_id,
-      generation_epoch: row.generation_epoch,
-      created_at: new Date(row.created_at).toISOString(),
-      updated_at: new Date(row.updated_at).toISOString(),
-    };
-  }
-
-  const key = `${notebookId}:${userId}`;
-  let thread = threadStore.get(key);
-  if (!thread) {
-    const now = new Date().toISOString();
-    thread = {
-      id: randomUUID(),
-      notebook_id: notebookId,
-      user_id: userId,
-      generation_epoch: 1,
-      created_at: now,
-      updated_at: now,
-    };
-    threadStore.set(key, thread);
-  }
-  return { ...thread };
+interface MessageRow extends Omit<StoredMessage, "created_at" | "seq"> {
+  seq: string | number;
+  created_at: Date;
 }
 
-/**
- * Retrieve all chat messages for a user's thread in a notebook (FR-GC-06).
- * Returns messages ordered chronologically (created_at ASC).
- */
-export async function getChatMessages(
-  client: PoolClient | undefined,
-  notebookId: string,
-  userId: string
-): Promise<ChatMessage[]> {
-  if (client) {
-    const res = await client.query(
-      `SELECT id, thread_id, notebook_id, user_id, role, content,
-              active_source_revisions_snapshot, citations, created_at
-       FROM chat_messages
-       WHERE notebook_id = $1 AND user_id = $2
-       ORDER BY created_at ASC`,
-      [notebookId, userId]
-    );
+const MESSAGE_COLUMNS = "id, seq, turn_id, request_id, role, kind, content, provenance, citations, created_at";
 
-    return res.rows.map((row) => ({
-      id: row.id,
-      thread_id: row.thread_id,
-      notebook_id: row.notebook_id,
-      user_id: row.user_id,
-      role: row.role,
-      content: row.content,
-      active_source_revisions_snapshot: Array.isArray(row.active_source_revisions_snapshot)
-        ? row.active_source_revisions_snapshot
-        : JSON.parse(row.active_source_revisions_snapshot || "[]"),
-      citations: Array.isArray(row.citations)
-        ? row.citations
-        : JSON.parse(row.citations || "[]"),
-      created_at: new Date(row.created_at).toISOString(),
-    }));
-  }
+function toStored(row: MessageRow): StoredMessage {
+  return { ...row, seq: Number(row.seq), created_at: toIso(row.created_at) };
+}
 
-  const messages: ChatMessage[] = [];
-  for (const msg of messageStore.values()) {
-    if (msg.notebook_id === notebookId && msg.user_id === userId) {
-      messages.push({ ...msg });
-    }
-  }
-
-  messages.sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+export async function getOrCreateThread(db: Queryable, ownerId: string, notebookId: string): Promise<ChatThreadRecord> {
+  await requireOwnedNotebook(db, ownerId, notebookId);
+  const result = await db.query<ChatThreadRecord>(
+    `INSERT INTO chat_threads (id, notebook_id, user_id) VALUES ($1, $2, $3)
+     ON CONFLICT (notebook_id, user_id) DO UPDATE SET updated_at = chat_threads.updated_at
+     RETURNING id, notebook_id, user_id, generation_epoch`,
+    [randomUUID(), notebookId, ownerId]
   );
-  return messages;
+  return result.rows[0]!;
+}
+
+export async function listThreadMessages(db: Queryable, threadId: string): Promise<StoredMessage[]> {
+  const result = await db.query<MessageRow>(
+    `SELECT ${MESSAGE_COLUMNS} FROM chat_messages WHERE thread_id = $1 ORDER BY seq`,
+    [threadId]
+  );
+  return result.rows.map(toStored);
+}
+
+export async function findTurnByRequest(db: Queryable, threadId: string, requestId: string): Promise<StoredMessage[]> {
+  const result = await db.query<MessageRow>(
+    `SELECT ${MESSAGE_COLUMNS} FROM chat_messages WHERE thread_id = $1 AND request_id = $2 ORDER BY seq`,
+    [threadId, requestId]
+  );
+  return result.rows.map(toStored);
+}
+
+export interface PublishTurnInput {
+  thread: ChatThreadRecord;
+  snapshot: ScopeSnapshot;
+  requestId: string;
+  question: string;
+  answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
 }
 
 /**
- * Persist a user or assistant chat message with complete provenance and citations (FR-GC-06).
+ * Atomic publication under the shared fence (D13, C-02): re-verifies notebook ownership and the exact captured
+ * revisions with share locks, re-checks the thread epoch (a clear in between cancels), then stores question and
+ * answer together. A replayed request returns the already-published turn.
  */
-export async function persistChatMessage(
-  client: PoolClient | undefined,
-  data: {
-    id?: string;
-    thread_id: string;
-    notebook_id: string;
-    user_id: string;
-    role: "user" | "assistant";
-    content: string;
-    active_source_revisions_snapshot?: { source_id: string; revision: number }[];
-    citations?: any[];
-    created_at?: string;
-  }
-): Promise<ChatMessage> {
-  const messageId = data.id ?? randomUUID();
-  const createdAt = data.created_at ?? new Date().toISOString();
-  const snapshot = data.active_source_revisions_snapshot ?? [];
-  const citations = data.citations ?? [];
-
-  if (client) {
-    const res = await client.query(
-      `INSERT INTO chat_messages (
-         id, thread_id, notebook_id, user_id, role, content,
-         active_source_revisions_snapshot, citations, created_at
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       RETURNING id, thread_id, notebook_id, user_id, role, content,
-                 active_source_revisions_snapshot, citations, created_at`,
-      [
-        messageId,
-        data.thread_id,
-        data.notebook_id,
-        data.user_id,
-        data.role,
-        data.content,
-        JSON.stringify(snapshot),
-        JSON.stringify(citations),
-        createdAt,
-      ]
+export async function publishTurn(pool: Pool, input: PublishTurnInput): Promise<StoredMessage[]> {
+  return withTransaction(pool, async (tx) => {
+    await verifyScopeSnapshot(tx, input.snapshot, { lock: "share" });
+    const thread = await tx.query<{ generation_epoch: number }>(
+      "SELECT generation_epoch FROM chat_threads WHERE id = $1 FOR SHARE",
+      [input.thread.id]
     );
+    if (!thread.rows[0] || thread.rows[0].generation_epoch !== input.thread.generation_epoch) {
+      throw new GenerationCancelledError();
+    }
+    const existing = await findTurnByRequest(tx, input.thread.id, input.requestId);
+    if (existing.length > 0) return existing;
 
-    const row = res.rows[0];
-    return {
-      id: row.id,
-      thread_id: row.thread_id,
-      notebook_id: row.notebook_id,
-      user_id: row.user_id,
-      role: row.role,
-      content: row.content,
-      active_source_revisions_snapshot: Array.isArray(row.active_source_revisions_snapshot)
-        ? row.active_source_revisions_snapshot
-        : JSON.parse(row.active_source_revisions_snapshot || "[]"),
-      citations: Array.isArray(row.citations)
-        ? row.citations
-        : JSON.parse(row.citations || "[]"),
-      created_at: new Date(row.created_at).toISOString(),
+    const turnId = randomUUID();
+    const provenance = JSON.stringify(input.snapshot.sources);
+    const insert = async (role: "user" | "assistant", kind: string, content: string, citations: StoredCitation[]) => {
+      const row = await tx.query<MessageRow>(
+        `INSERT INTO chat_messages (id, thread_id, notebook_id, user_id, turn_id, request_id, role, kind, content, provenance, citations, generation_epoch)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING ${MESSAGE_COLUMNS}`,
+        [
+          randomUUID(),
+          input.thread.id,
+          input.thread.notebook_id,
+          input.thread.user_id,
+          turnId,
+          input.requestId,
+          role,
+          kind,
+          content,
+          provenance,
+          JSON.stringify(citations),
+          input.thread.generation_epoch,
+        ]
+      );
+      return toStored(row.rows[0]!);
     };
-  }
+    const question = await insert("user", "question", input.question, []);
+    const answer = await insert("assistant", input.answer.kind, input.answer.content, input.answer.citations);
+    await tx.query("UPDATE chat_threads SET updated_at = now() WHERE id = $1", [input.thread.id]);
+    return [question, answer];
+  });
+}
 
-  const message: ChatMessage = {
-    id: messageId,
-    thread_id: data.thread_id,
-    notebook_id: data.notebook_id,
-    user_id: data.user_id,
-    role: data.role,
-    content: data.content,
-    active_source_revisions_snapshot: snapshot,
-    citations,
-    created_at: createdAt,
+/** Clear chat (FR-GC-06): advances the epoch (fencing late generations) and deletes this thread's messages only. */
+export async function clearThread(pool: Pool, ownerId: string, notebookId: string): Promise<{ generation_epoch: number }> {
+  return withTransaction(pool, async (tx) => {
+    const thread = await getOrCreateThread(tx, ownerId, notebookId);
+    const updated = await tx.query<{ generation_epoch: number }>(
+      "UPDATE chat_threads SET generation_epoch = generation_epoch + 1, updated_at = now() WHERE id = $1 RETURNING generation_epoch",
+      [thread.id]
+    );
+    await tx.query("DELETE FROM chat_messages WHERE thread_id = $1", [thread.id]);
+    return updated.rows[0]!;
+  });
+}
+
+interface CurrentSourceRow {
+  id: string;
+  title: string;
+  status: string;
+  active_revision: number | null;
+}
+
+/**
+ * Projects stored messages for display with current authorization: citations to sources that no longer exist
+ * at the cited revision become "Source deleted" without snippet; assistant content whose provenance includes a
+ * deleted source is hidden. Mere deselection does not hide anything.
+ */
+export async function projectVisibleMessages(
+  db: Queryable,
+  notebookId: string,
+  messages: StoredMessage[]
+): Promise<VisibleMessage[]> {
+  const sourceIds = new Set<string>();
+  const chunkIds = new Set<string>();
+  for (const m of messages) {
+    m.provenance.forEach((p) => sourceIds.add(p.source_id));
+    m.citations.forEach((c) => {
+      sourceIds.add(c.source_id);
+      chunkIds.add(c.chunk_id);
+    });
+  }
+  const sources = new Map<string, CurrentSourceRow>();
+  if (sourceIds.size > 0) {
+    const rows = await db.query<CurrentSourceRow>(
+      "SELECT id, title, status, active_revision FROM sources WHERE notebook_id = $1 AND id = ANY($2::uuid[])",
+      [notebookId, [...sourceIds]]
+    );
+    rows.rows.forEach((r) => sources.set(r.id, r));
+  }
+  const chunks = new Map<string, { text: string; locator: ChunkLocator; revision: number; source_id: string }>();
+  if (chunkIds.size > 0) {
+    const rows = await db.query<{ chunk_id: string; text: string; locator: ChunkLocator; revision: number; source_id: string }>(
+      "SELECT chunk_id, text, locator, revision, source_id FROM chunks WHERE notebook_id = $1 AND chunk_id = ANY($2::uuid[])",
+      [notebookId, [...chunkIds]]
+    );
+    rows.rows.forEach((r) => chunks.set(r.chunk_id, r));
+  }
+  const available = (sourceId: string, revision: number) => {
+    const s = sources.get(sourceId);
+    return Boolean(s && s.status === "Ready" && s.active_revision === revision);
   };
 
-  messageStore.set(messageId, message);
-  return { ...message };
+  return messages.map((m) => {
+    const dependsOnDeleted = m.role === "assistant" && m.provenance.some((p) => !available(p.source_id, p.revision));
+    const citations: HydratedCitation[] = m.citations.map((c) => {
+      const chunk = chunks.get(c.chunk_id);
+      const ok = !dependsOnDeleted && available(c.source_id, c.revision) && chunk && chunk.source_id === c.source_id && chunk.revision === c.revision;
+      return ok
+        ? {
+            badge_number: c.badge_number,
+            source_id: c.source_id,
+            chunk_id: c.chunk_id,
+            status: "available",
+            source_title: sources.get(c.source_id)!.title,
+            snippet: chunk!.text,
+            locator: chunk!.locator,
+          }
+        : { badge_number: c.badge_number, source_id: c.source_id, chunk_id: c.chunk_id, status: "deleted", source_title: null, snippet: null, locator: null };
+    });
+    return {
+      id: m.id,
+      turn_id: m.turn_id,
+      role: m.role,
+      kind: m.kind,
+      content: dependsOnDeleted ? null : m.content,
+      unavailable_reason: dependsOnDeleted ? "source_deleted" : null,
+      citations,
+      created_at: m.created_at,
+    };
+  });
 }
 
-/**
- * Clear the chat thread for a user and notebook (FR-GC-06).
- * Atomically increments generation_epoch (cancelling late generation results)
- * and deletes all messages in the thread, leaving all sources and notes untouched.
- */
-export async function clearChatThread(
-  client: PoolClient | undefined,
+export async function loadVisibleThread(db: Queryable, ownerId: string, notebookId: string): Promise<VisibleMessage[]> {
+  const thread = await getOrCreateThread(db, ownerId, notebookId);
+  return projectVisibleMessages(db, notebookId, await listThreadMessages(db, thread.id));
+}
+
+/** Search within the caller's thread only; hidden (deleted-source) content never matches (FR-GC-06). */
+export async function searchThread(
+  db: Queryable,
+  ownerId: string,
   notebookId: string,
-  userId: string
-): Promise<{ cleared: boolean; generationEpoch: number }> {
-  if (client) {
-    const updateRes = await client.query(
-      `UPDATE chat_threads
-       SET generation_epoch = generation_epoch + 1, updated_at = NOW()
-       WHERE notebook_id = $1 AND user_id = $2
-       RETURNING generation_epoch`,
-      [notebookId, userId]
-    );
-
-    let generationEpoch = 1;
-    if (updateRes.rows.length > 0) {
-      generationEpoch = updateRes.rows[0].generation_epoch;
-    }
-
-    await client.query(
-      `DELETE FROM chat_messages WHERE notebook_id = $1 AND user_id = $2`,
-      [notebookId, userId]
-    );
-
-    return { cleared: true, generationEpoch };
+  query: string
+): Promise<{ message_id: string; role: string; excerpt: string }[]> {
+  const term = query.trim().toLowerCase();
+  if (!term) return [];
+  const visible = await loadVisibleThread(db, ownerId, notebookId);
+  const results: { message_id: string; role: string; excerpt: string }[] = [];
+  for (const m of visible) {
+    if (m.content === null) continue;
+    const index = m.content.toLowerCase().indexOf(term);
+    if (index < 0) continue;
+    const start = Math.max(0, index - 60);
+    results.push({ message_id: m.id, role: m.role, excerpt: `${start > 0 ? "…" : ""}${m.content.slice(start, index + term.length + 60)}` });
   }
-
-  const key = `${notebookId}:${userId}`;
-  let thread = threadStore.get(key);
-  if (!thread) {
-    const now = new Date().toISOString();
-    thread = {
-      id: randomUUID(),
-      notebook_id: notebookId,
-      user_id: userId,
-      generation_epoch: 2,
-      created_at: now,
-      updated_at: now,
-    };
-    threadStore.set(key, thread);
-  } else {
-    thread.generation_epoch += 1;
-    thread.updated_at = new Date().toISOString();
-  }
-
-  // Delete all messages for this notebook and user
-  for (const [id, msg] of messageStore.entries()) {
-    if (msg.notebook_id === notebookId && msg.user_id === userId) {
-      messageStore.delete(id);
-    }
-  }
-
-  return { cleared: true, generationEpoch: thread.generation_epoch };
+  return results;
 }

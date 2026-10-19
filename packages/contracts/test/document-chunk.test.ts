@@ -6,7 +6,7 @@ import {
   DomPathLocatorSchema,
   ChunkLocatorSchema,
   type UnifiedDocumentChunk,
-} from "../src/document-chunk.js";
+} from "../src/document-chunk.ts";
 
 describe("Contract C-01: UnifiedDocumentChunk", () => {
   const validChunkIdV7 = "018f6b40-0001-7000-8000-000000000001";

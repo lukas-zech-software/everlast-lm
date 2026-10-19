@@ -1,3 +1,10 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+# Dependency install scripts stay disabled (supply-chain policy); the app, tests and image work without them.
+allowBuilds:
+  '@google/genai': false
+  cpu-features: false
+  esbuild: false
+  protobufjs: false
+  ssh2: false

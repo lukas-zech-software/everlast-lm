@@ -1,26 +1,28 @@
-import type { NoteSourceIngestor } from "@everlast/contracts";
-import type { IngestionPipeline } from "./pipeline.js";
+import { countWords, type NoteSourceIngestor } from "@everlast/contracts";
+import { chunkDocument } from "./chunker.ts";
+import { extractPlainText, IngestionFailure } from "./extract.ts";
 
-/** Adapts the Markdown ingestion path (FR-SI-01) to the note conversion port (FR-NM-03, C-01). */
-export function createNoteMarkdownIngestor(pipeline: IngestionPipeline): NoteSourceIngestor {
+/**
+ * Note → source conversion over the Markdown ingestion path (FR-NM-03, FR-SI-01, C-01): same UTF-8 decoding,
+ * logical pages and 300–600-token chunker as uploaded Markdown. Note sources are not embedded; they are read
+ * whole through the note source registry (D16 proof of concept).
+ */
+export function createNoteMarkdownIngestor(): NoteSourceIngestor {
   return {
     async ingest(input) {
-      const r = await pipeline.process({
-        attempt_id: input.attempt_id,
-        notebook_id: input.notebook_id,
-        source_id: input.source_id,
-        revision_id: input.revision_id,
-        title: input.title,
-        media_type: "text/markdown",
-        content: input.markdown,
-      });
-      return {
-        status: r.status === "Ready" ? "Ready" : "Failed",
-        byte_size: r.byte_size,
-        word_count: r.word_count,
-        chunks: r.chunks,
-        ...(r.error_message !== undefined ? { error_message: r.error_message } : {}),
-      };
+      const bytes = Buffer.from(input.markdown, "utf8");
+      try {
+        const doc = extractPlainText(bytes, "text/markdown");
+        return {
+          status: "Ready",
+          byte_size: bytes.length,
+          word_count: countWords(input.markdown),
+          chunks: chunkDocument(doc, input.source_id, input.revision_id),
+        };
+      } catch (e) {
+        if (!(e instanceof IngestionFailure)) throw e;
+        return { status: "Failed", byte_size: bytes.length, word_count: 0, chunks: [], error_message: e.message };
+      }
     },
   };
 }

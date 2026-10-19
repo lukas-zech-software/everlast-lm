@@ -9,10 +9,10 @@ import {
   type StudioJobPlan,
   type StudioJobRequest,
 } from "@everlast/contracts";
-import type { BatchLimits } from "./batching.js";
-import type { ReportModelClient } from "./model.js";
-import { generateReport } from "./pipeline.js";
-import { TEMPLATES } from "./templates.js";
+import type { BatchLimits } from "./batching.ts";
+import type { ReportModelClient } from "./model.ts";
+import { generateReport } from "./pipeline.ts";
+import { TEMPLATES } from "./templates.ts";
 
 export class ReportGeneratorPlugin implements StudioGeneratorPlugin {
   readonly manifest = {
@@ -21,10 +21,12 @@ export class ReportGeneratorPlugin implements StudioGeneratorPlugin {
     subtypes: ReportSubtypeSchema.options as readonly string[] as string[],
   };
 
-  constructor(
-    private readonly model: ReportModelClient,
-    private readonly limits?: BatchLimits
-  ) {}
+  private readonly model: ReportModelClient;
+  private readonly limits?: BatchLimits | undefined;
+  constructor(model: ReportModelClient, limits?: BatchLimits) {
+    this.model = model;
+    this.limits = limits;
+  }
 
   triggerJob(request: StudioJobRequest): StudioJobPlan {
     const parsed = ReportSubtypeSchema.safeParse(request.subtype);

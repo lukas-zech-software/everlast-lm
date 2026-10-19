@@ -7,15 +7,16 @@ import {
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
 import {
-  createNotebook,
+  countSourcesForNotebook,
+  createPocNotebook,
   resetChatStore,
   resetNoteStore,
-  resetNotebookStore,
-  resetQuotaStore,
+  resetPocBridge,
   resetSourceRegistry,
 } from "@everlast/db";
-import { handleNotesRoute } from "../src/routes/notes.js";
-import { NotesService, type NotesServiceDeps } from "../src/notes/service.js";
+import { SourceQuotaExceededError } from "@everlast/contracts";
+import { handleNotesRoute } from "../src/routes/notes.ts";
+import { NotesService, type NotesServiceDeps } from "../src/notes/service.ts";
 
 export const USER = "usr_alice";
 
@@ -52,20 +53,30 @@ export function stubIngestor(mode: "ok" | "failed" | "throws" = "ok") {
   return { ingestor, calls };
 }
 
+/** Uploaded sources already occupying slots, per notebook (stands in for the PostgreSQL count). */
+export const seededSlots = new Map<string, number>();
+export const occupiedSlots = (notebookId: string) => (seededSlots.get(notebookId) ?? 0) + countSourcesForNotebook(notebookId);
+const SOURCE_LIMIT = 50;
+
 export function resetAll(): void {
+  seededSlots.clear();
+  resetPocBridge();
   resetChatStore();
   resetNoteStore();
-  resetNotebookStore();
-  resetQuotaStore();
   resetSourceRegistry();
 }
 
 export async function newNotebook(): Promise<string> {
-  return (await createNotebook(undefined, USER, { title: "NB" })).id;
+  return createPocNotebook(USER, "NB").id;
 }
 
 export async function startApi(deps: NotesServiceDeps & { verifyOwnership?: NotesServiceDeps["verifyOwnership"] }) {
-  const service = new NotesService(deps);
+  const service = new NotesService({
+    reserveSlot: async (notebookId) => {
+      if (occupiedSlots(notebookId) >= SOURCE_LIMIT) throw new SourceQuotaExceededError("Source limit reached");
+    },
+    ...deps,
+  });
   const server: Server = createServer((req, res) => {
     handleNotesRoute(req, res, { service, ...(deps.verifyOwnership ? { verifyOwnership: deps.verifyOwnership } : {}) }, USER)
       .then((handled) => {

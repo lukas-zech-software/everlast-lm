@@ -5,7 +5,7 @@ import {
   getNote,
   updateNote,
   deleteNote,
-  saveResponseNote,
+  saveResponseAsNote,
   convertToEditable,
   deleteNotesForNotebook,
   resetNoteStore,
@@ -16,7 +16,7 @@ import {
   registerSource,
   replaceSource,
   deleteSource,
-  getSource,
+  getNoteSource,
   getScopedContext,
   resetSourceRegistry,
   clearChatThread,
@@ -79,7 +79,7 @@ describe("FR-NM-01: manual note lifecycle", () => {
 
 describe("FR-NM-02 / FR-GC-09: saved responses", () => {
   const save = () =>
-    saveResponseNote(nb, owner, { message_id: msg, content: "Port 8080 requires mTLS [1]", citations: [citation] });
+    saveResponseAsNote(nb, owner, { message_id: msg, content: "Port 8080 requires mTLS [1]", citations: [citation] });
 
   it("is idempotent per (notebook, owner, message) and read-only", async () => {
     const first = await save();
@@ -129,7 +129,7 @@ describe("C-02: source registry", () => {
     expect((await getScopedContext(nb, [src])).map((c) => c.text)).toEqual(["rev1"]);
     await expect(getScopedContext(nb2, [src])).rejects.toThrow();
     await replaceSource(nb, src, [chunk(2)]);
-    expect((await getSource(nb, src))?.revision_id).toBe(2);
+    expect((await getNoteSource(nb, src))?.revision_id).toBe(2);
     expect((await getScopedContext(nb, [src])).map((c) => c.text)).toEqual(["rev2"]);
     await deleteSource(nb, src);
     await expect(getScopedContext(nb, [src])).rejects.toThrow();

@@ -1,4 +1,5 @@
-import { NOTE_AUTOSAVE_DEBOUNCE_MS, type PatchNoteInput } from "@everlast/contracts";
+import type { PatchNoteInput } from "@everlast/contracts";
+import { NOTE_AUTOSAVE_DEBOUNCE_MS } from "../lib/v2-contracts.ts";
 
 export type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -34,7 +35,9 @@ export class NoteEditorSession {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private inflight: Promise<void> | undefined;
 
-  constructor(private readonly opts: NoteEditorSessionOptions) {
+  private readonly opts: NoteEditorSessionOptions;
+  constructor(opts: NoteEditorSessionOptions) {
+    this.opts = opts;
     this.revision = opts.revision;
   }
 

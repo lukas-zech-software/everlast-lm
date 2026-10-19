@@ -13,7 +13,6 @@ import {
   createNote,
   deleteNote,
   getNote,
-  getOccupiedSourceCount,
   listNotes,
   NoteNotFoundError,
   NoteReadOnlyError,
@@ -21,12 +20,14 @@ import {
   RevisionConflictError,
   updateNote,
 } from "@everlast/db";
-import { parseJsonBody, sendJson } from "../http.js";
-import { NotesService, NotesServiceError } from "../notes/service.js";
+import { parseJsonBody, sendJson } from "../http.ts";
+import { NotesService, NotesServiceError } from "../notes/service.ts";
 
 export interface NotesRouteDependencies {
   service: NotesService;
   verifyOwnership?: (notebookId: string, userId: string) => Promise<boolean> | boolean;
+  /** Occupied and maximum source slots of the notebook (FR-WM-07), shown next to the note list. */
+  sourceSlots?: (notebookId: string) => Promise<{ used: number; limit: number }>;
 }
 
 const fail = (res: ServerResponse, status: number, code: string, message: string = code) =>
@@ -68,8 +69,8 @@ export async function handleNotesRoute(
     if (seg === undefined) {
       if (method === "GET") {
         const notes = await listNotes(notebookId, userId);
-        const used = await getOccupiedSourceCount(notebookId);
-        sendJson(res, 200, { notes, source_slots: { used, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK } });
+        const source_slots = (await deps.sourceSlots?.(notebookId)) ?? { used: 0, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK };
+        sendJson(res, 200, { notes, source_slots });
         return true;
       }
       if (method === "POST") {

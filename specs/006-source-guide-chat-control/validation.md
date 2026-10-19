@@ -2,6 +2,29 @@
 
 SRS trace: `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`, Gate v2.0 #1/#2.
 
+## Integration onto the converged v1 code base (2026-10-19, D16 / DEV-04)
+
+> **Correction:** this package was built and tested against the pre-convergence v1 code: in-memory notebooks,
+> quota and chat history, an API server that accepted unsigned tokens, and an eval script with hardcoded
+> metrics. Earlier entries below that rely on those modules are superseded. By owner decision (D16, SRS §5.5
+> DEV-04) the package keeps its own data in process memory until v3; it now runs on the converged v1 code.
+
+- **Access:** every v2 route runs behind the v1 app: Identity Platform/local RS256 tokens, notebook ownership
+  checked in PostgreSQL before any v2 handler (`apps/api/src/app.ts`), v2 never decides access itself.
+- **Bridge:** `packages/db/src/poc-bridge.ts` mirrors authorized notebooks, Ready-source counts and the visible
+  PostgreSQL chat history into the in-memory stores; a deleted notebook drops all v2 records.
+- **Runtime:** `apps/api/src/v2/runtime.ts` composes the package; background work runs in the API process
+  (single instance for the PoC).
+- **Verification (worktree `v1-gate`, PostgreSQL 16 + pgvector):** `pnpm typecheck` clean; `pnpm lint` passed;
+  Vitest 74 files / 578 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
+- **Package 2.2 specifics:** Source Guides read whole sources through PostgreSQL C-02
+  (`listSnapshotChunks`); chat configuration reaches the grounded model as response preferences (never the
+  grounding rules). **No Gemini client exists for `StructuredGenerationClient`**, so Source Guide, overview and
+  follow-up generation answer 503 until one is added; the UI hides them. The guide shows in the source
+  inspector only when a source is opened from the list, never on citation opens (Gate v1.0 #3 scroll target).
+- **Known duplication:** "Save to notes" here (`/chat/messages/:id/note`) and the Package 2.3 pinboard
+  (`/notes/from-message`) keep separate saved-response stores; unify in v3.
+
 ## Release prerequisite: Gate v1.0 (Constitution V)
 
 - `pnpm test:unit` — **PASS** — 46 files, 364 tests (previous recorded prerequisite run).

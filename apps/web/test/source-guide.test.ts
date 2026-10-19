@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { SourceGuideController } from "../src/source-guide.js";
-import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges, formatChatConfigurationLabel } from "../src/chat-control.js";
-import { setupMockDOM } from "./mock-dom.js";
+import { SourceGuideController } from "../src/source-guide.ts";
+import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges, formatChatConfigurationLabel } from "../src/chat-control.ts";
+import { setupMockDOM } from "./mock-dom.ts";
 
 const source = "22222222-2222-4222-8222-222222222222";
 const notebook = "11111111-1111-4111-8111-111111111111";

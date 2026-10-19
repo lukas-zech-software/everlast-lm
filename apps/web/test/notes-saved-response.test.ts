@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { savedResponseView, citationForBadge, isEditable } from "../src/notes/saved-response.js";
-import { assistantActions, ASSISTANT_DISCLOSURE } from "../src/notes/assistant.js";
+import { savedResponseView, citationForBadge, isEditable } from "../src/notes/saved-response.ts";
+import { assistantActions, ASSISTANT_DISCLOSURE } from "../src/notes/assistant.ts";
 
 const note = {
   origin_type: "saved_response" as const,

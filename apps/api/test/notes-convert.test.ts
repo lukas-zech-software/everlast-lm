@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createNote, getOccupiedSourceCount, listNotes, seedSourceSlots, getScopedContext } from "@everlast/db";
-import { newNotebook, resetAll, startApi, stubIngestor, USER } from "./notes-fixtures.js";
+import { createNote, listNotes, getScopedContext } from "@everlast/db";
+import { newNotebook, occupiedSlots, resetAll, seededSlots, startApi, stubIngestor, USER } from "./notes-fixtures.ts";
 
 const words = (n: number) => Array.from({ length: n }, () => "w").join(" ");
 
@@ -54,7 +54,7 @@ describe("FR-NM-03, FR-WM-07, FR-SI-01: convert notes to source", () => {
 
   it("rejects at 50/50 with 'Source limit reached' and never ingests", async () => {
     await start();
-    await seedSourceSlots(nb, 50);
+    seededSlots.set(nb, 50);
     const n = await createNote(nb, USER, { title: "A", content_md: "x" });
     const r = await convert({ note_ids: [n.id] });
     expect(r.status).toBe(409);
@@ -73,11 +73,11 @@ describe("FR-NM-03, FR-WM-07, FR-SI-01: convert notes to source", () => {
     expect(ok.status).toBe(201);
     expect(ok.json.source.word_count).toBe(500_000);
     const over = await createNote(nb, USER, { title: "T", content_md: words(99_998 + 1) });
-    const before = await getOccupiedSourceCount(nb);
+    const before = occupiedSlots(nb);
     const r = await convert({ note_ids: [...ids.slice(0, 4), over.id] });
     expect(r.status).toBe(422);
     expect(r.json.error.code).toBe("SourceOversizedWords");
-    expect(await getOccupiedSourceCount(nb)).toBe(before);
+    expect(occupiedSlots(nb)).toBe(before);
   });
 
   it("rejects whitespace-only and unknown or cross-notebook notes", async () => {
@@ -96,7 +96,7 @@ describe("FR-NM-03, FR-WM-07, FR-SI-01: convert notes to source", () => {
     const n = await createNote(nb, USER, { title: "A", content_md: "x" });
     const r = await convert({ note_ids: [n.id] });
     expect(r.status).toBe(502);
-    expect(await getOccupiedSourceCount(nb)).toBe(0);
+    expect(occupiedSlots(nb)).toBe(0);
     expect(await listNotes(nb, USER)).toHaveLength(1);
   });
 });

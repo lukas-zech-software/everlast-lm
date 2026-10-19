@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { InvalidScopeError, SourceSnapshotInvalidError, StudioPluginRegistry, StudioParamsError, type ReportSuggestionsResult, type SourceRevisionPair, type StudioGeneratorPlugin } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { handleStudioRoute, type StudioRouteDeps } from "../src/routes/studio.js";
+import { handleStudioRoute, type StudioRouteDeps } from "../src/routes/studio.ts";
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const S1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

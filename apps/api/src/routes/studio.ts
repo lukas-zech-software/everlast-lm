@@ -5,14 +5,14 @@ import {
   SourceSnapshotInvalidError,
   StudioParamsError,
 } from "@everlast/contracts";
-import { parseJsonBody, sendJson } from "../http.js";
+import { parseJsonBody, sendJson } from "../http.ts";
 import {
   StudioConflictError,
   StudioNotFoundError,
   StudioNotImplementedError,
   StudioService,
   type StudioServiceDeps,
-} from "../studio/service.js";
+} from "../studio/service.ts";
 
 export type StudioRouteDeps = StudioServiceDeps;
 

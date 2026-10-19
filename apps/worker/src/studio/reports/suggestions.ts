@@ -4,7 +4,7 @@ import {
   type SourceGuideState,
   type SourceRevisionPair,
 } from "@everlast/contracts";
-import type { ReportModelClient } from "./model.js";
+import type { ReportModelClient } from "./model.ts";
 
 export interface SourceGuideProvider {
   getGuides(notebookId: string, snapshot: SourceRevisionPair[]): Promise<SourceGuideState[]>;
@@ -22,9 +22,10 @@ export const SUGGESTION_TIMEOUT_MS = 3000;
 export class ReportSuggestionService {
   private readonly cache = new Map<string, ReportSuggestionsResult>();
 
-  constructor(
-    private readonly deps: { guides: SourceGuideProvider; model: ReportModelClient; timeoutMs?: number }
-  ) {}
+  private readonly deps: { guides: SourceGuideProvider; model: ReportModelClient; timeoutMs?: number };
+  constructor(deps: { guides: SourceGuideProvider; model: ReportModelClient; timeoutMs?: number }) {
+    this.deps = deps;
+  }
 
   async getSuggestions(req: SuggestionRequest): Promise<ReportSuggestionsResult> {
     const key = computeContextCacheKey({

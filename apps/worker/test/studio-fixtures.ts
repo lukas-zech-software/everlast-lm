@@ -84,7 +84,10 @@ export function vendorChunks(): UnifiedDocumentChunk[] {
 /** In-memory C-02 provider: returns only chunks of the requested IDs, at their current revision. */
 export class FakeScopedContext {
   readonly calls: { notebook_id: string; ids: string[] }[] = [];
-  constructor(public chunks: UnifiedDocumentChunk[]) {}
+  public chunks: UnifiedDocumentChunk[];
+  constructor(chunks: UnifiedDocumentChunk[]) {
+    this.chunks = chunks;
+  }
   async getScopedContext(notebook_id: string, active_source_ids: string[]): Promise<UnifiedDocumentChunk[]> {
     this.calls.push({ notebook_id, ids: [...active_source_ids] });
     const wanted = new Set(active_source_ids);
@@ -97,7 +100,10 @@ export class FakeAccess {
   readonly verifyCalls: SourceRevisionPair[][] = [];
   revoked = false;
   onVerify?: (call: number) => void;
-  constructor(public revisions: Map<string, number>) {}
+  public revisions: Map<string, number>;
+  constructor(revisions: Map<string, number>) {
+    this.revisions = revisions;
+  }
   async resolveSnapshot(_owner: string, _nb: string, ids: string[]): Promise<SourceRevisionPair[]> {
     return ids.map((source_id) => {
       const revision = this.revisions.get(source_id);
@@ -120,7 +126,10 @@ export class FakeAccess {
 }
 
 export class FakeGuides {
-  constructor(public states: Map<string, SourceGuideState>) {}
+  public states: Map<string, SourceGuideState>;
+  constructor(states: Map<string, SourceGuideState>) {
+    this.states = states;
+  }
   async getGuides(_nb: string, snapshot: SourceRevisionPair[]): Promise<SourceGuideState[]> {
     return snapshot.map(
       (p) => this.states.get(p.source_id) ?? { source_id: p.source_id, revision: p.revision, status: "Pending" as const }

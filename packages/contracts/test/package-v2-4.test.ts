@@ -8,7 +8,7 @@ import {
   canTransitionStudioStatus,
   validateCustomReportPrompt,
   type StudioGeneratorPlugin,
-} from "../src/index.js";
+} from "../src/index.ts";
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const SRC_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

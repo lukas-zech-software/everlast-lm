@@ -4,7 +4,7 @@ import {
   StudioArtifactSchema,
   type StudioReportPayload,
 } from "@everlast/contracts";
-import { InMemoryStudioArtifactRepository, StudioRetryNotAllowedError } from "../src/studio-artifacts.js";
+import { InMemoryStudioArtifactRepository, StudioRetryNotAllowedError } from "../src/studio-artifacts.ts";
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const NB2 = "22222222-2222-4222-8222-222222222222";

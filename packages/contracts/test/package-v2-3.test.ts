@@ -82,3 +82,36 @@ describe("FR-NM-04: assistant input", () => {
     expect(NoteAssistantInputSchema.safeParse({ action_type: "rewrite", selected_note_ids: [uuid(1)], selected_source_ids: [] }).success).toBe(false);
   });
 });
+
+describe("sanitizeNoteMarkdown hardening (FR-NM-01, CodeQL js/incomplete-multi-character-sanitization)", () => {
+  it.each([
+    ["<scr<script>ipt>alert(1)</script>", /<script|<img/i],
+    ["<<script>script>alert(1)</script>", /<script/i],
+    ["<script>never closed", /<script|never closed/i],
+    ["<img src=x onerror=alert(1)", /<img/i],
+    ["<STYLE>b{}</STYLE>ok", /style|b\{\}/i],
+    ["<<b>script>alert(1)<</b>/script>", /<script|<\/script/i],
+    ["<[img](javascript:x) src=x onerror=alert(1)>", /<img|onerror/i],
+    ["<[a](data:x)img src=x onerror=alert(1)>", /<aimg|<img|onerror/i],
+  ])("leaves no tag in %j", (input, forbidden) => {
+    expect(sanitizeNoteMarkdown(input)).not.toMatch(forbidden);
+  });
+
+  it("handles crafted bracket and tag floods in linear time", () => {
+    const started = performance.now();
+    sanitizeNoteMarkdown("[\\".repeat(50_000));
+    sanitizeNoteMarkdown("[](" + " ".repeat(100_000));
+    sanitizeNoteMarkdown("<a".repeat(50_000));
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("drops unsafe images and keeps the text of unsafe links", () => {
+    expect(sanitizeNoteMarkdown("![x](javascript:void) [y](JaVaScRiPt:1) [z]( https://ok.example )")).toBe(" y [z]( https://ok.example )");
+  });
+
+  it("keeps ordinary text, comparisons and Markdown", () => {
+    expect(sanitizeNoteMarkdown("a < b and 3<4\n**bold** [ok](https://a.example)")).toBe(
+      "a < b and 3<4\n**bold** [ok](https://a.example)"
+    );
+  });
+});

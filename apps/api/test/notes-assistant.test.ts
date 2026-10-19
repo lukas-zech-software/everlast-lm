@@ -1,28 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import { createNote, getChatMessages, getScopedContext, listNotes } from "@everlast/db";
-import type { ModelCompletionAdapter, ModelCompletionParams } from "../src/chat/agent.js";
-import { newNotebook, resetAll, startApi, stubIngestor, USER, uuidv7 } from "./notes-fixtures.js";
+import type { NoteAssistantModel } from "../src/notes/assistant-model.ts";
+import { newNotebook, resetAll, startApi, stubIngestor, USER, uuidv7 } from "./notes-fixtures.ts";
 
 const EXT = "55555555-5555-4555-8555-555555555555";
 
 describe("FR-NM-04, C-02: Note Assistant", () => {
   let nb: string;
   let api: Awaited<ReturnType<typeof startApi>>;
-  let modelCalls: ModelCompletionParams[];
+  let modelCalls: Parameters<NoteAssistantModel["answer"]>[0][];
   let extRevision: number;
   let extChunk: UnifiedDocumentChunk;
   let noteIds: string[];
 
-  const adapter: ModelCompletionAdapter = {
-    async complete(params) {
-      modelCalls.push(params);
-      const cited = params.chunks.map((c) => c.chunk_id);
+  // Test double for the grounded answer port: cites every chunk it was given (real model + verifier in production).
+  const assistant: NoteAssistantModel = {
+    async answer(input) {
+      modelCalls.push(input);
       return {
-        grounded: true,
         refusal: false,
-        answer: params.chunks.map((c) => `Claim <cite id="${c.chunk_id}"/>`).join(" "),
-        citedChunkIds: cited,
+        content: input.chunks.map((_c, i) => `Claim [[${i + 1}]]`).join(" "),
+        citations: input.chunks.map((c, i) => ({
+          badge_number: i + 1,
+          source_id: c.source_id,
+          source_title: input.titles.get(c.source_id) ?? "Source",
+          chunk_id: c.chunk_id,
+          snippet: c.text,
+          locator: c.locator,
+        })),
       };
     },
   };
@@ -30,7 +36,7 @@ describe("FR-NM-04, C-02: Note Assistant", () => {
   const start = async (extra: Record<string, unknown> = {}, mode: "ok" | "failed" = "ok") => {
     api = await startApi({
       ingestor: stubIngestor(mode).ingestor,
-      modelAdapter: adapter,
+      assistant,
       scopedContext: {
         async getScopedContext(notebookId, ids) {
           const own = ids.filter((id) => id !== EXT);
@@ -107,13 +113,13 @@ describe("FR-NM-04, C-02: Note Assistant", () => {
 
   it("fails without publishing when a source revision changes mid-run", async () => {
     await start();
-    const originalComplete = adapter.complete.bind(adapter);
-    adapter.complete = async (p) => {
+    const originalAnswer = assistant.answer.bind(assistant);
+    assistant.answer = async (p) => {
       extRevision = 2;
-      return originalComplete(p);
+      return originalAnswer(p);
     };
     const r = await run({ action_type: "related_ideas", selected_note_ids: noteIds, selected_source_ids: [EXT] });
-    adapter.complete = originalComplete;
+    assistant.answer = originalAnswer;
     expect(r.status).toBe(409);
     expect(r.json.error.code).toBe("SourceSnapshotInvalid");
     expect(await getChatMessages(undefined, nb, USER)).toHaveLength(0);

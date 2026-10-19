@@ -1,189 +1,184 @@
-import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import type { SourceStatus } from "@everlast/contracts";
+import { api, ApiError } from "../lib/api.ts";
+import { clear, h, toast } from "../lib/dom.ts";
+import type { InspectorContent, PageSpan } from "../lib/types.ts";
 
 /**
- * State of the Source Inspector (FR-SI-04).
- * States: Closed (List View) <-> Open (Document View) <-> Open & Highlighted (Chunk Focused)
+ * Source Inspector (FR-SI-04, FR-GC-03). Renders canonical page text with one `[data-chunk-id]` element per
+ * chunk (display span from the chunk start to the next chunk start), lazily per page for very large sources.
+ * Opening via citation scrolls deterministically to the cited element and applies `chunk-highlight`.
+ * The inspector never changes the chat selection.
  */
-export interface SourceInspectorState {
-  status: "closed" | "open" | "highlighted";
-  sourceId: string | null;
-  sourceTitle: string | null;
-  chunks: UnifiedDocumentChunk[];
-  highlightChunkId: string | null;
-  loading: boolean;
-  error: string | null;
-}
 
-export interface SourceInspectorControllerOptions {
+export interface InspectorOptions {
   notebookId: string;
-  fetchSourceChunks?: (sourceId: string) => Promise<UnifiedDocumentChunk[]>;
-  validateNotebookSource?: (notebookId: string, sourceId: string) => Promise<boolean>;
-  getSourceStatus?: (sourceId: string) => Promise<SourceStatus>;
+  onClose(): void;
+  /**
+   * Release v2: called after a source opened, with a slot above the text (Source Guide, FR-SI-02). `viaCitation`
+   * is true when the open targets a cited chunk; the slot must then stay empty so the scroll target never moves.
+   */
+  onOpened?(source: InspectorContent["source"], slot: HTMLElement, viaCitation: boolean): void;
 }
 
-/**
- * Domain controller for the Source Inspector / Viewer (FR-SI-04, C-02).
- * Singleton read scope ensures chat active selection is never mutated.
- */
-export class SourceInspectorController {
-  private readonly notebookId: string;
-  private readonly fetchSourceChunks?: (sourceId: string) => Promise<UnifiedDocumentChunk[]>;
-  private readonly validateNotebookSource?: (notebookId: string, sourceId: string) => Promise<boolean>;
-  private readonly getSourceStatus?: (sourceId: string) => Promise<SourceStatus>;
+export interface Inspector {
+  element: HTMLElement;
+  open(sourceId: string, chunkId?: string | null): Promise<void>;
+  isOpen(): boolean;
+}
 
-  private state: SourceInspectorState = {
-    status: "closed",
-    sourceId: null,
-    sourceTitle: null,
-    chunks: [],
-    highlightChunkId: null,
-    loading: false,
-    error: null,
+interface PageData {
+  page_number: number;
+  physical_page?: number | undefined;
+  text: string;
+}
+
+/** Splits a page into display spans: text before the first chunk, then one span per chunk start. */
+export function displaySpans(page: PageData, chunks: { chunk_id: string; locator: PageSpan }[]) {
+  const cps = Array.from(page.text);
+  const starts = chunks
+    .filter((c) => c.locator.page_number === page.page_number)
+    .sort((a, b) => a.locator.start_offset - b.locator.start_offset || a.chunk_id.localeCompare(b.chunk_id));
+  const spans: { chunkId: string | null; text: string }[] = [];
+  let cursor = 0;
+  starts.forEach((chunk, i) => {
+    const start = Math.max(cursor, chunk.locator.start_offset);
+    if (start > cursor) spans.push({ chunkId: null, text: cps.slice(cursor, start).join("") });
+    const end = i + 1 < starts.length ? Math.max(start, starts[i + 1]!.locator.start_offset) : cps.length;
+    spans.push({ chunkId: chunk.chunk_id, text: cps.slice(start, end).join("") });
+    cursor = end;
+  });
+  if (cursor < cps.length) spans.push({ chunkId: null, text: cps.slice(cursor).join("") });
+  return spans;
+}
+
+export function createInspector(options: InspectorOptions): Inspector {
+  const title = h("h3", { class: "inspector-title", "data-testid": "inspector-title" });
+  const closeButton = h("button", { class: "icon-btn", "data-testid": "inspector-close", "aria-label": "Close source", text: "✕" });
+  const scroll = h("div", { class: "inspector-scroll", "data-testid": "inspector-scroll", tabindex: 0 });
+  const guideSlot = h("div", { class: "inspector-guide", "data-testid": "inspector-guide" });
+  const element = h(
+    "div",
+    { class: "inspector", "data-testid": "source-inspector", hidden: true },
+    h("div", { class: "inspector-head" }, title, closeButton),
+    guideSlot,
+    scroll
+  );
+  let current: { sourceId: string; revision: number; nextCursor: string | null; chunks: InspectorContent["chunks"] } | null = null;
+  let observer: IntersectionObserver | null = null;
+  let loadingMore = false;
+  let token = 0;
+
+  closeButton.addEventListener("click", () => {
+    element.hidden = true;
+    current = null;
+    options.onClose();
+  });
+
+  const renderPage = (section: HTMLElement, page: PageData) => {
+    if (section.dataset.rendered === "true") return;
+    section.dataset.rendered = "true";
+    clear(section);
+    if (page.physical_page) section.append(h("div", { class: "page-label", text: `Page ${page.physical_page}` }));
+    const body = h("div", { class: "page-text" });
+    for (const span of displaySpans(page, current?.chunks ?? [])) {
+      body.append(span.chunkId ? h("span", { class: "chunk", "data-chunk-id": span.chunkId, text: span.text }) : span.text);
+    }
+    section.append(body);
+    section.style.minHeight = "";
   };
 
-  private listeners = new Set<(state: SourceInspectorState) => void>();
-
-  constructor(options: SourceInspectorControllerOptions) {
-    this.notebookId = options.notebookId;
-    if (options.fetchSourceChunks) this.fetchSourceChunks = options.fetchSourceChunks;
-    if (options.validateNotebookSource) this.validateNotebookSource = options.validateNotebookSource;
-    if (options.getSourceStatus) this.getSourceStatus = options.getSourceStatus;
-  }
-
-  public getState(): SourceInspectorState {
-    return { ...this.state };
-  }
-
-  public subscribe(listener: (state: SourceInspectorState) => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  private notify() {
-    const currentState = this.getState();
-    for (const listener of this.listeners) {
-      listener(currentState);
+  const appendPages = (pages: PageData[], eager: Set<number>) => {
+    for (const page of pages) {
+      const section = h("section", { class: "inspector-page", "data-page": page.page_number });
+      // Placeholder height keeps the scrollbar honest until the page is rendered.
+      section.style.minHeight = `${Math.max(40, Math.ceil(page.text.length / 90) * 20)}px`;
+      (section as HTMLElement & { _page?: PageData })._page = page;
+      scroll.append(section);
+      if (eager.has(page.page_number)) renderPage(section, page);
+      else observer?.observe(section);
     }
-  }
-
-  /**
-   * Opens the full text viewer for a specific source and optionally highlights a chunk.
-   */
-  public async openSource(
-    sourceId: string,
-    title?: string,
-    highlightChunkId?: string | null
-  ): Promise<void> {
-    this.state.loading = true;
-    this.state.error = null;
-    this.notify();
-
-    // 1. Validate notebook ownership / tenant isolation (C-02, FR-SI-04)
-    if (this.validateNotebookSource) {
-      const isValid = await this.validateNotebookSource(this.notebookId, sourceId);
-      if (!isValid) {
-        this.state = {
-          status: "closed",
-          sourceId: null,
-          sourceTitle: null,
-          chunks: [],
-          highlightChunkId: null,
-          loading: false,
-          error: "Source does not belong to notebook",
-        };
-        this.notify();
-        return;
-      }
+    if (current?.nextCursor) {
+      const sentinel = h("div", { class: "inspector-sentinel", "data-sentinel": "true" });
+      scroll.append(sentinel);
+      observer?.observe(sentinel);
     }
+  };
 
-    // 2. Validate source readiness
-    if (this.getSourceStatus) {
-      const status = await this.getSourceStatus(sourceId);
-      if (status !== "Ready") {
-        this.state = {
-          status: "closed",
-          sourceId: null,
-          sourceTitle: null,
-          chunks: [],
-          highlightChunkId: null,
-          loading: false,
-          error: "Source is not ready for inspection",
-        };
-        this.notify();
-        return;
-      }
+  const loadMore = async () => {
+    if (!current?.nextCursor || loadingMore) return;
+    loadingMore = true;
+    const mine = token;
+    try {
+      const next = await api<InspectorContent>(
+        `/api/notebooks/${options.notebookId}/sources/${current.sourceId}/content?cursor=${encodeURIComponent(current.nextCursor)}`
+      );
+      if (mine !== token || !current) return;
+      scroll.querySelector("[data-sentinel]")?.remove();
+      current.chunks.push(...next.chunks);
+      current.nextCursor = next.next_cursor;
+      appendPages(next.pages, new Set());
+    } catch {
+      toast("Could not load more of this source.");
+    } finally {
+      loadingMore = false;
     }
+  };
 
-    // 3. Fetch ordered canonical chunks
-    let chunks: UnifiedDocumentChunk[] = [];
-    if (this.fetchSourceChunks) {
-      chunks = await this.fetchSourceChunks(sourceId);
-    }
+  const focusChunk = (chunkId: string): boolean => {
+    const target = scroll.querySelector<HTMLElement>(`[data-chunk-id="${chunkId}"]`);
+    if (!target) return false;
+    scroll.querySelectorAll(".chunk-highlight").forEach((el) => el.classList.remove("chunk-highlight"));
+    target.classList.add("chunk-highlight");
+    element.dataset.highlight = chunkId;
+    target.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
+    // Re-apply once after layout settles (fonts, panel width transition) so the target stays in view.
+    requestAnimationFrame(() => requestAnimationFrame(() => target.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior })));
+    return true;
+  };
 
-    // 4. Validate highlight chunk if requested
-    let validHighlightId: string | null = null;
-    if (highlightChunkId) {
-      const found = chunks.some((c) => c.chunk_id === highlightChunkId);
-      if (found) {
-        validHighlightId = highlightChunkId;
-      }
-      // If not found, falls back gracefully to null (scroll to top)
-    }
-
-    this.state = {
-      status: validHighlightId ? "highlighted" : "open",
-      sourceId,
-      sourceTitle: title ?? null,
-      chunks,
-      highlightChunkId: validHighlightId,
-      loading: false,
-      error: null,
-    };
-
-    this.notify();
-  }
-
-  /**
-   * Highlights a specific chunk in the currently opened source.
-   */
-  public highlightChunk(chunkId: string): void {
-    if (this.state.status === "closed" || !this.state.sourceId) {
+  async function open(sourceId: string, chunkId?: string | null): Promise<void> {
+    const mine = ++token;
+    element.hidden = false;
+    if (chunkId && current?.sourceId === sourceId && focusChunk(chunkId)) return;
+    const query = chunkId ? `?chunk_id=${encodeURIComponent(chunkId)}` : "";
+    let content: InspectorContent;
+    try {
+      content = await api<InspectorContent>(`/api/notebooks/${options.notebookId}/sources/${sourceId}/content${query}`);
+    } catch (err) {
+      if (mine !== token) return;
+      element.hidden = true;
+      toast(err instanceof ApiError && err.status === 409 ? "This source is not ready yet." : "Could not open this source.");
+      options.onClose();
       return;
     }
+    if (mine !== token) return;
+    observer?.disconnect();
+    observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const target = entry.target as HTMLElement & { _page?: PageData };
+          if (target.dataset.sentinel) void loadMore();
+          else if (target._page) renderPage(target, target._page);
+          observer?.unobserve(target);
+        }
+      },
+      { root: scroll, rootMargin: "800px 0px" }
+    );
+    current = { sourceId, revision: content.source.revision, nextCursor: content.next_cursor, chunks: content.chunks };
+    title.textContent = content.source.title;
+    clear(guideSlot);
+    options.onOpened?.(content.source, guideSlot, Boolean(content.highlight));
+    element.dataset.sourceId = sourceId;
+    clear(scroll);
+    // Every page above (and including) the cited page renders eagerly so nothing above the target can change
+    // height after scrolling; pages below render lazily as they approach the viewport.
+    const lastEager = content.highlight ? content.highlight.page_number : (content.pages[1]?.page_number ?? content.pages[0]?.page_number ?? 0);
+    appendPages(content.pages, new Set(content.pages.filter((p) => p.page_number <= lastEager).map((p) => p.page_number)));
 
-    const chunkExists = this.state.chunks.some((c) => c.chunk_id === chunkId);
-    if (!chunkExists) {
-      return;
-    }
-
-    this.state.status = "highlighted";
-    this.state.highlightChunkId = chunkId;
-    this.notify();
+    if (content.highlight && focusChunk(content.highlight.chunk_id)) return;
+    delete element.dataset.highlight;
+    scroll.scrollTop = 0;
   }
 
-  /**
-   * Closes the inspector view and restores the standard source list.
-   */
-  public close(): void {
-    this.state = {
-      status: "closed",
-      sourceId: null,
-      sourceTitle: null,
-      chunks: [],
-      highlightChunkId: null,
-      loading: false,
-      error: null,
-    };
-    this.notify();
-  }
-
-  /**
-   * Reconstructs full document text from ordered chunks.
-   */
-  public reconstructFullText(): string {
-    return this.state.chunks.map((c) => c.text).join(" ");
-  }
+  return { element, open, isOpen: () => !element.hidden };
 }

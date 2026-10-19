@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { validateReportPayload } from "../src/studio/runner.js";
-import { SRC_HISTORY, SRC_UNSELECTED, historyChunks, unselectedChunks } from "./studio-fixtures.js";
+import { validateReportPayload } from "../src/studio/runner.ts";
+import { SRC_HISTORY, SRC_UNSELECTED, historyChunks, unselectedChunks } from "./studio-fixtures.ts";
 
 const chunks = historyChunks();
 const snapshot = [{ source_id: SRC_HISTORY, revision: 1 }];

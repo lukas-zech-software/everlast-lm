@@ -11,7 +11,12 @@
     "@everlast/contracts": "workspace:*"
   },
   "devDependencies": {
+    "@everlast/api": "workspace:*",
+    "@everlast/cloud": "workspace:*",
+    "@everlast/db": "workspace:*",
+    "@everlast/worker": "workspace:*",
     "@playwright/test": "^1.51.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@everlast/testkit": "workspace:*"
   }
 }

@@ -6,6 +6,45 @@
 
 ---
 
+## Convergence correction and verified evidence (2026-10-18/19)
+
+> **Correction:** earlier entries in this log describe an ingestion pipeline that keyed off magic strings (`"10 pages"`, `[OCR_PAGE_4]`), a sources route that returned `Ready` without ingestion and a C-02 adapter that did not exist. Those results are superseded. The evidence below is from real PDF/text parsing (pdfjs-dist), PostgreSQL + pgvector persistence and hybrid retrieval.
+
+- **Environment**: macOS 27 (darwin arm64), Node.js 26.3.0 (repo engine `>=24`), pnpm 10.31.0, PostgreSQL 16.15 + pgvector 0.8.7 (`pgvector/pgvector:pg16` Docker, `pnpm db:test:up`), Chromium via Playwright 1.64.1, OpenTofu 1.13.1.
+- **Base**: `main` @ `8ca81ca`, branch `feat/v1-gate-convergence` (worktree `everlast-lm-worktrees/v1-gate`), uncommitted at time of recording.
+- **Commands**: `TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast pnpm test` (Vitest projects `unit` + `integration`: **318/318 passed, 30 files**), `pnpm test:e2e` (**30/30 Playwright journeys passed**), `pnpm eval:deterministic`, `pnpm typecheck` (clean), `tofu test` in `infra/modules/storage_secrets` (4/4).
+- **Test doubles (labelled in code)**: `HashingTestEmbedder` (lexical vectors, refused in production), `FixtureOcr` (stands in for Document AI in worker tests), scripted/fixture chat models in API tests and the E2E server. They prove pipeline guarantees only; model quality is measured by the judged suite.
+- **UNAVAILABLE in this environment**: Vertex AI (chat, embeddings, judge), Document AI OCR and Identity Platform live checks — no Application Default Credentials on this machine (`gcloud auth application-default print-access-token` fails). Nothing below claims those passed.
+
+### Green results (FR-SI-01, FR-SI-03, FR-SI-04, C-01, C-02, NFR-EVAL-04)
+
+| Task(s) | Suite | Result | Notes |
+| :-- | :-- | :-- | :-- |
+| T033/T035/T036 (T007/T010) | `apps/worker/test/ingestion.test.ts` US1-01..06 | 6/6 | Real 10-page PDF with an image-only page 4 → OCR (test double for Document AI) only for page 4, `locator.page_number = physical_page = 4`; pasted 1,500 words; encrypted/corrupt PDF exact message; code-point locator round trip for MD/TXT; atomic Ready; replay never re-ingests. Bytes/words derived from the stored object only. |
+| T008 | `apps/worker/test/ingestion.boundaries.test.ts` US1-B01..B13 | 11/11 | Empty and whitespace files, vector-only PDF, exactly 500,000 / 500,001 words (slot released, objects purged), 1 code point after trim, invalid UTF-8, non-BMP offsets across logical pages, ≤ 600-token chunks within pages. |
+| T009 | `apps/worker/test/ingestion.integration.test.ts` | 6/6 | 300–600-token chunks, 20 concurrent PDFs, UUIDv7 IDs, 40 MB/520,000-word file fails on words, exactly 200,000,000 bytes accepted end to end. |
+| T031 (T018) | `packages/db/test/scoped-context.integration.test.ts` RET-01..05, INS-01..03 | 8/8 | Hybrid pgvector + FTS + RRF with a hard `(notebook, source_id, revision)` filter in both CTEs; "Project Aurora" never returned from the deselected source; identical text in another notebook excluded; stale snapshot fails; singleton inspector with revision-bound cursor; foreign highlight never resolves. |
+| T032/T034 (T011/T025) | `apps/api/test/sources.test.ts` SRC-01..08 | 8/8 | Ownership check, atomic reservation before any capability, signed upload (local HMAC capability; GCS V4 in production), actual-byte verification on completion, late completion after deletion → 404 with no publication, inspector route. |
+| T037 (T012/T019/T024/T026) | `apps/web/test/sources.spec.ts` SI-E01..07 (Playwright) | 7/7 | Upload PDF + MD → spinner → Ready + checked; Copied text → "Pasted text"; exact failure message + dismiss; unsupported/empty files; unchecking 2 of 5 → "3 sources" in ≤ 50 ms (measured in-page), Select all indeterminate/unchecked disables send; title opens at top, close keeps draft and selection; 400,000-word source jumps to a late chunk without blocking frames. |
+| T038 (T028) | `packages/evals/test/package-v1-2.test.ts` | 1/1 | Synthetic PDF + MD corpus ingests into valid C-01 chunks through the real pipeline; deselection cases leak 0. |
+| Gate v1.0 #1 | `apps/web/test/gate-v1.spec.ts` GATE-1 | pass | PDF + MD uploaded through the UI produce only schema-valid C-01 chunks whose text equals the canonical page slice. |
+
+### Timing (declared local environment, warm; cloud OCR/embedding latency excluded → real-cloud timing UNAVAILABLE)
+
+| Case | Result | Target |
+| :-- | :-- | :-- |
+| US1-I02 20-page digital PDF → Ready (10 samples) | P95 146 ms | ≤ 5.0 s P95 |
+| SI-E05 checkbox → counter | ≤ 50 ms asserted in-page | ≤ 50 ms |
+| GATE-3 open source + scroll to cited chunk (20 runs) | P95 49 ms, max 138 ms | ≤ 300 ms |
+| SI-E07 400,000-word source, open + scroll to last chunk | 832 ms, next frame 0 ms | edge case: no freeze |
+
+### Path map (planned → implemented)
+
+`apps/web/test/source-selection*.spec.ts` and `source-inspector*.spec.ts` → `apps/web/test/sources.spec.ts`, `chat.spec.ts`, `layout.spec.ts`, `gate-v1.spec.ts` and pure logic in `apps/web/test/lib.test.ts`; `packages/db/src/source-view.ts` → `readSourceForInspection` in `packages/db/src/scoped-context.ts`; `apps/api/src/routes/source-content.ts` → `GET .../sources/{id}/content` in `apps/api/src/routes/sources.ts`.
+
+---
+
+
 ## Task T003: Package DTOs and Integration Boundary Tests (RED Phase)
 
 - **Date**: 2026-10-18

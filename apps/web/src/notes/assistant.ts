@@ -1,4 +1,5 @@
-import { NOTE_ASSISTANT_MAX_NOTES, NOTE_ERROR_MESSAGES, type NoteAssistantAction } from "@everlast/contracts";
+import type { NoteAssistantAction } from "@everlast/contracts";
+import { NOTE_ASSISTANT_MAX_NOTES, NOTE_ERROR_MESSAGES } from "../lib/v2-contracts.ts";
 
 export const ASSISTANT_DISCLOSURE =
   "This creates a source snapshot from the exact selected notes and adds it to your sources.";

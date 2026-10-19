@@ -7,7 +7,7 @@ import type {
   ReportItem,
   ReportModelClient,
   SuggestRequest,
-} from "./model.js";
+} from "./model.ts";
 
 const YEAR = /\b(1[0-9]{3}|20[0-9]{2})\b/;
 const DEFINITION = /^(?:A |An |The )?([A-Za-z][A-Za-z -]{1,40}?) (?:is a|is an|means|refers to)\b/;

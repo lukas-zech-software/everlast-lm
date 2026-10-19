@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { clearChatThread, getOrCreateChatThread, persistChatMessage } from "@everlast/db";
-import { newNotebook, resetAll, startApi, stubIngestor, uuidv7, USER } from "./notes-fixtures.js";
+import { newNotebook, resetAll, startApi, stubIngestor, uuidv7, USER } from "./notes-fixtures.ts";
 
 describe("FR-NM-02, FR-GC-09: saved responses", () => {
   let api: Awaited<ReturnType<typeof startApi>>;

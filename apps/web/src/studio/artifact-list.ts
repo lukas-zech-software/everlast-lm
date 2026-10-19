@@ -1,5 +1,5 @@
-import type { ArtifactDto, StudioApi } from "./api.js";
-import { renderMarkdown } from "./markdown.js";
+import type { ArtifactDto, StudioApi } from "./api.ts";
+import { renderMarkdown } from "./markdown.ts";
 
 export interface StudioRow {
   id: string;
@@ -15,7 +15,10 @@ export interface StudioArtifactListOptions {
 export class StudioArtifactListController {
   private artifacts: ArtifactDto[] = [];
 
-  constructor(private readonly options: StudioArtifactListOptions) {}
+  private readonly options: StudioArtifactListOptions;
+  constructor(options: StudioArtifactListOptions) {
+    this.options = options;
+  }
 
   /** Template buttons require at least one active source (FR-ST-10). */
   templatesEnabled(activeSourceCount: number): boolean {

@@ -439,8 +439,8 @@ is a GitHub project, and GitHub already provides the needed building blocks:
    any fan-out.
 2. **CI as the enforced gate.** A first workflow already runs on every PR and blocks merges into `main`: it checks
    that every link and anchor in the specification resolves and that every SRS ID has an FR card. Next come lint,
-   type-check, unit, contract and the deterministic eval suites (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run on path filters for retrieval, prompt
-   and chat code, and before every release gate. The existing `main` ruleset then requires these checks as well.
+   type-check, unit, contract and the deterministic eval suites (`NFR-EVAL-02/04`) on every PR. The LLM-judged suites (`NFR-EVAL-01/03`) run once per release gate on a fixed
+   stratified 50-case sample of the golden dataset. The existing `main` ruleset then requires these checks as well.
 3. **Issues as the claim and handoff record.** Each Spec Kit task slice becomes an issue (`/speckit-github-taskstoissues`, qualified by `[<feature-slug>] T001` so task IDs never collide across packages) carrying the `AGENTS.md` assignment fields: spec path, task IDs, allowed files, base commit,
    dependencies and acceptance checks. The assignee is the claim. Sub-issues and native issue dependencies (today the
    dependencies are listed in the issue text) express order, and the project's Status field shows progress.

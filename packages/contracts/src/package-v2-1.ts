@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NotebookSchema } from "./workspace.js";
+import { NotebookSchema } from "./workspace.ts";
 
 export const PACKAGE_V2_1_CONTRACT_VERSION = "2.1.0" as const;
 export const DEFAULT_NOTEBOOK_ICON = "📓";

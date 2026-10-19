@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { onNotebookForgotten } from "./poc-bridge.ts";
 import {
   clampCodePoints,
   DEFAULT_NOTE_TITLE,
@@ -9,7 +10,7 @@ import {
   type PatchNoteInput,
 } from "@everlast/contracts";
 
-// In-memory notes store (FR-NM-01, FR-NM-02, FR-GC-09). Deliberately imports no other db module.
+// In-memory notes store (FR-NM-01, FR-NM-02, FR-GC-09); PoC per D16, PostgreSQL persistence follows in v3.
 
 export class NoteNotFoundError extends Error {
   constructor(message = "Note not found") {
@@ -139,7 +140,7 @@ function savedResponseTitle(content: string): string {
 }
 
 /** Idempotent on (notebook, owner, source_message_id) (FR-GC-09). Copies content and citations. */
-export async function saveResponseNote(
+export async function saveResponseAsNote(
   notebookId: string,
   ownerId: string,
   input: { message_id: string; content: string; citations: Citation[] }
@@ -175,3 +176,5 @@ export async function convertToEditable(notebookId: string, ownerId: string, not
     source_message_id: null,
   });
 }
+
+onNotebookForgotten(deleteNotesForNotebook);

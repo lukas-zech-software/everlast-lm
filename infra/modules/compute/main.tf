@@ -18,12 +18,15 @@ locals {
   }
 
   api_env_vars = merge(local.common_env_vars, {
-    SERVICE_ROLE                 = "api"
-    POSTGRES_USER                = var.api_db_iam_username
-    CLOUD_TASKS_INGESTION_QUEUE  = var.ingestion_queue_name
-    CLOUD_TASKS_STUDIO_QUEUE     = var.studio_queue_name
-    CLOUD_TASKS_INVOKER_SA_EMAIL = var.tasks_invoker_service_account_email
-    WORKER_INTERNAL_URL          = google_cloud_run_v2_service.worker.uri
+    SERVICE_ROLE                  = "api"
+    AUTH_MODE                     = "identity-platform"
+    IDENTITY_PLATFORM_API_KEY     = var.identity_platform_api_key
+    IDENTITY_PLATFORM_PROVIDER_ID = var.identity_platform_provider_id
+    POSTGRES_USER                 = var.api_db_iam_username
+    CLOUD_TASKS_INGESTION_QUEUE   = var.ingestion_queue_name
+    CLOUD_TASKS_STUDIO_QUEUE      = var.studio_queue_name
+    CLOUD_TASKS_INVOKER_SA_EMAIL  = var.tasks_invoker_service_account_email
+    WORKER_INTERNAL_URL           = google_cloud_run_v2_service.worker.uri
   })
 
   worker_env_vars = merge(local.common_env_vars, {

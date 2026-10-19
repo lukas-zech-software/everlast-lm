@@ -9,7 +9,7 @@ import type {
   SourceGuide,
 } from "@everlast/contracts";
 import { ChatConfigurationSchema, ChatMessageSchema, FollowUpSuggestionsSchema, MessageFeedbackSchema, NotebookOverviewSchema, PersistedMessageFollowUpsSchema, SavedResponseNoteSchema, SourceGuideSchema } from "@everlast/contracts";
-import { getChatMessages, persistChatMessage } from "./chat-history.js";
+import { getChatMessages, onNotebookForgotten, persistChatMessage } from "./poc-bridge.ts";
 
 const guideStore = new Map<string, SourceGuide>();
 const overviewStore = new Map<string, NotebookOverview>();
@@ -160,3 +160,16 @@ export async function deleteSavedResponseNote(userId: string, messageId: string)
 export async function persistPackageV22AssistantMessage(input: Parameters<typeof persistChatMessage>[1]) {
   return persistChatMessage(undefined, input);
 }
+
+// PoC per D16: every Package 2.2 record lives in memory; drop a deleted notebook's records.
+onNotebookForgotten((notebookId) => {
+  for (const store of [guideStore, configStore, feedbackStore, followUpStore] as Map<string, unknown>[]) {
+    for (const key of store.keys()) if (key.startsWith(`${notebookId}:`)) store.delete(key);
+  }
+  for (const [key, overview] of overviewStore) if (overview.notebook_id === notebookId) overviewStore.delete(key);
+  for (const [id, note] of noteStore) {
+    if (note.notebook_id !== notebookId) continue;
+    noteStore.delete(id);
+    for (const [key, noteId] of noteIdempotency) if (noteId === id) noteIdempotency.delete(key);
+  }
+});

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import type { ReportSubtype } from "@everlast/contracts";
-import { generateReport } from "../src/studio/reports/pipeline.js";
-import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.js";
-import type { ReportModelClient } from "../src/studio/reports/model.js";
-import { validateReportPayload } from "../src/studio/runner.js";
+import { generateReport } from "../src/studio/reports/pipeline.ts";
+import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
+import type { ReportModelClient } from "../src/studio/reports/model.ts";
+import { validateReportPayload } from "../src/studio/runner.ts";
 import {
   SRC_HISTORY,
   SRC_NODATES,
@@ -12,7 +12,7 @@ import {
   makeChunk,
   noDateChunks,
   techChunks,
-} from "./studio-fixtures.js";
+} from "./studio-fixtures.ts";
 
 const chunks = [...historyChunks(), ...techChunks()];
 const snapshot = [SRC_HISTORY, SRC_TECH].map((source_id) => ({ source_id, revision: 1 }));

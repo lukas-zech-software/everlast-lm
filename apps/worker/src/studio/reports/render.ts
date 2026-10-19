@@ -1,13 +1,16 @@
 import type { ReportCitation, StudioReportPayload, UnifiedDocumentChunk } from "@everlast/contracts";
-import type { ReportBlock, ReportItem } from "./model.js";
-import type { BlockSpec } from "./templates.js";
+import type { ReportBlock, ReportItem } from "./model.ts";
+import type { BlockSpec } from "./templates.ts";
 
 const SNIPPET_MAX = 160;
 
 export class CitationRegistry {
   private readonly badges = new Map<string, number>();
   readonly citations: ReportCitation[] = [];
-  constructor(private readonly byId: Map<string, UnifiedDocumentChunk>) {}
+  private readonly byId: Map<string, UnifiedDocumentChunk>;
+  constructor(byId: Map<string, UnifiedDocumentChunk>) {
+    this.byId = byId;
+  }
 
   mark(chunkId: string, quote?: string): string {
     let n = this.badges.get(chunkId);

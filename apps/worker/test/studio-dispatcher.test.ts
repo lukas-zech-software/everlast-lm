@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { InlineStudioDispatcher } from "../src/studio/dispatcher.js";
+import { InlineStudioDispatcher } from "../src/studio/dispatcher.ts";
 
 describe("InlineStudioDispatcher (FR-006, C-03)", () => {
   it("returns before generation finishes and contains runner errors", async () => {

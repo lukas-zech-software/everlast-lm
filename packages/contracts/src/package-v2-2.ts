@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { CitationSchema } from "./package-v1-3.js";
-import { SourceRevisionPairSchema } from "./scoped-context.js";
+import { CitationSchema } from "./package-v1-3.ts";
+import { SourceRevisionPairSchema } from "./scoped-context.ts";
 
 const uuid = z.string().uuid();
 const codePoints = (value: string) => Array.from(value.trim()).length;

@@ -62,3 +62,8 @@ infra/**/*.tfvars
 infra/**/*.tfvars.json
 infra/**/backend.hcl
 infra/**/tfplan*
+
+# Local runtime data, build output and evaluation reports
+.local/
+.tsbuild/
+reports/

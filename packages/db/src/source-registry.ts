@@ -1,6 +1,7 @@
+import { onNotebookForgotten } from "./poc-bridge.ts";
 import { InvalidScopeError, type NoteSource, type UnifiedDocumentChunk } from "@everlast/contracts";
 
-// In-memory registry of note-derived sources and their C-01 chunks; serves C-02 reads (current revision only).
+// PoC per D16 (PostgreSQL persistence follows in v3). In-memory registry of note-derived sources and their C-01 chunks; serves C-02 reads (current revision only).
 
 interface Entry {
   source: NoteSource;
@@ -23,7 +24,7 @@ export async function registerSource(source: NoteSource, chunks: UnifiedDocument
   registry.set(source.id, { source: structuredClone(source), chunks: structuredClone(chunks) });
 }
 
-export async function getSource(notebookId: string, sourceId: string): Promise<NoteSource | null> {
+export async function getNoteSource(notebookId: string, sourceId: string): Promise<NoteSource | null> {
   const e = registry.get(sourceId);
   return e && e.source.notebook_id === notebookId ? structuredClone(e.source) : null;
 }
@@ -59,4 +60,13 @@ export async function getScopedContext(
     out.push(...structuredClone(e.chunks.filter((c) => c.revision === e.source.revision_id)));
   }
   return out;
+}
+
+onNotebookForgotten(deleteSourcesForNotebook);
+
+/** Note sources of one notebook (they occupy source slots like uploads, FR-WM-07). */
+export function countSourcesForNotebook(notebookId: string): number {
+  let n = 0;
+  for (const e of registry.values()) if (e.source.notebook_id === notebookId) n++;
+  return n;
 }

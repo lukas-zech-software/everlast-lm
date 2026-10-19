@@ -1,96 +1,100 @@
-import { randomUUID } from "node:crypto";
-import type { PoolClient } from "pg";
+import type { Queryable } from "./transaction.ts";
+import { toIso } from "./transaction.ts";
+import { AppError } from "@everlast/contracts";
+import { isUuid } from "./notebooks.ts";
 
 /**
- * Deletion fences and durable cleanup outbox (FR-WM-01, FR-WM-04).
- * Stores payload-free deletion operations with owner-scoped status checks.
+ * Durable notebook cleanup ledger (FR-WM-01, FR-WM-04). Rows are payload-free: notebook namespace prefix,
+ * status, attempts and an error code. Status is never Purged until a quiescent final sweep succeeded.
  */
+
+export type CleanupStatus = "Pending" | "Running" | "Purged";
 
 export interface CleanupOperation {
   id: string;
-  operation_id: string;
   notebook_id: string;
   owner_id: string;
-  status: "Pending" | "Running" | "Purged" | "Failed";
-  created_at: Date;
-  updated_at: Date;
-  last_error_code?: string;
+  object_prefix: string;
+  status: CleanupStatus;
+  attempts: number;
+  last_error_code: string | null;
+  quiescent_after: string;
+  purged_at: string | null;
 }
 
-const cleanupStore = new Map<string, CleanupOperation>(); // operation_id -> operation
+interface CleanupRow extends Omit<CleanupOperation, "quiescent_after" | "purged_at"> {
+  quiescent_after: Date;
+  purged_at: Date | null;
+}
 
-export async function recordCleanupOperation(
-  client: PoolClient | undefined,
-  notebookId: string,
-  ownerId: string
-): Promise<string> {
-  const operationId = randomUUID();
-  const now = new Date();
+const COLUMNS = "id, notebook_id, owner_id, object_prefix, status, attempts, last_error_code, quiescent_after, purged_at";
 
-  const op: CleanupOperation = {
-    id: randomUUID(),
-    operation_id: operationId,
-    notebook_id: notebookId,
-    owner_id: ownerId,
-    status: "Pending",
-    created_at: now,
-    updated_at: now,
+function toOperation(row: CleanupRow): CleanupOperation {
+  return {
+    ...row,
+    quiescent_after: toIso(row.quiescent_after),
+    purged_at: row.purged_at ? toIso(row.purged_at) : null,
   };
-
-  cleanupStore.set(operationId, op);
-  return operationId;
 }
 
+export class DeletionNotFoundError extends AppError {
+  constructor() {
+    super("DeletionNotFound", 404, "Deletion operation not found");
+    this.name = "DeletionNotFoundError";
+  }
+}
+
+/** Owner-only status read (403 for another owner's operation, 404 when unknown). */
 export async function getCleanupStatus(
-  client: PoolClient | undefined,
-  operationId: string,
-  ownerId: string
-): Promise<CleanupOperation | null> {
-  const op = cleanupStore.get(operationId);
-  if (!op) {
-    return null;
-  }
-  // Original owner only
-  if (op.owner_id !== ownerId) {
-    return null;
-  }
-  return op;
+  db: Queryable,
+  ownerId: string,
+  deletionId: string
+): Promise<{ deletion_id: string; status: CleanupStatus; last_error_code?: string }> {
+  if (!isUuid(deletionId)) throw new DeletionNotFoundError();
+  const result = await db.query<CleanupRow>(`SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`, [deletionId]);
+  const row = result.rows[0];
+  if (!row) throw new DeletionNotFoundError();
+  if (row.owner_id !== ownerId) throw new AppError("Forbidden", 403, "Deletion belongs to another owner");
+  return {
+    deletion_id: row.id,
+    status: row.status,
+    ...(row.last_error_code ? { last_error_code: row.last_error_code } : {}),
+  };
 }
 
-export function getCleanupOperationRaw(
-  operationId: string
-): CleanupOperation | null {
-  return cleanupStore.get(operationId) || null;
+export async function lockCleanupOperation(db: Queryable, deletionId: string): Promise<CleanupOperation | null> {
+  const result = await db.query<CleanupRow>(
+    `SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1 FOR UPDATE SKIP LOCKED`,
+    [deletionId]
+  );
+  return result.rows[0] ? toOperation(result.rows[0]) : null;
 }
 
-export function getLatestCleanupOperationForNotebook(
-  notebookId: string
-): CleanupOperation | null {
-  const all = Array.from(cleanupStore.values());
-  for (let i = all.length - 1; i >= 0; i--) {
-    const op = all[i]!;
-    if (op.notebook_id === notebookId) {
-      return op;
-    }
-  }
-  return null;
+export async function getCleanupOperation(db: Queryable, deletionId: string): Promise<CleanupOperation | null> {
+  const result = await db.query<CleanupRow>(`SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`, [deletionId]);
+  return result.rows[0] ? toOperation(result.rows[0]) : null;
 }
 
-export async function updateCleanupOperationStatus(
-  operationId: string,
-  status: "Pending" | "Running" | "Purged" | "Failed",
-  lastErrorCode?: string
-): Promise<void> {
-  const op = cleanupStore.get(operationId);
-  if (op) {
-    op.status = status;
-    op.updated_at = new Date();
-    if (lastErrorCode) {
-      op.last_error_code = lastErrorCode;
-    }
-  }
+export async function markCleanupRunning(db: Queryable, deletionId: string): Promise<void> {
+  await db.query(
+    `UPDATE cleanup_operations SET status = 'Running', attempts = attempts + 1, updated_at = now()
+     WHERE id = $1 AND status <> 'Purged'`,
+    [deletionId]
+  );
 }
 
-export function resetCleanupStore(): void {
-  cleanupStore.clear();
+export async function markCleanupRetry(db: Queryable, deletionId: string, errorCode: string): Promise<void> {
+  await db.query(
+    `UPDATE cleanup_operations SET status = 'Pending', last_error_code = $2, updated_at = now()
+     WHERE id = $1 AND status <> 'Purged'`,
+    [deletionId, errorCode]
+  );
+}
+
+export async function markCleanupPurged(db: Queryable, deletionId: string): Promise<void> {
+  await db.query(
+    `UPDATE cleanup_operations SET status = 'Purged', last_error_code = NULL, purged_at = now(), updated_at = now()
+     WHERE id = $1`,
+    [deletionId]
+  );
 }

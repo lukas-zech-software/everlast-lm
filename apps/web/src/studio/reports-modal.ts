@@ -1,5 +1,5 @@
 import type { ReportSuggestion } from "@everlast/contracts";
-import type { ArtifactDto, StudioApi } from "./api.js";
+import type { ArtifactDto, StudioApi } from "./api.ts";
 
 export type SuggestionState = "SuggestionsLoading" | "SuggestionsReady" | "SuggestionsUnavailable";
 export const CUSTOM_PROMPT_MAX = 5000;
@@ -17,7 +17,10 @@ export class ReportsModalController {
   suggestions: ReportSuggestion[] = [];
   prompt = "";
 
-  constructor(private readonly options: ReportsModalOptions) {}
+  private readonly options: ReportsModalOptions;
+  constructor(options: ReportsModalOptions) {
+    this.options = options;
+  }
 
   get templatesEnabled(): boolean {
     return this.options.getActiveSourceIds().length > 0;

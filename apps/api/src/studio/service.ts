@@ -71,7 +71,10 @@ function requireScope(ids: unknown): void {
 }
 
 export class StudioService {
-  constructor(private readonly deps: StudioServiceDeps) {}
+  private readonly deps: StudioServiceDeps;
+  constructor(deps: StudioServiceDeps) {
+    this.deps = deps;
+  }
 
   async create(ownerId: string, notebookId: string, body: unknown) {
     requireScope((body as { active_source_ids?: unknown } | null)?.active_source_ids);

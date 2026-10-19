@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  createNotebook,
-  getScopedContext,
-  registerSource,
-  resetNotebookStore,
-  resetSourceRegistry,
-} from "@everlast/db";
+import { createPocNotebook, getScopedContext, registerSource, resetPocBridge, resetSourceRegistry } from "@everlast/db";
 import type { NoteSource, UnifiedDocumentChunk } from "@everlast/contracts";
 
 // Deterministic NFR-EVAL-02 (citation precision) and NFR-EVAL-04 (scope leakage) checks for note sources.
@@ -26,12 +20,12 @@ const source = (id: string, nb: string): NoteSource => ({
 
 describe("NFR-EVAL-02, NFR-EVAL-04: note source scope", () => {
   beforeEach(() => {
-    resetNotebookStore();
+    resetPocBridge();
     resetSourceRegistry();
   });
 
   it("every returned chunk belongs to the selected set (leakage = 0) and badges resolve (precision = 1.0)", async () => {
-    const nb = (await createNotebook(undefined, "u", { title: "NB" })).id;
+    const nb = createPocNotebook("u", "NB").id;
     await registerSource(source(SRC_A, nb), [chunk(SRC_A, 1, "TITAN-77")]);
     await registerSource(source(SRC_B, nb), [chunk(SRC_B, 2, "DECOY")]);
 
@@ -45,8 +39,8 @@ describe("NFR-EVAL-02, NFR-EVAL-04: note source scope", () => {
   });
 
   it("cross-notebook source ids are rejected", async () => {
-    const nb1 = (await createNotebook(undefined, "u", { title: "1" })).id;
-    const nb2 = (await createNotebook(undefined, "u", { title: "2" })).id;
+    const nb1 = createPocNotebook("u", "1").id;
+    const nb2 = createPocNotebook("u", "2").id;
     await registerSource(source(SRC_A, nb1), [chunk(SRC_A, 1, "secret")]);
     await expect(getScopedContext(nb2, [SRC_A])).rejects.toThrow();
   });

@@ -2,7 +2,10 @@
 export class InlineStudioDispatcher {
   private readonly pending = new Set<Promise<void>>();
 
-  constructor(private readonly runner: { run(id: string): Promise<unknown> }) {}
+  private readonly runner: { run(id: string): Promise<unknown> };
+  constructor(runner: { run(id: string): Promise<unknown> }) {
+    this.runner = runner;
+  }
 
   async enqueue(artifactId: string, _ownerId: string): Promise<void> {
     const task = Promise.resolve()

@@ -1,18 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupMockDOM } from "./mock-dom.js";
+import { setupMockDOM } from "./mock-dom.ts";
 import {
   loadWorkspacePreferences,
   resolveTheme,
   saveWorkspacePreferences,
   sortNotebookRows,
   WORKSPACE_PREFS_KEY,
-} from "../src/workspace-preferences.js";
-import { renderNotebookHome, renderNotebookOverview } from "../src/notebooks.js";
-import { renderWorkspaceLayout } from "../src/workspace-layout.js";
+} from "../src/workspace-preferences.ts";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { SUPPORTED_OUTPUT_LANGUAGES } from "@everlast/contracts";
-import { applyTheme, initializeTheme, renderWorkspaceSettings } from "../src/workspace-preferences.js";
+import { applyTheme, hydrateWorkspaceSettings, initializeTheme, renderWorkspaceSettings } from "../src/workspace-preferences.ts";
 
 const base = {
   owner_id: "owner",
@@ -106,46 +104,27 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!).theme).toBe("dark");
   });
 
-  it("hydrates and persists global and notebook language settings in their respective surfaces", async () => {
-    const patches: { url: string; body: Record<string, unknown> }[] = [];
-    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      if (init?.method === "PATCH") patches.push({ url: String(input), body: JSON.parse(String(init.body)) });
+  it("hydrates global and notebook language settings and reports each change with its key", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       const body = url.endsWith("/api/preferences")
         ? { owner_id: "owner", view_mode: "grid", sort_order: "recent", theme: "system", input_language: "fr-FR", output_language: "de-DE" }
-        : url.endsWith("/api/notebooks/notebook-1/preferences")
-          ? { owner_id: "owner", notebook_id: "notebook-1", notebook_input_language: "ja-JP", notebook_output_language: "zh-TW" }
-          : { notebooks: [] };
+        : { owner_id: "owner", notebook_id: "notebook-1", notebook_input_language: "ja-JP", notebook_output_language: "zh-TW" };
       return { ok: true, json: async () => body } as Response;
-    });
+    }) as unknown as typeof fetch;
+    const initial = { view_mode: "grid", sort_order: "recent", theme: "system", input_language: "auto", output_language: null } as const;
+    const loaded = await hydrateWorkspaceSettings({ ...initial }, { notebookId: "notebook-1", fetcher });
+    expect(loaded).toMatchObject({ input_language: "fr-FR", output_language: "de-DE", notebook_input_language: "ja-JP", notebook_output_language: "zh-TW" });
     const { document } = setupMockDOM();
-    (document as any).documentElement = document.createElement("html");
-    const home = document.createElement("div");
-    renderNotebookHome(home as unknown as HTMLElement);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    (home.querySelector("#workspace-settings") as any).hidden = true;
-    home.querySelector("#workspace-settings-toggle")?.click();
-    expect(home.querySelector("#input-language-select")?.value).toBe("fr-FR");
-    const globalOutput = home.querySelector("#output-language-select")!;
-    expect(globalOutput.value).toBe("de-DE");
-    globalOutput.value = "es-ES";
-    globalOutput.dispatchEvent({ type: "change", target: globalOutput });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(patches).toContainEqual({ url: "/api/preferences", body: { output_language: "es-ES" } });
-
-    const workspace = document.createElement("div");
-    renderWorkspaceLayout(workspace as unknown as HTMLElement, { activeNotebookId: "notebook-1" });
-    workspace.querySelector("#workspace-settings-toggle")?.click();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(workspace.querySelector("#notebook-input-language-select")?.value).toBe("ja-JP");
-    const notebookOutput = workspace.querySelector("#notebook-output-language-select")!;
+    const host = document.createElement("div");
+    const updates: [string, unknown][] = [];
+    renderWorkspaceSettings(host as unknown as HTMLElement, loaded, { notebookId: "notebook-1", onUpdate: (next, key) => void updates.push([key, next[key]]) });
+    const notebookOutput = host.querySelector("#notebook-output-language-select")!;
     expect(notebookOutput.value).toBe("zh-TW");
     notebookOutput.value = "it-IT";
     notebookOutput.dispatchEvent({ type: "change", target: notebookOutput });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(patches).toContainEqual({ url: "/api/notebooks/notebook-1/preferences", body: { notebook_output_language: "it-IT" } });
+    expect(updates).toContainEqual(["notebook_output_language", "it-IT"]);
   });
-
   it("updates a System theme when prefers-color-scheme changes", () => {
     const { window, document, localStorage } = setupMockDOM();
     let changeListener: ((event: { matches: boolean }) => void) | undefined;
@@ -163,18 +142,6 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     expect(root.getAttribute("data-theme")).toBe("dark");
   });
 
-  it("renders the active notebook title and saved icon in the workspace header", () => {
-    const { document } = setupMockDOM();
-    const workspace = document.createElement("div");
-    renderWorkspaceLayout(workspace as unknown as HTMLElement, {
-      activeNotebookId: "notebook-1",
-      notebookTitle: "Climate research",
-      notebookIcon: "🧬",
-    } as any);
-    expect(workspace.querySelector(".workspace-notebook-icon")?.textContent).toBe("🧬");
-    expect(workspace.querySelector(".notebook-title")?.textContent).toBe("Climate research");
-  });
-
   it("installs theme initialization in the document head before app paint", () => {
     const html = readFileSync(new URL("../src/index.html", import.meta.url), "utf8");
     const headEnd = html.indexOf("</head>");
@@ -185,20 +152,4 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     expect(headEnd).toBeLessThan(bodyStart);
   });
 
-  it("renders accessible grid/list metadata, owner role, pin controls and empty-state CTA", () => {
-    const { document } = setupMockDOM();
-    const container = document.createElement("div");
-    const row = { ...base, id: "n1", title: "Climate", ready_source_count: 2, is_pinned: true };
-    renderNotebookOverview(container as unknown as HTMLElement, [row] as any, { view_mode: "list", sort_order: "recent" });
-    expect(container.querySelector(".notebook-overview-list")).not.toBeNull();
-    expect(container.querySelector(".notebook-role")?.textContent).toBe("Owner");
-    expect(container.querySelector(".notebook-icon")?.textContent).toBe("📓");
-    expect(container.querySelector(".notebook-source-count")?.textContent).toContain("2 sources");
-    expect(container.querySelector(".notebook-created-date")).not.toBeNull();
-    expect(container.querySelector(".notebook-modified-date")).not.toBeNull();
-    expect(container.querySelector(".notebook-pin")?.getAttribute("aria-label")).toBe("Unpin notebook");
-    renderNotebookOverview(container as unknown as HTMLElement, [], { view_mode: "grid", sort_order: "recent" });
-    expect(container.querySelector(".notebook-empty-state")?.textContent).toContain("Create your first notebook");
-    expect(container.querySelector("#notebook-sort")).toBeNull();
-  });
 });

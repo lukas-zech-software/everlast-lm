@@ -100,9 +100,9 @@ variable "api_min_instances" {
 }
 
 variable "api_max_instances" {
-  description = "Maximum instances for everlast-api."
+  description = "Maximum instances for everlast-api. 1 while release v2 data lives in API memory (D16 proof of concept)."
   type        = number
-  default     = 5
+  default     = 1
 }
 
 variable "worker_max_instances" {

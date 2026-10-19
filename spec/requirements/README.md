@@ -126,7 +126,8 @@ the cited SRS requirements; they do not introduce new release packages.
   slot and leaves the old revision intact if validation fails. Each source obeys both limits.
 - **Validation cadence (NFR-EVAL-01..04, all release gates):** Deterministic citation-ID and
   leakage checks run on every PR. LLM-judged faithfulness/rejection and semantic citation
-  support checks run on retrieval/prompt/chat PRs and before every release gate. All other
+  support checks run once per release gate on a fixed stratified 50-case sample of the
+  golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). All other
   constitution checks still apply. Passing one package's tests is not passing the full gate.
   Package timing criteria are measured on declared fixtures/environments; standard chat TTFT
   starts at submission and ends at the first validated answer token, excluding progress UI.

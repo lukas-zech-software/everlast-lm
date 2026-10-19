@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetPackageV22Store } from "@everlast/db";
-import { generateFollowUps, generateNotebookOverview, generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient, readSourceGuide } from "../src/package-v2-2.js";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
+import { generateFollowUps, generateNotebookOverview, generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient, readSourceGuide } from "../src/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";
@@ -106,15 +106,14 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader: revocableReader, model })).rejects.toThrow(/revoked/);
   });
 
-  it("schedules the guide callback only after ingestion reaches Ready", async () => {
-    let resolveReady!: () => void;
-    const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
-    const callback = vi.fn(() => resolveReady());
-    const pipeline = new IngestionPipeline({ onReady: callback });
-    const result = await pipeline.process({ attempt_id: "attempt-1", notebook_id: notebook, source_id: source, revision_id: 1, media_type: "copied_text", content: "A short source with grounded facts." });
-    expect(result.status).toBe("Ready");
-    await ready;
-    expect(callback).toHaveBeenCalledWith(result);
+  it("runs the guide hook once per Ready source revision", async () => {
+    const callback = vi.fn(async () => undefined);
+    const dispatch = createReadySourceDispatcher([callback]);
+    const event = { notebook_id: notebook, source_id: source, revision_id: 1, title: "Short source", media_type: "copied_text" };
+    await dispatch(event);
+    await dispatch(event);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(event);
   });
 
 });

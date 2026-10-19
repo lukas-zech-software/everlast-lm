@@ -6,7 +6,7 @@ import {
   type StudioGeneratorPlugin,
 } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { StudioJobRunner } from "../src/studio/runner.js";
+import { StudioJobRunner } from "../src/studio/runner.ts";
 import {
   FakeAccess,
   FakeScopedContext,
@@ -18,7 +18,7 @@ import {
   historyChunks,
   techChunks,
   unselectedChunks,
-} from "./studio-fixtures.js";
+} from "./studio-fixtures.ts";
 
 function fixture(generate: (ctx: StudioGenerationContext) => Promise<StudioGenerationOutcome>) {
   const repo = new InMemoryStudioArtifactRepository();

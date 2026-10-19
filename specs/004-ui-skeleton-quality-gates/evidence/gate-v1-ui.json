@@ -1,0 +1,12 @@
+{
+  "gate1_upload_schema": {
+    "status": "pass",
+    "detail": "GATE-1: PDF and MD uploaded through the UI yield only valid C-01 chunks (passed, 1701 ms)",
+    "at": "2026-10-19T12:58:33.216Z"
+  },
+  "gate3_citation_navigation": {
+    "status": "pass",
+    "detail": "GATE-3: citation click scrolls to and highlights the exact chunk element in 20/20 repetitions (passed, 2181 ms)",
+    "at": "2026-10-19T12:58:35.408Z"
+  }
+}

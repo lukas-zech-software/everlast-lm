@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UnifiedDocumentChunkSchema } from "./document-chunk.js";
+import { UnifiedDocumentChunkSchema } from "./document-chunk.ts";
 
 /**
  * Package 1.2 DTOs and Schemas (Text/PDF Ingestion & Inspector)
@@ -112,3 +112,30 @@ export const SourceInspectorQuerySchema = z
   })
   .strict();
 export type SourceInspectorQuery = z.infer<typeof SourceInspectorQuerySchema>;
+
+/** Public source DTO returned by the sources API (FR-SI-01, FR-SI-03); owner identity stays server-side. */
+export const SourceDtoSchema = z
+  .object({
+    id: z.string().uuid(),
+    notebook_id: z.string().uuid(),
+    title: z.string().min(1),
+    media_type: SourceMediaTypeSchema,
+    status: SourceStatusSchema,
+    byte_size: z.number().int().nonnegative(),
+    word_count: z.number().int().nonnegative().nullable(),
+    revision: z.number().int().positive().nullable(),
+    error: z.object({ code: z.string(), message: z.string() }).strict().nullable(),
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+  })
+  .strict();
+export type SourceDto = z.infer<typeof SourceDtoSchema>;
+
+/** Maps an upload file name to a supported media type, or null when unsupported (FR-SI-01 Subset A). */
+export function mediaTypeForFileName(fileName: string): "application/pdf" | "text/plain" | "text/markdown" | null {
+  const ext = /\.([^.]+)$/.exec(fileName.trim().toLowerCase())?.[1];
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "txt") return "text/plain";
+  if (ext === "md" || ext === "markdown") return "text/markdown";
+  return null;
+}

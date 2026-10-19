@@ -1,138 +1,119 @@
-import { describe, it, expect } from "vitest";
-import {
-  IngestionPipeline,
-  type IngestionJobInput,
-  type IngestionJobResult,
-} from "../src/ingestion/pipeline.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { UnifiedDocumentChunkSchema } from "@everlast/contracts";
+import { buildPdf, wrapLines } from "@everlast/testkit/pdf-builder";
+import { processIngestJob } from "../src/ingestion/pipeline.ts";
+import { createWorkerHarness, FixtureOcr, prose, type WorkerHarness } from "./support.ts";
 
-describe("FR-SI-01: User Story 1 - Ingest Sources Acceptance Tests", () => {
-  const pipeline = new IngestionPipeline();
-  const notebookId = "11111111-1111-4111-8111-111111111111";
-  const sourceId = "22222222-2222-4222-8222-222222222222";
+/** T007 [US1] — FR-SI-01 acceptance scenarios against real parsing, PostgreSQL and storage. */
 
-  it("US1-01: Multi-page PDF with scanned page produces valid C-01 UnifiedDocumentChunk items", async () => {
-    // 10-page simulated PDF where page 4 is a scanned image
-    const input: IngestionJobInput = {
-      attempt_id: "33333333-3333-4333-8333-333333333331",
-      notebook_id: notebookId,
-      source_id: sourceId,
-      revision_id: 1,
-      title: "Research_Paper_10_Pages.pdf",
-      media_type: "application/pdf",
-      content: Buffer.from("%PDF-1.4 simulated pdf with 10 pages, page 4 scanned [OCR_PAGE_4]"),
-    };
+let h: WorkerHarness;
 
-    const result = await pipeline.process(input);
-    expect(result.status).toBe("Ready");
-    expect(result.chunks.length).toBeGreaterThan(0);
+beforeAll(async () => {
+  h = await createWorkerHarness();
+});
 
-    // Validate every chunk against Contract C-01 schema
-    for (const chunk of result.chunks) {
-      const parsed = UnifiedDocumentChunkSchema.parse(chunk);
-      expect(parsed.source_id).toBe(sourceId);
-      expect(parsed.revision).toBe(1);
-      expect((parsed.locator as any).page_number).toBeGreaterThanOrEqual(1);
-    }
+afterAll(async () => {
+  await h?.close();
+});
 
-    // Verify page 4 chunk contains OCR extracted text
-    const page4Chunks = result.chunks.filter(
-      (c) => (c.locator as any).page_number === 4
+async function chunksOf(sourceId: string) {
+  const rows = await h.db.pool.query(
+    "SELECT chunk_id, source_id, revision, locator, token_count, text FROM chunks WHERE source_id = $1 ORDER BY sequence",
+    [sourceId]
+  );
+  return rows.rows;
+}
+
+async function pageText(sourceId: string, page: number): Promise<string> {
+  const row = await h.db.pool.query("SELECT text FROM source_pages WHERE source_id = $1 AND page_number = $2", [sourceId, page]);
+  return row.rows[0].text;
+}
+
+describe("FR-SI-01: Text, Markdown, PDF & Copied Text Ingestion", () => {
+  it("US1-01: Upload multi-page PDF with scanned page produces valid chunks", async () => {
+    const pages = Array.from({ length: 10 }, (_, i) =>
+      i === 3 ? ({ kind: "image" } as const) : ({ kind: "text", lines: wrapLines(`Page ${i + 1} findings. ${prose(150, `p${i + 1}`)}`) } as const)
     );
-    expect(page4Chunks.length).toBeGreaterThan(0);
-    expect(page4Chunks[0]?.text).toContain("OCR_PAGE_4");
+    const ocr = new FixtureOcr({ 4: "Scanned appendix: the OCR extracted warranty clause covers 36 months." });
+    const { outcome, source } = await h.ingest({ name: "Report.pdf", bytes: buildPdf(pages), mediaType: "application/pdf", ocr });
+
+    expect(outcome.status).toBe("ready");
+    expect(source.status).toBe("Ready");
+    expect(ocr.calls).toEqual([[4]]); // OCR runs only for the page without a text layer
+    const chunks = await chunksOf(source.id);
+    expect(chunks.length).toBeGreaterThan(0);
+    for (const chunk of chunks) expect(UnifiedDocumentChunkSchema.safeParse(chunk).success).toBe(true);
+    const page4 = chunks.filter((c) => c.locator.page_number === 4);
+    expect(page4).toHaveLength(1);
+    expect(page4[0].locator.physical_page).toBe(4);
+    expect(page4[0].text).toContain("warranty clause covers 36 months");
+    expect(new Set(chunks.map((c) => c.locator.page_number))).toEqual(new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]));
   });
 
-  it("US1-02: Paste raw clipboard text produces Ready source with default title 'Pasted text'", async () => {
-    const meetingNotes = "Meeting Notes 2026-10-18.\nDiscussed architecture, contracts C-01 and C-02, and release gates.";
-    const input: IngestionJobInput = {
-      attempt_id: "33333333-3333-4333-8333-333333333332",
-      notebook_id: notebookId,
-      source_id: "22222222-2222-4222-8222-222222222223",
-      revision_id: 1,
-      media_type: "copied_text",
-      content: meetingNotes,
-    };
-
-    const result = await pipeline.process(input);
-    expect(result.status).toBe("Ready");
-    expect(result.title).toBe("Pasted text");
-    expect(result.chunks.length).toBeGreaterThan(0);
-    expect(result.chunks[0]?.text).toContain("Meeting Notes");
-    // Text-only source omits physical page in locator
-    expect((result.chunks[0]?.locator as any).page_number).toBe(1);
+  it("US1-02: Paste raw clipboard text (1,500 words) becomes a Ready 'Pasted text' source selectable for chat", async () => {
+    const text = prose(1500, "meeting");
+    const { outcome, source } = await h.ingest({ name: "Pasted text", bytes: Buffer.from(text), mediaType: "copied_text" });
+    expect(outcome).toMatchObject({ status: "ready", words: 1500 });
+    expect(source).toMatchObject({ title: "Pasted text", status: "Ready", word_count: 1500, active_revision: 1 });
+    const chunks = await chunksOf(source.id);
+    expect(chunks.every((c) => c.locator.physical_page === undefined)).toBe(true);
   });
 
-  it("US1-03: Password-protected or corrupted PDF fails gracefully with exact error message", async () => {
-    const input: IngestionJobInput = {
-      attempt_id: "33333333-3333-4333-8333-333333333333",
-      notebook_id: notebookId,
-      source_id: "22222222-2222-4222-8222-222222222224",
-      revision_id: 1,
-      title: "Encrypted_Secret.pdf",
-      media_type: "application/pdf",
-      content: Buffer.from("%PDF-1.4 encrypted_password_protected_stream"),
-    };
-
-    const result = await pipeline.process(input);
-    expect(result.status).toBe("Failed");
-    expect(result.error_message).toBe("Could not read file (password-protected or corrupted)");
-    expect(result.chunks).toHaveLength(0);
+  it("US1-03: Password-protected PDF fails gracefully with the exact message", async () => {
+    const encrypted = buildPdf([{ kind: "text", lines: ["confidential"] }], { encrypted: true });
+    const { outcome, source } = await h.ingest({ name: "Locked.pdf", bytes: encrypted, mediaType: "application/pdf" });
+    expect(outcome).toMatchObject({ status: "failed", message: "Could not read file (password-protected or corrupted)" });
+    expect(source).toMatchObject({ status: "Failed", failure_message: "Could not read file (password-protected or corrupted)" });
+    const corrupt = await h.ingest({ name: "Broken.pdf", bytes: Buffer.from("%PDF-1.7\nnot really a pdf"), mediaType: "application/pdf" });
+    expect(corrupt.source.failure_message).toBe("Could not read file (password-protected or corrupted)");
+    expect((await chunksOf(source.id)).length).toBe(0);
+    // The raw object of a failed source is purged.
+    expect(await h.storage.listVersions(`notebooks/${source.notebook_id}/sources/${source.id}/`)).toEqual([]);
   });
 
-  it("US1-04: Text and Markdown files segment accurately with paragraph offsets", async () => {
-    const mdContent = "# Section 1: Overview\n\nEverlast LM provides grounded AI notebooks.\n\n# Section 2: Details\n\nAll source reads go strictly through Contract C-02.";
-    const input: IngestionJobInput = {
-      attempt_id: "33333333-3333-4333-8333-333333333334",
-      notebook_id: notebookId,
-      source_id: "22222222-2222-4222-8222-222222222225",
-      revision_id: 1,
-      title: "Documentation.md",
-      media_type: "text/markdown",
-      content: mdContent,
-    };
+  it("US1-04: TXT and Markdown locators index the canonical text exactly (no physical page)", async () => {
+    const md = "# Title\n\nIntro paragraph with émojis 🚀 and ünïcode.\n\n## Section Two\n\nSecond section body.\nMore lines here.\n";
+    const { source } = await h.ingest({ name: "Architecture_Spec.md", bytes: Buffer.from(md), mediaType: "text/markdown" });
+    expect(source.status).toBe("Ready");
+    const canonical = Array.from(await pageText(source.id, 1));
+    const chunks = await chunksOf(source.id);
+    expect(chunks).toHaveLength(2); // headings are hard section boundaries
+    for (const c of chunks) {
+      expect(c.locator.page_number).toBe(1);
+      expect(c.locator.physical_page).toBeUndefined();
+      expect(canonical.slice(c.locator.start_offset, c.locator.end_offset).join("")).toBe(c.text);
+    }
+    expect(chunks[0].text.startsWith("# Title")).toBe(true);
+    expect(chunks[1].text.startsWith("## Section Two")).toBe(true);
 
-    const result = await pipeline.process(input);
-    expect(result.status).toBe("Ready");
-    expect(result.chunks.length).toBeGreaterThan(0);
-    expect(result.word_count).toBeGreaterThan(10);
+    const txt = "First paragraph.\r\n\r\nSecond 🧪 paragraph.\n";
+    const t = await h.ingest({ name: "notes.txt", bytes: Buffer.from(txt), mediaType: "text/plain" });
+    const tc = await chunksOf(t.source.id);
+    const tcanon = Array.from(await pageText(t.source.id, 1));
+    expect(tc).toHaveLength(1);
+    expect(tcanon.slice(tc[0].locator.start_offset, tc[0].locator.end_offset).join("")).toBe(tc[0].text);
   });
 
-  it("US1-05: State transitions strictly follow Uploading -> Processing -> Ready", async () => {
-    const statesRecorded: string[] = [];
-    const input: IngestionJobInput = {
-      attempt_id: "33333333-3333-4333-8333-333333333335",
-      notebook_id: notebookId,
-      source_id: "22222222-2222-4222-8222-222222222226",
-      revision_id: 1,
-      title: "Notes.txt",
-      media_type: "text/plain",
-      content: "Simple text content.",
-      onStateChange: (state) => statesRecorded.push(state),
-    };
-
-    const result = await pipeline.process(input);
-    expect(result.status).toBe("Ready");
-    expect(statesRecorded).toContain("Processing");
-    expect(statesRecorded).toContain("Ready");
+  it("US1-05: States follow Uploading → Processing → Ready and Ready publishes atomically", async () => {
+    const { source } = await h.ingest({ name: "state.txt", bytes: Buffer.from(prose(50)), mediaType: "text/plain" });
+    expect(source.status).toBe("Ready");
+    const revision = await h.db.pool.query("SELECT revision, word_count, embedding_model FROM source_revisions WHERE source_id = $1", [source.id]);
+    expect(revision.rows).toEqual([{ revision: 1, word_count: 50, embedding_model: "test-hashing-embedder-v1" }]);
   });
 
-  it("US1-06: Idempotent processing rejects duplicate attempt IDs", async () => {
-    const attemptId = "33333333-3333-4333-8333-333333333336";
-    const input: IngestionJobInput = {
-      attempt_id: attemptId,
-      notebook_id: notebookId,
-      source_id: "22222222-2222-4222-8222-222222222227",
-      revision_id: 1,
-      title: "File.txt",
-      media_type: "text/plain",
-      content: "Hello world text.",
-    };
-
-    const firstRun = await pipeline.process(input);
-    expect(firstRun.status).toBe("Ready");
-
-    // Second run with same attempt_id must be rejected or return already processed
-    await expect(pipeline.process(input)).rejects.toThrow(/duplicate attempt|already processed/i);
+  it("US1-06: Duplicate/late jobs for the same attempt never re-ingest or publish twice", async () => {
+    const { source } = await h.ingest({ name: "dup.txt", bytes: Buffer.from(prose(80)), mediaType: "text/plain" });
+    const before = (await chunksOf(source.id)).length;
+    const replay = await processIngestJob(
+      { pool: h.db.pool, storage: h.storage, embedder: h.embedder, ocr: new FixtureOcr() },
+      { source_id: source.id, attempt_id: source.attempt_id }
+    );
+    expect(replay).toEqual({ status: "stale", reason: "status_Ready" });
+    expect((await chunksOf(source.id)).length).toBe(before);
+    const wrongAttempt = await processIngestJob(
+      { pool: h.db.pool, storage: h.storage, embedder: h.embedder, ocr: new FixtureOcr() },
+      { source_id: source.id, attempt_id: "00000000-0000-4000-8000-000000000000" }
+    );
+    expect(wrongAttempt.status).toBe("stale");
   });
 });

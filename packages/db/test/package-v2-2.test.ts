@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import * as repo from "../src/package-v2-2.js";
-import { clearChatThread, persistChatMessage, resetChatStore } from "../src/chat-history.js";
+import * as repo from "../src/package-v2-2.ts";
+import { clearChatThread, persistChatMessage, resetChatStore } from "../src/poc-bridge.ts";
 
 const notebookId = "11111111-1111-4111-8111-111111111111";
 const sourceId = "22222222-2222-4222-8222-222222222222";

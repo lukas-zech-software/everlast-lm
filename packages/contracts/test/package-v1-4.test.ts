@@ -13,7 +13,7 @@ import {
   type GoldenCase,
   type EvalMetrics,
   type ReleaseGateReport,
-} from "../src/index.js";
+} from "../src/index.ts";
 
 describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL-01..04, NFR-SEC-01, Gate v1.0)", () => {
   const validUuid1 = "11111111-1111-4111-8111-111111111111";

@@ -1,4 +1,4 @@
-import { SOURCE_LIMIT_REACHED_MESSAGE } from "@everlast/contracts";
+import { SOURCE_LIMIT_REACHED_MESSAGE } from "../lib/v2-contracts.ts";
 
 export interface PinboardNote {
   id: string;

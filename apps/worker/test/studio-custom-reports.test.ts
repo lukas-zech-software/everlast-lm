@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { StudioPluginRegistry } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { StudioJobRunner } from "../src/studio/runner.js";
-import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.js";
-import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.js";
-import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_UNSELECTED, VENDOR_A, VENDOR_B, VENDOR_C, unselectedChunks, vendorChunks } from "./studio-fixtures.js";
+import { StudioJobRunner } from "../src/studio/runner.ts";
+import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.ts";
+import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
+import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_UNSELECTED, VENDOR_A, VENDOR_B, VENDOR_C, unselectedChunks, vendorChunks } from "./studio-fixtures.ts";
 
 describe("custom / dynamic reports (FR-ST-11, FR-011)", () => {
   it("risk-matrix prompt yields a cited table with one row per vendor source and no unselected content", async () => {

@@ -6,7 +6,7 @@ import {
   generateSourceGuide,
   type PackageV22SourceMetadata,
   type StructuredGenerationClient,
-} from "./package-v2-2.js";
+} from "./package-v2-2.ts";
 
 export class PackageV22GenerationUnavailableError extends Error {
   constructor() {

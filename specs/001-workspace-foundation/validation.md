@@ -6,6 +6,61 @@
 
 ---
 
+## Convergence correction and verified evidence (2026-10-18/19)
+
+> **Correction (T057, Constitution II):** earlier entries in this log that cite database "integration" evidence for T009/T014/T025/T033 (and the identity evidence for T007/T008) were produced against **process-local in-memory Maps** and a JWT adapter that **did not verify signatures**. Those results are superseded and must not be read as PostgreSQL or Identity Platform evidence. The rewrite below replaced the in-memory stores with PostgreSQL persistence and real RS256 verification.
+
+- **Environment**: macOS 27 (darwin arm64), Node.js 26.3.0 (repo engine `>=24`), pnpm 10.31.0, PostgreSQL 16.15 + pgvector 0.8.7 (`pgvector/pgvector:pg16` Docker, `pnpm db:test:up`), Chromium via Playwright 1.64.1, OpenTofu 1.13.1.
+- **Base**: `main` @ `8ca81ca`, branch `feat/v1-gate-convergence` (worktree `everlast-lm-worktrees/v1-gate`), uncommitted at time of recording.
+- **Commands**: `TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast pnpm test` (Vitest projects `unit` + `integration`: **318/318 passed, 30 files**), `pnpm test:e2e` (**30/30 Playwright journeys passed**), `pnpm eval:deterministic`, `pnpm typecheck` (clean), `tofu test` in `infra/modules/storage_secrets` (4/4).
+- **Test doubles (labelled in code)**: `HashingTestEmbedder` (lexical vectors, refused in production), `FixtureOcr` (stands in for Document AI in worker tests), scripted/fixture chat models in API tests and the E2E server. They prove pipeline guarantees only; model quality is measured by the judged suite.
+- **UNAVAILABLE in this environment**: Vertex AI (chat, embeddings, judge), Document AI OCR and Identity Platform live checks — no Application Default Credentials on this machine (`gcloud auth application-default print-access-token` fails). Nothing below claims those passed.
+
+### Red evidence captured before implementation
+
+| Task | Case IDs | Command | Observed Red |
+| :-- | :-- | :-- | :-- |
+| T051 | AUTH-09, AUTH-10 | `npx vitest run apps/api/test/red-auth.test.ts` (temporary probe against the previous `identity.ts`) | `AssertionError: promise resolved "{ subject: 'attacker', …(3) }" instead of rejecting` — forged-signature and `alg=none` tokens were accepted (2 failed). |
+| T042 | 4 `tofu test` runs | `tofu test` in `infra/modules/storage_secrets` | `soft_delete_policy is empty list of object` and CORS lacked `x-goog-content-length-range` (2 failed, 2 passed). |
+
+T052–T056 tests were written together with the rewrite (the previous API surface differed, so a pre-implementation Red run would only have produced import errors, which Constitution II does not count as Red).
+
+### Green results (FR-WM-01, FR-WM-04, FR-WM-07, C-02, NFR-SEC-01)
+
+| Task(s) | Suite | Result | Notes |
+| :-- | :-- | :-- | :-- |
+| T051 (T007/T008) | `apps/api/test/identity.test.ts` AUTH-01..13 | 13/13 | RS256 only, `kid` key lookup, `aud`/`iss`/`exp`/`iat`/`auth_time`/`sub`, revocation (Identity Toolkit `validSince` with ADC), secure-token cert caching, local issuer refused in production / on Cloud Run. |
+| T052 (T009/T010/T014/T018/T019/T025/T028/T033/T038) | `packages/db/test/workspace.integration.test.ts` DB-01..DB-25 | 24/24 | Real constraints (23503/23505/23514), owner/notebook row locks, 99+2 concurrent creates → one, idempotent create without resurrection, 49/50 two-connection race, ordered 45/50+10 batch, once-only failure release, publication fence in both race orders. |
+| T020/T039/T055 | `apps/api/test/workspace.test.ts` API-01..17 | 14/14 | Real server + PostgreSQL + locally signed tokens: 401/403/404/409/422 mapping, `{error,request_id}` envelope, configured 50/300 limits, invalid limits fail startup. |
+| T054 (T016/T022) | `apps/worker/test/notebook-cleanup.test.ts` CLN-01..06 | 6/6 | All live + noncurrent generations, quiescence until upload capabilities expire, late upload swept, holds/storage errors keep Pending, payload-free records, outbox drain recovers jobs left Running. |
+| T044/T048 | `packages/db/test/workspace-cascade.integration.test.ts` | 3/3 | Real 2-source/15-chunk/1-thread cascade; identical uploads in another notebook kept. |
+| T030/T027 | `packages/evals/test/workspace-isolation.test.ts` | 3/3 | OMEGA-991 canary never retrieved outside its notebook; tampered source ID → InvalidScopeError. |
+| T015/T021/T040/T055/T056 | `apps/web/test/workspace.spec.ts` WM-E01..06 (Playwright, real server) | 6/6 | Create → `/notebook/{id}` + Add sources, Enter/blur rename, whitespace/101-code-point rejection, network-error restore, card menu, delete confirm/cancel, tab B "Notebook no longer exists", server-authoritative capacity (no `?sources_used`). |
+| T042/T043 | `infra/modules/storage_secrets/tests/workspace_policy.tftest.hcl` | 4/4 | Versioned private EU bucket, soft-delete 0, no retention/hold, CORS for size-bounded signed PUT, bucket-scoped roles. |
+| T053 | `pnpm db:migrate`, `pnpm dev -- --offline`, Docker image | manual | API `:8080` + worker `:8081` + SPA; pasted text reached Ready through API → worker notify → ingestion. Container (`docker build`) serves `/healthz`, SPA and `/readyz`. |
+
+### Timing (T047, declared local environment, warm)
+
+| Case | Samples | Result | Target |
+| :-- | :-- | :-- | :-- |
+| WM-E06 create → workspace with Add sources | 10 | P95 156 ms (`[64,65,66,67,69,71,72,72,119,156]`) | ≤ 1.0 s P95 |
+| PERF-01 notebook delete, 5 sources / 2,000 chunks | 5 | max 14 ms (`[8,8,9,9,14]`) | ≤ 2.0 s |
+| SRC-04 / PERF-03 declared 200,000,001-byte rejection | 20 | P95 7 ms, max 9 ms | ≤ 200 ms |
+
+Physical object purge is measured separately (CLN-*), never against the 2 s target.
+
+### Still open
+
+- **T046 partially verified**: Document AI (live Layout Parser call) and Vertex AI work with ADC; real Identity Platform tokens/revocation and a real versioned GCS bucket still need an approved tenant and test bucket — not run.
+- **T049 done (2026-10-19)**: Gate v1.0 `GatePassed` — see `specs/004-ui-skeleton-quality-gates/validation.md` (release run).
+
+### Path map (planned → implemented)
+
+`apps/web/test/workspace-performance.spec.ts` → WM-E06 in `apps/web/test/workspace.spec.ts`; `packages/db/test/deletion-performance.test.ts` → PERF-01 in `workspace-cascade.integration.test.ts`; `apps/api/test/quota-performance.test.ts` → SRC-04 in `apps/api/test/sources.test.ts`; `infra/tests/workspace-policy.test.ts` → `infra/modules/storage_secrets/tests/workspace_policy.tftest.hcl` (native `tofu test`); `packages/evals/test/workspace-consumers.test.ts` → `apps/api/test/chat.test.ts` (CHAT-03/05/14) and `packages/evals/test/release-v1.integration.test.ts`.
+
+---
+
+
 ## Red Phase Evidence (T005)
 
 - **Date**: 2026-10-18

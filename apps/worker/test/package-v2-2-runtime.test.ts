@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { createPackageV22Runtime } from "../src/package-v2-2-runtime.js";
-import type { StructuredGenerationClient } from "../src/package-v2-2.js";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
+import { createPackageV22Runtime } from "../src/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../src/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
 import { type ScopedContextProvider } from "@everlast/contracts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
@@ -24,9 +24,8 @@ describe("Package 2.2 runtime composition (FR-SI-02, FR-GC-04/05, C-02)", () => 
     await expect(configured.generateFollowUps({ notebook_id: notebook, user_id: "owner", answer: "Answer", source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US" })).resolves.toMatchObject({ suggested_followups: ["What evidence?"] });
     await expect(configured.onSourceReady({ notebook_id: notebook, source_id: source, revision_id: 1 })).resolves.toMatchObject({ status: "GuideReady" });
     const guideStarted = new Promise<void>((resolve) => { provider.getScopedContext = vi.fn(async () => { resolve(); return [{ chunk_id: chunk, text: "Evidence", source_id: source, revision: 1, token_count: 2, locator: { page_number: 1, start_offset: 0, end_offset: 8 } }]; }); });
-    const pipeline = new IngestionPipeline({ onReady: async (ready) => { await configured.onSourceReady({ notebook_id: ready.notebook_id, source_id: ready.source_id, revision_id: ready.revision_id }); } });
-    const result = await pipeline.process({ attempt_id: "ready-runtime", notebook_id: notebook, source_id: source, revision_id: 1, media_type: "copied_text", content: "Evidence source text." });
-    expect(result.status).toBe("Ready");
+    const dispatch = createReadySourceDispatcher([(ready) => configured.onSourceReady(ready)]);
+    await dispatch({ notebook_id: notebook, source_id: source, revision_id: 1, title: "Evidence", media_type: "copied_text" });
     await guideStarted;
   });
 });

@@ -1,3 +1,4 @@
+import type { NotebookSortOrder, NotebookTheme, NotebookViewMode } from "@everlast/contracts";
 import {
   InputLanguageSchema,
   NotebookSortOrderSchema,
@@ -6,10 +7,7 @@ import {
   NullableOutputLanguageSchema,
   OutputLanguageSchema,
   SUPPORTED_OUTPUT_LANGUAGES,
-  type NotebookSortOrder,
-  type NotebookTheme,
-  type NotebookViewMode,
-} from "@everlast/contracts";
+} from "./lib/v2-contracts.ts";
 
 export interface LocalWorkspacePreferences {
   view_mode: NotebookViewMode;
@@ -32,12 +30,13 @@ export interface KeyValueStorage {
 
 export async function hydrateWorkspaceSettings(
   initial: WorkspaceSettingsState,
-  options?: { apiBase?: string; headers?: HeadersInit; notebookId?: string },
+  options?: { apiBase?: string; headers?: HeadersInit; notebookId?: string; fetcher?: typeof fetch },
 ): Promise<WorkspaceSettingsState> {
   let settings = { ...initial };
   const api = options?.apiBase ?? "";
+  const request = options?.fetcher ?? globalThis.fetch;
   try {
-    const response = await fetch(`${api}/api/preferences`, { headers: options?.headers ?? {} });
+    const response = await request(`${api}/api/preferences`, { headers: options?.headers ?? {} });
     if (response.ok) {
       const saved = await response.json() as Record<string, unknown>;
       if (NotebookViewModeSchema.safeParse(saved.view_mode).success) settings.view_mode = saved.view_mode as NotebookViewMode;
@@ -51,7 +50,7 @@ export async function hydrateWorkspaceSettings(
   }
   if (options?.notebookId) {
     try {
-      const response = await fetch(`${api}/api/notebooks/${encodeURIComponent(options.notebookId)}/preferences`, { headers: options.headers ?? {} });
+      const response = await request(`${api}/api/notebooks/${encodeURIComponent(options.notebookId)}/preferences`, { headers: options.headers ?? {} });
       if (response.ok) {
         const saved = await response.json() as Record<string, unknown>;
         if (InputLanguageSchema.nullable().safeParse(saved.notebook_input_language).success) {

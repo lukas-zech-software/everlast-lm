@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.js";
-import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.js";
+import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
+import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).

@@ -21,7 +21,6 @@ import {
 } from "@everlast/contracts";
 import {
   convertToEditable,
-  failSource,
   getChatMessages,
   getNote,
   getOrCreateChatThread,
@@ -29,19 +28,17 @@ import {
   listNotes,
   persistChatMessage,
   registerSource,
-  reserveSourceSlot,
-  saveResponseNote,
-  transitionSourceStatus,
+  saveResponseAsNote,
 } from "@everlast/db";
-import { GroundedChatAgent, type ModelCompletionAdapter } from "../chat/agent.js";
+import type { NoteAssistantModel } from "./assistant-model.ts";
 
 export class NotesServiceError extends Error {
-  constructor(
-    readonly code: string,
-    readonly httpStatus: number,
-    message: string
-  ) {
+  readonly code: string;
+  readonly httpStatus: number;
+  constructor(code: string, httpStatus: number, message: string) {
     super(message);
+    this.code = code;
+    this.httpStatus = httpStatus;
     this.name = "NotesServiceError";
   }
 }
@@ -50,10 +47,14 @@ const err = (code: string, status: number, message = code) => new NotesServiceEr
 
 export interface NotesServiceDeps {
   ingestor: NoteSourceIngestor;
-  modelAdapter?: ModelCompletionAdapter;
+  /** Grounded answer port for the Note Assistant; absent → 503 (never a fabricated answer). */
+  assistant?: NoteAssistantModel;
   scopedContext?: ScopedContextProvider;
   verifyOwnership?: (notebookId: string, userId: string) => Promise<boolean> | boolean;
-  maxSources?: number;
+  /** Reserves one source slot for a note source (FR-WM-07); throws SourceQuotaExceededError when full. */
+  reserveSlot?: (notebookId: string, bytes: number) => Promise<void>;
+  /** Source titles for citation metadata (note sources are resolved from the registry). */
+  sourceTitles?: (notebookId: string, sourceIds: string[]) => Promise<Map<string, string>>;
 }
 
 export interface CitationKinds {
@@ -80,10 +81,9 @@ export function composeNoteMarkdown(notes: Pick<Note, "title" | "content_md">[])
 }
 
 export class NotesService {
-  private readonly agent: GroundedChatAgent;
-
-  constructor(private readonly deps: NotesServiceDeps) {
-    this.agent = new GroundedChatAgent(deps.modelAdapter ? { modelAdapter: deps.modelAdapter } : undefined);
+  private readonly deps: NotesServiceDeps;
+  constructor(deps: NotesServiceDeps) {
+    this.deps = deps;
   }
 
   private get provider(): ScopedContextProvider {
@@ -100,7 +100,7 @@ export class NotesService {
       if (existing) return { note: existing, created: false };
       throw err("MessageNotFound", 404, "Assistant message not found");
     }
-    return saveResponseNote(notebookId, userId, {
+    return saveResponseAsNote(notebookId, userId, {
       message_id: msg.id,
       content: msg.content,
       citations: msg.citations ?? [],
@@ -141,11 +141,7 @@ export class NotesService {
 
     const sourceId = randomUUID();
     try {
-      await reserveSourceSlot(
-        undefined,
-        { attempt_id: sourceId, notebook_id: notebookId, declared_byte_size: bytes, file_name: "notes.md", mime_type: "text/markdown" },
-        this.deps.maxSources !== undefined ? { maxSources: this.deps.maxSources } : undefined
-      );
+      await this.deps.reserveSlot?.(notebookId, bytes);
     } catch (e) {
       if (e instanceof SourceQuotaExceededError) {
         throw err("SourceLimitReached", 409, NOTE_ERROR_MESSAGES.SourceLimitReached);
@@ -161,11 +157,9 @@ export class NotesService {
         attempt_id: sourceId, notebook_id: notebookId, source_id: sourceId, revision_id: 1, title, markdown,
       });
     } catch (e) {
-      await failSource(undefined, notebookId, sourceId, "Ingestion error");
       throw err("IngestionFailed", 502, e instanceof Error ? e.message : "Ingestion failed");
     }
     if (result.status !== "Ready") {
-      await failSource(undefined, notebookId, sourceId, result.error_message ?? "Ingestion failed");
       throw err("IngestionFailed", 502, result.error_message ?? "Ingestion failed");
     }
 
@@ -182,7 +176,6 @@ export class NotesService {
       created_at: new Date().toISOString(),
     };
     await registerSource(source, result.chunks);
-    await transitionSourceStatus(undefined, notebookId, sourceId, "Ready");
     return source;
   }
 
@@ -220,16 +213,11 @@ export class NotesService {
     }
     const snapshot = [...this.revisionsOf(chunks)].map(([source_id, revision]) => ({ source_id, revision }));
 
+    if (!this.deps.assistant) throw err("Unavailable", 503, "The note assistant model is not configured");
     const thread = await getOrCreateChatThread(undefined, notebookId, userId);
-    const turn = await this.agent.generateTurn({
-      notebookId,
-      threadId: thread.id,
-      userId,
-      message: ACTION_PROMPTS[input.action_type],
-      activeSourceIds: activeIds,
-      chunks,
-      history: [],
-    });
+    const titles = (await this.deps.sourceTitles?.(notebookId, activeIds)) ?? new Map<string, string>();
+    titles.set(noteSource.id, noteSource.title);
+    const turn = await this.deps.assistant.answer({ question: ACTION_PROMPTS[input.action_type], chunks, titles });
 
     // Recheck authorization and revisions before publishing.
     await this.assertAuthorized(notebookId, userId);

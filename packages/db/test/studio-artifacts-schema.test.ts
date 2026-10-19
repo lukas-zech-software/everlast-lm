@@ -4,9 +4,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const path = resolve(here, "../migrations/0004_studio_artifacts.sql");
+const path = resolve(here, "../migrations/v3-draft/studio_artifacts.sql");
 
-describe("C-03, FR-ST-10: 0004_studio_artifacts.sql", () => {
+describe("C-03, FR-ST-10: draft v3 studio_artifacts table (D16)", () => {
   it("exists and defines the studio_artifacts table with required columns", () => {
     expect(existsSync(path)).toBe(true);
     const sql = readFileSync(path, "utf8");

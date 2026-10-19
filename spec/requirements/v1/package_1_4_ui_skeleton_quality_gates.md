@@ -110,6 +110,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §4.2 & 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Golden Eval Benchmark | JSONL dataset | $\ge 100$ unanswerable world-knowledge cases (`NFR-EVAL-03`), $\ge 50$ deselected-source cases incl. history carry-over (`NFR-EVAL-04`), $\ge 50$ multi-document synthesis cases (`NFR-EVAL-01`, `02`) | Versioned golden dataset for v1.0 |
+| Judged release sample | Case-ID list in gate report | Exactly 50 cases, deterministic stratified selection from the golden dataset (proportional by category, each category ≥ 1); judged metrics are computed on this sample once per release gate | Fixed by dataset version |
 | $\epsilon_{\text{hallucination}}$ | Float | $< 0.05$ | Target $\le 0.02$ |
 | $\text{Precision}_{\text{ID}}$ | Float | $= 1.00$ | $1.00$ |
 | Negative Rejection Rate | Float | $\ge 0.99$ | $1.00$ |
@@ -158,6 +159,6 @@ Scenario: Deselected source does not leak via conversation history
 
 ## Clarifications (Flow-back from spec.md)
 
-- **Evaluation cadence (`NFR-EVAL-01..04`, `Gate v1.0`)**: Deterministic citation-ID (`NFR-EVAL-02` $\text{Precision}_{\text{ID}} = 1.0$) and context-scoping/leakage (`NFR-EVAL-04` $\text{Leakage} = 0$) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` $\epsilon_{\text{hallucination}} < 0.05$), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` $\ge 99\%$) run on PRs touching retrieval/prompt/chat and at every release gate.
+- **Evaluation cadence (`NFR-EVAL-01..04`, `Gate v1.0`)**: Deterministic citation-ID (`NFR-EVAL-02` $\text{Precision}_{\text{ID}} = 1.0$) and context-scoping/leakage (`NFR-EVAL-04` $\text{Leakage} = 0$) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` $\epsilon_{\text{hallucination}} < 0.05$), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` $\ge 99\%$) run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0).
 - **Viewport breakpoints and citation navigation (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)**: Default layout is tabbed at $< 1024\text{ px}$, 3-column with `Studio` collapsed at $1024\text{–}1279\text{ px}$, and 3-column with both side panels expanded at $\ge 1280\text{ px}$. Clicking an inline citation badge `[n]` switches/un-collapses to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing active chat draft or scroll state.
 - **Enterprise no-training verification (`NFR-SEC-01`, `D14`)**: Automated preflight security checks verify that all LLM, OCR, and embedding endpoints use Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), distinguishing enterprise no-training verification from zero-data-retention claims.

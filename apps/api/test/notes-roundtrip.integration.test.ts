@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { getChatMessages, getOrCreateChatThread, getScopedContext, persistChatMessage } from "@everlast/db";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import { GroundedChatAgent, type ModelCompletionAdapter } from "../src/chat/agent.js";
-import { newNotebook, resetAll, startApi, stubIngestor, USER, uuidv7 } from "./notes-fixtures.js";
+import type { GroundedModel } from "../src/chat/model.ts";
+import { GroundedNoteAssistant } from "../src/notes/assistant-model.ts";
+import { newNotebook, resetAll, startApi, stubIngestor, USER, uuidv7 } from "./notes-fixtures.ts";
 
 describe("Gate v2.0 #2, FR-NM-03, NFR-EVAL-02, NFR-EVAL-04: note → source round trip", () => {
   let api: Awaited<ReturnType<typeof startApi>>;
@@ -37,24 +38,27 @@ describe("Gate v2.0 #2, FR-NM-03, NFR-EVAL-02, NFR-EVAL-04: note → source roun
     const sourceId: string = converted.json.source.id;
 
     const seen: UnifiedDocumentChunk[][] = [];
-    const model: ModelCompletionAdapter = {
-      async complete(p) {
-        seen.push(p.chunks);
-        const hit = p.chunks.find((c) => c.text.includes("TITAN-77"));
+    // Scripted grounded model; the production citation verifier (D13) checks its draft.
+    const model: GroundedModel = {
+      id: "test:scripted",
+      async generate(input) {
+        seen.push(input.chunks);
+        const hit = input.chunks.find((c) => c.text.includes("TITAN-77"));
         return hit
-          ? { grounded: true, refusal: false, answer: `TITAN-77 <cite id="${hit.chunk_id}"/>`, citedChunkIds: [hit.chunk_id] }
-          : { grounded: false, refusal: true, answer: "The selected sources do not contain this information." };
+          ? { status: "answered", sentences: [{ text: "The project codename is TITAN-77.", citations: [hit.chunk_id], kind: "claim" }] }
+          : { status: "not_in_sources", missing_topic: "the project codename", sentences: [] };
       },
     };
     const chunks = await getScopedContext(nb, [sourceId]);
-    const turn = await new GroundedChatAgent({ modelAdapter: model }).generateTurn({
-      notebookId: nb, threadId: thread.id, userId: USER, message: "What is the project codename?",
-      activeSourceIds: [sourceId], chunks, history: [],
+    const turn = await new GroundedNoteAssistant(model).answer({
+      question: "What is the project codename?",
+      chunks,
+      titles: new Map([[sourceId, converted.json.source.title as string]]),
     });
 
     expect(turn.content).toContain("TITAN-77");
     expect(turn.citations).toHaveLength(1);
-    expect(turn.citations![0]!.source_id).toBe(sourceId);
+    expect(turn.citations[0]!.source_id).toBe(sourceId);
     expect(seen.flat().some((c) => c.chunk_id === decoy.chunk_id || c.source_id !== sourceId)).toBe(false);
     expect(await getChatMessages(undefined, nb, USER)).toHaveLength(1);
   });

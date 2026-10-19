@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { newNotebook, resetAll, startApi, stubIngestor } from "./notes-fixtures.js";
+import { newNotebook, resetAll, startApi, stubIngestor } from "./notes-fixtures.ts";
 
 describe("FR-NM-01: notes CRUD routes", () => {
   let api: Awaited<ReturnType<typeof startApi>>;

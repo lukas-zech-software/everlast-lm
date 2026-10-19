@@ -58,7 +58,10 @@ export function validateReportPayload(
 export class StudioJobRunner {
   private readonly controllers = new Map<string, AbortController>();
 
-  constructor(private readonly deps: StudioJobRunnerDeps) {}
+  private readonly deps: StudioJobRunnerDeps;
+  constructor(deps: StudioJobRunnerDeps) {
+    this.deps = deps;
+  }
 
   async cancel(id: string): Promise<StudioArtifactRecord> {
     const row = await this.deps.repo.getById(id);

@@ -21,7 +21,9 @@ export class SourceGuideController {
   private container: HTMLElement | null = null;
   private readonly fetcher: typeof fetch;
 
-  constructor(private readonly options: SourceGuideControllerOptions) {
+  private readonly options: SourceGuideControllerOptions;
+  constructor(options: SourceGuideControllerOptions) {
+    this.options = options;
     this.fetcher = options.fetcher ?? fetch;
   }
 

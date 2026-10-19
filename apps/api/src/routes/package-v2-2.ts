@@ -10,7 +10,7 @@ import {
   getMessageFollowUps,
   saveMessageFollowUps,
 } from "@everlast/db";
-import { sendJson, parseJsonBody } from "../http.js";
+import { sendJson, parseJsonBody } from "../http.ts";
 
 export interface PackageV22ApiDependencies {
   authorizeNotebook: (userId: string, notebookId: string) => Promise<boolean>;

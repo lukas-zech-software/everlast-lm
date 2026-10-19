@@ -1,4 +1,5 @@
-import { ChatConfigurationSchema, type SavedResponseNote } from "@everlast/contracts";
+import type { SavedResponseNote } from "@everlast/contracts";
+import { ChatConfigurationSchema } from "./lib/v2-contracts.ts";
 export interface SourceRevision { source_id: string; revision: number }
 export interface ChatConfig { style: "default" | "learning_guide" | "analyst" | "custom"; custom_instructions?: string; response_length: "default" | "longer" | "shorter" }
 export interface CitationBadge { badge_number: number }
@@ -27,7 +28,11 @@ export class ChatControlController {
   private configuration: ChatConfig = { style: "default", response_length: "default" };
   private readonly fetcher: typeof fetch;
 
-  constructor(private readonly options: ChatControlOptions) { this.fetcher = options.fetcher ?? fetch; }
+  private readonly options: ChatControlOptions;
+  constructor(options: ChatControlOptions) {
+    this.options = options;
+    this.fetcher = options.fetcher ?? fetch;
+  }
 
   updateScope(revisions: SourceRevision[], language: string): void {
     const next = scopeSignature(revisions, language);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { batchChunks } from "../src/studio/reports/batching.js";
-import { SRC_HISTORY, makeChunk } from "./studio-fixtures.js";
+import { batchChunks } from "../src/studio/reports/batching.ts";
+import { SRC_HISTORY, makeChunk } from "./studio-fixtures.ts";
 
 describe("batchChunks (D12, bounded batches over all scoped chunks)", () => {
   it("covers every chunk exactly once, in order, within token and chunk bounds", () => {

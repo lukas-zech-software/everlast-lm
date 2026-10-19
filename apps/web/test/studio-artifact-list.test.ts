@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { renderMarkdown } from "../src/studio/markdown.js";
-import { StudioArtifactListController } from "../src/studio/artifact-list.js";
-import type { StudioApi, ArtifactDto } from "../src/studio/api.js";
+import { renderMarkdown } from "../src/studio/markdown.ts";
+import { StudioArtifactListController } from "../src/studio/artifact-list.ts";
+import type { StudioApi, ArtifactDto } from "../src/studio/api.ts";
 
 const base = { notebook_id: "n", plugin_type: "report", payload_json: null, progress: null, failure: null, attempt: 1, retry_of: null } as const;
 const mk = (o: Partial<ArtifactDto> & { id: string; status: ArtifactDto["status"] }): ArtifactDto => ({ ...base, subtype: "briefing_doc", title: "Briefing doc", ...o } as ArtifactDto);

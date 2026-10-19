@@ -4,8 +4,8 @@ import {
   OwnerWorkspacePreferencesPatchSchema,
 } from "@everlast/contracts";
 import { NotebookPreferenceScopeError } from "@everlast/db";
-import { parseJsonBody, sendJson } from "../http.js";
-import type { WorkspaceService } from "../services/workspace.js";
+import { parseJsonBody, sendJson } from "../http.ts";
+import type { WorkspacePreferencesService as WorkspaceService } from "../services/workspace-preferences.ts";
 
 function invalidPreferenceMessage(error: { errors: { message: string }[] }): string {
   return error.errors.map(({ message }) => message).join("; ");
