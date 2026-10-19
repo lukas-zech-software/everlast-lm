@@ -147,6 +147,6 @@ Deliver the P1 Source Guide first, then P1 Overview and P1 response actions, whi
 
 ## Phase 10: Convergence
 
-- [ ] T057 Allow evidence-limited notebook overview prompt counts without unsupported padding per FR-005 (contradicts).
-- [ ] T058 Validate the one-sentence summary rule for sources under 50 words per FR-002 (partial).
-- [ ] T059 Require source-linked supporting chunk IDs for generated overview content per FR-020 (partial).
+- [X] T057 Allow evidence-limited notebook overview prompt counts without unsupported padding per FR-005 (contradicts).
+- [X] T058 Validate the one-sentence summary rule for sources under 50 words per FR-002 (partial).
+- [X] T059 Require source-linked supporting chunk IDs for generated overview content per FR-020 (partial).

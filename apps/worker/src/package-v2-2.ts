@@ -84,10 +84,20 @@ const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 const transientDefault = (error: unknown) => Boolean(error && typeof error === "object" && "transient" in error && error.transient === true);
 const textOf = (source: ScopedSourceMaterial) => source.chunks.map((chunk) => chunk.text).join("\n");
 const countWords = (text: string) => text.trim().split(/\s+/u).filter(Boolean).length;
-const validateSupport = (supportIds: string[], sources: ScopedSourceMaterial[]) => {
+const validateSupport = (supportIds: string[], sources: ScopedSourceMaterial[], required = false) => {
   const allowed = new Set(sources.flatMap((source) => source.chunks.map((chunk) => chunk.chunk_id)));
+  if (required && supportIds.length === 0) throw new Error("Generated output requires supporting chunks from the authorized scope");
   if (supportIds.some((id) => !allowed.has(id))) throw new Error("Generated output references a chunk outside the authorized scope");
 };
+
+function assertSingleSentence(text: string, locale: string): void {
+  const Segmenter = (Intl as unknown as {
+    Segmenter: new (locale: string, options: { granularity: "sentence" }) => { segment(value: string): Iterable<{ segment: string }> };
+  }).Segmenter;
+  const sentenceCount = Array.from(new Segmenter(locale, { granularity: "sentence" }).segment(text))
+    .filter((part) => part.segment.trim().length > 0).length;
+  if (sentenceCount !== 1) throw new Error("Source Guide summaries for sources under 50 words must contain exactly one sentence");
+}
 
 export async function generateSourceGuide(input: {
   notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string;
@@ -121,6 +131,7 @@ export async function generateSourceGuide(input: {
     const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: snapshot });
     assertExactScope(snapshot, currentSources);
     validateSupport(generated.supporting_chunk_ids, currentSources);
+    if (wordCount < 50) assertSingleSentence(generated.summary_md, input.output_language);
     const ready = SourceGuideSchema.parse({
       notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision,
       status: "GuideReady", source_word_count: wordCount, ...generated, generated_at: new Date().toISOString(),
@@ -154,7 +165,7 @@ export async function generateNotebookOverview(input: {
   const result = await input.model.generateOverview({ sources, output_language: input.output_language });
   const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: scope });
   assertExactScope(scope, currentSources);
-  validateSupport(result.supporting_chunk_ids, currentSources);
+  validateSupport(result.supporting_chunk_ids, currentSources, true);
   return saveOverview(NotebookOverviewSchema.parse({ notebook_id: input.notebook_id, source_revisions: scope, authorization_key: createHash("sha256").update(input.user_id).digest("hex"), output_language: input.output_language, generation_parameters: parameters, cache_key: cacheKey, ...result, generated_at: new Date().toISOString() }));
 }
 

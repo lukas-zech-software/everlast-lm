@@ -63,6 +63,24 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [], output_language: "en", reader, model })).rejects.toThrow(/nonempty/);
   });
 
+  it("keeps fewer supported overview prompts without padding (FR-GC-04)", async () => {
+    const limitedModel = { ...model, generateOverview: async () => ({ overview_md: "Overview grounded in this evidence.", starter_prompts: ["One supported question?", "Another supported question?"], supporting_chunk_ids: [chunk] }) };
+    const result = await generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model: limitedModel });
+    expect(result.starter_prompts).toHaveLength(2);
+  });
+
+  it("rejects overview output without supporting source chunks (FR-GC-04/FR-020)", async () => {
+    const unsupportedModel = { ...model, generateOverview: async () => ({ overview_md: "Unsupported overview.", starter_prompts: ["Question one?", "Question two?", "Question three?"], supporting_chunk_ids: [] }) };
+    await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model: unsupportedModel })).rejects.toThrow();
+  });
+
+  it("rejects multi-sentence summaries for sources under 50 words (FR-SI-02)", async () => {
+    const shortSource = { ...material, word_count: 49 };
+    const shortReader: PackageV22SourceReader = { readReadySources: async () => [shortSource] };
+    const invalidModel = { ...model, generateSourceGuide: async () => ({ summary_md: "First supported sentence. Second unsupported sentence.", key_topics: ["Topic"], supporting_chunk_ids: [chunk] }) };
+    await expect(generateSourceGuide({ notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language: "en", reader: shortReader, model: invalidModel })).rejects.toThrow(/one sentence/i);
+  });
+
   it("offers follow-ups only after completion and binds them to the authorized snapshot", async () => {
     await expect(generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model, streaming: true })).rejects.toThrow(/after answer completion/);
     const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });

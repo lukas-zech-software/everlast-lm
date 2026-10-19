@@ -61,8 +61,8 @@ export const NotebookOverviewSchema = z.object({
   generation_parameters: z.record(z.unknown()),
   cache_key: z.string().min(1),
   overview_md: z.string().trim().min(1),
-  starter_prompts: z.array(StarterPromptSchema).min(3).max(5),
-  supporting_chunk_ids: z.array(uuid),
+  starter_prompts: z.array(StarterPromptSchema).max(5),
+  supporting_chunk_ids: z.array(uuid).min(1),
   generated_at: z.string().datetime(),
 }).strict();
 export type NotebookOverview = z.infer<typeof NotebookOverviewSchema>;

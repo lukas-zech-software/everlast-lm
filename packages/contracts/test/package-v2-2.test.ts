@@ -69,8 +69,10 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
   it("validates overview prompts and feedback comment code points", () => {
     const overviewBase = { notebook_id: notebook, source_revisions: [{ source_id: source, revision: 1 }], authorization_key: "owner", output_language: "en-US", generation_parameters: {}, cache_key: "cache", overview_md: "Overview", supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
     expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: Array(3).fill("🌱".repeat(120)) }).success).toBe(true);
-    expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: Array(2).fill("prompt") }).success).toBe(false);
+    expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: Array(2).fill("prompt") }).success).toBe(true);
+    expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: [] }).success).toBe(true);
     expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: Array(6).fill("prompt") }).success).toBe(false);
+    expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: [], supporting_chunk_ids: [] }).success).toBe(false);
     expect(v22.NotebookOverviewSchema.safeParse({ ...overviewBase, starter_prompts: ["🌱".repeat(121), "two", "three"] }).success).toBe(false);
     expect(v22.MessageFeedbackInputSchema.safeParse({ message_id: message, rating: "up", comment: "🌱".repeat(1000) }).success).toBe(true);
     expect(v22.MessageFeedbackInputSchema.safeParse({ message_id: message, rating: "down", category: "other", comment: "x".repeat(1001) }).success).toBe(false);

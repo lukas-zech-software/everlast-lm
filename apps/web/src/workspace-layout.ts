@@ -162,7 +162,7 @@ export function renderWorkspaceLayout(
       <button class="panel-toggle-btn" data-action="toggle-right" aria-label="Toggle Studio panel">⮞</button>
     </div>
     <div class="panel-content studio-content">
-      <div class="studio-placeholder">Saved response notes will appear here</div>
+      <div class="studio-placeholder">Notes and Studio tools will appear here</div>
     </div>
   `;
   main.appendChild(rightPanel);

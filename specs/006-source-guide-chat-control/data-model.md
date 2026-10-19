@@ -14,7 +14,7 @@ All records are scoped to the listed SRS IDs. Inputs use shared UUID and chunk t
 
 - Cache identity: exact `notebook_id`, sorted `(source_id, revision)` pairs, SHA-256 effective authorization partition key, output language, and generation parameters. The raw user ID is never stored in or returned as the authorization key.
 - Fields: `overview_md`; `starter_prompts[]`; `supporting_chunk_ids[]`; cache key; `generated_at`.
-- Invariants: nonempty explicit Ready scope through C-02; 3–5 supported prompts ≤120 code points; all support IDs in snapshot; invalidate/hide immediately on any cache-key change or empty/deleted scope.
+- Invariants: nonempty explicit Ready scope through C-02; up to 5 supported prompts ≤120 code points (target 3–5 when evidence permits, allowing fewer rather than padding); at least one support ID, all support IDs in snapshot; invalidate/hide immediately on any cache-key change or empty/deleted scope.
 
 ## Follow-up suggestions (`FR-GC-05`)
 
