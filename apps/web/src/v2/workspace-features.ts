@@ -12,7 +12,8 @@ import {
 } from "../chat-control.ts";
 import { SourceGuideController } from "../source-guide.ts";
 import {
-  applyTheme,
+  adoptServerTheme,
+  effectiveOutputLanguage,
   hydrateWorkspaceSettings,
   loadWorkspacePreferences,
   renderWorkspaceSettings,
@@ -58,7 +59,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     text: "Settings",
   });
   let settings: WorkspaceSettingsState = {
-    ...loadWorkspacePreferences(),
+    theme: loadWorkspacePreferences().theme,
     input_language: "auto",
     output_language: null,
     notebook_input_language: null,
@@ -86,7 +87,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   });
   void hydrateWorkspaceSettings(settings, { notebookId, fetcher: authFetch }).then((loaded) => {
     settings = loaded;
-    applyTheme(loaded.theme, document.documentElement);
+    adoptServerTheme(loaded.theme, document.documentElement);
     if (!settingsPanel.hidden) renderSettings();
   });
   void authFetch(`/api/notebooks/${notebookId}/opened`, { method: "POST" }).catch(() => undefined);
@@ -108,7 +109,8 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   const chatIntro = h("div", { class: "notebook-overview", "data-testid": "notebook-overview", hidden: true });
   let overviewTimer: ReturnType<typeof setTimeout> | null = null;
   let overviewToken = 0;
-  const outputLanguage = () => settings.notebook_output_language ?? settings.output_language ?? navigator.language ?? "en-US";
+  // FR-UI-02 / FR-012: a supported tag only (notebook > user > supported browser locale > en-US).
+  const outputLanguage = () => effectiveOutputLanguage(settings);
   function refreshOverview(): void {
     if (overviewTimer) clearTimeout(overviewTimer);
     overviewTimer = setTimeout(async () => {

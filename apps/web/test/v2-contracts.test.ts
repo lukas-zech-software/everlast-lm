@@ -25,6 +25,23 @@ describe("browser contract copies match packages/contracts", () => {
     }
   });
 
+  it("resolves the output language like resolveOutputLanguage (FR-UI-02, FR-012)", () => {
+    const cases = [
+      {},
+      { browserLocale: "de-DE" },
+      { browserLocale: "pt-PT" },
+      { browserLocale: "de-de" },
+      { browserLocale: "not a tag" },
+      { userDefault: "fr-FR", browserLocale: "de-DE" },
+      { notebookDefault: "it-IT", userDefault: "fr-FR", browserLocale: "de-DE" },
+      { jobLanguage: "ja-JP", notebookDefault: "it-IT" },
+      { userDefault: null, browserLocale: null },
+    ];
+    for (const input of cases) {
+      expect((local as any).resolveOutputLanguage?.(input), JSON.stringify(input)).toBe(contracts.resolveOutputLanguage(input));
+    }
+  });
+
   it("validates chat configuration like ChatConfigurationSchema", () => {
     const samples = [
       { style: "default", response_length: "default" },
