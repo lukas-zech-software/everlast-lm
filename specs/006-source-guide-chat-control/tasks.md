@@ -110,3 +110,16 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 ## Implementation strategy
 
 Deliver the P1 Source Guide first, then P1 Overview and P1 response actions, while keeping P2 follow-ups and chat controls separate. Do not skip tests to ship an early slice. The smallest MVP demonstration is a Ready source with a generated Guide and grounded topic click; complete Package 2.2 delivery also requires all five user stories and the listed verification tasks.
+
+## Phase 9: Convergence
+
+- [ ] T037 Bind Package 2.2 worker source reads and publication rechecks to the canonical shared `ScopedContextProvider` contract; remove or adapt the unconnected package-specific reader boundary and prove exact Ready ID/revision/auth snapshots in worker tests per Constitution III/IV and C-02 (partial, CRITICAL).
+- [ ] T038 Complete Package 2.2 application composition for worker and API runtime: supply the authorized reader, injected structured generator, Ready-trigger scheduling, overview/follow-up dependencies, and authenticated chat route; verify the shell’s required endpoints are available with deterministic local adapters and fail closed without production configuration per FR-SI-02, FR-GC-01/02/04/05, C-02 (partial, CRITICAL).
+- [ ] T039 Load and mount the owner-authorized Ready source list and selection controller from the notebook shell; publish initial and subsequent exact revision snapshots to Source Guide, overview, and follow-up controllers per FR-SI-02, FR-GC-04/05, C-02 (partial, HIGH).
+- [ ] T040 Render the full saved-response note, title, and preserved citation links in the Right/Studio Panel after the stable `/note` response; cover zero-citation and idempotent repeat saves per FR-GC-09, FR-NM-02 (partial, HIGH).
+- [ ] T041 Persist follow-up suggestions with the latest assistant message and its source/revision snapshot; retrieve only current, authorized suggestions and invalidate them on scope changes per FR-GC-05, FR-020, C-02 (partial, HIGH).
+- [ ] T042 Render the required populated notebook identity and the “Add a source to get started” empty state, clearing it synchronously on scope/source deletion per FR-GC-04, FR-GC-06/07 (partial, MEDIUM).
+- [ ] T043 Add an optional 0–1,000 Unicode-code-point comment field to negative-feedback UI, submit it with the selected category, and retain the active rating state per FR-GC-09, FR-014 (partial, MEDIUM).
+- [ ] T044 Display the active style and response length (not a generic active-preferences label) in the chat header after configuration load/save per FR-GC-07, FR-010 (partial, MEDIUM).
+- [ ] T045 Add deterministic local timing and stale/revoked-scope cache tests for Source Guide, overview, follow-ups, copy/feedback, and saved-note rendering; document local-only evidence without claiming cloud P95 per SC-001–005, NFR-EVAL-04 (partial, MEDIUM).
+- [ ] T046 Flow the `source_word_count` DTO and hashed authorization partition refinements into `plan.md`, then refresh `analysis.md` for bidirectional traceability per Constitution I, CC-01 (partial, MEDIUM).
