@@ -133,6 +133,23 @@ describe("FR-WM-04 / NFR-SEC-01: Identity Platform token verification", () => {
     expect(fetches).toBe(1);
   });
 
+  it("AUTH-14: unknown key ids cannot force repeated certificate fetches (one shared refresh per interval)", async () => {
+    let fetches = 0;
+    const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
+    const keys = new GoogleSecureTokenKeys({
+      fetchImpl: (async () => {
+        fetches++;
+        return new Response(JSON.stringify({ k1: pem }), { headers: { "cache-control": "public, max-age=600" } });
+      }) as typeof fetch,
+    });
+    const v = new TokenVerifier({ audience: PROJECT, issuer: ISSUER, keys });
+    await v.verifyToken(sign(claims()));
+    const attempts = Array.from({ length: 50 }, (_, i) => v.verifyToken(sign(claims(), { header: { alg: "RS256", kid: `bogus-${i}` } })).catch((e) => e));
+    const results = await Promise.all(attempts);
+    expect(results.every((r) => r instanceof AuthenticationError)).toBe(true);
+    expect(fetches).toBe(1);
+  });
+
   it("AUTH-13: local issuer tokens verify through the same signature path and honour revocation", async () => {
     const local = new LocalIdentityIssuer({ NODE_ENV: "test" });
     const token = local.issue("dev-user", { email: "dev@example.test" });

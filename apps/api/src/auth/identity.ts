@@ -55,27 +55,41 @@ export class GoogleSecureTokenKeys implements KeySource {
   private cache: { keys: Map<string, KeyObject>; expiresAt: number } | null = null;
   private readonly url: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly minRefreshIntervalMs: number;
+  private inflight: Promise<void> | null = null;
+  private lastRefreshAt = 0;
 
-  constructor(options: { url?: string; fetchImpl?: typeof fetch } = {}) {
+  constructor(options: { url?: string; fetchImpl?: typeof fetch; minRefreshIntervalMs?: number } = {}) {
     this.url = options.url ?? SECURE_TOKEN_CERTS_URL;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.minRefreshIntervalMs = options.minRefreshIntervalMs ?? 60_000;
   }
 
   async getKey(kid: string): Promise<KeyObject | undefined> {
-    if (!this.cache || Date.now() >= this.cache.expiresAt || !this.cache.keys.has(kid)) {
-      await this.refresh();
-    }
+    const expired = !this.cache || Date.now() >= this.cache.expiresAt;
+    // Unknown key ids (possibly attacker-chosen) trigger at most one refetch per interval, shared by all
+    // callers; otherwise they are rejected from the cache without a network call.
+    const unknownKidMayRefresh = !this.cache?.keys.has(kid) && Date.now() - this.lastRefreshAt >= this.minRefreshIntervalMs;
+    if (expired || unknownKidMayRefresh) await this.refresh();
     return this.cache?.keys.get(kid);
   }
 
-  private async refresh(): Promise<void> {
-    const response = await this.fetchImpl(this.url);
-    if (!response.ok) throw new AuthenticationError("Unable to load token signing keys");
-    const certs = (await response.json()) as Record<string, string>;
-    const maxAge = /max-age=(\d+)/.exec(response.headers.get("cache-control") ?? "")?.[1];
-    const keys = new Map<string, KeyObject>();
-    for (const [kid, pem] of Object.entries(certs)) keys.set(kid, createPublicKey(pem));
-    this.cache = { keys, expiresAt: Date.now() + Number(maxAge ?? 3600) * 1000 };
+  private refresh(): Promise<void> {
+    this.inflight ??= (async () => {
+      try {
+        this.lastRefreshAt = Date.now();
+        const response = await this.fetchImpl(this.url);
+        if (!response.ok) throw new AuthenticationError("Unable to load token signing keys");
+        const certs = (await response.json()) as Record<string, string>;
+        const maxAge = /max-age=(\d+)/.exec(response.headers.get("cache-control") ?? "")?.[1];
+        const keys = new Map<string, KeyObject>();
+        for (const [kid, pem] of Object.entries(certs)) keys.set(kid, createPublicKey(pem));
+        this.cache = { keys, expiresAt: Date.now() + Number(maxAge ?? 3600) * 1000 };
+      } finally {
+        this.inflight = null;
+      }
+    })();
+    return this.inflight;
   }
 }
 
