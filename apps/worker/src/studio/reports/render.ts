@@ -22,7 +22,11 @@ export class CitationRegistry {
   }
 }
 
-const cell = (s: string): string => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
+const cell = (s: string): string =>
+  s
+    .replace(/\\/g, "\\\\")
+    .replace(/\|/g, "\\|")
+    .replace(/\r?\n/g, " ");
 
 function renderItem(block: BlockSpec, item: ReportItem, reg: CitationRegistry): string {
   const m = reg.mark(item.chunk_id, item.quote);
