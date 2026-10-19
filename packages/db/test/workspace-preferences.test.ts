@@ -89,4 +89,21 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
     await touchNotebookModified(notebook.id);
     expect(Date.parse(getNotebookRaw(notebook.id)!.updated_at)).toBeGreaterThan(Date.parse(afterSource));
   });
+
+  it("sorts titles case-insensitively with Intl.Collator and breaks equal titles by created_at descending (FR-WM-03, FR-005)", async () => {
+    const make = (id: string, title: string, created_at: string, is_pinned = false) => ({
+      id, owner_id: OWNER_A, title, created_at, updated_at: created_at, archived_at: null,
+      icon_emoji: "📓", icon_source: "default" as const, ready_source_count: 0, is_pinned, last_opened_at: null, owner_role: "Owner" as const,
+    });
+    const items = [
+      make("a-early", "Alpha", "2026-01-01T00:00:00.000Z"),
+      make("z-late", "alpha", "2026-01-03T00:00:00.000Z"),
+      make("m-beta", "beta", "2026-01-02T00:00:00.000Z"),
+      make("p-zeta", "Zeta", "2026-01-02T00:00:00.000Z", true),
+    ];
+    expect(sortNotebookOverview(items, "title_asc").map(({ id }) => id)).toEqual(["p-zeta", "z-late", "a-early", "m-beta"]);
+    const umlaut = [make("1", "Äpfel", "2026-01-01T00:00:00.000Z"), make("2", "Zebra", "2026-01-01T00:00:00.000Z")];
+    expect(sortNotebookOverview(umlaut, "title_asc", "de-DE").map(({ title }) => title)).toEqual(["Äpfel", "Zebra"]);
+    expect(sortNotebookOverview(umlaut, "title_asc", "sv-SE").map(({ title }) => title)).toEqual(["Zebra", "Äpfel"]);
+  });
 });

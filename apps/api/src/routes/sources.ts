@@ -77,6 +77,11 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
     return deps.storage;
   };
 
+  /** Release v2 (FR-WM-02): a source write advances the notebook's modified time. */
+  const sourceWritten = async (userId: string, notebookId: string) => {
+    if (deps.v2) await deps.v2.notebookModified(userId, await getNotebook(deps.pool, userId, notebookId));
+  };
+
   router.add("GET", "/api/notebooks/:id/sources", async ({ res, user, params }) => {
     const sources = await listSources(deps.pool, user.userId, params.id!);
     if (deps.v2) {
@@ -184,6 +189,7 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
     } else {
       deps.notifyJobs();
     }
+    await sourceWritten(user.userId, source.notebook_id);
     sendJson(res, 200, { source: toSourceDto(outcome.source) });
   });
 
@@ -221,6 +227,7 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
       if (outcome.outcome === "processing" || outcome.outcome === "failed") source = outcome.source;
       deps.notifyJobs();
     }
+    await sourceWritten(user.userId, params.id!);
     sendJson(res, 201, { source: toSourceDto(source) });
   });
 

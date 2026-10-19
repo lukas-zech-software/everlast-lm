@@ -48,6 +48,8 @@ export interface StudioServiceDeps {
   dispatcher: StudioJobDispatcher;
   convertToSource?: ConvertToSource;
   suggestions?: StudioSuggestionsPort;
+  /** Advances the notebook's `updated_at` after an artifact write (FR-WM-02). */
+  onNotebookModified?: (notebookId: string) => Promise<unknown> | void;
 }
 
 export class StudioConflictError extends Error {}
@@ -76,6 +78,11 @@ export class StudioService {
     this.deps = deps;
   }
 
+  private async modified<T>(notebookId: string, result: T): Promise<T> {
+    await this.deps.onNotebookModified?.(notebookId);
+    return result;
+  }
+
   async create(ownerId: string, notebookId: string, body: unknown) {
     requireScope((body as { active_source_ids?: unknown } | null)?.active_source_ids);
     const req = CreateStudioJobRequestSchema.parse(body);
@@ -98,7 +105,7 @@ export class StudioService {
       output_language: req.output_language,
     });
     await this.deps.dispatcher.enqueue(row.id, ownerId);
-    return publicView(row);
+    return this.modified(notebookId, publicView(row));
   }
 
   async list(ownerId: string, notebookId: string) {
@@ -129,7 +136,7 @@ export class StudioService {
   async cancel(ownerId: string, notebookId: string, id: string) {
     const row = await this.owned(ownerId, notebookId, id);
     if (row.status !== "Queued" && row.status !== "Running") throw new StudioConflictError("Artifact is already finished.");
-    return publicView(await this.deps.repo.cancel(id));
+    return this.modified(notebookId, publicView(await this.deps.repo.cancel(id)));
   }
 
   async retry(ownerId: string, notebookId: string, id: string, body: unknown) {
@@ -148,7 +155,7 @@ export class StudioService {
         output_language: req.output_language,
       });
       await this.deps.dispatcher.enqueue(row.id, ownerId);
-      return publicView(row);
+      return this.modified(notebookId, publicView(row));
     } catch (err) {
       if (err instanceof StudioRetryNotAllowedError) throw new StudioConflictError(err.message);
       throw err;
@@ -160,16 +167,18 @@ export class StudioService {
     if (row.status !== "Completed" || !row.payload_json) throw new StudioConflictError("Only Completed artifacts can be converted.");
     if (!this.deps.convertToSource) throw new StudioNotImplementedError("Convert to source is not configured.");
     await this.deps.access.verifySnapshot(ownerId, notebookId, row.active_source_ids_snapshot);
-    return this.deps.convertToSource({
+    const converted = await this.deps.convertToSource({
       notebook_id: notebookId,
       owner_id: ownerId,
       title: row.title,
       content_md: row.payload_json.content_md,
     });
+    return this.modified(notebookId, converted);
   }
 
   async remove(ownerId: string, notebookId: string, id: string): Promise<void> {
     if (!(await this.deps.repo.delete(notebookId, ownerId, id))) throw new StudioNotFoundError("Artifact not found.");
+    await this.modified(notebookId, undefined);
   }
 
   async suggestions(ownerId: string, notebookId: string, body: unknown) {

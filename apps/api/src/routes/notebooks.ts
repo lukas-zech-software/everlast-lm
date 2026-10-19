@@ -94,6 +94,8 @@ export function registerNotebookRoutes(router: Router, deps: AppDeps): void {
 
   router.add("DELETE", "/api/notebooks/:id/sources/:sourceId/error", async ({ res, user, params }) => {
     await dismissSourceError(deps.pool, user.userId, params.id!, params.sourceId!);
+    // Release v2 (FR-WM-02): removing a source advances the notebook's modified time.
+    if (deps.v2) await deps.v2.notebookModified(user.userId, await getNotebook(deps.pool, user.userId, params.id!));
     sendNoContent(res);
   });
 
