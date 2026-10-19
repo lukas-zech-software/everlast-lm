@@ -16,7 +16,7 @@ All decisions trace to `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09
 
 ## Decision: Retries are bounded exponential backoff; failure never blocks source viewing
 
-- **Decision**: Retry transient structured-model failures with injectable sleep/clock and bounded exponential delays; persist `GuideFailed` after attempts are exhausted while retaining Ready source content. Keep timing assertions separate from external model P95 measurement (`FR-SI-02`).
+- **Decision**: Retry only errors identified as transient by the client, at most 3 total attempts (100 ms then 200 ms exponential delays). Do not retry permanent errors or invalid structured output. Persist `GuideFailed` after exhaustion while retaining Ready source content. Keep timing assertions separate from external model P95 measurement (`FR-SI-02`).
 - **Rationale**: Testable retries and no source-read outage; do not let guide generation block ingestion/inspector.
 - **Alternatives considered**: Retry synchronously without bound (rejected: blocks worker and misses latency target); mark the source failed (rejected by FR-SI-02).
 

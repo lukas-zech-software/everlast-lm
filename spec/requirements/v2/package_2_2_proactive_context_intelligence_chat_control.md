@@ -64,7 +64,7 @@ Scenario: Clicking a key topic chip triggers a grounded chat turn
 
 **Edge & error cases**
 - Very short source ($< 50$ words) $\rightarrow$ Generates a $1$-sentence summary and $1\text{–}3$ topic chips without hallucinating padding.
-- Source Guide LLM call fails transiently $\rightarrow$ Retries with exponential backoff; full text in Source Inspector remains immediately readable.
+- Source Guide LLM call fails transiently $\rightarrow$ Retries at most twice (3 total attempts) with 100 ms then 200 ms exponential delays. Permanent errors and invalid structured output are not retried; after exhaustion the guide is `GuideFailed` while full text remains immediately readable.
 
 **Measurable criteria**
 - Asynchronous Source Guide generation completes in $< 10.0\text{ s}$ (P95) after chunking finishes (`Gate v2.0 #1`).

@@ -22,7 +22,7 @@ Implement Package 2.2 on the existing v1 TypeScript monorepo without changing sh
 
 ## Constitution Check (`CC-01`..`CC-08`)
 
-Pre-research and post-design checks pass at the design level. Gate v1 release evidence and real enterprise-model P95 remain execution gates, not assumed results.
+Pre-research and post-design design checks are recorded below. Gate v1 execution is currently BLOCKED: `pnpm test:unit` passed 364 tests, but `pnpm eval:deterministic` failed 4 of 29 tests. Constitution V prohibits v2 runtime implementation until Gate v1 passes. This feature therefore remains at design/analyze until the prerequisite is resolved by its owner.
 
 | Gate | Principle | Pre-Research | Post-Design | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
@@ -31,11 +31,11 @@ Pre-research and post-design checks pass at the design level. Gate v1 release ev
 | CC-03 | III. Scope/Snapshot | PASS | PASS | All generation reads use injected C-02, explicit Ready source IDs, exact revisions, authorization context and rechecks; empty scope rejects/clears. |
 | CC-04 | III. Citations/Leakage | PASS | PASS | Supporting chunk IDs are schema-validated against scoped chunks; invalid support/citation IDs fail closed; caches key exact scope/revision/auth/language/parameters. |
 | CC-05 | IV. Contracts/Pipelines | PASS | PASS | New DTOs are Zod in `package-v2-2.ts`; C-01/C-02 stay canonical; generation is deterministic orchestration, not an LlmAgent. |
-| CC-06 | V. Release/Order | PASS* | PASS* | Package 2.1 precedes; no 2.4/C-03/deferred work. Implementation is conditional on verified Gate v1 evidence and does not claim Gate v2 completion from unit tests. |
+| CC-06 | V. Release/Order | BLOCKED | BLOCKED | Package 2.1 precedes, but Gate v1 is not verified: deterministic evals fail. No v2 runtime code may start under Constitution V. |
 | CC-07 | VI. Security/Residency | PASS | PASS | Owner-only v2; API derives user from auth; enterprise no-training endpoints/europe-west4 required for production wiring; no secrets/cloud changes. |
 | CC-08 | Platform/Cost | PASS | PASS | Existing pnpm/TS/Cloud SQL/Cloud Run architecture and zero-new-dependency local tests; no fixed-cost service. |
 
-`*` Gate v1 evidence must be verified before runtime implementation starts; if it is absent, stop and report the release-gate blocker rather than implement v2 ahead of v1.
+Gate v1 is a hard stop, not a documentation exception. The failed eval cases and the passing unit count are recorded in `validation.md`.
 
 ## Project Structure and Ownership
 
@@ -45,7 +45,7 @@ Pre-research and post-design checks pass at the design level. Gate v1 release ev
 | Repository | `packages/db/src/package-v2-2.ts`; one export in `packages/db/src/index.ts`; `packages/db/test/package-v2-2.test.ts` | `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02` |
 | Pipelines | `apps/worker/src/package-v2-2.ts`; `apps/worker/test/package-v2-2.test.ts` | `FR-SI-02`, `FR-GC-04/05`, `C-02` |
 | API | `apps/api/src/routes/package-v2-2.ts`; minimal route registration in `apps/api/src/server.ts`; `apps/api/test/package-v2-2.test.ts` | `FR-GC-04/05/07/09`, `FR-NM-02`, `FR-WM-04/05` |
-| Web | `apps/web/src/source-guide.ts`, `apps/web/src/chat-control.ts`; corresponding focused tests under `apps/web/test/` | `FR-SI-02`, `FR-GC-04/05/07/09` |
+| Web | `apps/web/src/source-guide.ts`, `apps/web/src/chat-control.ts`, integration in `apps/web/src/main.ts`; corresponding focused tests under `apps/web/test/` | `FR-SI-02`, `FR-GC-04/05/07/09` |
 | Design docs/upstream flow-back | `specs/006-source-guide-chat-control/{plan,research,data-model,quickstart}.md`, `contracts/interfaces.md`, checklist, tasks, analysis; targeted additions to feature and Package 2.2/2.3 cards | `CC-01`, `FR-GC-09`, `FR-NM-02` |
 
 Do not modify other package schemas or migrations; do not edit managed templates/skills. Shared `packages/contracts/src/index.ts` and `packages/db/src/index.ts` exports are single-line serialized changes in this worktree.

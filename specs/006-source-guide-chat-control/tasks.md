@@ -9,7 +9,7 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 
 ## Phase 1: Setup and shared contracts
 
-- [ ] T001 Verify and record the v1 release-gate evidence and Package 2.1 language-preference prerequisite in `specs/006-source-guide-chat-control/validation.md` (`Gate v1.0`, `FR-WM-02/03`, `FR-UI-02`). Do not start v2 runtime implementation if Gate v1 has not passed; report the blocker instead.
+- [X] T001 Verify and record the v1 release-gate evidence and Package 2.1 language-preference prerequisite in `specs/006-source-guide-chat-control/validation.md` (`Gate v1.0`, `FR-WM-02/03`, `FR-UI-02`). Result: Gate v1 is BLOCKED because `pnpm eval:deterministic` fails; do not start v2 runtime implementation until prerequisite owners resolve it.
 
 ## Phase 2: Foundational Zod contracts and repository
 
@@ -26,7 +26,7 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 **Independent Test**: Worker tests use a known Ready source and deterministic model fake; assert singleton scope, summary/topics limits, valid supporting chunk IDs, retries/failure status and no change to chat selection.
 
 ### Tests (Red first)
-- [ ] T006 Write/run failing pipeline and Ready-trigger tests in `apps/worker/test/package-v2-2.test.ts` (`FR-SI-02`, `C-02`, `NFR-EVAL-04`, Gate v2.0 #1). Cover explicit `[source_id]` reads, revision/auth recheck, full and <50-word source constraints, no unsupported padding/foreign chunk IDs, transient retry with exponential backoff, exhausted failure preserving Ready text access, and asynchronous scheduling after Ready.
+- [ ] T006 Write/run failing pipeline and Ready-trigger tests in `apps/worker/test/package-v2-2.test.ts` (`FR-SI-02`, `C-02`, `NFR-EVAL-04`, Gate v2.0 #1). Cover explicit `[source_id]` reads, revision/auth recheck, full and <50-word source constraints, no unsupported padding/foreign chunk IDs, at most 3 attempts with 100 ms then 200 ms delays for transient failures only, exhausted failure preserving Ready text access, asynchronous scheduling after Ready, and the local deterministic-fake budget against <10 s.
 - [ ] T007 [P] Write/run failing Source Guide API tests in `apps/api/test/package-v2-2.test.ts` (`FR-SI-02`, `FR-WM-04/05`, `C-02`): owner-authenticated Ready source read, pending/failed result, foreign notebook/source rejection and no selection mutation.
 - [ ] T008 [P] Write/run failing Source Guide presentation and topic-dispatch tests in `apps/web/test/source-guide.test.ts` (`FR-SI-02`): collapsed guide appears before full text, open/closed state, topic click sends focused grounded query, and failure leaves document viewing available.
 
@@ -41,7 +41,7 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 **Independent Test**: Generate for `[A,B]`, change to `[A]`, and prove stale overview is hidden immediately and replacement content/support IDs contain no B data; empty scope clears content.
 
 ### Tests (Red first)
-- [ ] T012 Write/run failing overview pipeline tests in `apps/worker/test/package-v2-2.test.ts` (`FR-GC-04`, `C-02`, `NFR-EVAL-04`): explicit nonempty scope, snapshot/cache identity including auth/language/parameters, 3–5 supported prompts ≤120, valid supporting chunk IDs, stale revision/access failure, another-user isolation and empty/deleted selection behavior.
+- [ ] T012 Write/run failing overview pipeline tests in `apps/worker/test/package-v2-2.test.ts` (`FR-GC-04`, `C-02`, `NFR-EVAL-04`): explicit nonempty scope, snapshot/cache identity including auth/language/parameters, 3–5 supported prompts ≤120, valid supporting chunk IDs, stale revision/access failure, another-user isolation, empty/deleted selection behavior, and local deterministic-fake generation within 6 s.
 - [ ] T013 Write/run failing overview route tests in `apps/api/test/package-v2-2.test.ts` (`FR-GC-04`, `C-02`, `NFR-EVAL-04`) for empty-scope rejection, prompt DTO and stale snapshot fail-closed response.
 - [ ] T014 Write/run failing overview controller/presentation tests in `apps/web/test/chat-control.test.ts` (`FR-GC-04`, `C-02`): show notebook summary and count, immediately clear stale data on scope/language change, empty state, and starter prompt dispatch as a grounded user turn.
 
@@ -56,7 +56,7 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 **Independent Test**: Test three supported suggestions, fewer than three when evidence is insufficient, refusal recovery topics, streaming hiding and stale-scope invalidation.
 
 ### Tests (Red first)
-- [ ] T018 Write/run failing follow-up pipeline tests in `apps/worker/test/package-v2-2.test.ts` (`FR-GC-05`, `C-02`, `NFR-EVAL-04`): post-completion only, 0–3 unique answerable chips ≤100, valid support IDs, refusal suggestions based only on scoped sources, stale revision failure and no unsupported padding.
+- [ ] T018 Write/run failing follow-up pipeline tests in `apps/worker/test/package-v2-2.test.ts` (`FR-GC-05`, `C-02`, `NFR-EVAL-04`): post-completion only, 0–3 unique answerable chips ≤100, valid support IDs, refusal suggestions based only on scoped sources, stale revision failure and no unsupported padding, and local deterministic-fake generation within 1 s after completion.
 - [ ] T019 Write/run failing follow-up state and click tests in `apps/web/test/chat-control.test.ts` (`FR-GC-05`, `C-02`): hidden during streaming, current scope signature required, clear immediately on scope changes, chip click submits next grounded turn.
 
 ### Implementation (Green → Refactor)
@@ -84,7 +84,7 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 ### Tests (Red first)
 - [ ] T026 Extend repository tests first in `packages/db/test/package-v2-2.test.ts` (`FR-GC-09`, `FR-NM-02`): feedback record/upsert per message/user, save only assistant messages, title/body/citation preservation, duplicate returns same note, and saved note survives chat clear.
 - [ ] T027 Write/run failing response-action API tests in `apps/api/test/package-v2-2.test.ts` (`FR-GC-09`, `FR-NM-02`, `FR-WM-04/05`, `NFR-EVAL-02`): caller owns assistant message, note creation Owner-only, identical repeat response, categories/comment 0/1,000/1,001 and citation validation.
-- [ ] T028 Write/run failing web action tests in `apps/web/test/chat-control.test.ts` (`FR-GC-09`, `FR-NM-02`): copy with/without badge markers (preserve answer text), toast, active rating, negative category/comment flow, pending-save disabling and saved note display.
+- [ ] T028 Write/run failing web action tests in `apps/web/test/chat-control.test.ts` (`FR-GC-09`, `FR-NM-02`): copy with/without badge markers (preserve answer text), toast, active rating, negative category/comment flow, pending-save disabling and saved note display; check local copy/feedback ≤200 ms and note display ≤300 ms without claiming production latency.
 
 ### Implementation (Green → Refactor)
 - [ ] T029 Implement feedback/save-note repository operations in `packages/db/src/package-v2-2.ts` (`FR-GC-09`, `FR-NM-02`); pass T026 with idempotency `(authenticated user_id, source_message_id)` and note/chat lifecycle separation.
@@ -93,9 +93,11 @@ Tests are mandatory under Constitution II/`CC-02`: each spec-derived test must f
 
 ## Phase 8: Polish, flow-back and validation
 
-- [ ] T032 Run focused Package 2.2 contract, DB, worker, API and web Vitest suites from `specs/006-source-guide-chat-control/quickstart.md`; record exact commands/results and distinguish deterministic timing from cloud P95 in `specs/006-source-guide-chat-control/validation.md` (`FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`).
-- [ ] T033 Verify stable save-note shape and all implementation refinements flow back to `spec.md` and the Package 2.2/2.3 cards; rerun `node scripts/check-spec-integrity.mjs` and `git diff --check` (`CC-01`, `FR-GC-09`, `FR-NM-02`).
-- [ ] T034 Run `pnpm typecheck`, `pnpm lint`, and targeted feature tests; assess source-scope/citation leakage and Owner authorization; record exact results in `specs/006-source-guide-chat-control/validation.md` (`Gate v2.0 #1/#2`, `NFR-EVAL-02/04`, `FR-WM-04/05`). Do not claim Gate v2.0 #2 passed until Package 2.3 FR-NM-03 converts the saved note and the next chat turn cites that source.
+- [ ] T032 Write/run a failing web integration test that proves the Source Guide, overview, follow-up, configuration and response-action modules are reachable in the real application shell in `apps/web/test/package-v2-2.integration.test.ts` (`FR-SI-02`, `FR-GC-04/05/07/09`).
+- [ ] T033 Wire the Package 2.2 modules into `apps/web/src/main.ts` and its existing presentation entry points (`FR-SI-02`, `FR-GC-04/05/07/09`); pass T032.
+- [ ] T034 Run focused Package 2.2 contract, DB, worker, API and web Vitest suites from `specs/006-source-guide-chat-control/quickstart.md`; record exact commands/results and distinguish deterministic timing from cloud P95 in `specs/006-source-guide-chat-control/validation.md` (`FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`).
+- [ ] T035 Verify stable save-note shape and all implementation refinements flow back to `spec.md` and the Package 2.2/2.3 cards; rerun `node scripts/check-spec-integrity.mjs` and `git diff --check` (`CC-01`, `FR-GC-09`, `FR-NM-02`).
+- [ ] T036 Run `pnpm typecheck`, `pnpm lint`, and targeted feature tests; assess source-scope/citation leakage and Owner authorization; record exact results in `specs/006-source-guide-chat-control/validation.md` (`Gate v2.0 #1/#2`, `NFR-EVAL-02/04`, `FR-WM-04/05`). Do not claim Gate v2.0 #2 passed until Package 2.3 FR-NM-03 converts the saved note and the next chat turn cites that source.
 
 ## Dependencies and execution order
 

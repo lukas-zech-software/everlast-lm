@@ -38,4 +38,4 @@ The route module receives repository/service dependencies and derives user ident
 
 ## Failure semantics
 
-Invalid model output (unknown chunk IDs, blank/out-of-limit fields, unsupported count padding) is not published. A transient guide failure retries with exponential backoff; exhausted failure leaves source inspection available. A stale snapshot fails closed. Model/status errors never expose an unvalidated factual draft (`D13`, `NFR-EVAL-02/04`).
+Invalid model output (unknown chunk IDs, blank/out-of-limit fields, unsupported count padding) is not published. A transient guide failure retries at most twice (3 total attempts; 100 ms then 200 ms); permanent errors and invalid structured output do not retry. Exhausted failure leaves source inspection available. A stale snapshot fails closed. Model/status errors never expose an unvalidated factual draft (`D13`, `NFR-EVAL-02/04`).
