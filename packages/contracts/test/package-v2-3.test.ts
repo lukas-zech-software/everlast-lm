@@ -97,6 +97,18 @@ describe("sanitizeNoteMarkdown hardening (FR-NM-01, CodeQL js/incomplete-multi-c
     expect(sanitizeNoteMarkdown(input)).not.toMatch(forbidden);
   });
 
+  it("handles crafted bracket and tag floods in linear time", () => {
+    const started = performance.now();
+    sanitizeNoteMarkdown("[\\".repeat(50_000));
+    sanitizeNoteMarkdown("[](" + " ".repeat(100_000));
+    sanitizeNoteMarkdown("<a".repeat(50_000));
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it("drops unsafe images and keeps the text of unsafe links", () => {
+    expect(sanitizeNoteMarkdown("![x](javascript:void) [y](JaVaScRiPt:1) [z]( https://ok.example )")).toBe(" y [z]( https://ok.example )");
+  });
+
   it("keeps ordinary text, comparisons and Markdown", () => {
     expect(sanitizeNoteMarkdown("a < b and 3<4\n**bold** [ok](https://a.example)")).toBe(
       "a < b and 3<4\n**bold** [ok](https://a.example)"

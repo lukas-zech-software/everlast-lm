@@ -79,35 +79,77 @@ function stripHtmlPass(input: string): string {
 /** Repeats the pass until nothing changes, so a tag rebuilt from removed pieces is removed as well. */
 function stripHtml(input: string): string {
   let current = input;
-  for (;;) {
+  for (let round = 0; round < SANITIZE_MAX_ROUNDS; round++) {
     const next = stripHtmlPass(current);
     if (next === current) return next;
     current = next;
   }
+  return current.replace(/</g, "&lt;");
 }
 
-/** Replaces Markdown links/images with unsafe schemes by their text (links) or nothing (images). */
-function dropUnsafeLinks(markdown: string): string {
-  return markdown.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
-    const cleaned = url.replace(/[\u0000-\u0020]/g, "");
-    if (/^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned)) {
-      return bang ? "" : text;
-    }
-    return match;
-  });
+/** For each position, the index of the next `ch` at or after it (or -1): one backward pass, O(n). */
+function nextIndexTable(text: string, ch: string): Int32Array {
+  const table = new Int32Array(text.length + 1).fill(-1);
+  for (let i = text.length - 1; i >= 0; i--) table[i] = text[i] === ch ? i : table[i + 1]!;
+  return table;
+}
+
+function isUnsafeUrl(url: string): boolean {
+  let cleaned = "";
+  for (const c of url) if (c.charCodeAt(0) > 0x20) cleaned += c;
+  return /^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned);
 }
 
 /**
- * Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. Both steps repeat until
- * nothing changes, so neither can rebuild markup the other removed (e.g. `<[img](javascript:x) onerror=…>`).
+ * Replaces Markdown links with unsafe schemes by their text and drops such images, in one linear scan
+ * (`[text](url ...)`, text without `]`, url up to the first whitespace or `)`).
+ */
+function dropUnsafeLinks(markdown: string): string {
+  const nextClose = nextIndexTable(markdown, "]");
+  const nextParen = nextIndexTable(markdown, ")");
+  let out = "";
+  let i = 0;
+  while (i < markdown.length) {
+    const image = markdown[i] === "!" && markdown[i + 1] === "[";
+    const start = image ? i + 1 : i;
+    if (markdown[start] !== "[") {
+      out += markdown[i];
+      i++;
+      continue;
+    }
+    const close = nextClose[start + 1] ?? -1;
+    const end = close === -1 ? -1 : (nextParen[close + 2] ?? -1);
+    if (close === -1 || markdown[close + 1] !== "(" || end === -1) {
+      out += markdown[i];
+      i++;
+      continue;
+    }
+    let u = close + 2;
+    while (u < end && /\s/.test(markdown[u]!)) u++;
+    let urlEnd = u;
+    while (urlEnd < end && !/\s/.test(markdown[urlEnd]!)) urlEnd++;
+    const text = markdown.slice(start + 1, close);
+    out += isUnsafeUrl(markdown.slice(u, urlEnd)) ? (image ? "" : text) : markdown.slice(i, end + 1);
+    i = end + 1;
+  }
+  return out;
+}
+
+const SANITIZE_MAX_ROUNDS = 8;
+
+/**
+ * Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. Both linear steps repeat
+ * until nothing changes, so neither can rebuild markup the other removed (e.g. `<[img](javascript:x) onerror=…>`).
+ * Rounds are capped; input that is still changing then has every `<` escaped, which is always safe.
  */
 export function sanitizeNoteMarkdown(markdown: string): string {
   let current = markdown;
-  for (;;) {
+  for (let round = 0; round < SANITIZE_MAX_ROUNDS; round++) {
     const next = stripHtml(dropUnsafeLinks(current));
     if (next === current) return next;
     current = next;
   }
+  return dropUnsafeLinks(current).replace(/</g, "&lt;");
 }
 
 const TitleSchema = z
