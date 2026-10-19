@@ -141,7 +141,7 @@ impossible requirement that each side be fully implemented first.
 | Release | Within-release ordering / shared prerequisite |
 | :- | :- |
 | v1 | Define C-01/C-02 once; 1.1 supplies identity, notebooks and quotas; 1.2 supplies ingestion/inspector; 1.3 supplies chat/citations; 1.4 supplies UI integration and full gate tests. Test harness/UI shells may be built before their consumers. |
-| v2 | 2.1 language preferences precede language-sensitive generators; 2.2 response actions and 2.3 saved notes share one save-note contract. 2.4 defines C-03. Source Guide is asynchronous; overview generation can read chunks without waiting for it. |
+| v2 | 2.1 language preferences precede language-sensitive generators; 2.2 response actions and 2.3 saved notes share one save-note contract (`POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note`). 2.4 defines C-03. Source Guide is asynchronous; overview generation can read chunks without waiting for it. |
 | v3 | 3.1 extends C-01 adapters without changing the locator union; 3.2 and 3.3 consume existing contracts; 3.4 benchmarks the integrated v3 result. |
 | v4 | 4.1 flashcards/quizzes and 4.2 infographics precede the composite FR-ST-12 Learning Overview. Each generator remains an independent C-03 plugin. |
 | v5 | 5.1 TTS and v4 slide rendering precede 5.2 narrated video. Join-In also depends on the player in FR-ST-04. |
