@@ -14,6 +14,13 @@ function keywords(text: string): string[] {
 }
 
 /** Cites prompt chunks that share at least two question keywords; otherwise refuses. */
+/** Drops trailing "?", "." and "!" in linear time (no backtracking regex on untrusted input). */
+function trimEndPunctuation(text: string): string {
+  let end = text.length;
+  while (end > 0 && "?.!".includes(text[end - 1]!)) end--;
+  return text.slice(0, end);
+}
+
 export class LexicalCitingModel implements GroundedModel {
   readonly id = "deterministic-lexical-citing-model";
 
@@ -23,7 +30,7 @@ export class LexicalCitingModel implements GroundedModel {
       const text = c.text.toLowerCase();
       return words.filter((w) => text.includes(w)).length >= Math.min(2, words.length);
     });
-    if (hits.length === 0) return { status: "not_in_sources", missing_topic: question.replace(/[?.!]+$/, ""), sentences: [] };
+    if (hits.length === 0) return { status: "not_in_sources", missing_topic: trimEndPunctuation(question), sentences: [] };
     return {
       status: "answered",
       sentences: hits.slice(0, 4).map((c) => ({ text: c.text.split("\n")[0]!.slice(0, 400), citations: [c.chunk_id], kind: "claim" as const })),

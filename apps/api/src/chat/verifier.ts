@@ -18,12 +18,11 @@ export function notInSourcesMessage(topic?: string): string {
 }
 
 function sanitizeTopic(topic?: string): string {
-  return (topic ?? "")
-    .replace(/\[\[/g, "[")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/[.?!]+$/, "")
-    .slice(0, 120);
+  const clean = (topic ?? "").replace(/\[\[/g, "[").replace(/\s+/g, " ").trim();
+  // Trailing punctuation removed in linear time (no backtracking regex on model output).
+  let end = clean.length;
+  while (end > 0 && ".?!".includes(clean[end - 1]!)) end--;
+  return clean.slice(0, end).slice(0, 120);
 }
 
 export type VerificationResult =

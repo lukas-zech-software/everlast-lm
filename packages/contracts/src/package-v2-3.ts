@@ -54,6 +54,8 @@ export function sanitizeNoteMarkdown(markdown: string): string {
       .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "")
       .replace(/<\/?[a-z!][^>]*>/gi, "");
   } while (sanitized !== previous);
+  // Any "<" left after tag removal is text: escape it so no partial or reassembled tag can survive.
+  sanitized = sanitized.replace(/</g, "&lt;");
 
   return sanitized.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
     const cleaned = url.replace(/[\u0000-\u0020]/g, "");
