@@ -14,7 +14,7 @@
 </p>
 <p>
   <a href="docs/gate-v1-live-evaluation.md"><img alt="Gate v1.0" src="https://img.shields.io/badge/Gate%20v1.0-passed-2ea44f"></a>
-  <img alt="Implementation" src="https://img.shields.io/badge/implementation-v1%20done%20%C2%B7%20v2%20in%20review-yellow">
+  <img alt="Implementation" src="https://img.shields.io/badge/implementation-v1%20done%20%C2%B7%20v2%20proof%20of%20concept-yellow">
   <img alt="Deployment" src="https://img.shields.io/badge/deployment-infra%20only-lightgrey">
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
   <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v2.0.0-informational"></a>
@@ -52,7 +52,7 @@ Five days, from the first requirements document to a passed v1 release gate. Eac
 | 2026-10-17/18 | 5. Infrastructure, automated | OpenTofu modules, policy tests, plan/apply workflow, dev environment provisioned, FinOps tooling |
 | 2026-10-18 | 6. First v1 implementation | Spec Kit specs, plans and tasks for packages 1.1–1.4; a 23,000-line implementation PR |
 | 2026-10-19 | 7. Convergence and Gate v1.0 | Gap check found the v1 build mostly stubbed; rewrite on real dependencies; constitution v2.0.0; D15; **Gate v1.0 passed** on Vertex AI |
-| 2026-10-19 | 8. v2 in parallel | Packages 2.1–2.4 built by parallel sessions and merged; package 3.1 specification under review |
+| 2026-10-19 | 8. v2 in parallel | Packages 2.1–2.4 built by parallel sessions, then moved onto the converged v1 code with in-memory data (D16); package 3.1 specification under review |
 
 **1. Requirements gathering.** The Gemini web app broke the reference product into functions. That became the
 [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md): six domains, 55 IDs, four measurable quality
@@ -94,8 +94,11 @@ evaluation on Vertex AI passed on the third run; the [stakeholder report](docs/g
 the method, the two failed runs and the results.
 
 **8. v2 in parallel.** While v1 was being converged, other sessions specified and implemented the four v2 packages
-(workspace comfort, Source Guide and chat control, notes, text reports) and merged them. They were built on the
-earlier v1 code, so they have to be re-verified on the converged code base (see [Status](#status-what-is-missing-for-a-first-usable-prototype)).
+(workspace comfort, Source Guide and chat control, notes, text reports) and merged them. They had been built on the
+stubbed v1 code and kept all their data in memory. The owner decided to keep it that way for now (D16): v2 runs on
+the converged v1 code behind its real sign-in and ownership checks, its data stays in memory until v3, and the
+proof of concept runs as one API instance. Persistence was never a goal of the proof of concept, and none of the
+v2 work is lost.
 
 ---
 
@@ -124,11 +127,11 @@ earlier v1 code, so they have to be re-verified on the converged code base (see 
 | :- | :- |
 | **Requirements** | 55 IDs in 6 domains, 3 contracts, 6 releases, 19 packages, 53 FR cards with 150 EARS statements and 96 Gherkin scenarios |
 | **Governance** | Constitution v2.0.0: 6 principles, 8 gate checks (`CC-01`..`CC-08`), test-first non-negotiable |
-| **Architecture** | 15 decisions (`D1`..`D15`), 3 accepted deviations (`DEV-01`..`DEV-03`) |
+| **Architecture** | 16 decisions (`D1`..`D16`), 4 accepted deviations (`DEV-01`..`DEV-04`) |
 | **Infrastructure** | OpenTofu modules + stack + 3 environments; dev environment provisioned in `europe-west4`; app image not deployed yet |
 | **v1.0 (MVP)** | Packages 1.1–1.4 implemented; **Gate v1.0 passed** on 2026-10-19 |
-| **v2.0** | Packages 2.1–2.4 implemented and merged; re-verification and Gate v2.0 pending |
-| **Tests (v1)** | 320 unit/integration tests on real PostgreSQL, 30 browser journeys, 222-case deterministic eval on every PR |
+| **v2.0** | Packages 2.1–2.4 running on the v1 code with in-memory data (D16); Gate v2.0 not run yet |
+| **Tests** | 559 unit/integration tests on real PostgreSQL, 33 browser journeys, 222-case deterministic eval on every PR |
 | **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2): 89 issues, 6 milestones |
 
 ---
@@ -231,6 +234,7 @@ graph LR
 | D13 Citation validation | An answer is checked completely before it is shown; status events may stream meanwhile |
 | D14 IaC | OpenTofu |
 | D15 Source text | Canonical page text in Postgres, committed with the chunks, so deletion is immediate and atomic |
+| D16 v2 proof of concept | v2 data stays in API memory until v3; access, sources and chat stay in Postgres; one API instance |
 
 Only parts that must make choices are agents (grounded chat, research, note assistant). Ingestion and every Studio
 generator are plain deterministic jobs, which keeps latency, cost and randomness down.
@@ -271,7 +275,9 @@ A pnpm monorepo running TypeScript directly on Node 24, without a build step for
 
 v1 lets a user sign in, create notebooks, upload PDF, Markdown and text, inspect a source, and ask questions that
 are answered only from the selected sources. Every claim carries a numbered citation that scrolls to the exact
-passage. If the sources do not contain the answer, the assistant says so. One container image runs as API or worker.
+passage. If the sources do not contain the answer, the assistant says so. v2 adds notebook icons, pins, sorting,
+light/dark theme, language settings, chat style and length, copy, feedback and save-to-notes; its data lives in the
+API's memory for now (D16). One container image runs as API or worker.
 Locally, `pnpm db:test:up` starts Postgres with pgvector in Docker and `pnpm dev` starts API, worker and SPA.
 
 ---
@@ -346,7 +352,9 @@ All agents run on personal subscription plans, so long runs happen one after ano
 | :- | :- | :- |
 | A green agent report means the work is done | The first v1 PR passed its own tests with in-memory stores, unsigned tokens, invented answers and hardcoded eval metrics | Convergence against the spec, evidence from real dependencies, test doubles labelled in code, earlier evidence marked superseded |
 | Release gates are respected because the rules say so | v2 was built and merged while Gate v1.0 was still open, trusting the stubbed eval output | Gates need enforcement in CI and branch rules, not only in documents |
-| Parallel sessions integrate cleanly | v2 was built on the pre-convergence v1 code; merging the two touches 21 conflicting files | Strict merge order and rebasing on the latest gate-passing base |
+| Parallel sessions integrate cleanly | v2 was built on the stubbed v1 code: in-memory stores, a server that accepted unsigned tokens, 21 conflicting files | v2 moved onto the real v1 app behind its sign-in and ownership checks; its data stays in memory until v3 (D16). Merge order and rebasing on the latest gate-passing base |
+| In-memory stores are a harmless shortcut | They only work in a single process: the worker could not see what the API stored | v2 background work runs inside the API process; one API instance until v3 |
+| The browser can load shared packages | The plain-`tsc` SPA has no bundler, so v2 code that imported `@everlast/contracts` broke the page | The SPA imports shared packages for types only; a tested browser copy holds the few runtime values |
 | Judged evals can run on every PR | Too slow and costly, and they need cloud credentials in CI | Constitution v2.0.0: once per release gate on a fixed 50-case sample; deterministic checks stay on every PR |
 | A managed RAG service fits | Vertex RAG Engine needed an always-on Spanner instance and had no TypeScript SDK | D1: pgvector + full-text search in the one Postgres |
 | Everything runs in `europe-west4` | Cloud Tasks is not offered there; Document AI only in the EU multi-region | Recorded region map (D3): `europe-west1` for queues, `eu` for OCR |
@@ -364,7 +372,7 @@ everlast-lm/
 ├── AGENTS.md, CLAUDE.md          ← shared agent manual (worktrees, packages, ownership)
 ├── spec/                         ← SRS, FR cards per release (v1–v6), evidence of the reference product
 ├── specs/<NNN>-<package>/        ← Spec Kit output per package: spec, plan, tasks, validation, evidence
-├── docs/                         ← architecture (D1–D15), audits, Gate v1.0 report, workflow overlays
+├── docs/                         ← architecture (D1–D16), audits, Gate v1.0 report, workflow overlays
 ├── apps/                         ← api, worker, web
 ├── packages/                     ← contracts, db, cloud, evals, testkit
 ├── infra/                        ← OpenTofu modules, release stack, dev/staging/prod roots
@@ -381,22 +389,24 @@ everlast-lm/
 v1 works end to end locally and passed its quality gate against the live models. To give a real user a URL to sign
 in and work with, these steps remain, in order:
 
-1. **Re-verify v2 on the converged v1 code.** Packages 2.1–2.4 were built and tested against the earlier v1 code
-   (in-memory stores, stubbed eval). Their tests must pass on PostgreSQL and the real auth and chat pipeline before
-   `main` can be deployed. Gate v2.0 has not run yet.
-2. **Build and deploy the application.** The Dockerfile exists, but no image is in Artifact Registry and no workflow
+1. **Build and deploy the application.** The Dockerfile exists, but no image is in Artifact Registry and no workflow
    builds, pushes and rolls it out. Cloud Run still serves the placeholder image. Database migrations must run as part
    of the rollout.
-3. **Set up sign-in.** Configure an Identity Platform provider (an OIDC test tenant) and the SPA's client settings,
+2. **Set up sign-in.** Configure an Identity Platform provider (an OIDC test tenant) and the SPA's client settings,
    then run the open live checks for sign-in, token revocation and bucket purge (001 T046).
-4. **Wire the runtime configuration.** Bucket, Document AI processor, Vertex project, Cloud Tasks queue and invoker
+3. **Wire the runtime configuration.** Bucket, Document AI processor, Vertex project, Cloud Tasks queue and invoker
    as Cloud Run settings; secrets mounted; Cloud SQL started.
-5. **Give CI its cloud identity.** Set the Workload Identity variables so deploys and the release-gate eval run from
+4. **Give CI its cloud identity.** Set the Workload Identity variables so deploys and the release-gate eval run from
    GitHub without personal credentials, then re-run the gate on the merged commit.
-6. **Smoke-test the deployed environment.** Upload a PDF, ask a question, click a citation; measure time to first
+5. **Smoke-test the deployed environment.** Upload a PDF, ask a question, click a citation; measure time to first
    answer (target 2.5 s, not gated in v1) and cold starts.
-7. **Recommended before real users:** multi-hop retrieval, so questions that chain facts across documents get
+6. **Recommended before real users:** multi-hop retrieval, so questions that chain facts across documents get
    answered, and answer coverage as a reported metric.
+
+The v2 features are part of the prototype with known limits (D16): their data resets when the API restarts;
+Source Guide, notebook overview and follow-up suggestions stay hidden until a Gemini client for them is added;
+Studio reports use a rule-based extractor instead of a model; notes and reports have working APIs but no UI yet;
+and Gate v2.0 has not run. Moving v2 data to PostgreSQL is a v3 prerequisite.
 
 ---
 
