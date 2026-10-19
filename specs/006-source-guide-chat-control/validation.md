@@ -16,7 +16,7 @@ SRS trace: `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`
 - **Runtime:** `apps/api/src/v2/runtime.ts` composes the package; background work runs in the API process
   (single instance for the PoC).
 - **Verification (worktree `v1-gate`, PostgreSQL 16 + pgvector):** `pnpm typecheck` clean; `pnpm lint` passed;
-  Vitest 74 files / 574 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
+  Vitest 74 files / 576 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
 - **Package 2.2 specifics:** Source Guides read whole sources through PostgreSQL C-02
   (`listSnapshotChunks`); chat configuration reaches the grounded model as response preferences (never the
   grounding rules). **No Gemini client exists for `StructuredGenerationClient`**, so Source Guide, overview and

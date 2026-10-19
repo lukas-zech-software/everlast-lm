@@ -16,7 +16,7 @@ SRS scope: `FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC-03`. Exact pnpm commands u
 - **Runtime:** `apps/api/src/v2/runtime.ts` composes the package; background work runs in the API process
   (single instance for the PoC).
 - **Verification (worktree `v1-gate`, PostgreSQL 16 + pgvector):** `pnpm typecheck` clean; `pnpm lint` passed;
-  Vitest 74 files / 574 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
+  Vitest 74 files / 576 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
 - **Package 2.1 specifics:** overview fields, icon (`PATCH /api/notebooks/:id/icon`), opened
   (`POST .../opened`) and sort are served by the v1 notebook routes; Ready counts come from PostgreSQL
   (`countReadySources`). Chat turns now carry the caller's input/output language (`ResponsePreferences` in

@@ -91,6 +91,8 @@ describe("sanitizeNoteMarkdown hardening (FR-NM-01, CodeQL js/incomplete-multi-c
     ["<img src=x onerror=alert(1)", /<img/i],
     ["<STYLE>b{}</STYLE>ok", /style|b\{\}/i],
     ["<<b>script>alert(1)<</b>/script>", /<script|<\/script/i],
+    ["<[img](javascript:x) src=x onerror=alert(1)>", /<img|onerror/i],
+    ["<[a](data:x)img src=x onerror=alert(1)>", /<aimg|<img|onerror/i],
   ])("leaves no tag in %j", (input, forbidden) => {
     expect(sanitizeNoteMarkdown(input)).not.toMatch(forbidden);
   });

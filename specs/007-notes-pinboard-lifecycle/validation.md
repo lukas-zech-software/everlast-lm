@@ -16,7 +16,7 @@
 - **Runtime:** `apps/api/src/v2/runtime.ts` composes the package; background work runs in the API process
   (single instance for the PoC).
 - **Verification (worktree `v1-gate`, PostgreSQL 16 + pgvector):** `pnpm typecheck` clean; `pnpm lint` passed;
-  Vitest 74 files / 574 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
+  Vitest 74 files / 576 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
 - **Package 2.3 specifics:** note sources use the converged Markdown ingestion path
   (`createNoteMarkdownIngestor`, same chunker) and count against the PostgreSQL source slots. The Note
   Assistant uses the v1 grounded model and citation verifier (`GroundedNoteAssistant`); it answers 503 without

@@ -39,7 +39,7 @@
 ### Re-verification after merging release v2 (2026-10-19, D16)
 
 Merging `main` (v2 packages 2.1–2.4) into this branch changed shared API, chat prompt and web files. Re-run on the
-merged tree: Vitest 74 files / 574 tests, Playwright 33/33 (GATE-1 and GATE-3 included), `pnpm eval:deterministic`
+merged tree: Vitest 74 files / 576 tests, Playwright 33/33 (GATE-1 and GATE-3 included), `pnpm eval:deterministic`
 Precision_ID 160/160 and leakage 0 with 0 of 60 adversarial drafts published. The grounding instruction gained one
 clause (rule 8: answer in the requested output language when RESPONSE PREFERENCES name one); release-gate payloads
 carry no preferences, so the judged run is unaffected, and the planned re-run on the merged commit confirms it.

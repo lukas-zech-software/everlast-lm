@@ -86,17 +86,28 @@ function stripHtml(input: string): string {
   }
 }
 
-/** Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. */
-export function sanitizeNoteMarkdown(markdown: string): string {
-  const sanitized = stripHtml(markdown);
-
-  return sanitized.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
+/** Replaces Markdown links/images with unsafe schemes by their text (links) or nothing (images). */
+function dropUnsafeLinks(markdown: string): string {
+  return markdown.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
     const cleaned = url.replace(/[\u0000-\u0020]/g, "");
     if (/^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned)) {
       return bang ? "" : text;
     }
     return match;
   });
+}
+
+/**
+ * Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. Both steps repeat until
+ * nothing changes, so neither can rebuild markup the other removed (e.g. `<[img](javascript:x) onerror=…>`).
+ */
+export function sanitizeNoteMarkdown(markdown: string): string {
+  let current = markdown;
+  for (;;) {
+    const next = stripHtml(dropUnsafeLinks(current));
+    if (next === current) return next;
+    current = next;
+  }
 }
 
 const TitleSchema = z

@@ -16,7 +16,7 @@
 - **Runtime:** `apps/api/src/v2/runtime.ts` composes the package; background work runs in the API process
   (single instance for the PoC).
 - **Verification (worktree `v1-gate`, PostgreSQL 16 + pgvector):** `pnpm typecheck` clean; `pnpm lint` passed;
-  Vitest 74 files / 574 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
+  Vitest 74 files / 576 tests passed; Playwright 33/33 (incl. `workspace-comfort.spec.ts` WC-E01..03); `pnpm eval:deterministic` Precision_ID 160/160, leakage 0. Gate v2.0 not run.
 - **Package 2.4 specifics:** Studio access, snapshot verification and generation read sources through the
   v1 PostgreSQL C-02 path; reports run in the API process (`InlineStudioDispatcher`). **No Gemini report
   adapter exists**; reports use the deterministic, citation-checked extractor (`DeterministicReportModel`).
