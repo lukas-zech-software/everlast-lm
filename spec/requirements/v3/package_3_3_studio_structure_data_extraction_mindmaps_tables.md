@@ -157,6 +157,8 @@ Scenario: Drilldown does not restore a historical source selection
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Data Table"` (`"Datentabelle"`) tile in the Studio panel (optionally providing a focus prompt such as `"Compare all vendors by pricing, SLA, and certifications"` or choosing a suggested table schema), the `Table Extraction Agent` shall extract structured rows and columns across $S_{\text{aktiv}}$ and persist a `StudioArtifact` (`Contract C-03`).
 - *Ubiquitous:* Every cell in a generated Data Table that asserts a factual value shall include a citation reference (`chunk_id`) linking back to the source passage, or display `"N/A (Not in sources)"` if a document does not state that attribute.
+- *Unwanted:* If fulfilling the requested comparison requires more than 500 rows or 25 columns, the system shall mark the attempt Failed, explain the exceeded limit, ask for narrower instructions, and publish no table. A partial table is not a successful substitute.
+- *State:* When selected documents give conflicting values for the same item and attribute, the table shall keep one row per item, show all conflicting values in the same cell with individual supporting citations, and explicitly mark the disagreement.
 - *Event:* When the user clicks `"Export CSV"` or `"Export Excel (.xlsx)"` in the Data Table viewer, the system shall generate and download a valid UTF-8 `.csv` or OpenXML `.xlsx` file.
 
 **User story:** As an enterprise analyst comparing multiple proposals, contracts, or research papers, I want the Studio to extract structured comparison tables across my active sources and export them to CSV or Excel, so that I don't have to copy-paste metrics manually.
@@ -190,12 +192,30 @@ Scenario: Extract multi-document comparison table and export valid CSV and XLSX 
   Then the generated table contains 3 rows and columns for Vendor, Price, and Uptime SLA with cell citations
   When the user clicks "Export CSV" and "Export XLSX"
   Then the downloaded CSV parses without syntax errors and the XLSX opens cleanly in openpyxl/Excel
+
+Scenario: Oversized comparison fails without publishing a partial table
+  Given a requested comparison requires 501 rows or 26 columns
+  When the system determines that either table limit would be exceeded
+  Then the attempt is Failed with a clear limit explanation
+  And the user is asked to provide narrower instructions
+  And no table is published
+
+Scenario: Conflicting values remain individually cited in one cell
+  Given two active documents state different prices for Vendor A
+  When the owner generates a vendor price comparison
+  Then Vendor A occupies one row
+  And its Price cell shows both values with individual supporting citations
+  And the cell explicitly marks the disagreement
 ```
 
 **Edge & error cases**
+- Oversized requested results (more than 500 rows or 25 columns) → Fail with a clear limit explanation and request narrower instructions; publish no table. Evidence-limited lower counts still follow the shared C-03 rule.
+- Conflicting values for one item/attribute → Preserve all values and individual citations within the same cell, mark the disagreement, and retain one row per item; do not silently choose a value or use the missing-evidence marker.
 - Formula injection prevention in CSV/XLSX export $\rightarrow$ Cell values starting with `=`, `+`, `-`, or `@` are sanitized/escaped so opening the exported file in Excel cannot trigger CSV macro injection.
 
 **Measurable criteria**
+- Boundary fixtures requiring 501 rows or 26 columns publish zero tables and fail with a narrowing request; otherwise valid requests at 500 rows and 25 columns remain within bounds.
+- Conflicting-value fixtures preserve one row per item and all conflicting values with individual citations and an explicit disagreement marker.
 - $100\%$ of exported `.csv` and `.xlsx` files pass format parser validation (`Gate v3.0 #3`).
 
 **Deviations from reference:** First-class dedicated Studio tile with `.csv`/`.xlsx` export and formula-injection sanitization.

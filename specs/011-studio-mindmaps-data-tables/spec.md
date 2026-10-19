@@ -19,7 +19,14 @@
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: Package 3.1 supplies normalized multimodal evidence through C-01; this package consumes existing C-01/C-02 and package 2.4's C-03 without redefining them. FR-SI-03 supplies explicit selection; FR-GC-01/02/06 supplies grounded chat and history. Package 3.2 is an inherited sibling specification, not a new dependency on sandbox computation. Package 3.4 owns integrated context/latency benchmarks. Gate v2.0 must pass before v3 implementation.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only in v3.0. Owner/Editor generation and Full Viewer reading/export become applicable from v6.0; Chat-Only users have no Studio access.
 - **Data Residency (`D3`, `NFR-SEC-01`)**: `europe-west4` default; no new region exception. Enterprise content retains the contractual no-training guarantee; no zero-retention claim is added.
-- **Upstream Flow-Back Status (`CC-01`)**: No new behavior, deviation, or unresolved clarification introduced. Constitution and README already govern evidence-limited counts, lifecycle, scope, and large-context processing over all original chunks; these take precedence over abbreviated card examples. Later refinements must update this specification and the governing upstream card/SRS/architecture.
+- **Upstream Flow-Back Status (`CC-01`)**: Clarifications dated 2026-10-19 for oversized table requests and conflicting cell values are mirrored in the package FR-ST-18 card. No shared SRS or architecture amendment is needed because these refine existing table limits and grounded comparison behavior. Constitution and README already govern evidence-limited counts, lifecycle, scope, and large-context processing over all original chunks; these take precedence over abbreviated card examples. Later refinements must update this specification and the governing upstream card/SRS/architecture.
+
+## Clarifications
+
+### Session 2026-10-19
+
+- Q: When a requested comparison would need more than 500 rows or 25 columns, should the system ask the user to narrow the request or produce a visibly limited table? → A: Fail the attempt with a clear limit explanation and request narrower instructions; publish no table.
+- Q: When selected documents give different values for the same item and attribute, how should the comparison table show that disagreement? → A: Keep one row per compared item; show all conflicting values with their individual citations in the same cell and mark the disagreement.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -81,6 +88,8 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 2. **Given** a document does not state a requested attribute, **When** its cell is generated, **Then** it displays “N/A (Not in sources)” instead of an invented value. (`FR-ST-18`)
 3. **Given** cell values beginning with `=`, `+`, `-`, or `@`, **When** either format is exported, **Then** those values are escaped/sanitized so opening the file does not execute a formula. (`FR-ST-18`)
 4. **Given** an optional prompt of 2,000 trimmed Unicode code points, **When** submitted, **Then** it is within the accepted boundary; **Given** 2,001 code points, **When** submitted, **Then** it is rejected without truncation. (`FR-ST-18`, `C-03`)
+5. **Given** a comparison request that requires more than 500 rows or 25 columns, **When** the system determines that the result exceeds either limit, **Then** the attempt becomes Failed with a clear limit explanation and a request for narrower instructions, and no table is published. (`FR-ST-18`, `C-03`)
+6. **Given** two selected documents state different prices for the same vendor, **When** the comparison table is generated, **Then** the vendor remains one row, the Price cell contains both values with separate supporting citations, and the cell explicitly marks the disagreement. (`FR-ST-18`, `NFR-EVAL-02`)
 
 ### Edge Cases *(mandatory)*
 
@@ -89,6 +98,8 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 - **History and exports (`FR-ST-09/18`, `FR-GC-06`, `NFR-EVAL-04`)**: Mere deselection permits authorized historical viewing/export but not reuse in a new prompt. Deletion/revocation immediately hides affected content or replaces it with unavailable placeholders, including cached snippets and exports.
 - **Invalid evidence (`FR-GC-02`, `C-03`, `NFR-EVAL-02`)**: Invalid or out-of-scope citations fail a Studio job with a refusal explanation before publication; no stripped-citation artifact or silent retry is exposed. The equivalent chat failure returns a refusal.
 - **Limits (`FR-ST-08/18`, `C-03`)**: Node labels are at most 80 trimmed Unicode code points. Table prompts are 0–2,000. Over-limit input is rejected rather than truncated; generated output must satisfy its limits before publication. Insufficient evidence permits fewer supported items with explanation, never padded facts.
+- **Oversized comparison (`FR-ST-18`, `C-03`)**: If fulfilling the requested comparison requires more than 500 rows or 25 columns, fail the attempt with a clear limit explanation and ask for narrower instructions; do not publish a truncated or partial table. This upper-bound behavior is distinct from evidence-limited lower counts.
+- **Conflicting evidence (`FR-ST-18`, `NFR-EVAL-02`)**: Preserve one row per compared item and show all conflicting values, each individually cited, in the affected cell with an explicit disagreement marker; do not silently choose one value or substitute the missing-evidence marker.
 - **Authorization (`FR-WM-04/05`, `NFR-SEC-02`)**: Login alone grants no notebook/document access. Reject cross-notebook and unauthorized reads, generation, drilldowns, and exports; retain upstream document restrictions.
 - **Job termination (`C-03`)**: Failed or Cancelled jobs expose no completed invalid artifact. Retry starts a new attempt with fresh explicit scope and authorization; missing required blocks cannot be marked Completed.
 
@@ -110,13 +121,15 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 - **FR-012 (`C-03`, `FR-ST-08/18`)**: Both generators MUST use the shared Studio lifecycle `Queued → Running → Completed | Failed | Cancelled`; rendering stages are Running substates. Retry MUST create a new attempt. The new artifact types MUST coexist with existing generators without altering their behavior.
 - **FR-013 (`C-03`, `FR-ST-08/18`)**: Requested counts are evidence-constrained targets. Generate fewer supported items with an explanation or refuse if none are supported; never invent padding or publish an artifact missing required blocks. Text limits count Unicode code points after outer-whitespace trimming, with over-limit inputs rejected.
 - **FR-014 (`FR-WM-04/05`, `NFR-SEC-01/02`, `C-02`)**: v3 operations MUST remain owner-only and notebook/document authorized, preserving upstream restrictions and enterprise no-training handling. Deleted/revoked derived artifacts MUST become unavailable immediately; generated visuals MUST be labelled AI-generated and structural illustration must not be presented as documentary evidence.
+- **FR-015 (`FR-ST-18`, `C-03`)**: If a requested comparison requires more than 500 rows or 25 columns, the system MUST fail the attempt with a clear limit explanation and request narrower instructions; it MUST NOT publish a table for that attempt.
+- **FR-016 (`FR-ST-18`, `NFR-EVAL-02`)**: When selected sources disagree about an item’s attribute, the table MUST retain one row for that item and show all conflicting values in the affected cell, each with its own supporting citation, and explicitly mark the disagreement.
 
 ### Key Entities *(include if feature involves data)*
 
 - **Source selection snapshot** (`C-01/C-02`, `FR-SI-03/05`): Explicit Ready source IDs, exact revisions, notebook, and effective authorization captured for one attempt; subsequent checkbox changes do not alter it.
 - **Studio artifact and job** (`C-03`): Notebook-bound generated result, kind (mindmap or data table), attempt, parameters, supporting snapshot, and lifecycle state; only validated completed results are published.
 - **Mindmap node** (`FR-ST-08/09`): Unique identity, bounded label, summary, supporting chunk references, children, and expansion state within a rooted tree.
-- **Data table** (`FR-ST-18`): Ordered columns and rows containing cell values and supporting chunk references, or the explicit missing-evidence marker; presented with sorting and safe downloads.
+- **Data table** (`FR-ST-18`): Ordered columns and rows containing cell values and supporting chunk references, or the explicit missing-evidence marker; conflicting cells retain all values with per-value references and an explicit disagreement marker within one item row; presented with sorting and safe downloads.
 - **Drilldown chat turn** (`FR-GC-06`, `FR-ST-09`): Persisted question/validated answer tied to the current scope; historical map provenance does not grant scope for a new turn.
 
 ## Success Criteria *(mandatory)*
@@ -131,6 +144,8 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 - **SC-006 (`FR-ST-18`, `NFR-EVAL-02`)**: The three-vendor fixture yields three cited rows with the requested columns; all factual cells have valid supporting references and every absent requested value uses the missing-evidence marker.
 - **SC-007 (`NFR-EVAL-01..04`, `FR-ST-09`)**: Applicable evaluation fixtures achieve citation-ID precision 1.0, leakage 0, hallucination below 5%, and out-of-source rejection at least 99%; semantic citation support is evaluated. Missing-scope drilldowns introduce zero out-of-scope labels or summaries.
 - **SC-008 (`FR-ST-08/18`, `C-03`, `NFR-SEC-02`)**: Boundary fixtures enforce the specified text/dimension limits and evidence exception; all deletion/replacement/revocation and invalid-citation fixtures fail without exposing invalid artifacts.
+- **SC-009 (`FR-ST-18`, `C-03`)**: Fixtures requiring 501 rows or 26 columns fail with a limit explanation and a request for narrower instructions, publishing zero tables; otherwise valid requests at 500 rows and 25 columns remain within bounds.
+- **SC-010 (`FR-ST-18`, `NFR-EVAL-02`)**: In conflicting-value fixtures, every compared item remains one row and every conflicting source value appears in its attribute cell with an individual supporting citation and an explicit disagreement marker.
 
 ## Assumptions & Out of Scope
 
