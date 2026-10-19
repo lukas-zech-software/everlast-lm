@@ -80,3 +80,7 @@ Tests are mandatory (constitution II/CC-02): each story's `### Tests` fail for b
 
 - [X] T027 Run `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `git diff --check` and the quickstart vitest command; record UNAVAILABLE runners (NFR-EVAL-02, NFR-EVAL-04).
 - [X] T028 Resolve [checklist](checklists/ux.md) items against the implemented spec and record the gate decision (proceed).
+
+## Phase 7: Converge (gap assessment)
+
+- [X] T029 Converge assessment of spec/plan/tasks against code (FR-NM-01..04): all FR-001..FR-019 are implemented and tested. Recorded caveats: the exact 200,000,000-byte boundary is enforced in `apps/api/src/notes/service.ts` but not exercised by a test (a 200 MB fixture is impractical; the word boundary is tested); `server.ts` remains an unmounted stub as in earlier packages, so `handleNotesRoute` is exported for mounting; Playwright E2E and judged evals are `UNAVAILABLE`.
