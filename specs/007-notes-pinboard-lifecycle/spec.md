@@ -159,5 +159,7 @@ As a writer, I want to summarize, outline, find related ideas, or critique selec
 ## Assumptions & Out of Scope
 
 - **In-Scope Release Constraints**: This feature covers Package 2.3 only. v2.0 is Owner-only. Converted note sources follow existing FR-SI-01 ingestion and C-01; Note Assistant reads all source text through C-02. The save-note entry point from Package 2.2 uses the shared FR-GC-09/FR-NM-02 contract.
+- **Accessibility**: Keyboard operation, labelled selection checkboxes and status announcements for note controls follow the workspace-wide accessibility baseline of FR-UI-01; no package-specific accessibility behavior is added here.
+- **Note deletion vs. converted sources**: A converted source is an immutable snapshot (FR-011); deleting or editing an origin note never alters or removes it.
 - **Offline drafts**: The FR-005 local draft is client-only and never sent to the service until a save succeeds.
 - **Out of Scope / Deferred**: Real-time multi-cursor collaborative editing; live two-way synchronization from notes to converted sources; raw binary attachments embedded in notes; Studio report generation; and later-release role permissions or sharing behavior.

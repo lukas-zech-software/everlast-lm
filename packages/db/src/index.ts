@@ -8,4 +8,6 @@ export * from "./ingestion.js";
 export * from "./source-view.js";
 export * from "./chat-history.js";
 export * from "./chat-search.js";
+export * from "./notes.js";
+export * from "./source-registry.js";
 export type { Pool, PoolClient } from "pg";
