@@ -26,7 +26,7 @@ This specification transcribes Package 2.4 and applicable binding cross-package 
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: FR-ST-10 depends on FR-SI-03, FR-UI-01, C-02, and C-03. FR-ST-11 depends on FR-ST-10, FR-SI-02, C-02, and C-03. Package 2.4 defines C-03; the package prerequisite table requires the earlier v2 packages and their contracts for an integrated v2 release.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: v2.0 is Owner-only. Editor permissions described by the report cards remain deferred until v6.0.
 - **Data Residency (`D3`)**: EU preferred, with `europe-west4` as the default; no package-specific region exception is defined here.
-- **Upstream Flow-Back Status (`CC-01`)**: No clarifications or downstream refinements have been made. Requirements are transcribed from Package 2.4 and applicable binding rules.
+- **Upstream Flow-Back Status (`CC-01`)**: The 2026-10-18 clarification (Source Guide pending/failed behavior) and the plan refinements below are flowed back into the FR card (`FR-ST-11` edge cases). No SRS scope change, `Dn` or `DEV-xx` is required.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -123,6 +123,15 @@ As a domain expert, I want suggested report formats tailored to my active source
 - **SC-004 (FR-ST-11)**: Custom prompts of 1 and 5,000 trimmed Unicode code points are accepted; empty prompts and 5,001 code points are rejected without truncation.
 - **SC-005 (FR-ST-10/11, C-03)**: Each report job ends in a valid Queued → Running → Completed, Failed, or Cancelled lifecycle; no failed or incomplete report is presented as completed.
 - **SC-006 (FR-ST-10/11)**: Owners can open, copy, convert to source, and delete completed report artifacts from the Studio viewer.
+
+## Plan Refinements *(flow-back from `/speckit-plan`, 2026-10-19)*
+
+- **C-03 shape (C-03)**: `StudioGeneratorPlugin` = `manifest` + `triggerJob(request)` (synchronous validation) + `generate(ctx)`; the shared runner owns lifecycle, access re-checks and citation validation. See [plan](plan.md) and [contracts](contracts/interfaces.md).
+- **Insufficient evidence (FR-015)**: each template has core blocks that must contain at least one supported item, otherwise the job fails with a refusal; non-core empty blocks carry an explanatory note. See [data-model](data-model.md).
+- **Citation validation (FR-014)**: besides chunk-ID membership and revision match, verbatim quotes and timeline dates must literally occur in the cited chunk text.
+- **Retry (FR-013, C-03)**: retry is only for `Failed`/`Cancelled` artifacts, requires a fresh explicit `active_source_ids`, and creates a new attempt row; the old row is immutable.
+- **Suggestions (FR-009, FR-018)**: result states `SuggestionsLoading`, `SuggestionsReady` (3–4 items), `SuggestionsUnavailable`; suggestion generation is bounded by a 3,000 ms timeout and cached per notebook, exact `(source_id, revision)` set, subject, language.
+- **Deletion hygiene (Constitution III)**: reading an artifact whose captured sources are deleted, replaced or unauthorized returns an unavailable placeholder instead of content.
 
 ## Assumptions & Out of Scope
 

@@ -135,6 +135,8 @@ Scenario: Studio suggests domain-relevant report formats based on active sources
 
 **Edge & error cases**
 - Empty/whitespace-only custom report prompt is rejected; Generate is enabled at one non-whitespace character, matching the 1–5,000 character limit.
+- While `Source Guide` metadata of $S_{\text{aktiv}}$ is still pending, the dynamic suggestions show a loading state; if guide generation failed, the modal explains that suggestions are unavailable. Standard and custom report creation stay usable in both cases (clarified 2026-10-18).
+- The custom report prompt limit counts Unicode code points after trimming outer whitespace; over-limit prompts are rejected, never truncated.
 
 **Measurable criteria**
 - Dynamic report format suggestions load in $\le 3.0\text{ s}$ (cached per source-set hash).
