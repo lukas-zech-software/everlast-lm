@@ -6,10 +6,12 @@ import {
   UserMessageInputSchema,
   type ChatMessage,
   type UnifiedDocumentChunk,
+  OutputLanguageSchema,
 } from "@everlast/contracts";
 
 export interface ChatServiceDependencies {
   agent?: GroundedChatAgent;
+  resolveLanguagePreferences?: (notebookId: string, userId: string, browserLocale?: string) => Promise<{ input_language: string; output_language: string }>;
   getChunksForSources?: (notebookId: string, sourceIds: string[]) => Promise<UnifiedDocumentChunk[]>;
   getThreadMessages?: (notebookId: string, userId: string) => Promise<ChatMessage[]>;
   persistTurn?: (params: {
@@ -102,6 +104,22 @@ export async function handleChatRoute(
         activeSourceRevisions
       );
 
+      const browserLocale = typeof req.headers["accept-language"] === "string"
+        ? req.headers["accept-language"]
+            .split(",")
+            .map((entry) => entry.split(";")[0]?.trim())
+            .map((locale) => {
+              try {
+                return locale ? Intl.getCanonicalLocales(locale)[0] : undefined;
+              } catch {
+                return undefined;
+              }
+            })
+            .find((locale) => locale && OutputLanguageSchema.safeParse(locale).success)
+        : undefined;
+      const languagePreferences = deps.resolveLanguagePreferences
+        ? await deps.resolveLanguagePreferences(notebookId, userId, browserLocale)
+        : { input_language: "auto", output_language: "en-US" };
       const agent = deps.agent ?? new GroundedChatAgent();
       const turnResult = await agent.generateTurn({
         notebookId,
@@ -111,6 +129,8 @@ export async function handleChatRoute(
         activeSourceIds,
         chunks,
         history: eligibleHistory,
+        inputLanguage: languagePreferences.input_language,
+        outputLanguage: languagePreferences.output_language,
       });
 
       let persistedIds = { userMessageId: "generated-user-id", assistantMessageId: "generated-asst-id" };

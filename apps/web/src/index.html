@@ -4,6 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Everlast LM</title>
+    <link rel="stylesheet" href="/workspace.css" />
+    <script>
+      (() => {
+        let theme = "system";
+        try {
+          const saved = JSON.parse(localStorage.getItem("everlast.v2.workspace") || "null");
+          if (["light", "dark", "system"].includes(saved?.theme)) theme = saved.theme;
+        } catch {}
+        const dark = theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+        document.documentElement.dataset.themeMode = theme;
+        document.documentElement.style.colorScheme = dark ? "dark" : "light";
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

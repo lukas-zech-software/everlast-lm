@@ -1,4 +1,6 @@
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import { claimTopicIconSelection, setTopicIconIfDefault } from "@everlast/db";
+import { VertexTopicEmojiSelector, type TopicEmojiSelector } from "./topic-emoji.js";
 
 /**
  * Ingestion Job Input and Result Definitions.
@@ -50,6 +52,21 @@ export function generateUUIDv7(): string {
 
 export class IngestionPipeline {
   private processedAttempts = new Set<string>();
+  private topicEmojiSelector: TopicEmojiSelector;
+
+  constructor(options?: { topicEmojiSelector?: TopicEmojiSelector }) {
+    this.topicEmojiSelector = options?.topicEmojiSelector ?? new VertexTopicEmojiSelector();
+  }
+
+  private async enrichNotebookIcon(input: IngestionJobInput, title: string): Promise<void> {
+    try {
+      if (!await claimTopicIconSelection(input.notebook_id)) return;
+      const icon = await this.topicEmojiSelector.suggest({ title, mediaType: input.media_type });
+      if (icon) await setTopicIconIfDefault(input.notebook_id, icon);
+    } catch {
+      // Decorative topic metadata must never change source ingestion outcome.
+    }
+  }
 
   async process(input: IngestionJobInput): Promise<IngestionJobResult> {
     // 1. Idempotency Check: reject duplicate attempts
@@ -315,6 +332,7 @@ export class IngestionPipeline {
     };
 
     input.onStateChange?.("Ready");
+    await this.enrichNotebookIcon(input, title);
     this.processedAttempts.add(input.attempt_id);
     return result;
   }

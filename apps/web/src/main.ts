@@ -1,6 +1,7 @@
 import { renderWorkspaceLayout, type WorkspaceLayoutController } from "./workspace-layout.js";
 import { renderNotebookHome } from "./notebooks.js";
 import { handleNotebookNotFound } from "./delete-notebook.js";
+import { initializeTheme } from "./workspace-preferences.js";
 
 /**
  * Client SPA entrypoint (FR-UI-01, FR-WM-01).
@@ -8,6 +9,8 @@ import { handleNotebookNotFound } from "./delete-notebook.js";
  */
 
 let currentLayoutController: WorkspaceLayoutController | null = null;
+
+if (typeof document !== "undefined" && document.documentElement) initializeTheme(document.documentElement);
 
 export async function initApp(): Promise<WorkspaceLayoutController | null> {
   const root = document.getElementById("app");
@@ -21,6 +24,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
 
     // Verify notebook existence via API
     let quotaData: any = { sources_used: 0, source_limit: 50 };
+    let notebookData: any = { title: "Research Notebook", icon_emoji: "📓" };
     try {
       const search = typeof window !== "undefined" ? window.location.search : "";
       const res = await fetch(`/api/notebooks/${notebookId}${search}`);
@@ -29,6 +33,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
         return null;
       }
       const data = await res.json();
+      notebookData = data?.notebook ?? notebookData;
       if (data?.quota) {
         quotaData = data.quota;
       }
@@ -48,6 +53,8 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
     if (workspaceEl) {
       currentLayoutController = renderWorkspaceLayout(workspaceEl, {
         activeNotebookId: notebookId,
+        notebookTitle: notebookData.title,
+        notebookIcon: notebookData.icon_emoji,
         initialDraft: "",
         initialSourceCount: sourcesUsed,
       });
