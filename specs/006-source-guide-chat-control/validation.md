@@ -11,3 +11,8 @@ SRS trace: `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-02`, `C-02`, `NFR-EVAL-02/04`
 ## Package 2.2 local implementation validation
 
 Not run: blocked by Gate v1.0. Do not interpret test stubs/fakes as production model P95, enterprise no-training, durable persistence, or Gate v2.0 evidence. Exact commands are listed in [quickstart.md](quickstart.md) for after the prerequisite passes.
+
+## Gate v1.0 recheck with keyless environment
+
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` — **PASS** — 6 test files, 29 tests. The shell API-key variables caused the earlier security-preflight failures; they are not required by the configured keyless test endpoint.
+- Gate v1.0 deterministic evaluation/security prerequisite: **PASS**. Gate v1 upload/citation evidence and Package 2.1 feature prerequisite are still recorded as upstream release evidence; this work does not claim those v1 acceptance artifacts anew.

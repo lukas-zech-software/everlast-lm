@@ -22,7 +22,7 @@ Implement Package 2.2 on the existing v1 TypeScript monorepo without changing sh
 
 ## Constitution Check (`CC-01`..`CC-08`)
 
-Pre-research and post-design design checks are recorded below. Gate v1 execution is currently BLOCKED: `pnpm test:unit` passed 364 tests, but `pnpm eval:deterministic` failed 4 of 29 tests. Constitution V prohibits v2 runtime implementation until Gate v1 passes. This feature therefore remains at design/analyze until the prerequisite is resolved by its owner.
+Pre-research and post-design design checks are recorded below. Gate v1 deterministic evaluation initially failed because shell Gemini API-key variables tripped the keyless security preflight. Re-running `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` passed all 29 tests. Gate v1 deterministic eval prerequisite is PASS; prior Gate v1 upload/citation evidence and Package 2.1 prerequisite remain upstream release evidence.
 
 | Gate | Principle | Pre-Research | Post-Design | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
@@ -31,11 +31,11 @@ Pre-research and post-design design checks are recorded below. Gate v1 execution
 | CC-03 | III. Scope/Snapshot | PASS | PASS | All generation reads use injected C-02, explicit Ready source IDs, exact revisions, authorization context and rechecks; empty scope rejects/clears. |
 | CC-04 | III. Citations/Leakage | PASS | PASS | Supporting chunk IDs are schema-validated against scoped chunks; invalid support/citation IDs fail closed; caches key exact scope/revision/auth/language/parameters. |
 | CC-05 | IV. Contracts/Pipelines | PASS | PASS | New DTOs are Zod in `package-v2-2.ts`; C-01/C-02 stay canonical; generation is deterministic orchestration, not an LlmAgent. |
-| CC-06 | V. Release/Order | BLOCKED | BLOCKED | Package 2.1 precedes, but Gate v1 is not verified: deterministic evals fail. No v2 runtime code may start under Constitution V. |
+| CC-06 | V. Release/Order | PASS* | PASS* | Deterministic v1 eval prerequisite passes 29/29 with keyless shell; prior Gate v1 upload/citation and Package 2.1 evidence remain upstream conditions. |
 | CC-07 | VI. Security/Residency | PASS | PASS | Owner-only v2; API derives user from auth; enterprise no-training endpoints/europe-west4 required for production wiring; no secrets/cloud changes. |
 | CC-08 | Platform/Cost | PASS | PASS | Existing pnpm/TS/Cloud SQL/Cloud Run architecture and zero-new-dependency local tests; no fixed-cost service. |
 
-Gate v1 is a hard stop, not a documentation exception. The failed eval cases and the passing unit count are recorded in `validation.md`.
+Gate v1 deterministic evals pass with the API-key variables unset. Implementation uses that environment; do not infer that this alone certifies all v1 release artifacts.
 
 ## Project Structure and Ownership
 
