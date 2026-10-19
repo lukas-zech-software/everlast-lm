@@ -3,7 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Provide a persistent notes pinboard in the Right Panel supporting manual rich-text/Markdown notes, saving chat responses as notes, one-click conversion of notes into citable sources, and contextual AI actions across selected notes.
 - **FRs:** FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04
-- **Gate criteria (SRS §5.4):** Gate v2.0 #2 — Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.
+- **Gate criteria (SRS §5.4):** Gate v2.0 #2 — round trip passes: *chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*.
+- **v2.0 proof of concept (D16, SRS §5.5 DEV-04):** v2 data lives in API process memory until v3. "Persisted" in this package means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. Access control, sources and chat stay in PostgreSQL.
 - **Out of scope:** Real-time multi-cursor collaborative editing inside a single note (`v6.0` supports notebook-level sharing).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -16,7 +17,7 @@
 | :- | :- |
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor, Viewer (read-only) |
+| Actors | Owner; Editor, Viewer read-only (from v6.0) |
 | Depends on | FR-WM-01, FR-UI-01 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
@@ -40,7 +41,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Note title | UTF-8 string | $1\text{–}200$ characters | `"New note"` (`"Neue Notiz"`) |
-| Note body | Markdown / sanitized HTML | $0\text{–}100,000$ words | Empty |
+| Note body | Markdown; raw HTML and unsafe link targets (such as `javascript:`) are removed on save | $0\text{–}100,000$ words | Empty |
 
 **Outputs & state**
 - Visible: Note item in the Right Panel list; full Note Editor view when opened.
@@ -73,7 +74,7 @@ Scenario: Create and auto-save a manual note
 
 ---
 
-**Shared save-note contract with FR-GC-09 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. Package 2.2 FR-GC-09 MUST consume this same request/response shape.
+**Shared save-note contract with FR-GC-09 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. `title` is the preceding user question trimmed to 200 code points, or `Saved response` when there is none. Body IDs must equal the path IDs; otherwise the API returns `400`. Package 2.2 FR-GC-09 MUST consume this same request/response shape.
 
 ### FR-NM-02 — Save Chat Response as Note
 
@@ -81,12 +82,12 @@ Scenario: Create and auto-save a manual note
 | :- | :- |
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor |
+| Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-GC-02, FR-NM-01; invoked by FR-GC-09 through the shared save-note action |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Owner/Editor clicks `"Save to note"` (`"Als Notiz speichern"`) on an assistant chat response (`FR-GC-09`), the system shall create a new `Note` record in the Right Panel containing the full response text, an auto-generated or prompt-derived title, and its preserved inline citations.
+- *Event:* When the Owner/Editor clicks `"Save to note"` (`"Als Notiz speichern"`) on an assistant chat response (`FR-GC-09`), the system shall create a new `Note` record in the Right Panel containing the full response text, a title derived from the preceding user question (see the shared contract), and its preserved inline citations.
 - *State:* While viewing a `Saved response` note in the Note Viewer, the system shall preserve working inline citation badges (`[1]`, `[2]`) that open the Source Inspector (`FR-SI-04`) when clicked.
 
 **User story:** As a knowledge worker, I want to save valuable chat answers—including their working source citations—into my notes list with a single click, so that I never lose important findings when the conversation continues or is cleared.
@@ -141,12 +142,12 @@ Scenario: Saved chat response survives clearing chat history
 | :- | :- |
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor |
+| Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-NM-01, FR-NM-02, FR-SI-01, C-01 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Owner/Editor opens a note in the Right Panel and clicks `"Convert to source"` (`"In Quelle umwandeln"`), or selects multiple notes and clicks `"Convert selected to source"`, or chooses `"Convert all notes to source"` for all notebook notes, the system shall pass the Markdown content of the note(s) to the Markdown Ingestion Parser (`FR-SI-01`), create one new `Source` record in the Left Panel (multiple notes are concatenated in displayed order under their titles), chunk it into `UnifiedDocumentChunk` records (`Contract C-01`), and mark the new source as `Ready` and selected ($s_{\text{new}} \in S_{\text{aktiv}}$).
+- *Event:* When the Owner/Editor opens a note in the Right Panel and clicks `"Convert to source"` (`"In Quelle umwandeln"`), or selects multiple notes and clicks `"Convert selected to source"`, or chooses `"Convert all notes to source"` for all notebook notes, the system shall pass the Markdown content of the note(s) to the Markdown Ingestion Parser (`FR-SI-01`), create one new `Source` record in the Left Panel (multiple notes are concatenated in displayed order under their titles), chunk it into `UnifiedDocumentChunk` records (`Contract C-01`), and mark the new source as `Ready`. The client that requested the conversion adds it to its own source selection ($s_{\text{new}} \in S_{\text{aktiv}}$; selection is browser-local).
 - *Ubiquitous:* Converting a note to a source shall keep the original note in the Right Panel unless the user explicitly deletes it.
 
 **User story:** As an analyst, I want to convert my curated notes or saved AI syntheses back into formal notebook sources with one click, so that subsequent chat queries and Studio generators can ground and cite my synthesized findings.
@@ -166,7 +167,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 
 **Outputs & state**
 - Visible: New `Ready` source in Left Panel (`Sources`) with checkbox selected; active source count increments by $1$.
-- Persisted: New `Source` (`media_type: 'note_markdown'`, origin note IDs and revision snapshot; preserved old citations are provenance, while new answers cite the converted source's own C-01 chunks) and `UnifiedDocumentChunk` records (`C-01`).
+- Persisted: New `Source` (`media_type: 'note_markdown'`, origin note IDs and revision snapshot; preserved old citations are provenance, while new answers cite the converted source's own C-01 chunks; inline citation markers such as `[1]` from saved responses are removed from the source text and kept only as provenance metadata) and `UnifiedDocumentChunk` records (`C-01`).
 - States: `Note` $\rightarrow$ `IngestingAsSource` $\rightarrow$ `SourceReady`.
 
 **Acceptance criteria (Gherkin)**
@@ -209,7 +210,7 @@ Scenario: Multiple notes produce one bounded source
 | :- | :- |
 | Release / Package | v2.0 / 2.3 |
 | Priority (within package) | P2 |
-| Actors | Owner/Editor |
+| Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-NM-01, FR-NM-03, FR-GC-01, C-02 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
@@ -219,7 +220,7 @@ Scenario: Multiple notes produce one bounded source
   2. `"Create outline"` (`"Gliederung erstellen"`)
   3. `"Suggest related ideas"` (`"Verwandte Ideen vorschlagen"` — grounded in $S_{\text{aktiv}}$)
   4. `"Critique"` (`"Kritik / Review"`)
-- *Event:* When the user clicks one of these actions, the `Note Assistant` agent shall show in the action label/help that it creates a source snapshot from the selected notes. Clicking the action authorizes FR-NM-03 conversion of that exact selection into one source and selects it for this request; await Ready before synthesis. Apply normal source quotas and preserve the notes. Summarize/Outline use that note-source alone; Related ideas/Critique also use the explicitly selected existing sources. All factual output cites the resulting active C-01 chunks through C-02 and distinguishes user-note assertions from other source facts. Display the validated result as a ChatMessage; saving it as a note uses FR-NM-02.
+- *Event:* When the user clicks one of these actions, the `Note Assistant` agent shall show in the action label/help that it creates a source snapshot from the selected notes. Clicking the action authorizes FR-NM-03 conversion of that exact selection into one source and selects it for this request; await Ready before synthesis. Apply normal source quotas and preserve the notes. If the same notes at the same revisions were already converted, reuse that note-source instead of creating a new one; only new or changed note content takes a new slot. Summarize/Outline use that note-source alone; Related ideas/Critique also use the explicitly selected existing sources. All factual output cites the resulting active C-01 chunks through C-02 and shows citations that point to note-sources with a `Note` label, so user-note assertions stay distinguishable from other source facts. Display the validated result as a ChatMessage; saving it as a note uses FR-NM-02.
 
 **User story:** As a writer, I want to select several raw notes and have the AI combine them into an outline, summarize them, critique my arguments, or suggest related ideas from my sources, so that I can turn scattered notes into structured documents.
 
@@ -261,6 +262,7 @@ Scenario: Summarize notes without inventing a separate grounding path
 
 **Edge & error cases**
 - `"Suggest related ideas"` clicked when $0$ sources are selected in the Left Panel $\rightarrow$ Prompts the user to select an existing comparison source before Related ideas/Critique. Summarize/Outline can start with notes alone because the disclosed conversion supplies a Ready source before generation. Failed conversion or exhausted quota produces an error and no model call.
+- Repeating an action on unchanged notes reuses the existing note-source and takes no new slot.
 
 **Measurable criteria**
 - After the note snapshot reaches Ready, validated answer TTFT for a standard note operation is $\le 2.5\text{ s}$; conversion uses the FR-NM-03 timing criterion and is shown as a separate progress phase.

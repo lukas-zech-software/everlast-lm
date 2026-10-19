@@ -330,6 +330,14 @@ Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-API
   Concept bereitsteht. Datenpersistenz ist kein Ziel des PoC. Die Anbindung der v2-Daten an
   PostgreSQL ist eine v3-Voraussetzung und wird vor Gate v3.0 umgesetzt; keine v2-Arbeit geht
   dabei verloren.
+- **v2.0-Kartenreview (Beschluss Project Owner 2026-10-20):** Notiz-KI-Aktionen (`FR-NM-04`)
+  verwenden eine bereits konvertierte Notiz-Quelle wieder, wenn dieselben Notizen in derselben
+  Revision vorliegen; nur neue oder geänderte Inhalte belegen einen Quellen-Slot. Eine Zeitleiste
+  (`FR-ST-10`) ohne datierte Ereignisse wird mit einem ausdrücklichen Hinweis und den Hauptakteuren
+  abgeschlossen, nie mit erfundenen Daten. Source Guides (`FR-SI-02`) entstehen bei `Ready` in der
+  effektiven Ausgabesprache des Notebooks und werden je Quelle, Revision und Sprache gespeichert;
+  eine andere Sprache wird beim Öffnen nachgeneriert. In v1–v5 legt der Owner die Notebook-Sprache
+  fest; persönliche notebookbezogene Überschreibungen gelten ab v6.0 (`FR-UI-02`).
 - **NFR-EVAL-01..04, alle Release-Gates (Beschluss Project Owner 2026-10-19):** Deterministische
   Prüfungen (`NFR-EVAL-02` ID-Präzision, `NFR-EVAL-04` Leakage) laufen auf jedem PR. Die
   LLM-bewerteten Prüfungen (`NFR-EVAL-01`, `NFR-EVAL-03`, semantische Zitatstützung) laufen einmal
