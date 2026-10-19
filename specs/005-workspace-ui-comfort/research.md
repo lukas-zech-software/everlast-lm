@@ -1,6 +1,6 @@
 # Research: Workspace & UI Comfort
 
-Date: 2026-10-19. Scope: Package 2.1 (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC-03`). Research is bounded to the repository's accepted architecture and existing implementation; no external dependencies or new cloud services are needed.
+Date: 2026-10-19. Scope: Package 2.1 (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC-03`). Research follows the repository's accepted architecture and existing implementation; it introduces no new cloud product or framework.
 
 ## Decisions
 
@@ -25,18 +25,22 @@ Date: 2026-10-19. Scope: Package 2.1 (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC
 - **Alternatives considered**: Hard-coded light/dark styles without root variables (incomplete panel coverage); reload-based application (explicitly disallowed).
 
 ### Emoji validity and first-source topic icon
-- **Decision**: Validate exactly one Unicode emoji grapheme (including ZWJ/skin-tone/flag sequences) at the shared contract/API boundary; reject invalid API values with HTTP 400. Keep custom-icon state distinct from the default/auto-topic state so later source-ready events cannot overwrite a manual choice. Route topic assignment through a deterministic source-ready operation that accepts the topic's emoji suggestion from the existing ingestion/topic boundary.
-- **Rationale**: These distinctions are required by FR-WM-02; Unicode code-point count is insufficient for emoji graphemes. Existing architecture calls for Flash-Lite topic emoji selection, but no model integration is in this feature's current runtime. The interface should permit a future authorized model-backed suggestion without fabricating one today.
-- **Alternatives considered**: Regex that accepts only one code point (rejects many valid emoji); unrestricted text; always deriving emoji from local title keywords (would invent topic semantics not backed by the current source/topic data).
+- **Decision**: Validate exactly one Unicode emoji grapheme (including ZWJ/skin-tone/flag sequences) at the shared contract/API boundary; reject invalid API values with HTTP 400. Keep custom-icon state distinct from default/topic state so later source-ready events cannot overwrite a manual choice. For the first source to reach Ready, call the architecture-approved Flash-Lite model through Vertex AI using only the source title and media type, validate one emoji result, and apply it only if the owner has not set a custom icon. A model/configuration/validation failure leaves the source Ready and the existing icon unchanged.
+- **Rationale**: FR-WM-02 specifies topic-based icon assignment and D2 explicitly assigns Flash-Lite topic emoji selection. Using the existing enterprise Vertex AI client preserves D2/D3 and avoids consumer keys; this requires no additional cloud product. No source text/chunks are submitted, so icon enrichment is not a source-read or generation bypass. The testable service accepts an injected model client and fails closed to the existing icon.
+- **Alternatives considered**: Regex that accepts only one code point (rejects many valid emoji); unrestricted text; deterministic title keyword mapping (not the D2-approved topic model and may misclassify); failing source ingestion when a decorative icon call is unavailable (unrelated to source readiness).
 
 ### Supported language set and fallback
 - **Decision**: Use a deterministic, documented list of at least 35 valid BCP-47 enterprise language tags and validate saved explicit preferences against the supported list. `auto` applies only to input language. Output resolution is job override > personal notebook override > notebook default > user default > supported browser locale > `en-US`.
 - **Rationale**: The card sets a minimum language count and exact precedence; one shared list keeps settings choices and resolution consistent.
 - **Alternatives considered**: Accept arbitrary tags into the output picker (cannot guarantee available generation support); implicit runtime locale without a deterministic fallback (not reproducible).
 
+### Requirement refinements
+- **Decision**: List rows show both creation and last-modified dates because FR-001 requires both and FR-WM-03 reference behavior says Created/Modified date. Supported output choices are a fixed, versioned set of 40 locales, not a changing external list. System theme follows `prefers-color-scheme` and is applied before initial paint. Performance checks use synthetic 500-notebook fixtures in the supported Chromium test run and start metadata timing after the successful list response.
+- **Rationale**: These are explicit resolutions of existing card/spec ambiguities, not new features. The details flow back to the package card and feature spec.
+
 ## Resolved implementation questions
 
 - The current server uses native Node HTTP dispatch and authenticates all `/api/*` paths before calling the notebook route. Add routes under this existing authenticated dispatcher and reuse `ownerId`; no framework is introduced.
 - The existing notebook list endpoint and web module form the integration point for home metadata; preserve current creation/title/delete behavior.
 - The current source data is in the ingestion repository; counts include only sources in `Ready`, never Failed/Uploading/Processing.
-- No unresolved technical clarification remains at plan time. If topic detection cannot provide a topic emoji from its existing source-ready input, keep the default emoji and record a flow-back rather than invent a topic. This limitation is flagged as an integration caveat for analysis/implementation.
+- Topic model calls are enrichment only: source ingestion and the Ready transition succeed independently, while a missing endpoint/configuration or invalid response leaves the current icon unchanged. Live endpoint verification is `UNAVAILABLE` without enterprise Vertex AI credentials; deterministic adapter tests remain required.

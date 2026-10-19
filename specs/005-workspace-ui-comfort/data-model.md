@@ -10,9 +10,9 @@ SRS scope: `FR-WM-02`, `FR-WM-03`, `FR-UI-02`, `FR-GC-03`. This package extends 
 | `owner_id` | string | Existing owner identity; all mutations are owner-authorized. |
 | `title` | string | Existing title and validation. |
 | `icon_emoji` | string | Exactly one valid Unicode emoji grapheme cluster; default `📓`. |
-| `icon_source` | `default \| topic \| custom` | Default transitions to topic after first Ready source if a valid topic suggestion exists; custom is sticky and never overwritten by later ingestion. |
+| `icon_source` | `default \| topic \| custom` | Default transitions to topic after the first Ready source when the enterprise Flash-Lite selector returns a valid emoji; selector failure leaves the current icon unchanged; custom is sticky and never overwritten by later ingestion. |
 | `created_at` | ISO timestamp | Existing creation time. |
-| `updated_at` | ISO timestamp | Changes on source add/remove/rename, note/artifact modification, title or icon mutation as specified. |
+| `updated_at` | ISO timestamp | Changes on source add/remove/rename, note/artifact modification, title or icon mutation as specified; common mutation writers call `touchNotebookModified()`. |
 | `ready_source_count` | nonnegative integer | Derived from sources in `Ready`; not incremented by failed/in-flight sources. |
 
 Relationships: Notebook has 0..N sources; only Ready sources contribute to `ready_source_count`. A source-ready event may supply an optional topic emoji suggestion. No source text is read for UI metadata.
@@ -47,7 +47,7 @@ Input: explicit job language, personal notebook override, notebook default, user
 
 ## State and ordering rules
 
-- Icon: `default -> topic -> custom`; `default/topic -> custom`; `custom` is terminal with respect to source-ingestion auto-updates (FR-WM-02).
+- Icon: `default -> topic -> custom`; `default/topic -> custom`; `custom` is terminal with respect to source-ingestion auto-updates. Selector failure preserves the current icon and does not fail source ingestion (FR-WM-02).
 - Pin: `unpinned <-> pinned`; group pinned records first, then apply selected sort within each group (FR-WM-03).
 - `recent`: descending `last_opened_at`, fallback to `created_at`; `title_asc`: locale-aware title ascending; `created_desc`: descending creation timestamp. Stable tie-break by notebook ID.
 - Grid/list and sort/theme changes are immediate. Empty notebook lists show the required call to action and do not expose active sorting controls (FR-WM-03).

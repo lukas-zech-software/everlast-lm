@@ -21,7 +21,7 @@ The normative scope below is transcribed from the SRS, Package 2.1 FR cards, and
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: FR-WM-02 depends on FR-WM-01 and FR-SI-01; FR-WM-03 depends on FR-WM-01 and FR-WM-02; FR-UI-02 depends on FR-UI-01. Package 2.1 language preferences precede language-sensitive generators. Packages 2.2 and 2.3 share a save-note contract; Package 2.4 defines C-03, and those packages are outside this feature.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only in v2.0 (v1.0–v5.0); Editor, Viewer Full, and Viewer Chat-Only permissions are not active until v6.0.
 - **Data Residency (`D3`)**: EU preferred, with `europe-west4` as the default; this package defines no region exception.
-- **Upstream Flow-Back Status (`CC-01`)**: No clarifications or downstream refinements have been made; no upstream source changes are required for this transcription.
+- **Upstream Flow-Back Status (`CC-01`)**: Plan/analyze refinement: list rows show both creation and modified dates; the supported output-language list and Flash-Lite topic-icon selection/failure behavior are fixed in the Package 2.1 card and this specification.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -43,7 +43,7 @@ As an owner managing multiple notebooks, I want recognizable notebook metadata a
 3. **Given** three notebooks where `"Beta"` is pinned and `"Alpha"` and `"Zeta"` are not, **When** the owner sorts by title, **Then** `"Beta"` appears first, followed by `"Alpha"` and `"Zeta"` (`FR-WM-03`).
 4. **Given** the home overview in grid view, **When** the owner switches to list view and reloads the overview, **Then** list view remains selected (`FR-WM-03`).
 5. **Given** the owner has no notebooks, **When** the home overview opens, **Then** it displays a `"Create your first notebook"` call to action and hides or disables sorting controls (`FR-WM-03`).
-6. **Given** a new notebook with the default icon, **When** its first source reaches `Ready`, **Then** its icon updates to reflect the source topic unless the owner has already chosen a custom icon (`FR-WM-02`).
+6. **Given** a new notebook with the default icon, **When** its first source reaches `Ready`, **Then** the approved Flash-Lite selector chooses a topic icon unless the owner has already chosen a custom icon; selector failure leaves the existing icon and source Ready (`FR-WM-02`, D2, D3).
 7. **Given** a notebook with two Ready sources, **When** another source fails ingestion, **Then** its displayed count remains `"2 sources"`; when a note or artifact is modified, **Then** the notebook's modified timestamp updates (`FR-WM-02`).
 8. **Given** the owner selects List view, **When** the overview displays notebooks, **Then** each row shows the icon, title, Owner role, Ready-source count, and creation or modified date (`FR-WM-03`).
 9. **Given** a changed sort order, **When** the owner reloads the overview, **Then** the selected sort order is retained (`FR-WM-03`).
@@ -83,17 +83,17 @@ As an owner working across languages and display conditions, I want to choose a 
 ### Functional Requirements
 
 - **FR-001 (FR-WM-02)**: The system MUST display each notebook's emoji/icon, title, creation date, last-modified date, and count of sources in `Ready` state on the home overview. The count MUST use the localized `"<n> sources"` or `"<n> Quellen"` label, and dates MUST use a readable localized format.
-- **FR-002 (FR-WM-02)**: When a notebook is created, the system MUST assign the default `"📓"` icon and MUST update it to reflect the first uploaded source's topic unless the owner has manually selected an icon.
+- **FR-002 (FR-WM-02)**: When a notebook is created, the system MUST assign the default "📓" icon and use the approved enterprise Flash-Lite topic-emoji selector (D2, D3), based on the title of the first source to reach `Ready`, to update the icon unless the owner has manually selected an icon. Selector failure MUST NOT fail ingestion and MUST leave the current icon unchanged.
 - **FR-003 (FR-WM-02)**: The owner MUST be able to select a single valid Unicode emoji grapheme cluster, including multi-code-point emoji sequences, from the icon picker on a notebook card or workspace header; the choice MUST be saved immediately. Invalid non-emoji input MUST be rejected without changing the current icon.
 - **FR-004 (FR-WM-02)**: When a source is added, removed, or renamed, or a note or artifact is modified, the system MUST update the notebook's last-modified timestamp and keep its displayed Ready-source count current.
 - **FR-005 (FR-WM-03)**: The home overview MUST offer Grid and List views and sort choices for Most recently opened, Title (A–Z), and Created date (newest first). Most recently opened MUST sort by the owner's last-opened time and use creation time for a notebook that has never been opened. The default view MUST be Grid and the default sort MUST be Most recently opened.
-- **FR-006 (FR-WM-03)**: In List view, the system MUST display the notebook icon, title, current role, Ready-source count, and creation or modified date. In v2.0, the displayed role is Owner.
+- **FR-006 (FR-WM-03)**: In List view, the system MUST display the notebook icon, title, current role, Ready-source count, creation date, and last-modified date. In v2.0, the displayed role is Owner.
 - **FR-007 (FR-WM-03)**: The owner MUST be able to pin or unpin a notebook using its pin control or card menu. Pinned notebooks MUST remain before unpinned notebooks in the overview regardless of selected sort order; pin preference MUST be per user and notebook and default to unpinned.
 - **FR-008 (FR-WM-03)**: When the owner changes view mode or sort order, the overview MUST update immediately and retain the view and sort preferences for subsequent visits.
 - **FR-009 (FR-WM-03)**: When the owner has no notebooks, the overview MUST display `"Create your first notebook"` and hide or disable sort controls.
-- **FR-010 (FR-UI-02)**: The owner MUST be able to select Light, Dark, or System theme. The default MUST be System. The selected theme MUST apply across all workspace panels without a page reload and persist as the owner's preference.
+- **FR-010 (FR-UI-02)**: The owner MUST be able to select Light, Dark, or System theme. The default MUST be System, which follows the operating system/browser `prefers-color-scheme`. The selected theme MUST apply across all workspace panels without a page reload, be applied before first visible paint to avoid a flash of the previous theme, and persist as the owner's preference.
 - **FR-011 (FR-UI-02)**: The system MUST support global and notebook-level input-language preferences using BCP-47 language tags. Input language MUST default to `auto`; automatic detection MUST NOT translate stored source text. Spoken input uses the configured preference wherever spoken-input functionality is available.
-- **FR-012 (FR-UI-02)**: The system MUST support global and notebook-level output-language preferences using BCP-47 language tags and at least 35 supported enterprise languages. In the absence of an explicit preference, the default MUST resolve from the account/user locale, then supported browser locale, then `en-US`.
+- **FR-012 (FR-UI-02)**: The system MUST support global and notebook-level output-language preferences using BCP-47 language tags and the following 40 supported enterprise locales: `ar-SA`, `bg-BG`, `bn-BD`, `cs-CZ`, `da-DK`, `de-DE`, `el-GR`, `en-US`, `es-ES`, `et-EE`, `fa-IR`, `fi-FI`, `fr-FR`, `he-IL`, `hi-IN`, `hr-HR`, `hu-HU`, `id-ID`, `it-IT`, `ja-JP`, `ko-KR`, `lt-LT`, `lv-LV`, `ms-MY`, `nl-NL`, `no-NO`, `pl-PL`, `pt-BR`, `ro-RO`, `ru-RU`, `sk-SK`, `sl-SI`, `sv-SE`, `th-TH`, `tr-TR`, `uk-UA`, `ur-PK`, `vi-VN`, `zh-CN`, and `zh-TW`. In the absence of an explicit preference, the default MUST resolve from the account/user locale, then supported browser locale, then `en-US`. The list is versioned with the contract and only these supported locales are offered.
 - **FR-013 (FR-UI-02)**: Chat, Source Guide, Note Assistant, and Studio synthesis responses MUST use the effective output language regardless of the language of source documents. The effective preference MUST follow this precedence: explicit job language, personal notebook override, notebook default, user default, supported browser locale, then `en-US`.
 - **FR-014 (FR-UI-02, FR-GC-03)**: Verbatim quotations shown in citation previews MUST remain in the original source language.
 - **FR-015 (FR-WM-02, FR-WM-03, FR-UI-02)**: During v2.0, these capabilities MUST be available to the notebook Owner only. Editor and Viewer permissions and their personal notebook-level overrides MUST remain deferred until v6.0.
@@ -109,9 +109,9 @@ As an owner working across languages and display conditions, I want to choose a 
 
 ### Measurable Outcomes
 
-- **SC-001 (FR-WM-02)**: Notebook metadata and Ready-source counts are current on the home overview within 200 ms of navigation.
-- **SC-002 (FR-WM-03)**: Sorting and switching view modes for up to 500 notebooks completes within 100 ms.
-- **SC-003 (FR-UI-02)**: Theme changes apply across all panels within 50 ms, without a visible flash of the previous theme.
+- **SC-001 (FR-WM-02)**: Notebook metadata and Ready-source counts are current on the home overview within 200 ms of navigation, measured from the successful notebook-list response to visible metadata in the supported Chromium browser test run.
+- **SC-002 (FR-WM-03)**: Client sorting and switching view modes for 500 synthetic notebook records completes within 100 ms, measured with `performance.now()` in the supported Chromium browser test run.
+- **SC-003 (FR-UI-02)**: Theme changes apply across all panels within 50 ms in the supported Chromium browser test run; initial theme is applied before first visible paint, with no visible flash of the prior theme.
 - **SC-004 (FR-UI-02)**: At least 35 enterprise languages are available as output-language choices.
 - **SC-005 (FR-WM-02, FR-WM-03, FR-UI-02)**: In scripted acceptance testing, 100% of notebook identification, view/sort/pin, and theme/language preference tasks produce the expected visible outcomes defined in the acceptance scenarios.
 
