@@ -1,0 +1,25 @@
+# Quickstart: Workspace & UI Comfort
+
+Prerequisites: Node.js 24, pnpm 10, dependencies installed (`pnpm install` only if absent). Run commands from the repository root.
+
+## Focused verification
+
+1. Contract validation and language/emoji boundaries: `pnpm exec vitest run packages/contracts/test/package-v2-1.test.ts`
+2. Repository and source-count behavior: `pnpm exec vitest run packages/db/test/workspace-preferences.test.ts`
+3. Authenticated API behavior: `pnpm exec vitest run apps/api/test/workspace-preferences.test.ts`
+4. Overview, settings, persistence and theme behavior: `pnpm exec vitest run apps/web/test/workspace-preferences.test.ts`
+5. Combined feature regression: `pnpm exec vitest run packages/contracts/test/package-v2-1.test.ts packages/db/test/workspace-preferences.test.ts apps/api/test/workspace-preferences.test.ts apps/web/test/workspace-preferences.test.ts`
+
+Expected outcomes: invalid icon input is rejected without mutation; Ready counts exclude non-Ready sources; pinned notebooks stay first under every sort; list/grid, sort and theme persist; foreign-owner requests fail; language precedence and source-language citation quotes remain intact; operations do not alter source selection.
+
+## Final required gates
+
+- `pnpm typecheck`
+- `pnpm lint`
+- `node scripts/check-spec-integrity.mjs`
+- `git diff --check`
+- `pnpm test:unit`
+
+Also run the exact feature Vitest command above. If any documented runner is missing, report it as `UNAVAILABLE`; do not count unavailable tests as passed. Sorting performance should be measured against 500 synthetic notebook entries and meet 100 ms; theme application target is 50 ms and metadata is visible within 200 ms of navigation.
+
+See [data-model.md](data-model.md) and [contracts/interfaces.md](contracts/interfaces.md) for state and API details.
