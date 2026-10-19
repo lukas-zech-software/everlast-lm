@@ -75,3 +75,22 @@ The initial pass found that the draft plan omitted the architecture-required Fla
 - Recommendation: **proceed** to implementation; no blocking analyze findings remain.
 - Run `/speckit-implement` with tests first, follow the qualified task IDs, and flow any new implementation discovery back into the feature spec and governing FR card before rerunning analyze.
 - This analysis is a design consistency result only; it does not claim tests, live model acceptance, or Gate v2.0 have passed.
+
+## Convergence re-analysis after card flow-back (2026-10-20, T040–T042)
+
+Scope: `FR-WM-02`, `FR-WM-03`, `FR-UI-02` against the revised Package 2.1 card (PR #127).
+
+| Finding | Card change | Flowed into | Status |
+| :- | :- | :- | :- |
+| SC-002 size (`FR-WM-03`, contradicts) | Measured at 100 notebooks (v1–v5 limit, SRS §5.6) | `spec.md` SC-002, `plan.md` Performance Goals, `quickstart.md` | Consistent |
+| View/sort persistence (`FR-WM-03`, contradicts) | `localStorage` only, per browser | `spec.md` FR-008, US1 #4/#9, Edge Cases, Key Entities; `plan.md`; `data-model.md`; `contracts/interfaces.md`; Solution Architecture §4.1 Relational DB row | Consistent; code follows in T049/T050 |
+| Title sort (`FR-WM-03`, partial) | `Intl.Collator`, ties by `created_at` desc | `spec.md` FR-005, Edge Cases; `plan.md`; `data-model.md` | Consistent; code follows in T053/T054 |
+| Role column (`FR-WM-03`, partial) | v6.0 item; v2 shows Owner | `spec.md` FR-006, US1 #8, FR-015 | Consistent |
+| D16 meaning (`FR-WM-02/03`) | "Persisted" = kept by running API | `spec.md` Source Traceability; `plan.md` | Consistent |
+| Theme storage (`FR-UI-02`, contradicts) | `localStorage` + server; server value replaces local | `spec.md` FR-010, Edge Cases, Key Entities; `plan.md` Execution Model; `data-model.md` | Consistent; code follows in T051/T052 |
+| Input language (`FR-UI-02`) | Tag passed as question language; typed input only in v2 | `spec.md` FR-011, US2 #4, Edge Cases; `plan.md` | Consistent |
+| Personal overrides (`FR-UI-02`, contradicts) | Owner sets notebook language in v1–v5; overrides from v6.0 | `spec.md` FR-013, FR-015, US2 #6, Edge Cases, Key Entities; `data-model.md`; `contracts/interfaces.md` | Consistent; code follows in T055/T056 |
+| Output default (`FR-UI-02`, partial) | User default → supported browser locale → `en-US` | `spec.md` FR-012, US2 #6; `plan.md` | Consistent; code follows in T057/T058 |
+| Source Guide per language (`FR-UI-02`) | Stored per (source, revision, language) | `spec.md` FR-013 references `specs/006` as owner | Consistent |
+
+No CRITICAL or HIGH inconsistency remains between card, `spec.md` and `plan.md`. No upstream card change was needed.
