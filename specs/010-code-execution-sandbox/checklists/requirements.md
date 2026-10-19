@@ -1,0 +1,41 @@
+# Specification Quality Checklist: Quantitative Code Execution Sandbox
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-10-19
+**Feature**: [spec.md](../spec.md)
+**Sources**: FR-GC-08 package 3.2, requirements README, constitution, SRS and architecture C6/R6/D13.
+
+## Content Quality
+
+- [x] No newly invented implementation details (see source-mandated contract exception below)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders, with required contract terminology explained
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No unresolved clarification markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria describe observable outcomes; source-mandated resource and format contracts retained
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature defines measurable outcomes in Success Criteria
+- [x] No new implementation choices leak into specification
+
+## Notes
+
+- Review iteration 1: all 16 checks pass under the mandatory CC-01 source-transcription rule. The generic "No implementation details (languages, frameworks, APIs)" and "No implementation details leak into specification" wording cannot literally exclude the card's required Python/runtime/trace contracts. The constitution takes precedence: FR-003 quotes "CPU ≤1 vCPU, RAM ≤512 MB, temporary `/tmp` disk ≤64 MB" and FR-007 retains the required `code_execution_trace` fields. These are inherited acceptance constraints, not an added design. SC-004 preserves those source-mandated bounds while other success criteria measure correctness, observable status, isolation and grounding. This explicit exception also applies to the generic technology-agnostic checklist wording.
+- Coverage reviewed: all five EARS statements; both original Gherkin scenarios; all inputs/limits and pre-installed modules; computed labels, code/stdout drawer, PNG/SVG download, persisted trace, execution states, exactly one exception retry, no timeout/OOM retry, infinite-loop termination, conflicting-unit comments, both timing limits, both explicit exclusions, and R6/fallback condition.
+- Binding rule coverage: Owner-only v3; explicit Ready scope and no empty fallback; C-02 reads and snapshot/access rechecks; deletion/replacement/revocation failure; scoped history/caches and signed chart URL invalidation; validation before publication; refusal without retry on citation failure; distinction between status and answer TTFT. Source ingestion quotas and Studio job lifecycle are dependencies, not new sandbox behaviors.
+- Hooks: mandatory `before_specify` branch hook executed once with `GIT_BRANCH_NAME=v3-specify-20261019/010-code-execution-sandbox`; optional `after_specify` commit hook announced and skipped because auto-commit is disabled. A separately authorized lineage commit records the package.
+- Bootstrap: own worktree created from completed package 3.1 commit `c50ec9d5e6982e97b7fedebab55adf1cfb801f4f`. Immediately afterward the parent-supplied `SPECIFY_FEATURE_DIRECTORY=specs/010-code-execution-sandbox` was exported, copied exactly into `.specify/feature.json`, unset and verified absent. Subsequent work uses the JSON pin.
+- Static validation: `node scripts/check-spec-integrity.mjs` and `git diff --check` PASS. Runtime security, sandbox, performance and eval evidence: UNAVAILABLE in this specification-only work; neither R6 nor Gate v3.0 is claimed passed.
+- Ready for `$speckit-plan`; no unresolved product clarification requires `$speckit-clarify`. Planning must retain R6 verification and all applicable constitution gates.
