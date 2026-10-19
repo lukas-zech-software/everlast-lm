@@ -82,3 +82,22 @@ describe("FR-NM-04: assistant input", () => {
     expect(NoteAssistantInputSchema.safeParse({ action_type: "rewrite", selected_note_ids: [uuid(1)], selected_source_ids: [] }).success).toBe(false);
   });
 });
+
+describe("sanitizeNoteMarkdown hardening (FR-NM-01, CodeQL js/incomplete-multi-character-sanitization)", () => {
+  it.each([
+    ["<scr<script>ipt>alert(1)</script>", /<script|<img/i],
+    ["<<script>script>alert(1)</script>", /<script/i],
+    ["<script>never closed", /<script|never closed/i],
+    ["<img src=x onerror=alert(1)", /<img/i],
+    ["<STYLE>b{}</STYLE>ok", /style|b\{\}/i],
+    ["<<b>script>alert(1)<</b>/script>", /<script|<\/script/i],
+  ])("leaves no tag in %j", (input, forbidden) => {
+    expect(sanitizeNoteMarkdown(input)).not.toMatch(forbidden);
+  });
+
+  it("keeps ordinary text, comparisons and Markdown", () => {
+    expect(sanitizeNoteMarkdown("a < b and 3<4\n**bold** [ok](https://a.example)")).toBe(
+      "a < b and 3<4\n**bold** [ok](https://a.example)"
+    );
+  });
+});

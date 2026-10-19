@@ -44,18 +44,51 @@ export function noteSourceTitle(noteTitles: string[]): string {
 
 const SAFE_SCHEME = /^(https?|mailto):/i;
 
+/**
+ * One scanning pass over raw HTML (no regex replacement): every `<tag ...>`, `</tag>` or `<!...>` is dropped and
+ * `<script>`/`<style>` blocks are dropped with their content. A `<` that does not start a tag stays text.
+ */
+function stripHtmlPass(input: string): string {
+  const lower = input.toLowerCase();
+  let out = "";
+  let i = 0;
+  while (i < input.length) {
+    const ch = input[i]!;
+    const next = input[i + 1] ?? "";
+    if (ch !== "<" || !/[a-z!/]/i.test(next)) {
+      out += ch;
+      i++;
+      continue;
+    }
+    const close = input.indexOf(">", i + 1);
+    if (close === -1) break; // an unterminated tag runs to the end: drop it
+
+    const name = /^<\/?([a-z][a-z0-9-]*)/i.exec(input.slice(i, close + 1))?.[1]?.toLowerCase();
+    const opensBlock = (name === "script" || name === "style") && next !== "/";
+    i = close + 1;
+    if (opensBlock) {
+      const end = lower.indexOf(`</${name}`, i);
+      if (end === -1) break;
+      const endClose = input.indexOf(">", end);
+      i = endClose === -1 ? input.length : endClose + 1;
+    }
+  }
+  return out;
+}
+
+/** Repeats the pass until nothing changes, so a tag rebuilt from removed pieces is removed as well. */
+function stripHtml(input: string): string {
+  let current = input;
+  for (;;) {
+    const next = stripHtmlPass(current);
+    if (next === current) return next;
+    current = next;
+  }
+}
+
 /** Removes raw HTML/script content and unsafe link schemes; Markdown syntax is kept. */
 export function sanitizeNoteMarkdown(markdown: string): string {
-  let sanitized = markdown;
-  let previous: string;
-  do {
-    previous = sanitized;
-    sanitized = sanitized
-      .replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "")
-      .replace(/<\/?[a-z!][^>]*>/gi, "");
-  } while (sanitized !== previous);
-  // Any "<" left after tag removal is text: escape it so no partial or reassembled tag can survive.
-  sanitized = sanitized.replace(/</g, "&lt;");
+  const sanitized = stripHtml(markdown);
 
   return sanitized.replace(/(!?)\[([^\]]*)\]\(\s*([^)\s]*)[^)]*\)/g, (match, bang: string, text: string, url: string) => {
     const cleaned = url.replace(/[\u0000-\u0020]/g, "");
