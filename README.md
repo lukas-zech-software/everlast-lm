@@ -131,7 +131,7 @@ v2 work is lost.
 | **Infrastructure** | OpenTofu modules + stack + 3 environments; dev environment provisioned in `europe-west4`; app image not deployed yet |
 | **v1.0 (MVP)** | Packages 1.1–1.4 implemented; **Gate v1.0 passed** on 2026-10-19 |
 | **v2.0** | Packages 2.1–2.4 running on the v1 code with in-memory data (D16); Gate v2.0 not run yet |
-| **Tests** | 559 unit/integration tests on real PostgreSQL, 33 browser journeys, 222-case deterministic eval on every PR |
+| **Tests** | 578 unit/integration tests on real PostgreSQL, 33 browser journeys, 222-case deterministic eval on every PR |
 | **Roadmap** | [GitHub project](https://github.com/users/lukas-zech-software/projects/2): 89 issues, 6 milestones |
 
 ---
@@ -397,7 +397,8 @@ in and work with, these steps remain, in order:
 3. **Wire the runtime configuration.** Bucket, Document AI processor, Vertex project, Cloud Tasks queue and invoker
    as Cloud Run settings; secrets mounted; Cloud SQL started.
 4. **Give CI its cloud identity.** Set the Workload Identity variables so deploys and the release-gate eval run from
-   GitHub without personal credentials, then re-run the gate on the merged commit.
+   GitHub without personal credentials, then re-run the gate on the merged commit. Allow `opentofu/setup-opentofu`
+   in the repository's allowed-actions list: until then the OpenTofu workflow fails before it starts.
 5. **Smoke-test the deployed environment.** Upload a PDF, ask a question, click a citation; measure time to first
    answer (target 2.5 s, not gated in v1) and cold starts.
 6. **Recommended before real users:** multi-hop retrieval, so questions that chain facts across documents get
