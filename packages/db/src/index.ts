@@ -11,3 +11,5 @@ export * from "./chat-search.js";
 export * from "./notes.js";
 export * from "./source-registry.js";
 export type { Pool, PoolClient } from "pg";
+export * from "./workspace-preferences.js";
+export * from "./package-v2-2.js";

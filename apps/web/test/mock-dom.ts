@@ -344,6 +344,7 @@ export function setupMockDOM(initialWidth = 1440) {
   const documentMock = {
     createElement: (tag: string) => new MockElement(tag),
     getElementById: (id: string) => elementsById.get(id) || null,
+    documentElement: new MockElement("html"),
     body: new MockElement("body"),
   };
 
