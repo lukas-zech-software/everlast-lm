@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_NOTEBOOK_TITLE } from "./text-limits.js";
+import { DEFAULT_NOTEBOOK_TITLE } from "./text-limits.ts";
 
 export { DEFAULT_NOTEBOOK_TITLE };
 
@@ -37,6 +37,18 @@ export const NotebookSchema = z
   .strict();
 
 export type Notebook = z.infer<typeof NotebookSchema>;
+
+/** Public notebook DTO: owner identity stays server-side (FR-WM-04). */
+export const NotebookDtoSchema = z
+  .object({
+    id: z.string().regex(UUID_V4_REGEX, "id must be a valid UUID v4"),
+    title: NotebookTitleSchema,
+    created_at: z.string().datetime(),
+    updated_at: z.string().datetime(),
+  })
+  .strict();
+
+export type NotebookDto = z.infer<typeof NotebookDtoSchema>;
 
 export const CreateNotebookInputSchema = z
   .object({

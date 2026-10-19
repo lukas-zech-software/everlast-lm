@@ -13,7 +13,7 @@ import {
   InvalidScopeError,
   type ScopedContextProvider,
   type ScopedContextRequest,
-} from "../src/scoped-context.js";
+} from "../src/scoped-context.ts";
 
 describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
   const validNotebookId = "a1111111-1111-4111-8111-111111111111";
@@ -251,19 +251,32 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
       ).toThrow(InvalidScopeError);
     });
 
-    it("C02-14: entire request rejection: invalid scope rejects whole request with zero chunks", () => {
+    it("C02-14: entire request rejection: one foreign or stale chunk rejects the whole result", () => {
+      const chunk = (sourceId: string, revision: number) => ({
+        chunk_id: "01890a5d-ac96-774b-bcce-b302099a8057",
+        source_id: sourceId,
+        revision,
+        locator: { page_number: 1, start_offset: 0, end_offset: 4 },
+        token_count: 1,
+        text: "text",
+      });
+      const snapshot = [{ source_id: validSourceId1, revision: 1 }];
+      expect(filterScopedChunks(snapshot, [chunk(validSourceId1, 1)])).toHaveLength(1);
       expect(() =>
-        filterScopedChunks(validNotebookId, [validSourceId1, "b2000000-0000-4000-8000-000000000001"], [])
+        filterScopedChunks(snapshot, [chunk(validSourceId1, 1), chunk("b2000000-0000-4000-8000-000000000001", 1)])
       ).toThrow(InvalidScopeError);
+      expect(() => filterScopedChunks(snapshot, [chunk(validSourceId1, 2)])).toThrow(InvalidScopeError);
+      expect(() => filterScopedChunks([], [])).toThrow(EmptyScopeError);
     });
 
     it("C02-15: inspector singleton read scope cannot mutate active generation selection", () => {
       const activeGenerationSet = new Set([validSourceId1]);
       const inspectedSourceId = validSourceId2;
 
-      assertInspectionIsolation(activeGenerationSet, inspectedSourceId);
+      const before = assertInspectionIsolation(activeGenerationSet, inspectedSourceId);
       // Active generation set must remain unchanged
       expect(Array.from(activeGenerationSet)).toEqual([validSourceId1]);
+      expect(Array.from(before)).toEqual([validSourceId1]);
     });
   });
 });

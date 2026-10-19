@@ -1,31 +1,35 @@
--- Migration 0003: Grounded Chat & Citation Engine Schema
--- Traceability: FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, C-01, C-02, FR-WM-04
+-- Migration 0003: Grounded chat persistence (FR-GC-01, FR-GC-02, FR-GC-06, C-02, NFR-EVAL-04).
 
--- 1. Chat Threads table (exactly one thread per notebook/user pair in v1.0)
 CREATE TABLE IF NOT EXISTS chat_threads (
     id UUID PRIMARY KEY,
-    notebook_id UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    generation_epoch INT NOT NULL DEFAULT 0 CHECK (generation_epoch >= 0),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT uq_chat_threads_notebook_user UNIQUE (notebook_id, user_id)
+    notebook_id UUID NOT NULL REFERENCES notebooks (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    generation_epoch INTEGER NOT NULL DEFAULT 0 CHECK (generation_epoch >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chat_threads_notebook_user_key UNIQUE (notebook_id, user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_chat_threads_notebook_user ON chat_threads(notebook_id, user_id);
-
--- 2. Chat Messages table (persisted turns with immutable source/revision provenance & citations)
+-- provenance: complete (source_id, revision) set whose chunks entered the prompt for this turn.
+-- citations: [{badge_number, source_id, chunk_id, revision}]; snippets/titles are resolved at read time
+-- from authorized current chunks so a deleted or revoked source never leaks through history.
 CREATE TABLE IF NOT EXISTS chat_messages (
     id UUID PRIMARY KEY,
-    thread_id UUID NOT NULL REFERENCES chat_threads(id) ON DELETE CASCADE,
-    notebook_id UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('user', 'assistant')),
+    seq BIGSERIAL NOT NULL UNIQUE,
+    thread_id UUID NOT NULL REFERENCES chat_threads (id) ON DELETE CASCADE,
+    notebook_id UUID NOT NULL REFERENCES notebooks (id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    turn_id UUID NOT NULL,
+    request_id UUID NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    kind TEXT NOT NULL CHECK (kind IN ('question', 'answer', 'refusal')),
     content TEXT NOT NULL,
-    active_source_revisions_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb,
+    provenance JSONB NOT NULL DEFAULT '[]'::jsonb,
     citations JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    generation_epoch INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT chat_messages_role_kind CHECK ((role = 'user' AND kind = 'question') OR (role = 'assistant' AND kind IN ('answer', 'refusal'))),
+    CONSTRAINT chat_messages_request_role_key UNIQUE (thread_id, request_id, role)
 );
 
-CREATE INDEX IF NOT EXISTS idx_chat_messages_thread_created ON chat_messages(thread_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_chat_messages_notebook_user ON chat_messages(notebook_id, user_id);
+CREATE INDEX IF NOT EXISTS chat_messages_thread_seq_idx ON chat_messages (thread_id, seq);

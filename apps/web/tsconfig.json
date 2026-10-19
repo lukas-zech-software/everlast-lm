@@ -3,8 +3,8 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "rootDir": "./",
-    "outDir": "./dist"
+    "outDir": "./.tsbuild",
+    "noEmit": false
   },
-  "include": ["src/**/*", "test/**/*"],
-  "exclude": ["test/citation-interaction*.test.ts"]
+  "include": ["src/**/*", "test/**/*"]
 }

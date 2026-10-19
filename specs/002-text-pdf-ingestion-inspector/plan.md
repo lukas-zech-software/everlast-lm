@@ -62,3 +62,15 @@ Package 1.1's plan (`d797ca0`) is reconciled with integrated `D14` and actual `i
 ## Complexity Tracking
 
 No new framework, datastore, cloud service, scope deferral or constitution exception. Canonical representation, request provenance and explicit publication checks implement existing C-01/C-02/D13 requirements. Deployment endpoint/IdP/processor configuration is a live validation prerequisite, not an assumed successful deployment.
+
+## Implementation Discoveries (flow-back, 2026-10-19)
+
+- **Runtime and layout (Gate v1.0):** Node 24 runs the TypeScript sources directly (type stripping; relative imports use `.ts`, `tsconfig` sets `allowImportingTsExtensions`, `rewriteRelativeImportExtensions`, `erasableSyntaxOnly`). Two workspace packages were added: `packages/cloud` (Cloud Storage, Vertex AI embeddings, Document AI OCR adapters) and `packages/testkit` (test-only PDF fixture builder). One container image serves API and worker (`SERVICE_ROLE`).
+- **Tests (CC-02):** Vitest projects `unit` and `integration`; integration suites need PostgreSQL 16 + pgvector via `TEST_DATABASE_URL` (`pnpm db:test:up`) and fail with UNAVAILABLE when it is unset. Playwright runs against `apps/web/test/e2e-server.ts` (real API, database and worker; labelled test doubles for embeddings and the model).
+- **HTTP boundary:** `POST /api/notebooks/{id}/sources/uploads` (ordered `{attempt_id, file_name, declared_bytes}`; per-item admission, signed PUT capability valid 1 h), `POST .../sources/{source}/complete`, `POST .../sources/text`, `GET .../sources`, `GET .../sources/{source}`, `GET .../sources/{source}/content?chunk_id=&cursor=`. Locally the upload capability is an HMAC-signed API URL that mirrors a GCS V4 signed URL.
+- **Extraction:** pdfjs-dist per page; pages without a text layer go to OCR (Document AI Layout Parser or OCR processor; `NoOcrEngine` when unconfigured). Password-protected and malformed PDFs share the card's message. TXT/MD/copied text are decoded as strict UTF-8 and split into logical pages of about 20,000 UTF-16 units at paragraph boundaries, so 500,000-word sources stay paginated.
+- **Locator semantics (C-01):** `page_number` is the 1-based canonical page (physical PDF page, or logical page for text-only sources); `physical_page` is set only for PDFs; offsets are Unicode code points into that page's canonical text.
+- **Storage of canonical text:** canonical page text is stored in PostgreSQL (`source_pages`), committed atomically with chunks and the Ready transition. Recorded as architecture decision D15 (2026-10-19, project owner).
+- **Retrieval (D1):** `gemini-embedding-001` on Vertex AI, 768 dimensions; FTS uses the `simple` configuration with an OR query of question terms; RRF k = 60; HNSW iterative scan per transaction; 12 chunks per answer.
+- **Region map (D3):** Vertex AI and Cloud SQL `europe-west4`; Document AI has no `europe-west4` location and uses the EU multi-region `eu`; Cloud Tasks uses `europe-west1`.
+- **Source titles:** file names over 100 code points are rejected per item, matching `SourceTitleSchema` (1–100).

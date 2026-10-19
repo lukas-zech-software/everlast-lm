@@ -3,12 +3,12 @@ import {
   isTurnProvenanceEligible,
   computeContextCacheKey,
   type SourceRevisionPair,
-} from "../src/scoped-context.js";
+} from "../src/scoped-context.ts";
 import {
   filterConversationHistoryByProvenance,
   type ConversationTurn,
   type TurnProvenanceRecord,
-} from "../src/scoped-context.js";
+} from "../src/scoped-context.ts";
 
 describe("T026 [US2] Consumer Provenance Contracts & History Hygiene (C-02, FR-GC-01, FR-GC-06, NFR-EVAL-04)", () => {
   const source1 = "a1000000-0000-4000-8000-000000000001";

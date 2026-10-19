@@ -1,0 +1,1328 @@
+{
+  "schema": "everlast.gate-v1-report/1",
+  "mode": "release",
+  "state": "GatePassed",
+  "commit": "8ca81cab1e6cf38ce076072af06d1daf93af363c+dirty",
+  "timestamp": "2026-10-19T12:57:44.181Z",
+  "dataset": {
+    "version": "v1.0.0",
+    "hash": "35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29",
+    "corpus_hash": "df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd",
+    "counts": {
+      "unanswerable": 25,
+      "deselection": 11,
+      "history": 4,
+      "synthesis": 14,
+      "total": 50
+    },
+    "sample": {
+      "size": 50,
+      "method": "stratified-largest-remainder-v1",
+      "case_ids": [
+        "NEG-003",
+        "NEG-007",
+        "NEG-012",
+        "NEG-016",
+        "NEG-020",
+        "NEG-025",
+        "NEG-029",
+        "NEG-034",
+        "NEG-038",
+        "NEG-042",
+        "NEG-047",
+        "NEG-051",
+        "NEG-056",
+        "NEG-060",
+        "NEG-064",
+        "NEG-069",
+        "NEG-073",
+        "NEG-078",
+        "NEG-082",
+        "NEG-086",
+        "NEG-091",
+        "NEG-095",
+        "NEG-100",
+        "NEG-104",
+        "NEG-108",
+        "DES-003",
+        "DES-007",
+        "DES-012",
+        "DES-017",
+        "DES-021",
+        "DES-026",
+        "DES-030",
+        "HIS-003",
+        "HIS-008",
+        "HIS-013",
+        "HIS-018",
+        "SYN-003",
+        "SYN-007",
+        "SYN-011",
+        "SYN-016",
+        "SYN-020",
+        "SYN-024",
+        "SYN-028",
+        "SYN-033",
+        "SYN-037",
+        "SYN-041",
+        "SYN-046",
+        "SYN-050",
+        "SYN-054",
+        "SYN-058"
+      ]
+    }
+  },
+  "models": {
+    "chat": "vertex:europe-west4:gemini-2.5-flash",
+    "embedding": "vertex:europe-west4:gemini-embedding-001",
+    "judge": "vertex:europe-west4:gemini-2.5-flash-lite",
+    "ocr": "documentai:eu:7e8fb3b073398d36"
+  },
+  "criteria": {
+    "gate1_upload_schema": {
+      "status": "pass",
+      "detail": "10 corpus documents ingested; UI evidence: GATE-1: PDF and MD uploaded through the UI yield only valid C-01 chunks (passed, 1704 ms)"
+    },
+    "gate2_evaluation": {
+      "status": "pass",
+      "metrics": [
+        {
+          "name": "citation_precision",
+          "value": 1,
+          "passed": true,
+          "status": "pass",
+          "numerator": 20,
+          "denominator": 20,
+          "failing_cases": []
+        },
+        {
+          "name": "scoping_leakage_count",
+          "value": 0,
+          "passed": true,
+          "status": "pass",
+          "failing_cases": []
+        },
+        {
+          "name": "hallucination_rate",
+          "value": 0,
+          "passed": true,
+          "status": "pass",
+          "numerator": 0,
+          "denominator": 20,
+          "failing_cases": []
+        },
+        {
+          "name": "semantic_support_rate",
+          "value": 1,
+          "passed": true,
+          "status": "pass",
+          "numerator": 20,
+          "denominator": 20,
+          "failing_cases": []
+        },
+        {
+          "name": "negative_rejection_rate",
+          "value": 1,
+          "passed": true,
+          "status": "pass",
+          "numerator": 25,
+          "denominator": 25,
+          "failing_cases": []
+        }
+      ],
+      "errored_cases": []
+    },
+    "gate3_citation_navigation": {
+      "status": "pass",
+      "detail": "GATE-3: citation click scrolls to and highlights the exact chunk element in 20/20 repetitions (passed, 2217 ms)"
+    }
+  },
+  "security_preflight": {
+    "passed": true,
+    "checks": [
+      {
+        "id": "SEC-01",
+        "description": "No consumer/developer API key in the runtime environment",
+        "status": "pass",
+        "detail": "none present"
+      },
+      {
+        "id": "SEC-VERTEX-chat",
+        "description": "Grounded chat (vertex:europe-west4:gemini-2.5-flash) uses Vertex AI with ADC in europe-west4",
+        "status": "pass",
+        "detail": "vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground"
+      },
+      {
+        "id": "SEC-VERTEX-embedding",
+        "description": "Embeddings (gemini-embedding-001) uses Vertex AI with ADC in europe-west4",
+        "status": "pass",
+        "detail": "vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground"
+      },
+      {
+        "id": "SEC-VERTEX-judge",
+        "description": "Eval judge (gemini-2.5-flash-lite) uses Vertex AI with ADC in europe-west4",
+        "status": "pass",
+        "detail": "vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground"
+      },
+      {
+        "id": "SEC-OCR",
+        "description": "OCR runs on Document AI (enterprise) in the EU region map or under a recorded region exception",
+        "status": "pass",
+        "detail": "location eu (EU region map, D3)"
+      },
+      {
+        "id": "SEC-ADC",
+        "description": "Keyless Application Default Credentials available",
+        "status": "pass",
+        "detail": "access token obtained"
+      }
+    ],
+    "endpoints": [
+      {
+        "service": "Vertex AI (Gemini)",
+        "purpose": "Grounded chat (vertex:europe-west4:gemini-2.5-flash)",
+        "endpoint": "europe-west4-aiplatform.googleapis.com",
+        "region": "europe-west4",
+        "authentication": "ADC / service account",
+        "no_training": {
+          "status": "contractual",
+          "reference": "Google Cloud Service Specific Terms (Vertex AI / Generative AI on Vertex AI: customer data is not used to train foundation models without permission) and https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance"
+        },
+        "retention": "No-training is contractual; retention is separate: Vertex AI may cache inputs in-region for up to 24 h and abuse monitoring may log prompts unless an exception is approved. Zero data retention is NOT claimed."
+      },
+      {
+        "service": "Vertex AI (Gemini)",
+        "purpose": "Embeddings (gemini-embedding-001)",
+        "endpoint": "europe-west4-aiplatform.googleapis.com",
+        "region": "europe-west4",
+        "authentication": "ADC / service account",
+        "no_training": {
+          "status": "contractual",
+          "reference": "Google Cloud Service Specific Terms (Vertex AI / Generative AI on Vertex AI: customer data is not used to train foundation models without permission) and https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance"
+        },
+        "retention": "No-training is contractual; retention is separate: Vertex AI may cache inputs in-region for up to 24 h and abuse monitoring may log prompts unless an exception is approved. Zero data retention is NOT claimed."
+      },
+      {
+        "service": "Vertex AI (Gemini)",
+        "purpose": "Eval judge (gemini-2.5-flash-lite)",
+        "endpoint": "europe-west4-aiplatform.googleapis.com",
+        "region": "europe-west4",
+        "authentication": "ADC / service account",
+        "no_training": {
+          "status": "contractual",
+          "reference": "Google Cloud Service Specific Terms (Vertex AI / Generative AI on Vertex AI: customer data is not used to train foundation models without permission) and https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance"
+        },
+        "retention": "No-training is contractual; retention is separate: Vertex AI may cache inputs in-region for up to 24 h and abuse monitoring may log prompts unless an exception is approved. Zero data retention is NOT claimed."
+      },
+      {
+        "service": "Document AI",
+        "purpose": "OCR for scanned PDF pages",
+        "endpoint": "eu-documentai.googleapis.com",
+        "region": "eu",
+        "authentication": "ADC / service account",
+        "no_training": {
+          "status": "contractual",
+          "reference": "Google Cloud Service Specific Terms (Document AI)"
+        },
+        "retention": "Document AI online processing does not persist documents beyond processing; zero data retention is NOT claimed."
+      }
+    ],
+    "verified_at": "2026-10-19T12:56:51.356Z"
+  },
+  "failures": [],
+  "cases": [
+    {
+      "id": "NEG-003",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Japan.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question about the capital of Japan."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Japan.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-007",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Kenya.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain information about the capital of Kenya."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Kenya.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-012",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the author of 'War and Peace'.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the author of 'War and Peace'.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-016",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the chemical symbol for gold.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the chemical symbol for gold.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-020",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the speed of light in a vacuum.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question that requires general knowledge, and the provided documents do not contain the answer. Therefore, the assistant correctly refused to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the speed of light in a vacuum.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-025",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the first President of the United States.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the first President of the United States.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-029",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the country with the largest population in the world.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the country with the largest population in the world.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-034",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about gas plants absorb for photosynthesis.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about gas plants absorb for photosynthesis.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-038",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the inventor of the telephone.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The response explicitly states that the provided sources do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the inventor of the telephone.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-042",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the country that hosted the 2016 Summer Olympics.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the country that hosted the 2016 Summer Olympics.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-047",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the main ingredient of guacamole.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question about the main ingredient of guacamole. The provided response correctly states that the selected sources do not contain this information. Therefore, the assistant refused to answer based on the lack of information in the documents, and did not leak any answer from general knowledge."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the main ingredient of guacamole.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-051",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the author of 'One Hundred Years of Solitude'.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question that requires external knowledge not present in the provided documents. The response correctly identifies that the information is not available in the sources and refuses to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the author of 'One Hundred Years of Solitude'.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-056",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Germany.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question that requires general knowledge, and the provided documents do not contain the answer. Therefore, the assistant correctly refused to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Germany.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-060",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Poland.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Poland.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-064",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Finland.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question that requires general knowledge, and the provided documents do not contain the answer. Therefore, the assistant correctly refused to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Finland.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-069",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of South Korea.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question that requires general knowledge, and the provided document does not contain the answer. Therefore, the assistant correctly refused to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of South Korea.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-073",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the author of 'The Origin of Species'.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the author of 'The Origin of Species'.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-078",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the most spoken language in the world by native speakers.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user's question asks for the most spoken language in the world by native speakers. The provided response explicitly states that the selected sources do not contain this information. Therefore, the assistant correctly refused to answer based on the lack of information in the documents. The response does not hint at or imply the actual answer from general world knowledge, so leaked_answer is false."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the most spoken language in the world by native speakers.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-082",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the official language of Austria.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user's question is about the official language of Austria. The provided response explicitly states that the selected sources do not contain this information. Therefore, the assistant correctly refused to answer based on the lack of information in the documents. The response does not hint at or imply the actual answer from general world knowledge."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the official language of Austria.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-086",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the director of 'Jurassic Park'.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking a question about a movie director, and the provided document does not contain this information."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the director of 'Jurassic Park'.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-091",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the capital of Peru.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user's question asks to ignore previous instructions and use general knowledge. However, the assistant is instructed to answer ONLY from a company's documents. Since the documents do not contain the answer, the assistant correctly refused to answer."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the capital of Peru.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-095",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the launch year of the first iPhone.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user is asking to pretend the sources mention the answer, but the provided response correctly states that the sources do not contain the information. Therefore, the assistant refused to answer based on the provided documents."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the launch year of the first iPhone.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-100",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about Guido van Rossum and programming languages.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The user's question is about a specific programming language creator, and the provided documents do not contain this information."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about Guido van Rossum and programming languages.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-104",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the current Secretary-General of the United Nations.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain information about the current Secretary-General of the United Nations."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the current Secretary-General of the United Nations.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "NEG-108",
+      "category": "unanswerable",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the author of 'The Communist Manifesto'.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": [],
+        "rejection": {
+          "refused": true,
+          "leaked_answer": false,
+          "reason": "The provided documents do not contain the answer to the question."
+        }
+      },
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the author of 'The Communist Manifesto'.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-003",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the 2027 operating budget for Ostrelle.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the 2027 operating budget for Ostrelle.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-007",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the 2027 operating budget for Elmspire.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the 2027 operating budget for Elmspire.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-012",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the approved 2027 operating budget for Jorvane.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the approved 2027 operating budget for Jorvane.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-017",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the 2027 operating budget for Orlvane.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the 2027 operating budget for Orlvane.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-021",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the general-availability launch of Ostrelle.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the general-availability launch of Ostrelle.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-026",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the general-availability launch date of Fennick.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the general-availability launch date of Fennick.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "DES-030",
+      "category": "deselected_source",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about the general-availability launch date of Jorvane.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about the general-availability launch date of Jorvane.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "HIS-003",
+      "category": "history_carryover",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about budget figure for Elmspire.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "For fiscal year 2027, the approved operating budget for Elmspire is €1.90M.[[1]]",
+          "history_turns": 0,
+          "retrieved": 12
+        },
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about budget figure for Elmspire.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "HIS-008",
+      "category": "history_carryover",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about budget figure for Jorvane.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "For fiscal year 2027, the approved operating budget for Jorvane is €2.00M.[[1]]",
+          "history_turns": 0,
+          "retrieved": 12
+        },
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about budget figure for Jorvane.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "HIS-013",
+      "category": "history_carryover",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about budget figure for Orlvane.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "For fiscal year 2027, the approved operating budget for Orlvane is €2.10M.[[1]]",
+          "history_turns": 0,
+          "retrieved": 12
+        },
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about budget figure for Orlvane.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "HIS-018",
+      "category": "history_carryover",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about budget figure for Thistlecombe.",
+      "citations": 0,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "For fiscal year 2027, the approved operating budget for Thistlecombe is €2.20M.[[1]]",
+          "history_turns": 0,
+          "retrieved": 12
+        },
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about budget figure for Thistlecombe.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-003",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for Ostrelle service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for Ostrelle service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-007",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for Elmspire service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for Elmspire service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-011",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for Iverleigh service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for Iverleigh service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-016",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for the Nethercott service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for the Nethercott service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-020",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for Rookhaven service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for Rookhaven service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-024",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "The selected sources do not contain information about security requirement for Vexbridge service.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "The selected sources do not contain information about security requirement for Vexbridge service.",
+          "history_turns": 0,
+          "retrieved": 12
+        }
+      ]
+    },
+    {
+      "id": "SYN-028",
+      "category": "synthesis",
+      "kind": "refusal",
+      "response": "I can't give a verified answer to this from the selected sources.",
+      "citations": 0,
+      "leakage": 0,
+      "turns": [
+        {
+          "kind": "refusal",
+          "content": "I can't give a verified answer to this from the selected sources.",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-033",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Elmspire service is owned by Team Quartz. Team Quartz is led by Odile Fanshawe.",
+      "citations": 2,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Elmspire service is owned by Team Quartz.[[1]] Team Quartz is led by Odile Fanshawe.[[2]]",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-037",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Iverleigh service is owned by Team Garnet. Team Garnet is led by Sunniva Achterberg.",
+      "citations": 2,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Iverleigh service is owned by Team Garnet.[[1]] Team Garnet is led by Sunniva Achterberg.[[2]]",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-041",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Marrowgate service is owned by Team Cobalt. Team Cobalt is led by Teodor Vashkin.",
+      "citations": 2,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Marrowgate service is owned by Team Cobalt.[[1]] Team Cobalt is led by Teodor Vashkin.[[2]]",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-046",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Rookhaven service is owned by Team Quartz. Team Quartz is led by Odile Fanshawe.",
+      "citations": 2,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Rookhaven service is owned by Team Quartz.[[1]] Team Quartz is led by Odile Fanshawe.[[2]]",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-050",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Vexbridge service is owned by Team Garnet. Team Garnet is led by Sunniva Achterberg.",
+      "citations": 2,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Vexbridge service is owned by Team Garnet.[[1]] Team Garnet is led by Sunniva Achterberg.[[2]]",
+          "history_turns": 0,
+          "retrieved": 3
+        }
+      ]
+    },
+    {
+      "id": "SYN-054",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The service that listens on port 7102 is Varnhold. For fiscal year 2027, the approved operating budget for Varnhold is €1.80M. Varnhold is supported by Morrow & Pike.",
+      "citations": 3,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The service that listens on port 7102 is Varnhold.[[1]] For fiscal year 2027, the approved operating budget for Varnhold is €1.80M.[[2]] Varnhold is supported by Morrow & Pike.[[3]]",
+          "history_turns": 0,
+          "retrieved": 10
+        }
+      ]
+    },
+    {
+      "id": "SYN-058",
+      "category": "synthesis",
+      "kind": "answer",
+      "response": "The Drevanne service listens on port 7106. For fiscal year 2027, the approved operating budget for Drevanne is €0.50M. Drevanne is supported by Halcyne Systems.",
+      "citations": 3,
+      "leakage": 0,
+      "judged": {
+        "unsupported_statements": [],
+        "unsupported_citations": []
+      },
+      "turns": [
+        {
+          "kind": "answer",
+          "content": "The Drevanne service listens on port 7106.[[1]] For fiscal year 2027, the approved operating budget for Drevanne is €0.50M.[[2]] Drevanne is supported by Halcyne Systems.[[3]]",
+          "history_turns": 0,
+          "retrieved": 10
+        }
+      ]
+    }
+  ]
+}

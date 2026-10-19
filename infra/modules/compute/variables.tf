@@ -141,3 +141,21 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "identity_platform_api_key" {
+  description = "Public Identity Platform web API key used by the browser sign-in (not a model API key; D6)."
+  type        = string
+  default     = ""
+}
+
+variable "identity_platform_provider_id" {
+  description = "Identity Platform OIDC/SAML provider ID for corporate sign-in (for example oidc.corporate or saml.corporate; D6)."
+  type        = string
+  default     = "oidc.corporate"
+}
+
+variable "tasks_location" {
+  description = "Cloud Tasks queue location used by the API to enqueue worker drain tasks (Cloud Tasks has no europe-west4 location; EU per D3)."
+  type        = string
+  default     = "europe-west1"
+}

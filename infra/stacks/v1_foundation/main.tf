@@ -96,6 +96,7 @@ module "compute" {
   worker_db_iam_username              = module.database.worker_db_iam_username
   workspace_bucket_name               = module.storage_secrets.workspace_bucket_name
   ingestion_queue_name                = module.async_tasks.ingestion_queue_name
+  tasks_location                      = var.tasks_location
   studio_queue_name                   = module.async_tasks.studio_queue_name
   document_ai_layout_processor_name   = module.storage_secrets.document_ai_layout_processor_name
   secret_ids                          = module.storage_secrets.secret_ids

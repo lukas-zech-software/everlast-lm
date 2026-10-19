@@ -10,7 +10,7 @@ import {
   type ChatMessage,
   type ChatThread,
   type UserMessageInput,
-} from "../src/package-v1-3.js";
+} from "../src/package-v1-3.ts";
 
 describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => {
   const validUuid1 = "11111111-1111-4111-8111-111111111111";

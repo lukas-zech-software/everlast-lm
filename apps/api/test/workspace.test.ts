@@ -1,405 +1,212 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { createServer } from "../src/server.js";
-import http from "node:http";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startTestApi, type TestApi } from "./support.ts";
 
-describe("FR-WM-01 / FR-WM-04 / FR-WM-07: Workspace Notebook HTTP API Contract", () => {
-  let server: http.Server;
-  let port: number;
-  let baseUrl: string;
+/** T013/T035 — notebook HTTP contract against the real server and PostgreSQL (FR-WM-01, FR-WM-04, FR-WM-07). */
 
-  const ownerAlphaToken = (() => {
-    const b64 = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString("base64url");
-    const payload = {
-      aud: "everlast-test-project",
-      iss: "https://securetoken.google.com/everlast-test-project",
-      sub: "usr_subject_alpha_123",
-      email: "alpha@example.com",
-      auth_time: Math.floor(Date.now() / 1000) - 60,
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    };
-    return `${b64({ alg: "RS256" })}.${b64(payload)}.sig`;
-  })();
+let api: TestApi;
 
-  const ownerBetaToken = (() => {
-    const b64 = (obj: unknown) => Buffer.from(JSON.stringify(obj)).toString("base64url");
-    const payload = {
-      aud: "everlast-test-project",
-      iss: "https://securetoken.google.com/everlast-test-project",
-      sub: "usr_subject_beta_456",
-      email: "beta@example.com",
-      auth_time: Math.floor(Date.now() / 1000) - 60,
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    };
-    return `${b64({ alg: "RS256" })}.${b64(payload)}.sig`;
-  })();
+beforeAll(async () => {
+  api = await startTestApi();
+});
 
-  const request = async (
-    path: string,
-    options: {
-      method?: string;
-      token?: string;
-      body?: unknown;
-      headers?: Record<string, string>;
-    } = {}
-  ) => {
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      ...options.headers,
-    };
-    if (options.token) {
-      headers["Authorization"] = `Bearer ${options.token}`;
+afterAll(async () => {
+  await api?.close();
+});
+
+async function create(as: string, title?: string) {
+  const res = await api.fetch("/api/notebooks", { method: "POST", as, json: title === undefined ? {} : { title } });
+  expect(res.status).toBe(201);
+  return ((await res.json()) as { notebook: { id: string; title: string; updated_at: string } }).notebook;
+}
+
+describe("FR-WM-01 / FR-WM-04: notebook HTTP contract", () => {
+  it("API-01: every /api route rejects missing, forged and foreign-issuer tokens with 401", async () => {
+    const missing = await api.fetch("/api/notebooks");
+    expect(missing.status).toBe(401);
+    const body = (await missing.json()) as { error: { code: string }; request_id: string };
+    expect(body.error.code).toBe("Unauthenticated");
+    expect(body.request_id).toBeTruthy();
+    const forged = await api.fetch("/api/notebooks", { headers: { authorization: "Bearer a.b.c" } });
+    expect(forged.status).toBe(401);
+    const unknown = await api.fetch("/api/does-not-exist");
+    expect(unknown.status).toBe(401);
+  });
+
+  it("API-02: GET /api/notebooks lists only the caller's notebooks", async () => {
+    const mine = await create("api02-alice", "Alice notebook");
+    await create("api02-bob", "Bob notebook");
+    const res = await api.fetch("/api/notebooks", { as: "api02-alice" });
+    const body = (await res.json()) as { notebooks: { id: string }[]; notebooks_used: number; notebook_limit: number };
+    expect(body.notebooks.map((n) => n.id)).toEqual([mine.id]);
+    expect(body).toMatchObject({ notebooks_used: 1, notebook_limit: 100 });
+    expect(Object.keys(body.notebooks[0]!)).not.toContain("owner_id");
+  });
+
+  it("API-03: POST creates a UUID v4 notebook with default title; unknown fields are 422", async () => {
+    const nb = await create("api03");
+    expect(nb.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(nb.title).toBe("Untitled notebook");
+    const bad = await api.fetch("/api/notebooks", { method: "POST", as: "api03", json: { owner_id: "x" } });
+    expect(bad.status).toBe(422);
+  });
+
+  it("API-04: Idempotency-Key replays return the same notebook exactly once", async () => {
+    const key = randomUUID();
+    const send = () => api.fetch("/api/notebooks", { method: "POST", as: "api04", json: {}, headers: { "idempotency-key": key } });
+    const [a, b] = [await send(), await send()];
+    expect(a.status).toBe(201);
+    expect(b.status).toBe(201);
+    const idA = ((await a.json()) as any).notebook.id;
+    expect(((await b.json()) as any).notebook.id).toBe(idA);
+    const list = (await (await api.fetch("/api/notebooks", { as: "api04" })).json()) as any;
+    expect(list.notebooks_used).toBe(1);
+  });
+
+  it("API-05: GET /api/notebooks/{id} returns notebook and server-authoritative quota", async () => {
+    const nb = await create("api05", "Quota");
+    const res = await api.fetch(`/api/notebooks/${nb.id}`, { as: "api05" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      notebook: nb,
+      quota: {
+        notebooks_used: 1,
+        notebook_limit: 100,
+        sources_used: 0,
+        source_limit: 50,
+        max_source_bytes: 200_000_000,
+        max_source_words: 500_000,
+      },
+    });
+  });
+
+  it("API-06: another owner gets 403 on read, rename, delete and quota; unknown IDs are 404", async () => {
+    const nb = await create("api06-owner");
+    for (const [method, path, json] of [
+      ["GET", `/api/notebooks/${nb.id}`, undefined],
+      ["PATCH", `/api/notebooks/${nb.id}`, { title: "hijack" }],
+      ["DELETE", `/api/notebooks/${nb.id}`, undefined],
+      ["GET", `/api/notebooks/${nb.id}/quota`, undefined],
+    ] as const) {
+      const res = await api.fetch(path, { method, as: "api06-intruder", ...(json ? { json } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(403);
     }
+    expect((await api.fetch(`/api/notebooks/${randomUUID()}`, { as: "api06-intruder" })).status).toBe(404);
+    expect((await api.fetch(`/api/notebooks/not-a-uuid`, { as: "api06-intruder" })).status).toBe(404);
+    expect((await api.fetch(`/api/notebooks/${nb.id}`, { as: "api06-owner" })).status).toBe(200);
+  });
 
-    const reqInit: RequestInit = {
-      method: options.method || "GET",
-      headers,
-    };
-    if (options.body !== undefined) {
-      reqInit.body = JSON.stringify(options.body);
+  it("API-07: PATCH trims and accepts 100 code points; whitespace, 101 code points, unknown fields are 422", async () => {
+    const nb = await create("api07", "Original");
+    const ok = await api.fetch(`/api/notebooks/${nb.id}`, { method: "PATCH", as: "api07", json: { title: "  Renamed 🔬 " } });
+    expect(ok.status).toBe(200);
+    const renamed = ((await ok.json()) as any).notebook;
+    expect(renamed.title).toBe("Renamed 🔬");
+    expect(Date.parse(renamed.updated_at)).toBeGreaterThan(Date.parse(nb.updated_at));
+    const hundred = "é".repeat(100);
+    expect((await api.fetch(`/api/notebooks/${nb.id}`, { method: "PATCH", as: "api07", json: { title: hundred } })).status).toBe(200);
+    for (const json of [{ title: "   " }, { title: "x".repeat(101) }, { title: "ok", extra: 1 }, {}]) {
+      const res = await api.fetch(`/api/notebooks/${nb.id}`, { method: "PATCH", as: "api07", json });
+      expect(res.status, JSON.stringify(json)).toBe(422);
     }
-    const res = await fetch(`${baseUrl}${path}`, reqInit);
+    const current = (await (await api.fetch(`/api/notebooks/${nb.id}`, { as: "api07" })).json()) as any;
+    expect(current.notebook.title).toBe(hundred);
+  });
 
-    let data: any = null;
-    const text = await res.text();
+  it("API-08: DELETE returns 202 with a deletion ID; reads and repeat deletes are 404 immediately", async () => {
+    const nb = await create("api08");
+    const del = await api.fetch(`/api/notebooks/${nb.id}`, { method: "DELETE", as: "api08" });
+    expect(del.status).toBe(202);
+    const body = (await del.json()) as { deletion_id: string; status: string };
+    expect(body.status).toBe("Pending");
+    const read = await api.fetch(`/api/notebooks/${nb.id}`, { as: "api08" });
+    expect(read.status).toBe(404);
+    expect(((await read.json()) as any).error.code).toBe("NotebookNotFound");
+    expect((await api.fetch(`/api/notebooks/${nb.id}/quota`, { as: "api08" })).status).toBe(404);
+    expect((await api.fetch(`/api/notebooks/${nb.id}`, { method: "DELETE", as: "api08" })).status).toBe(404);
+  });
+
+  it("API-09: deletion status is visible to the original owner only and never exposes content", async () => {
+    const nb = await create("api09", "Secret title");
+    const { deletion_id } = (await (await api.fetch(`/api/notebooks/${nb.id}`, { method: "DELETE", as: "api09" })).json()) as any;
+    const status = await api.fetch(`/api/notebook-deletions/${deletion_id}`, { as: "api09" });
+    expect(status.status).toBe(200);
+    const text = await status.text();
+    expect(JSON.parse(text)).toEqual({ deletion_id, status: "Pending" });
+    expect(text).not.toContain("Secret title");
+    expect((await api.fetch(`/api/notebook-deletions/${deletion_id}`, { as: "api09-other" })).status).toBe(403);
+    expect((await api.fetch(`/api/notebook-deletions/${randomUUID()}`, { as: "api09" })).status).toBe(404);
+  });
+
+  it("API-10: quota endpoint reports occupancy that counts Uploading/Processing/Ready, not Failed", async () => {
+    const nb = await create("api10");
+    const owner = (await api.db.pool.query("SELECT owner_id FROM notebooks WHERE id = $1", [nb.id])).rows[0].owner_id;
+    expect(owner).toBeTruthy();
+    for (const status of ["Uploading", "Processing", "Failed"]) {
+      await api.db.pool.query(
+        "INSERT INTO sources (id, notebook_id, attempt_id, title, media_type, status, declared_bytes) VALUES ($1, $2, $3, 't', 'text/plain', $4, 1)",
+        [randomUUID(), nb.id, randomUUID(), status]
+      );
+    }
+    const quota = (await (await api.fetch(`/api/notebooks/${nb.id}/quota`, { as: "api10" })).json()) as any;
+    expect(quota.sources_used).toBe(2);
+  });
+
+  it("API-13: configured source limits of 50 and 300 are reported; invalid limits fail startup", async () => {
+    const { loadApiConfig } = await import("../src/config.ts");
+    expect(loadApiConfig({ AUTH_MODE: "local" }).sourceLimit).toBe(50);
+    expect(loadApiConfig({ AUTH_MODE: "local", MAX_SOURCES_PER_NOTEBOOK: "300" }).sourceLimit).toBe(300);
+    for (const bad of ["49", "301", "50.5", "abc"]) {
+      expect(() => loadApiConfig({ AUTH_MODE: "local", MAX_SOURCES_PER_NOTEBOOK: bad })).toThrow();
+    }
+    expect(() => loadApiConfig({ AUTH_MODE: "identity-platform" })).toThrow(/GOOGLE_CLOUD_PROJECT/);
+    const big = await startTestApi({ sourceLimit: 300 });
     try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
+      const res = await big.fetch("/api/notebooks", { method: "POST", as: "api13", json: {} });
+      const nb = ((await res.json()) as any).notebook;
+      const quota = (await (await big.fetch(`/api/notebooks/${nb.id}/quota`, { as: "api13" })).json()) as any;
+      expect(quota.source_limit).toBe(300);
+    } finally {
+      await big.close();
     }
-    return { status: res.status, headers: res.headers, data };
-  };
-
-  beforeEach(async () => {
-    server = createServer();
-    await new Promise<void>((resolve) => {
-      server.listen(0, () => {
-        const addr = server.address() as any;
-        port = addr.port;
-        baseUrl = `http://127.0.0.1:${port}`;
-        resolve();
-      });
-    });
-
-    return () => {
-      return new Promise<void>((resolve) => server.close(() => resolve()));
-    };
   });
 
-  it("API-01: GET /api/notebooks rejects unauthenticated requests with 401", async () => {
-    const res = await request("/api/notebooks");
-    expect(res.status).toBe(401);
-  });
-
-  it("API-02: GET /api/notebooks lists caller's own live notebooks", async () => {
-    const res = await request("/api/notebooks", { token: ownerAlphaToken });
-    expect(res.status).toBe(200);
-    expect(Array.isArray(res.data.notebooks)).toBe(true);
-    expect(typeof res.data.notebooks_used).toBe("number");
-    expect(res.data.notebook_limit).toBe(100);
-  });
-
-  it("API-03: POST /api/notebooks creates notebook with default title and UUID v4", async () => {
-    const res = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    expect(res.status).toBe(201);
-    expect(res.data.notebook.id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  it("API-14: dismissing a failed row removes it without changing occupancy; non-failed rows are 409", async () => {
+    const nb = await create("api14");
+    const failed = randomUUID();
+    const uploading = randomUUID();
+    await api.db.pool.query(
+      `INSERT INTO sources (id, notebook_id, attempt_id, title, media_type, status, declared_bytes)
+       VALUES ($1, $3, $4, 't', 'text/plain', 'Failed', 1), ($2, $3, $5, 't', 'text/plain', 'Uploading', 1)`,
+      [failed, uploading, nb.id, randomUUID(), randomUUID()]
     );
-    expect(res.data.notebook.title).toBe("Untitled notebook");
-    expect(res.data.notebook.created_at).toBeDefined();
+    const before = (await (await api.fetch(`/api/notebooks/${nb.id}/quota`, { as: "api14" })).json()) as any;
+    expect((await api.fetch(`/api/notebooks/${nb.id}/sources/${failed}/error`, { method: "DELETE", as: "api14" })).status).toBe(204);
+    const after = (await (await api.fetch(`/api/notebooks/${nb.id}/quota`, { as: "api14" })).json()) as any;
+    expect(after.sources_used).toBe(before.sources_used);
+    expect((await api.fetch(`/api/notebooks/${nb.id}/sources/${uploading}/error`, { method: "DELETE", as: "api14" })).status).toBe(409);
+    expect((await api.fetch(`/api/notebooks/${nb.id}/sources/${failed}/error`, { method: "DELETE", as: "api14-x" })).status).toBe(403);
   });
 
-  it("API-04: POST /api/notebooks supports Idempotency-Key header for safe retry", async () => {
-    const idempotencyKey = "e1111111-1111-4111-8111-111111111111";
-    const res1 = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      headers: { "Idempotency-Key": idempotencyKey },
-      body: {},
-    });
-    expect(res1.status).toBe(201);
-
-    const res2 = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      headers: { "Idempotency-Key": idempotencyKey },
-      body: {},
-    });
-    expect(res2.status).toBe(201);
-    expect(res2.data.notebook.id).toBe(res1.data.notebook.id);
+  it("API-16: 100-notebook limit returns 409 NotebookQuotaExceeded", async () => {
+    await create("api16");
+    const owner = (await api.db.pool.query("SELECT id FROM users WHERE subject = 'local:api16'")).rows[0].id;
+    await api.db.pool.query(
+      "INSERT INTO notebooks (id, owner_id, title) SELECT gen_random_uuid(), $1, 'seed' FROM generate_series(1, 99)",
+      [owner]
+    );
+    const res = await api.fetch("/api/notebooks", { method: "POST", as: "api16", json: {} });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as any).error.code).toBe("NotebookQuotaExceeded");
   });
 
-  it("API-05: GET /api/notebooks/{id} returns notebook and quota summary", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: { title: "Biology 101" },
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const res = await request(`/api/notebooks/${notebookId}`, {
-      token: ownerAlphaToken,
-    });
+  it("API-17: local sign-in issues verifiable tokens; health endpoints are public", async () => {
+    const login = await api.fetch("/auth/local/login", { method: "POST", json: { email: "Dev@Example.test" } });
+    const { id_token } = (await login.json()) as { id_token: string };
+    const res = await api.fetch("/api/notebooks", { headers: { authorization: `Bearer ${id_token}` } });
     expect(res.status).toBe(200);
-    expect(res.data.notebook.title).toBe("Biology 101");
-    expect(res.data.quota).toBeDefined();
-    expect(res.data.quota.notebook_limit).toBe(100);
-    expect(res.data.quota.max_source_bytes).toBe(200000000);
-  });
-
-  it("API-06: GET /api/notebooks/{id} rejects cross-owner access with 403 Forbidden", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: { title: "Alpha Secrets" },
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    // Owner Beta attempts to access Owner Alpha's notebook
-    const res = await request(`/api/notebooks/${notebookId}`, {
-      token: ownerBetaToken,
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("API-07: PATCH /api/notebooks/{id} updates title and rejects whitespace-only or >100 code points with 422", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    // Valid rename
-    const validPatch = await request(`/api/notebooks/${notebookId}`, {
-      method: "PATCH",
-      token: ownerAlphaToken,
-      body: { title: "New Valid Title 🔬" },
-    });
-    expect(validPatch.status).toBe(200);
-    expect(validPatch.data.notebook.title).toBe("New Valid Title 🔬");
-
-    // Invalid rename: empty / whitespace
-    const emptyPatch = await request(`/api/notebooks/${notebookId}`, {
-      method: "PATCH",
-      token: ownerAlphaToken,
-      body: { title: "   " },
-    });
-    expect(emptyPatch.status).toBe(422);
-
-    // Invalid rename: 101 code points
-    const overLimitPatch = await request(`/api/notebooks/${notebookId}`, {
-      method: "PATCH",
-      token: ownerAlphaToken,
-      body: { title: "A".repeat(101) },
-    });
-    expect(overLimitPatch.status).toBe(422);
-
-    // Unknown mutation fields rejected
-    const unknownFieldPatch = await request(`/api/notebooks/${notebookId}`, {
-      method: "PATCH",
-      token: ownerAlphaToken,
-      body: { title: "Ok Title", unexpected_field: true },
-    });
-    expect(unknownFieldPatch.status).toBe(422);
-  });
-
-  it("API-08: DELETE /api/notebooks/{id} returns 202/204 and immediate 404 on subsequent reads", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: { title: "To Be Deleted" },
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const deleteRes = await request(`/api/notebooks/${notebookId}`, {
-      method: "DELETE",
-      token: ownerAlphaToken,
-    });
-    expect([202, 204]).toContain(deleteRes.status);
-    if (deleteRes.status === 202) {
-      expect(deleteRes.data.deletion_id).toBeDefined();
-    }
-
-    // Subsequent read returns 404 NotebookNotFound immediately
-    const readAfterDelete = await request(`/api/notebooks/${notebookId}`, {
-      token: ownerAlphaToken,
-    });
-    expect(readAfterDelete.status).toBe(404);
-
-    // Repeating DELETE against already deleted notebook returns 404
-    const repeatDelete = await request(`/api/notebooks/${notebookId}`, {
-      method: "DELETE",
-      token: ownerAlphaToken,
-    });
-    expect(repeatDelete.status).toBe(404);
-  });
-
-  it("API-09: GET /api/notebook-deletions/{deletion_id} returns status and rejects foreign caller with 403", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: { title: "Track Deletion" },
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const deleteRes = await request(`/api/notebooks/${notebookId}`, {
-      method: "DELETE",
-      token: ownerAlphaToken,
-    });
-    const deletionId = deleteRes.data.deletion_id;
-
-    if (deletionId) {
-      // Original owner checks status
-      const statusRes = await request(`/api/notebook-deletions/${deletionId}`, {
-        token: ownerAlphaToken,
-      });
-      expect(statusRes.status).toBe(200);
-      expect(["Pending", "Running", "Purged"]).toContain(statusRes.data.status);
-
-      // Foreign caller checks status -> 403
-      const foreignStatus = await request(`/api/notebook-deletions/${deletionId}`, {
-        token: ownerBetaToken,
-      });
-      expect(foreignStatus.status).toBe(403);
-    }
-  });
-
-  it("API-10: GET /api/notebooks/{id}/quota returns authoritative quota summary", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const quotaRes = await request(`/api/notebooks/${notebookId}/quota`, {
-      token: ownerAlphaToken,
-    });
-    expect(quotaRes.status).toBe(200);
-    expect(quotaRes.data.notebook_limit).toBe(100);
-    expect(quotaRes.data.max_source_bytes).toBe(200000000);
-    expect(quotaRes.data.max_source_words).toBe(500000);
-  });
-
-  it("API-11: POST /api/notebooks/{id}/sources/admission reserves slot, returns 409 SourceQuotaExceeded at capacity", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    // Normal reservation succeeds
-    const admitRes = await request(`/api/notebooks/${notebookId}/sources/admission`, {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {
-        attempt_id: "c1000000-0000-4000-8000-000000000001",
-        declared_byte_size: 2048,
-        file_name: "valid.pdf",
-        mime_type: "application/pdf",
-      },
-    });
-    expect(admitRes.status).toBe(201);
-    expect(admitRes.data.admitted).toBe(true);
-  });
-
-  it("API-12: server rejects reservation despite tampered client with 409 SourceQuotaExceeded", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    // Seed to 50 sources
-    const { seedSourceSlots } = await import("@everlast/db");
-    await seedSourceSlots(notebookId, 50);
-
-    // Tampered client attempts POST when UI would have disabled the button
-    const overflowRes = await request(`/api/notebooks/${notebookId}/sources/admission`, {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {
-        attempt_id: "c2000000-0000-4000-8000-000000000002",
-        declared_byte_size: 2048,
-        file_name: "overflow.pdf",
-        mime_type: "application/pdf",
-      },
-    });
-    expect(overflowRes.status).toBe(409);
-    expect(overflowRes.data.error.code).toBe("SourceQuotaExceeded");
-    expect(overflowRes.data.error.message).toMatch(/quota|limit/i);
-  });
-
-  it("API-13: GET /api/notebooks/{id}/quota reflects dynamic configured source limits (e.g. 50 and 300)", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const res = await request(`/api/notebooks/${notebookId}/quota`, {
-      token: ownerAlphaToken,
-    });
-    expect(res.status).toBe(200);
-    expect(res.data.source_limit).toBeGreaterThanOrEqual(50);
-    expect(res.data.source_limit).toBeLessThanOrEqual(300);
-  });
-
-  it("API-14: dismissing error row deletes failed record without decrementing occupancy", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    const { seedSourceSlots, failSource } = await import("@everlast/db");
-    await seedSourceSlots(notebookId, 10);
-    const attemptId = "c3000000-0000-4000-8000-000000000003";
-    await failSource({} as any, notebookId, attemptId, "Upload failed");
-
-    // Dismiss error row
-    const dismissRes = await request(`/api/notebooks/${notebookId}/sources/${attemptId}/error`, {
-      method: "DELETE",
-      token: ownerAlphaToken,
-    });
-    expect(dismissRes.status).toBe(204);
-
-    // Quota usage remains unchanged
-    const quotaRes = await request(`/api/notebooks/${notebookId}/quota`, {
-      token: ownerAlphaToken,
-    });
-    expect(quotaRes.data.sources_used).toBe(10);
-  });
-
-  it("API-15: quota failure response identifies exceeded limit dimension", async () => {
-    const createRes = await request("/api/notebooks", {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {},
-    });
-    const notebookId = createRes.data.notebook.id;
-
-    // Declared size exceeds 200 MB
-    const oversizedRes = await request(`/api/notebooks/${notebookId}/sources/admission`, {
-      method: "POST",
-      token: ownerAlphaToken,
-      body: {
-        attempt_id: "c4000000-0000-4000-8000-000000000004",
-        declared_byte_size: 200_000_001,
-        file_name: "huge.pdf",
-        mime_type: "application/pdf",
-      },
-    });
-    expect(oversizedRes.status).toBe(422);
-    expect(oversizedRes.data.error.code).toBe("SourceOversized");
-    expect(oversizedRes.data.error.message).toContain("200,000,000 bytes");
+    expect((await api.fetch("/healthz")).status).toBe(200);
+    expect((await api.fetch("/readyz")).status).toBe(200);
+    expect(((await (await api.fetch("/auth/config")).json()) as any).mode).toBe("local");
   });
 });

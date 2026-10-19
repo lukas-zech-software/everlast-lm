@@ -1,145 +1,105 @@
-import type { PoolClient } from "pg";
-import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import type { Pool } from "pg";
+import { MAX_SOURCE_BYTES, MAX_SOURCE_WORDS, UnifiedDocumentChunkSchema, type UnifiedDocumentChunk } from "@everlast/contracts";
+import { withTransaction } from "./transaction.ts";
+import { lockSourceForTransition } from "./quota.ts";
 
 /**
- * Ingestion Persistence and Scoped Context Retrieval Operations (FR-SI-01, FR-SI-03, FR-SI-04, C-01, C-02).
+ * Atomic Ready publication (FR-SI-01, FR-WM-07, C-01, D1). Revision, canonical pages, chunks, embeddings and
+ * the Ready transition commit in one transaction under the notebook→source fence. A deleted notebook,
+ * replaced attempt or non-Processing source is rejected and nothing is written.
  */
 
-export interface SaveIngestionResultInput {
-  notebookId: string;
+export interface PublishPage {
+  page_number: number;
+  physical_page?: number | undefined;
+  text: string;
+}
+
+export interface PublishChunk {
+  chunk: UnifiedDocumentChunk;
+  embedding: number[];
+}
+
+export interface PublishInput {
   sourceId: string;
+  attemptId: string;
   revision: number;
   byteSize: number;
   wordCount: number;
-  chunks: UnifiedDocumentChunk[];
+  pageCount: number;
+  embeddingModel: string;
+  pages: PublishPage[];
+  chunks: PublishChunk[];
 }
 
-/**
- * Records an ingestion attempt into the idempotency fence table.
- * Returns true if inserted, false if already exists.
- */
-export async function recordIngestionAttempt(
-  client: PoolClient,
-  attemptId: string,
-  notebookId: string,
-  sourceId: string
-): Promise<boolean> {
-  const result = await client.query(
-    `INSERT INTO ingestion_attempts (attempt_id, notebook_id, source_id, status, created_at)
-     VALUES ($1, $2, $3, 'Processing', NOW())
-     ON CONFLICT (attempt_id) DO NOTHING
-     RETURNING attempt_id`,
-    [attemptId, notebookId, sourceId]
-  );
-  return (result.rowCount ?? 0) > 0;
+export type PublishOutcome =
+  | { published: true; revision: number }
+  | { published: false; reason: "fenced" | "attempt_mismatch" | "not_processing" | "revision_changed" };
+
+const CHUNK_BATCH = 200;
+
+export function toVectorLiteral(vector: number[]): string {
+  return `[${vector.map((v) => (Number.isFinite(v) ? v.toFixed(7) : "0")).join(",")}]`;
 }
 
-/**
- * Atomically publishes source revision and document chunks in a single transaction.
- */
-export async function saveIngestionResult(
-  client: PoolClient,
-  input: SaveIngestionResultInput
-): Promise<void> {
-  const { notebookId, sourceId, revision, byteSize, wordCount, chunks } = input;
-
-  // Insert Source Revision record
-  await client.query(
-    `INSERT INTO source_revisions (notebook_id, source_id, revision, byte_size, word_count, created_at)
-     VALUES ($1, $2, $3, $4, $5, NOW())
-     ON CONFLICT (notebook_id, source_id, revision) DO UPDATE
-     SET byte_size = EXCLUDED.byte_size, word_count = EXCLUDED.word_count`,
-    [notebookId, sourceId, revision, byteSize, wordCount]
-  );
-
-  // Insert UnifiedDocumentChunk records
-  for (let seq = 0; seq < chunks.length; seq++) {
-    const chunk = chunks[seq];
-    if (!chunk) continue;
-    await client.query(
-      `INSERT INTO document_chunks (chunk_id, notebook_id, source_id, revision, sequence, token_count, text, locator, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-       ON CONFLICT (chunk_id) DO NOTHING`,
-      [
-        chunk.chunk_id,
-        notebookId,
-        sourceId,
-        revision,
-        seq,
-        chunk.token_count,
-        chunk.text,
-        JSON.stringify(chunk.locator),
-      ]
-    );
+export async function publishReadySource(pool: Pool, input: PublishInput): Promise<PublishOutcome> {
+  if (input.byteSize > MAX_SOURCE_BYTES || input.wordCount > MAX_SOURCE_WORDS) {
+    throw new Error("publishReadySource called with over-limit content");
   }
-}
-
-/**
- * Retrieves chunks belonging strictly to active (source_id, revision) pairs for the notebook.
- * Enforces zero leakage (NFR-EVAL-04) by filtering candidates server-side.
- */
-export async function getChunksByScope(
-  client: PoolClient,
-  notebookId: string,
-  activeSourceRevisions: { sourceId: string; revision: number }[]
-): Promise<UnifiedDocumentChunk[]> {
-  if (activeSourceRevisions.length === 0) {
-    return [];
-  }
-
-  // Construct parameterized query for (source_id, revision) pairs
-  const sourceIds = activeSourceRevisions.map((r) => r.sourceId);
-  const result = await client.query(
-    `SELECT chunk_id, source_id, revision, token_count, text, locator
-     FROM document_chunks
-     WHERE notebook_id = $1 AND source_id = ANY($2::uuid[])
-     ORDER BY sequence ASC`,
-    [notebookId, sourceIds]
-  );
-
-  // Filter against exact revisions
-  const revisionMap = new Map(activeSourceRevisions.map((r) => [r.sourceId, r.revision]));
-  const chunks: UnifiedDocumentChunk[] = [];
-
-  for (const row of result.rows) {
-    const requiredRev = revisionMap.get(row.source_id);
-    if (requiredRev !== undefined && row.revision === requiredRev) {
-      chunks.push({
-        chunk_id: row.chunk_id,
-        source_id: row.source_id,
-        revision: row.revision,
-        token_count: row.token_count,
-        text: row.text,
-        locator: typeof row.locator === "string" ? JSON.parse(row.locator) : row.locator,
-      });
+  if (input.chunks.length === 0) throw new Error("publishReadySource requires at least one chunk");
+  for (const { chunk } of input.chunks) {
+    UnifiedDocumentChunkSchema.parse(chunk);
+    if (chunk.source_id !== input.sourceId || chunk.revision !== input.revision) {
+      throw new Error("Chunk provenance does not match the published revision");
     }
   }
 
-  return chunks;
-}
+  return withTransaction(pool, async (tx) => {
+    const source = await lockSourceForTransition(tx, input.sourceId);
+    if (!source) return { published: false, reason: "fenced" };
+    if (source.attempt_id !== input.attemptId) return { published: false, reason: "attempt_mismatch" };
+    if (source.status !== "Processing") return { published: false, reason: "not_processing" };
+    if ((source.active_revision ?? 0) + 1 !== input.revision) return { published: false, reason: "revision_changed" };
 
-/**
- * Singleton source inspection read for a source without modifying chat scope (FR-SI-04).
- */
-export async function getChunksForInspector(
-  client: PoolClient,
-  notebookId: string,
-  sourceId: string
-): Promise<UnifiedDocumentChunk[]> {
-  const result = await client.query(
-    `SELECT chunk_id, source_id, revision, token_count, text, locator
-     FROM document_chunks
-     WHERE notebook_id = $1 AND source_id = $2
-     ORDER BY sequence ASC`,
-    [notebookId, sourceId]
-  );
-
-  return result.rows.map((row) => ({
-    chunk_id: row.chunk_id,
-    source_id: row.source_id,
-    revision: row.revision,
-    token_count: row.token_count,
-    text: row.text,
-    locator: typeof row.locator === "string" ? JSON.parse(row.locator) : row.locator,
-  }));
+    const notebookId = source.notebook_id;
+    await tx.query(
+      `INSERT INTO source_revisions (notebook_id, source_id, revision, byte_size, word_count, page_count, embedding_model)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [notebookId, input.sourceId, input.revision, input.byteSize, input.wordCount, input.pageCount, input.embeddingModel]
+    );
+    for (const page of input.pages) {
+      await tx.query(
+        `INSERT INTO source_pages (notebook_id, source_id, revision, page_number, physical_page, text)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [notebookId, input.sourceId, input.revision, page.page_number, page.physical_page ?? null, page.text]
+      );
+    }
+    for (let i = 0; i < input.chunks.length; i += CHUNK_BATCH) {
+      const batch = input.chunks.slice(i, i + CHUNK_BATCH);
+      await tx.query(
+        `INSERT INTO chunks (chunk_id, notebook_id, source_id, revision, sequence, text, token_count, locator, embedding)
+         SELECT c.chunk_id, $1, $2, $3, c.sequence, c.text, c.token_count, c.locator, c.embedding::vector
+         FROM unnest($4::uuid[], $5::int[], $6::text[], $7::int[], $8::jsonb[], $9::text[])
+           AS c(chunk_id, sequence, text, token_count, locator, embedding)`,
+        [
+          notebookId,
+          input.sourceId,
+          input.revision,
+          batch.map((c) => c.chunk.chunk_id),
+          batch.map((_, j) => i + j),
+          batch.map((c) => c.chunk.text),
+          batch.map((c) => c.chunk.token_count),
+          batch.map((c) => JSON.stringify(c.chunk.locator)),
+          batch.map((c) => toVectorLiteral(c.embedding)),
+        ]
+      );
+    }
+    await tx.query(
+      `UPDATE sources SET status = 'Ready', word_count = $2, actual_bytes = $3, active_revision = $4,
+              failure_code = NULL, failure_message = NULL, upload_expires_at = NULL, updated_at = now()
+       WHERE id = $1`,
+      [input.sourceId, input.wordCount, input.byteSize, input.revision]
+    );
+    return { published: true, revision: input.revision };
+  });
 }

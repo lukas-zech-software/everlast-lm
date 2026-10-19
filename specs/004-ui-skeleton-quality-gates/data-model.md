@@ -28,6 +28,7 @@ Defaults are qualified by owner-only release phasing and explicit-scope rules; A
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Golden Eval Benchmark | JSONL dataset | $\ge 100$ unanswerable world-knowledge cases (`NFR-EVAL-03`), $\ge 50$ deselected-source cases incl. history carry-over (`NFR-EVAL-04`), $\ge 50$ multi-document synthesis cases (`NFR-EVAL-01`, `02`) | Versioned golden dataset for v1.0 |
+| Judged release sample | Case-ID list in gate report | Exactly 50 cases, deterministic stratified selection from the golden dataset (proportional by category, each category ≥ 1); judged metrics are computed on this sample once per release gate | Fixed by dataset version |
 | $\epsilon_{\text{hallucination}}$ | Float | $< 0.05$ | Target $\le 0.02$ |
 | $\text{Precision}_{\text{ID}}$ | Float | $= 1.00$ | $1.00$ |
 | Negative Rejection Rate | Float | $\ge 0.99$ | $1.00$ |

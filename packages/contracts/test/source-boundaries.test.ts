@@ -9,7 +9,7 @@ import {
   SourceOversizedWordsError,
   DishonestDeclarationError,
   detectDishonestDeclaration,
-} from "../src/source-admission.js";
+} from "../src/source-admission.ts";
 
 describe("T034 [P] [US3] Trusted-Worker Boundary and Size Validation (FR-WM-07, FR-SI-01)", () => {
   it("BND-01: independent 199,999,999 / 200,000,000 / 200,000,001 bytes threshold", () => {

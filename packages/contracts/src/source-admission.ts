@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AppError } from "./errors.ts";
 
 /**
  * Source Admission & Quota Contracts (FR-WM-07, FR-SI-01).
@@ -16,34 +17,30 @@ export const MAX_CONFIGURABLE_SOURCES_PER_NOTEBOOK = 300;
 export const MAX_SOURCE_BYTES = 200_000_000; // 200 MB inclusive
 export const MAX_SOURCE_WORDS = 500_000; // 500k words inclusive
 
-export class SourceQuotaExceededError extends Error {
-  public readonly code = "SourceQuotaExceeded";
+export class SourceQuotaExceededError extends AppError {
   constructor(message: string = "Notebook has reached maximum sources limit") {
-    super(message);
+    super("SourceQuotaExceeded", 409, message);
     this.name = "SourceQuotaExceededError";
   }
 }
 
-export class SourceOversizedBytesError extends Error {
-  public readonly code = "SourceOversized";
-  constructor(message: string = `Source exceeds ${MAX_SOURCE_BYTES.toLocaleString()} bytes limit`) {
-    super(message);
+export class SourceOversizedBytesError extends AppError {
+  constructor(message: string = `Source exceeds ${MAX_SOURCE_BYTES.toLocaleString("en-US")} bytes limit`) {
+    super("SourceOversized", 422, message);
     this.name = "SourceOversizedBytesError";
   }
 }
 
-export class SourceOversizedWordsError extends Error {
-  public readonly code = "SourceOversizedWords";
-  constructor(message: string = `Exceeds ${MAX_SOURCE_WORDS.toLocaleString()} words limit`) {
-    super(message);
+export class SourceOversizedWordsError extends AppError {
+  constructor(message: string = `Exceeds ${MAX_SOURCE_WORDS.toLocaleString("en-US")} words limit`) {
+    super("SourceOversizedWords", 422, message);
     this.name = "SourceOversizedWordsError";
   }
 }
 
-export class DishonestDeclarationError extends Error {
-  public readonly code = "DishonestDeclaration";
+export class DishonestDeclarationError extends AppError {
   constructor(message: string = "Actual byte size exceeds declared size and limit threshold") {
-    super(message);
+    super("DishonestDeclaration", 422, message);
     this.name = "DishonestDeclarationError";
   }
 }
@@ -128,7 +125,7 @@ export function validateWorkerExtractedWords(
   }
   const maxWords = config?.maxWordsPerSource ?? MAX_SOURCE_WORDS;
   if (wordCount > maxWords) {
-    throw new SourceOversizedWordsError(`Exceeds ${maxWords.toLocaleString()} words limit`);
+    throw new SourceOversizedWordsError(`Exceeds ${maxWords.toLocaleString("en-US")} words limit`);
   }
 }
 

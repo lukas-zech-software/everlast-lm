@@ -163,6 +163,7 @@ Scenario: Deselected source does not leak via conversation history
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Golden Eval Benchmark | JSONL dataset | $\ge 100$ unanswerable world-knowledge cases (`NFR-EVAL-03`), $\ge 50$ deselected-source cases incl. history carry-over (`NFR-EVAL-04`), $\ge 50$ multi-document synthesis cases (`NFR-EVAL-01`, `02`) | Versioned golden dataset for v1.0 |
+| Judged release sample | Case-ID list in gate report | Exactly 50 cases, deterministic stratified selection from the golden dataset (proportional by category, each category ≥ 1); judged metrics are computed on this sample once per release gate | Fixed by dataset version |
 | $\epsilon_{\text{hallucination}}$ | Float | $< 0.05$ | Target $\le 0.02$ |
 | $\text{Precision}_{\text{ID}}$ | Float | $= 1.00$ | $1.00$ |
 | Negative Rejection Rate | Float | $\ge 0.99$ | $1.00$ |
@@ -206,7 +207,7 @@ Scenario: Deselected source does not leak via conversation history
 - $\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 0.99$, $\text{Leakage} = 0$ (`SRS §4.2` & `§5.4 Gate v1.0`).
 
 - **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 0.05, ID precision = 1.0, rejection >= 99%, leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
-- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run on retrieval/prompt/chat PRs and every release gate. Missing runners are reported UNAVAILABLE, never passed.
+- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). Missing runners are reported UNAVAILABLE, never passed.
 - **SC-TIMING (NFR-PERF-01, D13)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 2.5 s target is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
 
 ## Assumptions & Out of Scope
@@ -225,7 +226,7 @@ Scenario: Deselected source does not leak via conversation history
 
 ### Session 2026-10-17
 
-- Q: Which evaluation checks run on every PR versus on retrieval/prompt/chat PRs and release gates (`NFR-EVAL-01..04`, `Gate v1.0`)? → A: Deterministic citation-ID (`NFR-EVAL-02` `Precision_ID = 1.0`) and context-scoping/leakage (`NFR-EVAL-04` `Leakage = 0`) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` `hallucination < 0.05`), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` `rejection >= 0.99`) run on PRs touching retrieval/prompt/chat and at every release gate.
+- Q: Which evaluation checks run on every PR versus on retrieval/prompt/chat PRs and release gates (`NFR-EVAL-01..04`, `Gate v1.0`)? → A: Deterministic citation-ID (`NFR-EVAL-02` `Precision_ID = 1.0`) and context-scoping/leakage (`NFR-EVAL-04` `Leakage = 0`) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` `hallucination < 0.05`), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` `rejection >= 0.99`) run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). *(Amended 2026-10-19, project owner.)*
 - Q: How do viewport breakpoints and `localStorage` panel preferences interact with citation click-through (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)? → A: Default layout is tabbed at `< 1024 px`, 3-column with `Studio` collapsed at `1024–1279 px`, and 3-column with both side panels expanded at `>= 1280 px`; explicit user collapse/expand preferences persist in browser `localStorage`, but clicking an inline citation `[n]` always un-collapses/switches to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing chat draft or scroll state.
 - Q: How is `NFR-SEC-01` enterprise no-training compliance verified independently of zero-retention claims (`NFR-SEC-01`, `D14`)? → A: Automated security checks verify that all LLM, OCR, and embedding endpoints use Vertex AI / Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), and audit reports separate no-training verification from data-retention settings.
 

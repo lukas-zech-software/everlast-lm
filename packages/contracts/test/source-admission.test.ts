@@ -11,7 +11,7 @@ import {
   parseSourceLimitsConfig,
   isAdmissionAllowedUnderConfig,
   QuotaSummarySchema,
-} from "../src/source-admission.js";
+} from "../src/source-admission.ts";
 
 describe("T032 [US3] Quota DTO and Configuration Contract (FR-WM-07)", () => {
   it("ADM-01: valid source limit between 50 and 300 is accepted, defaults to 50", () => {

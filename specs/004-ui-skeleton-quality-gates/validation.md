@@ -5,6 +5,54 @@
 
 ---
 
+## Convergence correction and verified evidence (2026-10-18/19)
+
+> **Correction (T022, Constitution II/III):** the earlier runner (`packages/evals/src/runner.ts`) and `scripts/eval-v1.mjs` hardcoded the metrics and printed PASS; the committed `eval-report-v1.json` claiming `GatePassed` was not evidence. Both scripts and the report were removed. Metrics are now computed by running each golden case through the production chat pipeline.
+
+- **Environment**: macOS 27 (darwin arm64), Node.js 26.3.0 (repo engine `>=24`), pnpm 10.31.0, PostgreSQL 16.15 + pgvector 0.8.7 (`pgvector/pgvector:pg16` Docker, `pnpm db:test:up`), Chromium via Playwright 1.64.1, OpenTofu 1.13.1.
+- **Base**: `main` @ `8ca81ca`, branch `feat/v1-gate-convergence` (worktree `everlast-lm-worktrees/v1-gate`), uncommitted at time of recording.
+- **Commands**: `TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast pnpm test` (Vitest projects `unit` + `integration`: **318/318 passed, 30 files**), `pnpm test:e2e` (**30/30 Playwright journeys passed**), `pnpm eval:deterministic`, `pnpm typecheck` (clean), `tofu test` in `infra/modules/storage_secrets` (4/4).
+- **Test doubles (labelled in code)**: `HashingTestEmbedder` (lexical vectors, refused in production), `FixtureOcr` (stands in for Document AI in worker tests), scripted/fixture chat models in API tests and the E2E server. They prove pipeline guarantees only; model quality is measured by the judged suite.
+- **UNAVAILABLE in this environment**: Vertex AI (chat, embeddings, judge), Document AI OCR and Identity Platform live checks — no Application Default Credentials on this machine (`gcloud auth application-default print-access-token` fails). Nothing below claims those passed.
+
+### Green results (FR-UI-01, NFR-EVAL-01..04, NFR-SEC-01)
+
+| Task(s) | Suite | Result | Notes |
+| :-- | :-- | :-- | :-- |
+| T025/T026 (T005–T011) | `apps/web/test/layout.spec.ts` UI-E01..05 (Playwright) | 8/8 | 1440×900 three panels with "3 sources", Studio placeholder text, collapse both panels widens Chat and keeps draft, preferences persist across reload, 1023 tabs / 1024 + 1279 Studio collapsed / 1280 both expanded, citation click un-collapses Sources, narrow-screen citation switches tab and keeps chat state. |
+| T027 | `packages/evals/test/release-v1.test.ts` EVR-01..05 | 5/5 of 9 | GatePending → GatePassed only with all three criteria in a release run; any failing metric, errored case, invalid upload evidence or failed preflight → GateFailed with failing case IDs and commit; deterministic mode never passes. Audit line appended per run (`reports/gate-audit.jsonl`). |
+| T024/T029 | `packages/evals/test/release-v1.test.ts` EVS-01..04 | 4/4 of 9 | Hermetic (explicit env, passes with an ambient `GEMINI_API_KEY` in the shell): developer keys fail, non-Vertex / API-key / non-EU clients fail, Document AI in the EU region map passes, other regions need a recorded decision, no-training evidence reported separately from retention ("zero data retention is NOT claimed"). |
+| T013 | `packages/evals/test/release-v1.boundaries.test.ts` EVB-01..09 | 9/9 | Dataset 110 unanswerable / 52 deselection (20 history) / 60 synthesis; 99/49 fail minimums; hallucination 0.049 pass, 0.05/0.051 fail; precision 0.99 fail; rejection 0.98 fail, 0.99/1.0 pass; leakage 1 fails; zero denominators fail closed; no world-knowledge answer appears in the corpus. |
+| T022 (T014) | `packages/evals/test/release-v1.integration.test.ts` EVI-01..03 | 3/3 | Real-pipeline subset: Precision_ID 1.0, leakage 0, judged metrics UNAVAILABLE; adversarial model never gets an answer published; the leakage detector counts inactive chunks in retrieval and prompt plus deselected facts in responses. |
+| T028 (T019) | `packages/evals/test/package-v1-4.test.ts` | 1/1 | Full 222-case dataset through the pipeline; deterministic metrics pass; gate stays GatePending. |
+| T022/T023 | `pnpm eval:deterministic` | pass | 222 cases: Precision_ID 160/160 = 1.0, leakage 0; adversarial pass 60 drafts with out-of-prompt citations, 0 published; judged metrics UNAVAILABLE; report `GatePending`. |
+| T023 | `pnpm eval:judged` | **pass (2026-10-19)** | See "Release run" below. Without ADC the command exits 2 (UNAVAILABLE). Implemented: ADK chat on Vertex AI, Vertex embeddings, Flash-Lite judge for hallucination, semantic support and rejection, NFR-SEC-01 live preflight. Per Constitution v2.0.0 it runs once per release gate on the fixed 50-case stratified sample; the CI `judged` job runs only on a release-gate dispatch and fails (never skips) when WIF is not configured. |
+
+### Release run — Gate v1.0 (2026-10-19, Constitution v2.0.0)
+
+- **Command**: `TEST_DATABASE_URL=… VERTEX_PROJECT=lukas-gcloud-playground VERTEX_LOCATION=europe-west4 DOCUMENT_AI_PROCESSOR_NAME=projects/lukas-gcloud-playground/locations/eu/processors/7e8fb3b073398d36 pnpm eval:judged` (ADC, developer keys removed from the environment).
+- **Models / endpoints**: chat `gemini-2.5-flash` (ADK `LlmAgent`), embeddings `gemini-embedding-001` (768), judge `gemini-2.5-flash-lite`, all Vertex AI `europe-west4`; OCR Document AI Layout Parser `eu` (live call verified).
+- **Sample**: fixed stratified 50 cases (`stratified-largest-remainder-v1`: 25 unanswerable, 7 deselected-source, 4 history carry-over, 14 synthesis) from dataset v1.0.0 (`35f54e2553cd…`); case IDs in [the report](evidence/eval-report-v1.md).
+- **Result: `GatePassed`** — Precision_ID 20/20 = 1.0, leakage 0, hallucination 0/20 = 0, semantic support 20/20 = 1.0, rejection 25/25 = 1.0; NFR-SEC-01 preflight all checks pass. Evidence: [`evidence/eval-report-v1.json`](evidence/eval-report-v1.json), [`evidence/gate-v1-ui.json`](evidence/gate-v1-ui.json).
+- **Run history (honest record)**: run 1 failed semantic support (20/22, HIS-008/HIS-013; hallucination 1/22) because the synthetic-corpus PDF fixture wrote `€` as `?` (non-WinAnsi encoding in `packages/testkit/src/pdf-builder.ts`; fixed, US1-B14 added). Run 2 failed semantic support (20/22, SYN-054/SYN-058): correct answers whose claim began with "Its …" were judged without the antecedent. Fixes: grounding rule 6a (self-contained claim sentences) and the judge receives preceding sentences for reference resolution only (never as evidence). Run 3 passed. All runs are in `reports/gate-audit.jsonl`.
+
+### Gate v1.0 status
+
+| Criterion | Status | Evidence |
+| :-- | :-- | :-- |
+| #1 PDF/MD upload → valid C-01 | pass | GATE-1 (Playwright, final code), US1-01, PKG12-01, release-run corpus ingestion (10 documents) |
+| #2 NFR-EVAL-01..04 | pass | release run above |
+| #3 Citation navigation | pass | GATE-3 20/20, P95 54 ms (final code), GC-E02, UI-E04/05 |
+
+**Gate v1.0: `GatePassed`** on branch `feat/v1-gate-convergence` (uncommitted at recording; re-run `pnpm eval:judged` on the merged commit if the report must reference a commit SHA).
+
+### Path map (planned → implemented)
+
+`apps/web/test/workspace-layout*.spec.ts` → `apps/web/test/layout.spec.ts`; `apps/web/src/workspace-layout.ts` / `workspace-state.ts` → `apps/web/src/workspace/layout.ts`, `apps/web/src/lib/layout.ts`; `packages/evals/fixtures/v1/golden.jsonl` → generated deterministically by `packages/evals/src/dataset.ts` (hashed in every report); `scripts/eval-v1.mjs`, `scripts/runner-guard.mjs` → `packages/evals/src/cli.ts`.
+
+---
+
+
 ## Task T003: Contract and Schema Tests (Phase 1 Setup)
 
 ### Test Execution Command

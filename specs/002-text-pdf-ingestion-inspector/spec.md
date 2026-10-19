@@ -283,7 +283,7 @@ Scenario: Citation click scrolls deterministically to target chunk
 - Scroll target is 100% deterministic in automated Playwright/DOM E2E tests.
 
 - **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 0.05, ID precision = 1.0, rejection >= 99%, leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
-- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run on retrieval/prompt/chat PRs and every release gate. Missing runners are reported UNAVAILABLE, never passed.
+- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). Missing runners are reported UNAVAILABLE, never passed.
 - **SC-TIMING (NFR-PERF-01, D13)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 2.5 s target is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
 
 ## Assumptions & Out of Scope
@@ -308,3 +308,6 @@ Scenario: Citation click scrolls deterministically to target chunk
 - Q: How does opening a deselected source in the Source Inspector interact with `ScopedContextProvider` and active chat scoping (`FR-SI-03`, `FR-SI-04`, `C-02`)? → A: Opening a source via sidebar title click or historical citation executes an authorized singleton `ScopedContextProvider` (`C-02`) read for `{source_id}` without modifying the session's active chat checkbox selection ($S_{\text{aktiv}}$) or making the deselected source eligible for generation prompts.
 - Q: How are in-flight chat requests affected when the user toggles source checkboxes mid-stream (`FR-SI-03`, `C-02`)? → A: Each generation request captures an immutable `(source_id, revision)` snapshot of $S_{\text{aktiv}}$ at submission time; mid-stream checkbox changes apply only to subsequent requests, while deletion or authorization revocation of a captured source revision aborts the in-flight request before publication.
 
+### Implementation flow-back 2026-10-19
+
+- Q: What do `page_number` and `physical_page` mean in a v1 `page_span` locator (`C-01`, `FR-SI-01`, `FR-SI-04`)? → A: `page_number` is the 1-based canonical page (the physical PDF page, or a logical page of about 20,000 characters for text-only sources so very large sources paginate); `physical_page` is present only for PDFs; offsets are Unicode code points into that page's canonical text.

@@ -1,0 +1,45 @@
+/**
+ * Shared application error model (FR-WM-01, FR-WM-04, FR-WM-07, C-02).
+ * Every error carries a stable `code` and HTTP `status`; messages never include source content.
+ */
+
+export type AppErrorCode =
+  | "Unauthenticated"
+  | "Forbidden"
+  | "NotFound"
+  | "NotebookNotFound"
+  | "SourceNotFound"
+  | "DeletionNotFound"
+  | "ValidationFailed"
+  | "InvalidTitle"
+  | "NotebookQuotaExceeded"
+  | "SourceQuotaExceeded"
+  | "SourceOversized"
+  | "SourceOversizedWords"
+  | "DishonestDeclaration"
+  | "UnsupportedMediaType"
+  | "EmptyScope"
+  | "InvalidScope"
+  | "SourceNotReady"
+  | "SourceSnapshotInvalid"
+  | "GenerationCancelled"
+  | "MethodNotAllowed"
+  | "PayloadTooLarge"
+  | "RetryableFailure"
+  | "InternalError";
+
+export class AppError extends Error {
+  readonly code: AppErrorCode;
+  readonly status: number;
+
+  constructor(code: AppErrorCode, status: number, message: string) {
+    super(message);
+    this.name = "AppError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+export function isAppError(err: unknown): err is AppError {
+  return err instanceof AppError;
+}

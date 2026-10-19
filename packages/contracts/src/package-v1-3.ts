@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ChunkLocatorSchema } from "./document-chunk.js";
+import { ChunkLocatorSchema } from "./document-chunk.ts";
 
 /**
  * Package 1.3 DTOs and Schemas (Grounded Chat & Citation Engine)

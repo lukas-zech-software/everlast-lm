@@ -1,0 +1,18 @@
+{
+  "name": "@everlast/testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Test-only fixture builders (deterministic PDFs). Never imported by production code.",
+  "exports": {
+    "./*": {
+      "types": "./src/*.ts",
+      "import": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2"
+  }
+}

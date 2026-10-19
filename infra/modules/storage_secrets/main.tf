@@ -18,6 +18,11 @@ resource "google_storage_bucket" "workspace" {
     enabled = true
   }
 
+  # Permanent notebook deletion (FR-WM-01): purged generations must not survive in soft-delete storage.
+  soft_delete_policy {
+    retention_duration_seconds = 0
+  }
+
   # Purge incomplete multipart uploads and noncurrent object versions after 7 days (FR-WM-07, §5.2)
   lifecycle_rule {
     condition {
@@ -42,7 +47,7 @@ resource "google_storage_bucket" "workspace" {
   cors {
     origin          = var.cors_allowed_origins
     method          = ["GET", "HEAD", "PUT", "POST", "OPTIONS"]
-    response_header = ["Content-Type", "Content-Length", "ETag", "x-goog-resumable"]
+    response_header = ["Content-Type", "Content-Length", "ETag", "x-goog-resumable", "x-goog-content-length-range"]
     max_age_seconds = 3600
   }
 }

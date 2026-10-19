@@ -324,6 +324,12 @@ Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwi
 Diese Klarstellungen lösen Widersprüche innerhalb der bestehenden IDs auf; sie ändern keine
 Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-APIs.
 
+- **NFR-EVAL-01..04, alle Release-Gates (Beschluss Project Owner 2026-10-19):** Deterministische
+  Prüfungen (`NFR-EVAL-02` ID-Präzision, `NFR-EVAL-04` Leakage) laufen auf jedem PR. Die
+  LLM-bewerteten Prüfungen (`NFR-EVAL-01`, `NFR-EVAL-03`, semantische Zitatstützung) laufen einmal
+  je Release-Gate auf einer festen, deterministisch geschichteten Stichprobe von 50 Fällen aus dem
+  versionierten Golden-Datensatz; ein bestandener Lauf genügt als Gate-Nachweis. Schwellenwerte
+  bleiben unverändert (Constitution v2.0.0).
 - **FR-WM-07:** 200 MB = 200.000.000 Bytes und 500.000 Wörter sind unabhängige inklusive
   Obergrenzen. Quellen-Slots werden atomar reserviert und bei fehlgeschlagener Ingestion
   freigegeben. v1: 100 Notebooks je Nutzer und standardmäßig 50 Quellen je Notebook

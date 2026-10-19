@@ -1,0 +1,114 @@
+import { randomUUID } from "node:crypto";
+import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
+import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import type { Schema } from "@google/genai";
+import { GROUNDED_DRAFT_RESPONSE_SCHEMA, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
+import { buildUserPayload, GROUNDING_INSTRUCTION, type HistoryTurn } from "./prompt.ts";
+
+/**
+ * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
+ * Production: ADK for TypeScript `LlmAgent` on Gemini Flash via Vertex AI in the configured EU region with
+ * keyless ADC (enterprise endpoint, contractual no-training). Developer API keys are never used.
+ */
+
+export interface GroundedModelInput {
+  question: string;
+  chunks: UnifiedDocumentChunk[];
+  history: HistoryTurn[];
+  signal?: AbortSignal | undefined;
+}
+
+export interface GroundedModel {
+  readonly id: string;
+  generate(input: GroundedModelInput): Promise<GroundedDraft>;
+}
+
+/** The model returned output that does not match the structured draft schema (treated as unverifiable). */
+export class UnverifiableDraftError extends Error {
+  constructor(message = "Model output did not match the grounded draft schema") {
+    super(message);
+    this.name = "UnverifiableDraftError";
+  }
+}
+
+export class ModelUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ModelUnavailableError";
+  }
+}
+
+export interface AdkModelConfig {
+  project: string;
+  location: string;
+  model: string;
+  timeoutMs?: number;
+}
+
+export class AdkGroundedModel implements GroundedModel {
+  readonly id: string;
+  private readonly runner: InMemoryRunner;
+  readonly llm: Gemini;
+  private readonly timeoutMs: number;
+
+  constructor(config: AdkModelConfig) {
+    this.id = `vertex:${config.location}:${config.model}`;
+    this.timeoutMs = config.timeoutMs ?? 60_000;
+    // Explicit vertexai + project + location: the SDK uses ADC and ignores any API key in the environment.
+    this.llm = new Gemini({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    const agent = new LlmAgent({
+      name: "grounded_chat",
+      description: "Answers strictly from scoped source chunks with chunk-level citations.",
+      model: this.llm,
+      instruction: GROUNDING_INSTRUCTION,
+      outputSchema: GROUNDED_DRAFT_RESPONSE_SCHEMA as unknown as Schema,
+      includeContents: "none",
+      disallowTransferToParent: true,
+      disallowTransferToPeers: true,
+      generateContentConfig: { temperature: 0, candidateCount: 1 },
+    });
+    this.runner = new InMemoryRunner({ agent, appName: "everlast-chat" });
+  }
+
+  async generate(input: GroundedModelInput): Promise<GroundedDraft> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new ModelUnavailableError("Model request timed out")), this.timeoutMs);
+    const onAbort = () => controller.abort(input.signal?.reason);
+    input.signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const userId = "chat";
+      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID() });
+      let text = "";
+      for await (const event of this.runner.runAsync({
+        userId,
+        sessionId: session.id,
+        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history) }] },
+        abortSignal: controller.signal,
+      })) {
+        if (event.errorCode) throw new ModelUnavailableError(`Model error ${event.errorCode}`);
+        if (isFinalResponse(event)) {
+          text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
+        }
+      }
+      await this.runner.sessionService.deleteSession({ appName: "everlast-chat", userId, sessionId: session.id }).catch(() => undefined);
+      return GroundedDraftSchema.parse(JSON.parse(text));
+    } catch (err) {
+      if (input.signal?.aborted) throw input.signal.reason ?? err;
+      if (err instanceof SyntaxError || (err as Error).name === "ZodError") throw new UnverifiableDraftError();
+      throw err instanceof ModelUnavailableError ? err : new ModelUnavailableError((err as Error).message);
+    } finally {
+      clearTimeout(timer);
+      input.signal?.removeEventListener("abort", onAbort);
+    }
+  }
+}
+
+export function createGroundedModelFromEnv(env: NodeJS.ProcessEnv = process.env): GroundedModel {
+  const project = env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
+  if (!project) throw new Error("VERTEX_PROJECT (or GCP_PROJECT_ID) is required for the chat model");
+  return new AdkGroundedModel({
+    project,
+    location: env.VERTEX_LOCATION ?? env.VERTEX_AI_LOCATION ?? "europe-west4",
+    model: env.CHAT_MODEL ?? "gemini-2.5-flash",
+  });
+}

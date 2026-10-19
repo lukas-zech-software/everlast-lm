@@ -9,12 +9,31 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@everlast/cloud": "workspace:*",
     "@everlast/contracts": "workspace:*",
     "@everlast/db": "workspace:*",
-    "google-auth-library": "^9.15.1"
+    "@google/adk": "2.3.0",
+    "@google/genai": "^2.30.0",
+    "google-auth-library": "^9.15.1",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@everlast/worker": "workspace:*",
     "@types/node": "^24.0.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@everlast/testkit": "workspace:*"
+  },
+  "types": "./src/server.ts",
+  "exports": {
+    ".": {
+      "types": "./src/server.ts",
+      "import": "./src/server.ts",
+      "default": "./src/server.ts"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "import": "./src/*.ts",
+      "default": "./src/*.ts"
+    }
   }
 }
