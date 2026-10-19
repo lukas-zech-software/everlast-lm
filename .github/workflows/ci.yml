@@ -32,16 +32,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup pnpm with runtime
+        uses: pnpm/setup@a088197 # v3.1.1
         with:
-          version: 10.31.0
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          cache: "pnpm"
+          runtime: node@24
+          cache: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
