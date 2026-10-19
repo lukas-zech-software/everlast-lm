@@ -130,6 +130,10 @@ the cited SRS requirements; they do not introduce new release packages.
   constitution checks still apply. Passing one package's tests is not passing the full gate.
   Package timing criteria are measured on declared fixtures/environments; standard chat TTFT
   starts at submission and ends at the first validated answer token, excluding progress UI.
+  For NFR-PERF-01, the 2.5-second P95 acceptance population contains only requests submitted
+  after the service is awake (D15/DEV-04). Requests waiting for wake-up and their wake-up delays
+  are measured/reported separately without a release-blocking latency threshold. Declare the
+  warm-state classification before testing; do not restart the clock after submission.
 
 ## Package prerequisites
 
