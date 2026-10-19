@@ -43,7 +43,7 @@ Rules: plugins never read storage directly (C-02 only), never set status, never 
 | `POST …/:artifactId/retry` | `{ active_source_ids }` (required, explicit) | `202 { artifact }` new attempt | `400`, `409` if not `Failed`/`Cancelled` |
 | `POST …/:artifactId/convert-to-source` | – | `201 { source_id }` | `409` unless `Completed`, `501` if port missing |
 | `DELETE …/:artifactId` | – | `204` | `404` |
-| `POST …/studio/report-suggestions` | `{ active_source_ids, output_language? }` | `200 ReportSuggestionsResult` | `400 EmptyScopeError` |
+| `POST …/studio/report-suggestions` | `{ active_source_ids, output_language? }` | `200 ReportSuggestionsResult` | `400 EmptyScopeError`, `403 InvalidScope` (owner and scope verified through `StudioAccessVerifier` before any guide is read) |
 
 Error body: `{ "error": { "code", "message" } }`.
 
