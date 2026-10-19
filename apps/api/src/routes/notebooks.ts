@@ -6,7 +6,7 @@ import {
   NotebookQuotaExceededError,
   InvalidTitleError,
 } from "@everlast/db";
-import { validateNotebookTitle } from "@everlast/contracts";
+import { NotebookIconSchema, NotebookSortOrderSchema, validateNotebookTitle } from "@everlast/contracts";
 
 /**
  * Notebook HTTP API Route Dispatcher (FR-WM-01, FR-WM-04, FR-WM-07).
@@ -24,7 +24,12 @@ export async function handleNotebookRoute(
 
   // 1. GET /api/notebooks
   if (method === "GET" && pathname === "/api/notebooks") {
-    const list = await service.listNotebooks(ownerId);
+    const requestedSort = url.searchParams.get("sort_order");
+    if (requestedSort && !NotebookSortOrderSchema.safeParse(requestedSort).success) {
+      sendJson(res, 400, { error: { code: "InvalidPreference", message: "Unsupported sort_order" } });
+      return true;
+    }
+    const list = await service.listNotebooks(ownerId, requestedSort ? requestedSort as any : undefined);
     sendJson(res, 200, list);
     return true;
   }
@@ -131,6 +136,52 @@ export async function handleNotebookRoute(
     const notebookId = dismissMatch[1]!;
     const attemptId = dismissMatch[2]!;
     await service.dismissSourceError(ownerId, notebookId, attemptId);
+    res.writeHead(204);
+    res.end();
+    return true;
+  }
+
+  const iconMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/icon$/);
+  if (method === "PATCH" && iconMatch) {
+    const notebookId = iconMatch[1]!;
+    const raw = service.getNotebookRaw(notebookId);
+    if (!raw) {
+      sendJson(res, 404, { error: { code: "NotebookNotFound", message: "Notebook not found" } });
+      return true;
+    }
+    if (raw.owner_id !== ownerId) {
+      sendJson(res, 403, { error: { code: "Forbidden", message: "Forbidden: cannot mutate foreign notebook" } });
+      return true;
+    }
+    try {
+      const body = await parseJsonBody<any>(req);
+      if (!body || Object.keys(body).some((key) => key !== "icon_emoji") || !NotebookIconSchema.safeParse(body.icon_emoji).success) {
+        sendJson(res, 400, { error: { code: "InvalidEmoji", message: "Icon must be one valid emoji grapheme" } });
+        return true;
+      }
+      await service.updateNotebookIcon(ownerId, notebookId, body.icon_emoji);
+      const result = await service.getNotebook(ownerId, notebookId);
+      sendJson(res, 200, { notebook: result?.notebook });
+      return true;
+    } catch (err: any) {
+      sendJson(res, 400, { error: { code: "InvalidEmoji", message: err.message } });
+      return true;
+    }
+  }
+
+  const openedMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/opened$/);
+  if (method === "POST" && openedMatch) {
+    const notebookId = openedMatch[1]!;
+    const raw = service.getNotebookRaw(notebookId);
+    if (!raw) {
+      sendJson(res, 404, { error: { code: "NotebookNotFound", message: "Notebook not found" } });
+      return true;
+    }
+    if (raw.owner_id !== ownerId) {
+      sendJson(res, 403, { error: { code: "Forbidden", message: "Forbidden: cross-owner access rejected" } });
+      return true;
+    }
+    await service.markNotebookOpened(ownerId, notebookId);
     res.writeHead(204);
     res.end();
     return true;

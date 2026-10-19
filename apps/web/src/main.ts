@@ -5,6 +5,7 @@ import { SourceGuideController } from "./source-guide.js";
 import { ChatControlController, renderResponseActions, renderSavedResponseNote, renderNotebookOverview, formatChatConfigurationLabel, scopeSignature, type SourceRevision } from "./chat-control.js";
 import { mountNotebookSourceList } from "./sources/list.js";
 import { type SourceItem, type SourceSelectionController } from "./sources/selection.js";
+import { initializeTheme } from "./workspace-preferences.js";
 
 /**
  * Client SPA entrypoint (FR-UI-01, FR-WM-01).
@@ -12,6 +13,8 @@ import { type SourceItem, type SourceSelectionController } from "./sources/selec
  */
 
 let currentLayoutController: WorkspaceLayoutController | null = null;
+
+if (typeof document !== "undefined" && document.documentElement) initializeTheme(document.documentElement);
 
 export async function initApp(): Promise<WorkspaceLayoutController | null> {
   const root = document.getElementById("app");
@@ -25,7 +28,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
 
     // Verify notebook existence via API
     let quotaData: any = { sources_used: 0, source_limit: 50 };
-    let notebookTitle = "Research Notebook";
+    let notebookData: any = { title: "Research Notebook", icon_emoji: "📓" };
     try {
       const search = typeof window !== "undefined" ? window.location.search : "";
       const res = await fetch(`/api/notebooks/${notebookId}${search}`);
@@ -34,7 +37,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
         return null;
       }
       const data = await res.json();
-      notebookTitle = data?.notebook?.title ?? data?.title ?? notebookTitle;
+      notebookData = data?.notebook ?? (data?.title ? { title: data.title, icon_emoji: data.icon_emoji ?? "📓" } : notebookData);
       if (data?.quota) {
         quotaData = data.quota;
       }
@@ -43,6 +46,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
       return null;
     }
 
+    const notebookTitle = notebookData.title ?? "Research Notebook";
     const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
     const querySourcesUsed = urlParams.get("sources_used");
     const sourcesUsed = querySourcesUsed !== null ? Number(querySourcesUsed) : quotaData.sources_used;
@@ -55,6 +59,7 @@ export async function initApp(): Promise<WorkspaceLayoutController | null> {
       currentLayoutController = renderWorkspaceLayout(workspaceEl, {
         activeNotebookId: notebookId,
         notebookTitle,
+        notebookIcon: notebookData.icon_emoji,
         initialDraft: "",
         initialSourceCount: sourcesUsed,
       });

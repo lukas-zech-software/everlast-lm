@@ -4,6 +4,14 @@ import {
   type ViewportBreakpoint,
 } from "@everlast/contracts";
 import {
+  applyTheme,
+  hydrateWorkspaceSettings,
+  loadWorkspacePreferences,
+  renderWorkspaceSettings,
+  saveWorkspacePreferences,
+  type WorkspaceSettingsState,
+} from "./workspace-preferences.js";
+import {
   loadPanelPreferences,
   savePanelPreferences,
   type PanelPreferences,
@@ -15,6 +23,9 @@ export interface WorkspaceLayoutOptions {
   initialSourceCount?: number;
   initialDraft?: string;
   initialTab?: "sources" | "chat" | "studio";
+  notebookIcon?: string;
+  apiBase?: string;
+  authToken?: string;
 }
 
 export interface WorkspaceLayoutController {
@@ -82,15 +93,66 @@ export function renderWorkspaceLayout(
   header.innerHTML = `
     <div class="header-left">
       <span class="logo">Everlast LM</span>
-      <span class="notebook-title" data-testid="notebook-title">Research Notebook</span>
+      <span class="workspace-notebook-icon" aria-hidden="true">${options?.notebookIcon ?? "📓"}</span>
+      <span class="notebook-title" data-testid="notebook-title">${options?.notebookTitle ?? "Research Notebook"}</span>
     </div>
     <div class="header-right">
+      <button id="workspace-settings-toggle" type="button" aria-expanded="false">Settings</button>
       <div class="user-profile" data-testid="user-profile">User</div>
     </div>
   `;
   const notebookTitle = header.querySelector(".notebook-title") as HTMLElement | null;
   if (notebookTitle && options?.notebookTitle?.trim()) notebookTitle.textContent = options.notebookTitle.trim();
   container.appendChild(header);
+  const settingsContainer = doc.createElement("div");
+  settingsContainer.id = "workspace-settings";
+  settingsContainer.hidden = true;
+  container.appendChild(settingsContainer);
+  const authHeaders = options?.authToken ? { Authorization: `Bearer ${options.authToken}` } : {};
+  let workspaceSettings: WorkspaceSettingsState = {
+    ...loadWorkspacePreferences(),
+    input_language: "auto",
+    output_language: null,
+    notebook_input_language: null,
+    notebook_output_language: null,
+  };
+  const renderSettings = () => renderWorkspaceSettings(settingsContainer, workspaceSettings, {
+    root: doc.documentElement as HTMLElement,
+    ...(notebookId ? { notebookId } : {}),
+    onUpdate: async (next, changedKey) => {
+      workspaceSettings = next;
+      const isNotebookSetting = changedKey === "notebook_input_language" || changedKey === "notebook_output_language";
+      const endpoint = isNotebookSetting
+        ? `${options?.apiBase ?? ""}/api/notebooks/${encodeURIComponent(notebookId ?? "")}/preferences`
+        : `${options?.apiBase ?? ""}/api/preferences`;
+      const key = changedKey;
+      let value: unknown = next[changedKey];
+      if (value === "" && isNotebookSetting) value = null;
+      await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ [key]: value }),
+      }).catch(() => undefined);
+      if (changedKey === "theme") saveWorkspacePreferences(next);
+    },
+  });
+  const settingsToggle = header.querySelector("#workspace-settings-toggle");
+  settingsToggle?.addEventListener("click", () => {
+    settingsContainer.hidden = !settingsContainer.hidden;
+    settingsToggle.setAttribute("aria-expanded", String(!settingsContainer.hidden));
+    if (!settingsContainer.hidden) renderSettings();
+  });
+  if (notebookId) {
+    void hydrateWorkspaceSettings(workspaceSettings, {
+      ...(options?.apiBase ? { apiBase: options.apiBase } : {}),
+      headers: authHeaders,
+      notebookId,
+    }).then((loaded) => {
+      workspaceSettings = loaded;
+      applyTheme(loaded.theme, doc.documentElement as HTMLElement);
+      if (!settingsContainer.hidden) renderSettings();
+    });
+  }
 
   // 2. Tabs Bar (for narrow viewports < 1024px)
   const tabsBar = doc.createElement("nav");

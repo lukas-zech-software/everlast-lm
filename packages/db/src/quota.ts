@@ -10,6 +10,7 @@ import {
   InvalidScopeError,
 } from "@everlast/contracts";
 import { getNotebookRaw } from "./notebooks.js";
+import { touchNotebookModified } from "./workspace-preferences.js";
 
 export { SourceQuotaExceededError, SourceOversizedBytesError, SourceOversizedWordsError, InvalidScopeError };
 
@@ -181,6 +182,7 @@ export async function reserveSourceSlot(
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
+    await touchNotebookModified(notebook_id);
 
     return {
       admitted: true,
@@ -216,6 +218,7 @@ export async function reserveSources(
 
   const results: AdmissionResult[] = [];
 
+  let addedSource = false;
   for (const entry of entries) {
     if (entry.declared_byte_size > MAX_SOURCE_BYTES) {
       results.push({
@@ -250,6 +253,7 @@ export async function reserveSources(
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+      addedSource = true;
       currentCount++;
       results.push({
         admitted: true,
@@ -266,6 +270,7 @@ export async function reserveSources(
     }
   }
 
+  if (addedSource) await touchNotebookModified(notebookId);
   return results;
 }
 
@@ -317,8 +322,10 @@ export async function transitionSourceStatus(
   if (!m) return;
   const existing = m.get(attemptId);
   if (existing) {
+    const wasReady = existing.status === "Ready";
     existing.status = toStatus;
     existing.updated_at = new Date().toISOString();
+    if (toStatus === "Ready" && !wasReady) await touchNotebookModified(notebookId);
   }
 }
 
@@ -331,4 +338,16 @@ export async function releaseSourceSlot(
   attemptId: string
 ): Promise<void> {
   await failSource(client, notebookId, attemptId, "Slot released");
+}
+
+
+/** Counts only sources whose lifecycle has reached Ready. */
+export async function getReadySourceCount(notebookId: string): Promise<number> {
+  const records = notebookSources.get(notebookId);
+  if (!records) return 0;
+  let count = 0;
+  for (const record of records.values()) {
+    if (record.status === "Ready") count++;
+  }
+  return count;
 }

@@ -4,12 +4,14 @@ description: Create a feature branch with sequential or timestamp numbering
 compatibility: Requires spec-kit project structure with .specify/ directory
 metadata:
   author: spec-kit-core
-  source: git:commands/speckit.git.feature.md
+  source: extension:git
 ---
+
+# Git Feature Skill
 
 # Create Feature Branch
 
-Create and switch to a new git feature branch for the given specification. This command handles **branch creation only** — the spec directory and files are created by the core `/speckit-specify` workflow.
+Create and switch to a new git feature branch for the given specification. This command handles **branch creation only** — the spec directory and files are created by the core `$speckit-specify` workflow.
 
 ## User Input
 
