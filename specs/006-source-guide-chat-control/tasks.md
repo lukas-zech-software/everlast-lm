@@ -144,3 +144,9 @@ Deliver the P1 Source Guide first, then P1 Overview and P1 response actions, whi
 - Tests T037–T045 precede implementation T047–T055. Documentation/analysis T046 and T056 close the traceability loop; all phase tasks are complete.
 - Original Package 2.2 tasks T001–T036 remain unchanged and complete. Every task cites its SRS/constitution gate, and all task references outside this file use `[006-source-guide-chat-control] Tnnn`.
 - Package 2.3 owns note conversion and the full Gate v2.0 #2 roundtrip. This feature implements the shared FR-GC-09/FR-NM-02 note contract only.
+
+## Phase 10: Convergence
+
+- [ ] T057 Allow evidence-limited notebook overview prompt counts without unsupported padding per FR-005 (contradicts).
+- [ ] T058 Validate the one-sentence summary rule for sources under 50 words per FR-002 (partial).
+- [ ] T059 Require source-linked supporting chunk IDs for generated overview content per FR-020 (partial).
