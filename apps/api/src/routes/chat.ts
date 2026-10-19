@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { parseJsonBody, sendJson } from "../http.js";
 import { GroundedChatAgent, ChatGroundingError } from "../chat/agent.js";
 import { filterEligibleHistory, createSubmissionSnapshot } from "../chat/context.js";
+import { getChatConfiguration } from "@everlast/db";
 import {
   UserMessageInputSchema,
   type ChatMessage,
@@ -77,6 +78,10 @@ export async function handleChatRoute(
       });
       return true;
     }
+    if (!deps.agent || !deps.getChunksForSources) {
+      sendJson(res, 503, { error: { code: "Unavailable", message: "Grounded chat runtime is not configured" } });
+      return true;
+    }
 
     try {
       const activeSourceIds: string[] = validationResult.data.active_source_ids;
@@ -121,6 +126,7 @@ export async function handleChatRoute(
         ? await deps.resolveLanguagePreferences(notebookId, userId, browserLocale)
         : { input_language: "auto", output_language: "en-US" };
       const agent = deps.agent ?? new GroundedChatAgent();
+      const configuration = await getChatConfiguration(notebookId, userId);
       const turnResult = await agent.generateTurn({
         notebookId,
         threadId: notebookId, // 1 thread per notebook in v1.0
@@ -129,6 +135,7 @@ export async function handleChatRoute(
         activeSourceIds,
         chunks,
         history: eligibleHistory,
+        configuration,
         inputLanguage: languagePreferences.input_language,
         outputLanguage: languagePreferences.output_language,
       });

@@ -1,4 +1,4 @@
-import type { SourceSelectionController } from "./selection.js";
+import { SourceSelectionController, type SourceItem } from "./selection.js";
 
 /**
  * Presentation adapter for the Source List component (FR-SI-03).
@@ -15,6 +15,17 @@ export function renderSourceList(
   options: RenderSourceListOptions
 ): { destroy: () => void } {
   const { controller, onSourceTitleClick } = options;
+
+  function dispatchScopeChange(): void {
+    if (typeof window === "undefined") return;
+    const revisions = controller.getSources()
+      .filter((source) => controller.getSelectedSourceIds().includes(source.id))
+      .map((source) => ({ source_id: source.id, revision: source.revision_id }));
+    const event = typeof CustomEvent !== "undefined"
+      ? new CustomEvent("everlast:chat-scope-changed", { detail: { source_revisions: revisions, language: "en-US" } })
+      : { type: "everlast:chat-scope-changed", detail: { source_revisions: revisions, language: "en-US" } };
+    window.dispatchEvent(event as Event);
+  }
 
   function updateDom(): void {
     const sources = controller.getSources();
@@ -73,6 +84,7 @@ export function renderSourceList(
 
       masterCheckbox.addEventListener("change", () => {
         controller.toggleMaster();
+        dispatchScopeChange();
       });
     }
 
@@ -83,6 +95,7 @@ export function renderSourceList(
         const sourceId = cb.dataset?.sourceId || cb.getAttribute?.("data-source-id");
         if (sourceId) {
           controller.toggleSource(sourceId, e.target?.checked ?? cb.checked);
+          dispatchScopeChange();
         }
       });
     }
@@ -92,6 +105,13 @@ export function renderSourceList(
       titleEl.addEventListener("click", () => {
         const sourceId = titleEl.dataset?.sourceId || titleEl.getAttribute?.("data-source-id");
         if (sourceId) {
+          const source = controller.getSources().find((item) => item.id === sourceId);
+          if (source?.status === "Ready" && typeof window !== "undefined") {
+            const event = typeof CustomEvent !== "undefined"
+              ? new CustomEvent("everlast:source-selected", { detail: { source_id: source.id, revision: source.revision_id } })
+              : { type: "everlast:source-selected", detail: { source_id: source.id, revision: source.revision_id } };
+            window.dispatchEvent(event as Event);
+          }
           onSourceTitleClick?.(sourceId);
         }
       });
@@ -112,4 +132,22 @@ export function renderSourceList(
       container.innerHTML = "";
     },
   };
+}
+
+export async function fetchNotebookSources(notebookId: string, fetcher: typeof fetch = fetch): Promise<SourceItem[]> {
+  const response = await fetcher(`/api/notebooks/${notebookId}/sources`);
+  if (!response.ok) throw new Error("Could not load authorized sources");
+  const payload = await response.json() as { sources?: unknown };
+  if (!Array.isArray(payload.sources)) throw new Error("Authorized source list is invalid");
+  return payload.sources.map((source: any) => {
+    if (source.notebook_id !== notebookId || typeof source.id !== "string" || typeof source.title !== "string" || !["application/pdf", "text/plain", "text/markdown", "copied_text"].includes(source.media_type) || !["Uploading", "Processing", "Ready", "Failed"].includes(source.status) || !Number.isSafeInteger(source.revision_id) || source.revision_id < 1) throw new Error("Authorized source list contains an invalid or foreign record");
+    return { id: source.id, notebook_id: source.notebook_id, title: source.title, media_type: source.media_type, status: source.status, revision_id: source.revision_id } as SourceItem;
+  });
+}
+
+export async function mountNotebookSourceList(container: HTMLElement, notebookId: string, fetcher: typeof fetch = fetch): Promise<SourceSelectionController> {
+  const sources = await fetchNotebookSources(notebookId, fetcher);
+  const controller = new SourceSelectionController({ notebookId, initialSources: sources });
+  renderSourceList(container, { controller });
+  return controller;
 }

@@ -63,6 +63,19 @@ describe("FR-SI-03: User Story 2 - Source Selection Acceptance Tests", () => {
     expect(controller.getSelectedSourceIds()).toEqual(["src_1", "src_2", "src_3"]);
   });
 
+  it("opens source inspection without changing the active chat selection (FR-SI-02, C-02)", () => {
+    const controller = new SourceSelectionController({ notebookId, initialSources: sampleSources });
+    let scopeEvents = 0;
+    let selectedEvents = 0;
+    dom.window.addEventListener("everlast:chat-scope-changed", () => { scopeEvents += 1; });
+    dom.window.addEventListener("everlast:source-selected", () => { selectedEvents += 1; });
+    renderSourceList(container, { controller });
+    (container.querySelector(".source-title") as any).click();
+    expect(controller.getSelectedSourceIds()).toEqual(["src_1", "src_2", "src_3"]);
+    expect(scopeEvents).toBe(0);
+    expect(selectedEvents).toBe(1);
+  });
+
   it("US2-02: Unchecking an individual source changes master to indeterminate and updates badge", () => {
     const controller = new SourceSelectionController({
       notebookId,

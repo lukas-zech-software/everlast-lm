@@ -17,6 +17,7 @@ export interface IngestionJobInput {
   byte_size_override?: number;
   word_count_override?: number;
   onStateChange?: (state: string) => void;
+  onReady?: (result: IngestionJobResult) => void | Promise<void>;
 }
 
 export interface IngestionJobResult {
@@ -54,7 +55,12 @@ export class IngestionPipeline {
   private processedAttempts = new Set<string>();
   private topicEmojiSelector: TopicEmojiSelector;
 
-  constructor(options?: { topicEmojiSelector?: TopicEmojiSelector }) {
+  constructor(
+    private readonly options?: {
+      onReady?: (result: IngestionJobResult) => void | Promise<void>;
+      topicEmojiSelector?: TopicEmojiSelector;
+    }
+  ) {
     this.topicEmojiSelector = options?.topicEmojiSelector ?? new VertexTopicEmojiSelector();
   }
 
@@ -333,6 +339,8 @@ export class IngestionPipeline {
 
     input.onStateChange?.("Ready");
     await this.enrichNotebookIcon(input, title);
+    const readyHook = input.onReady ?? this.options?.onReady;
+    if (readyHook) void Promise.resolve().then(() => readyHook(result)).catch(() => undefined);
     this.processedAttempts.add(input.attempt_id);
     return result;
   }
