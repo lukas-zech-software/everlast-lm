@@ -1,0 +1,15 @@
+{"event": "step_started", "step_id": "constitution", "type": "if", "timestamp": "2026-10-18T20:21:20.990515+00:00"}
+{"event": "step_completed", "step_id": "constitution", "status": "completed", "timestamp": "2026-10-18T20:21:20.992243+00:00"}
+{"event": "step_started", "step_id": "specify", "type": "command", "timestamp": "2026-10-18T20:21:20.992989+00:00"}
+{"event": "step_completed", "step_id": "specify", "status": "failed", "timestamp": "2026-10-18T20:21:35.593119+00:00"}
+{"event": "step_failed", "step_id": "specify", "error": "Interrupted by user", "timestamp": "2026-10-18T20:21:35.593266+00:00"}
+{"event": "workflow_finished", "status": "failed", "timestamp": "2026-10-18T20:21:35.597168+00:00"}
+{"event": "step_started", "step_id": "specify", "type": "command", "timestamp": "2026-10-18T20:34:44.253135+00:00"}
+{"event": "step_completed", "step_id": "specify", "status": "completed", "timestamp": "2026-10-18T20:34:58.648419+00:00"}
+{"event": "step_started", "step_id": "clarify", "type": "if", "timestamp": "2026-10-18T20:34:58.649449+00:00"}
+{"event": "step_completed", "step_id": "clarify", "status": "completed", "timestamp": "2026-10-18T20:34:58.652367+00:00"}
+{"event": "step_started", "step_id": "clarify-run", "type": "command", "timestamp": "2026-10-18T20:34:58.653839+00:00"}
+{"event": "step_completed", "step_id": "clarify-run", "status": "completed", "timestamp": "2026-10-18T20:35:06.988059+00:00"}
+{"event": "step_started", "step_id": "clarify-gate", "type": "gate", "timestamp": "2026-10-18T20:35:06.989346+00:00"}
+{"event": "step_completed", "step_id": "clarify-gate", "status": "paused", "timestamp": "2026-10-18T20:35:06.991006+00:00"}
+{"event": "workflow_finished", "status": "paused", "timestamp": "2026-10-18T20:35:06.997996+00:00"}
