@@ -259,7 +259,7 @@ describe("T048 FR-001 / FR-012: Reports tile and Create report modal", () => {
 describe("T048 FR-006 / US1/AC3: artifact list lifecycle", () => {
   it("shows 'Generating Briefing doc...' with a generating indicator and refreshes until Completed", async () => {
     await mount();
-    api.state.stepsToComplete = 3;
+    api.state.stepsToComplete = Number.POSITIVE_INFINITY; // the job stays Queued/Running until released below
     await openModal();
     template("briefing_doc").click();
     await vi.waitFor(() => expect(rowsEl()).toHaveLength(1));
@@ -267,6 +267,8 @@ describe("T048 FR-006 / US1/AC3: artifact list lifecycle", () => {
     expect(["Queued", "Running"]).toContain(row.getAttribute("data-status"));
     expect(tid("studio-artifact-label", row)!.textContent).toBe("Generating Briefing doc...");
     expect(tid("studio-generating", row)).not.toBeNull();
+    await vi.waitFor(() => expect(rowsEl()[0]!.getAttribute("data-status")).toBe("Running"));
+    api.state.stepsToComplete = 0;
     await vi.waitFor(() => expect(rowsEl()[0]!.getAttribute("data-status")).toBe("Completed"));
     const done = rowsEl()[0]!;
     expect(tid("studio-artifact-label", done)!.textContent).toBe("Briefing doc");
@@ -312,7 +314,7 @@ describe("T048 FR-008 / US1/AC4: report viewer", () => {
     api.add({ subtype: "briefing_doc", status: "Completed", payload_json: COMPLETED_PAYLOAD });
     await panel.refresh();
     tid("studio-artifact-open", rowsEl()[0]!)!.click();
-    await vi.waitFor(() => expect(tid("studio-report-viewer")).not.toBeNull());
+    await vi.waitFor(() => expect(tid("studio-report-content")).not.toBeNull());
     return tid("studio-report-viewer")!;
   }
 

@@ -12,6 +12,9 @@ describe("browser contract copies match packages/contracts", () => {
     expect(local.SAVED_TO_NOTES_MESSAGE).toBe(contracts.SAVED_TO_NOTES_MESSAGE);
     expect(local.NOTE_SOURCE_MEDIA_TYPE).toBe(contracts.NOTE_SOURCE_MEDIA_TYPE);
     expect(local.NOTE_ERROR_MESSAGES).toEqual(contracts.NOTE_ERROR_MESSAGES);
+    // Package 2.4 (FR-ST-10, FR-ST-11)
+    expect(local.CUSTOM_REPORT_PROMPT_MAX).toBe(contracts.CUSTOM_REPORT_PROMPT_MAX);
+    expect([...local.REPORT_TEMPLATE_TYPES]).toEqual(contracts.ReportTemplateTypeSchema.options);
   });
 
   it.each([

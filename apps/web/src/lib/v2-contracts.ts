@@ -153,3 +153,7 @@ export const NOTE_ERROR_MESSAGES = {
   NoteReadOnly: "Saved responses cannot be edited",
   ConfirmationRequired: "Deletion must be confirmed",
 } as const;
+
+// ---- Package 2.4 Studio reports (FR-ST-10, FR-ST-11) ----------------------------------------------------------
+export const CUSTOM_REPORT_PROMPT_MAX = 5000;
+export const REPORT_TEMPLATE_TYPES = ["briefing_doc", "study_guide", "faq", "timeline"] as const;
