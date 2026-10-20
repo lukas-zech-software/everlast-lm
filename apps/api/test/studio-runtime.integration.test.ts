@@ -185,3 +185,41 @@ describe("T047 Convert to source saves the report as a note and converts it thro
     expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.notes).toHaveLength(0);
   });
 });
+
+/** Security review 2026-10-20: on-demand Source Guides start only for a supported output language (FR-UI-02, FR-SI-02). */
+describe("report suggestions start on-demand guides only for supported languages", () => {
+  it("an unsupported tag is rejected (400) and starts no guide; a supported one starts one", async () => {
+    const guideLanguages: string[] = [];
+    // TEST DOUBLE for the Package 2.2 structured-generation client: records Source Guide runs only.
+    const generation = {
+      async generateSourceGuide(input: { output_language: string }) {
+        guideLanguages.push(input.output_language);
+        throw new Error("test double: no guide");
+      },
+      async generateOverview(): Promise<never> {
+        throw new Error("unused");
+      },
+      async generateFollowUps(): Promise<never> {
+        throw new Error("unused");
+      },
+    };
+    const g = await startNotesApi({ v2: { generation, suggestionModel: new DeterministicReportModel() } });
+    try {
+      const nb = await g.notebook(OWNER);
+      const owner = await g.userId(OWNER);
+      const src = await seedReadySource(g.api.db.pool, owner, nb, { title: "Vendor.txt", mediaType: "text/plain", pages: ["Vendor Alpha proposes a monolith."], embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT") });
+      for (const tag of ["zz-ZZ", "x".repeat(200), "../../etc"]) {
+        expect((await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, { active_source_ids: [src.sourceId], output_language: tag })).status).toBe(400);
+      }
+      await new Promise((r) => setTimeout(r, 50));
+      expect(guideLanguages).toEqual([]);
+      const ok = await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, { active_source_ids: [src.sourceId], output_language: "fr-FR" });
+      expect(ok.status).toBe(200);
+      expect(ok.json.state).toBe("SuggestionsLoading");
+      for (let i = 0; i < 100 && guideLanguages.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+      expect(guideLanguages).toEqual(["fr-FR"]);
+    } finally {
+      await g.close();
+    }
+  });
+});

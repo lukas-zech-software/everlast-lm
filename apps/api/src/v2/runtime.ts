@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   AppError,
   InvalidScopeError,
+  OutputLanguageSchema,
   SourceQuotaExceededError,
   SourceSnapshotInvalidError,
   StudioPluginRegistry,
@@ -376,7 +377,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         snapshot.map(async (pair): Promise<SourceGuideState> => {
           const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision, outputLanguage);
           const owner = ownerOf(notebookId);
-          if (!guide && outputLanguage && options.generation && owner) {
+          // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
+          if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
             startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
           }
           if (guide?.status === "GuideReady") {

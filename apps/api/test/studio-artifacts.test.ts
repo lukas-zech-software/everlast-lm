@@ -149,14 +149,32 @@ describe("Studio output language (FR-UI-02)", () => {
     expect(b.output_language).toBe("fr-FR");
     await deps.repo.markRunning(a.id);
     await deps.repo.fail(a.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
-    deps.resolveOutputLanguage = async () => "en-GB";
+    deps.resolveOutputLanguage = async () => "es-ES";
     const retried = (await (await post(`/artifacts/${a.id}/retry`, { active_source_ids: [S1] })).json()).artifact;
-    expect(retried.output_language).toBe("en-GB");
+    expect(retried.output_language).toBe("es-ES");
   });
   it("suggestions without output_language use the resolved language (cache key, guide lookup)", async () => {
     expect((await post("/report-suggestions", { active_source_ids: [S1] })).status).toBe(200);
     expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: "fr-FR" })).status).toBe(200);
     expect(deps.suggestionLanguages).toEqual(["de-DE", "fr-FR"]);
+  });
+});
+
+/** Security review 2026-10-20: client-supplied output_language must be one of the FR-UI-02 supported tags. */
+describe("unsupported output_language is rejected (FR-UI-02)", () => {
+  it("create, retry and suggestions reject an unsupported or garbage tag with 400 and never reach the suggestions port", async () => {
+    for (const tag of ["xx-INVALID", "../../etc", "de", "en-GB"]) {
+      const r = await create({ output_language: tag });
+      expect(r.status, tag).toBe(400);
+      expect((await r.json()).error.code).toBe("UnsupportedOutputLanguage");
+      expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: tag })).status, tag).toBe(400);
+    }
+    expect(deps.suggestionLanguages).toEqual([]);
+    const { artifact } = await (await create()).json();
+    await deps.repo.markRunning(artifact.id);
+    await deps.repo.fail(artifact.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
+    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1], output_language: "zz-ZZ" })).status).toBe(400);
+    expect(deps.enqueued).toHaveLength(1);
   });
 });
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.ts";
+import { OutputLanguageSchema } from "./package-v2-1.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).
@@ -225,7 +226,8 @@ export const CreateStudioJobRequestSchema = z
     subtype: ReportSubtypeSchema,
     active_source_ids: ActiveSourceIdsSchema,
     custom_prompt: CustomReportPromptSchema.optional(),
-    output_language: z.string().min(1).optional(),
+    /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
+    output_language: OutputLanguageSchema.optional(),
   })
   .strict()
   .superRefine((req, ctx) => {
@@ -241,7 +243,7 @@ export type CreateStudioJobRequest = z.output<typeof CreateStudioJobRequestSchem
 
 /** Retry is a fresh, explicitly scoped request (C-03, FR-013). */
 export const RetryStudioJobRequestSchema = z
-  .object({ active_source_ids: ActiveSourceIdsSchema, output_language: z.string().min(1).optional() })
+  .object({ active_source_ids: ActiveSourceIdsSchema, output_language: OutputLanguageSchema.optional() })
   .strict();
 export type RetryStudioJobRequest = z.output<typeof RetryStudioJobRequestSchema>;
 

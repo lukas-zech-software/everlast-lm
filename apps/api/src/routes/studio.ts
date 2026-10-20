@@ -16,7 +16,7 @@ import {
 
 export type StudioRouteDeps = StudioServiceDeps;
 
-const isZodError = (e: unknown): e is { issues: { message: string }[] } =>
+const isZodError = (e: unknown): e is { issues: { message: string; path: (string | number)[] }[] } =>
   e instanceof Error && e.name === "ZodError" && Array.isArray((e as { issues?: unknown }).issues);
 
 const err = (res: ServerResponse, status: number, code: string, message: string): true => {
@@ -73,6 +73,10 @@ export async function handleStudioRoute(
     }
   } catch (e) {
     if (e instanceof EmptyScopeError) return err(res, 400, "EmptyScopeError", e.message);
+    // FR-UI-02: an unsupported output language is a bad request (it would key caches and on-demand guide runs).
+    if (isZodError(e) && e.issues.some((x) => x.path[0] === "output_language")) {
+      return err(res, 400, "UnsupportedOutputLanguage", "Output language is not in the supported locale set.");
+    }
     if (isZodError(e)) return err(res, 422, "ValidationError", e.issues.map((x) => x.message).join("; "));
     if (e instanceof StudioParamsError) return err(res, 422, "ValidationError", e.message);
     if (e instanceof InvalidScopeError) return err(res, 403, "InvalidScope", e.message);

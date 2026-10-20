@@ -128,6 +128,10 @@ Assessed on 2026-10-20 against the revised Package 2.4 card (PR #127), `spec/req
 
 - [ ] T060 Run the focused Package 2.4 Vitest suites, `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` (incl. T042) and Playwright `studio-reports.spec.ts` (T049). Record the exact results in `specs/008-studio-text-reports/validation.md`. Replace "No Gemini report adapter exists" and "Not built: the reports modal and artifact list UI" with the current state. Update D16's "Studio reports use the deterministic, citation-checked extractor" sentence in `docs/solution-architecture.md` to the Vertex-configured state. Record the Vertex Flash Gate v2.0 #3 P95 ≤ 25.0 s and the LLM-judged evals (`NFR-EVAL-01/03`) as `UNAVAILABLE` until a deployed run against Vertex AI `europe-west4` exists. Mark Gate v2.0 #3 as passed only when T042 and T049 pass. Per `CC-02`, Gate v2.0 #3, `NFR-EVAL-02/04`, D16 (partial)
 
+### Deferred
+
+- [ ] T061 Deferred (owner 2026-10-20, PoC): per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
+
 ### Dependencies and execution order (Phase 7)
 
 - T038 and T039 precede every other Phase 7 task. Each test task precedes its implementation: T040→T050, T041→T051, T042→T052, T043→T053, T044→T054, T045→T055, T046→T056, T047→T057, T048/T049→T058; T059 is test-then-rename in one task.
