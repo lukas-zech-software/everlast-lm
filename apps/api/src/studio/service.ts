@@ -128,7 +128,7 @@ export class StudioService {
     const row = await this.owned(ownerId, notebookId, id);
     if (row.status === "Completed") {
       try {
-        await this.deps.access.verifySnapshot(ownerId, notebookId, row.active_source_ids_snapshot);
+        await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
       } catch (err) {
         if (err instanceof SourceSnapshotInvalidError || err instanceof InvalidScopeError) {
           return {
@@ -172,7 +172,7 @@ export class StudioService {
     const row = await this.owned(ownerId, notebookId, id);
     if (row.status !== "Completed" || !row.payload_json) throw new StudioConflictError("Only Completed artifacts can be converted.");
     if (!this.deps.convertToSource) throw new StudioNotImplementedError("Convert to source is not configured.");
-    await this.deps.access.verifySnapshot(ownerId, notebookId, row.active_source_ids_snapshot);
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
     const converted = await this.deps.convertToSource({
       notebook_id: notebookId,
       owner_id: ownerId,
@@ -180,7 +180,7 @@ export class StudioService {
       title: row.title,
       content_md: row.payload_json.content_md,
       citations: row.payload_json.citations,
-      snapshot: row.active_source_ids_snapshot,
+      snapshot: row.source_revisions_snapshot,
     });
     return this.modified(notebookId, converted);
   }

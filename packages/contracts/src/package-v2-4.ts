@@ -167,7 +167,7 @@ export const StudioArtifactSchema = z
     title: z.string().min(1),
     params_json: StudioReportParamsSchema,
     payload_json: StudioReportPayloadSchema.nullable(),
-    active_source_ids_snapshot: z.array(SourceRevisionPairSchema).min(1),
+    source_revisions_snapshot: z.array(SourceRevisionPairSchema).min(1),
     output_language: z.string().min(1).nullable(),
     progress: StudioProgressSchema.nullable(),
     failure: StudioFailureSchema.nullable(),
@@ -204,11 +204,11 @@ export const StudioArtifactSchema = z
         message: "failure must be present if and only if status is Failed or Cancelled",
       });
     }
-    const ids = artifact.active_source_ids_snapshot.map((s) => s.source_id);
+    const ids = artifact.source_revisions_snapshot.map((s) => s.source_id);
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["active_source_ids_snapshot"],
+        path: ["source_revisions_snapshot"],
         message: "snapshot source IDs must be unique",
       });
     }

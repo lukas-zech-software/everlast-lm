@@ -80,7 +80,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
     expect(r.status).toBe(202);
     const { artifact } = await r.json();
     expect(artifact.status).toBe("Queued");
-    expect(artifact.active_source_ids_snapshot).toEqual([{ source_id: S1, revision: 1 }, { source_id: S2, revision: 1 }]);
+    expect(artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }, { source_id: S2, revision: 1 }]);
     expect(deps.enqueued).toEqual([artifact.id]);
   });
   it("403 for a foreign source and for another owner's notebook; 404 for other owners' artifacts", async () => {
@@ -119,7 +119,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
     expect(r.status).toBe(202);
     const body = await r.json();
     expect(body.artifact).toMatchObject({ attempt: 2, retry_of: artifact.id });
-    expect(body.artifact.active_source_ids_snapshot).toEqual([{ source_id: S1, revision: 1 }]);
+    expect(body.artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }]);
     expect(deps.enqueued).toContain(body.artifact.id);
   });
   it("converts completed artifacts to a source; 409 otherwise; 501 without port", async () => {

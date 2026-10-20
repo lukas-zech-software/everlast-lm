@@ -24,7 +24,7 @@ const base = {
   subtype: "briefing_doc" as const,
   title: "Briefing doc",
   params_json: {},
-  active_source_ids_snapshot: [{ source_id: SRC_A, revision: 1 }],
+  source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
   output_language: null,
   progress: null,
   failure: null,
@@ -77,7 +77,7 @@ describe("FR-ST-10 StudioArtifact schema", () => {
         failure: { code: "SourceChanged", message: "Source A was replaced." },
       }).success
     ).toBe(true);
-    expect(StudioArtifactSchema.safeParse({ ...base, status: "Queued", active_source_ids_snapshot: [] }).success).toBe(false);
+    expect(StudioArtifactSchema.safeParse({ ...base, status: "Queued", source_revisions_snapshot: [] }).success).toBe(false);
   });
 });
 
@@ -172,5 +172,14 @@ describe("FR-ST-10 report sections (stable keys, localized headings)", () => {
     expect(completed("timeline", ["events", "cast_of_characters"])).toBe(true);
     expect(completed("timeline", ["events"])).toBe(false);
     expect(completed("custom", ["report"])).toBe(true);
+  });
+});
+
+/** [008-studio-text-reports] T059 — the card's persisted field name (FR-ST-10 Outputs & state, C-03). */
+describe("StudioArtifact source_revisions_snapshot (FR-ST-10)", () => {
+  it("uses source_revisions_snapshot and rejects the old field name", () => {
+    const { source_revisions_snapshot: pairs, ...rest } = base;
+    expect(StudioArtifactSchema.safeParse({ ...rest, status: "Queued", source_revisions_snapshot: pairs }).success).toBe(true);
+    expect(StudioArtifactSchema.safeParse({ ...rest, status: "Queued", active_source_ids_snapshot: pairs }).success).toBe(false);
   });
 });

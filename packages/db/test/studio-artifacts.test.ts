@@ -38,7 +38,7 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
     expect(a.attempt).toBe(1);
     const { owner_id: _o, ...dto } = a;
     expect(StudioArtifactSchema.safeParse(dto).success).toBe(true);
-    expect(a.active_source_ids_snapshot).toEqual(input.snapshot);
+    expect(a.source_revisions_snapshot).toEqual(input.snapshot);
   });
 
   it("enforces Queued → Running → Completed and terminal immutability", async () => {
@@ -98,7 +98,7 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
     expect(next.attempt).toBe(2);
     expect(next.retry_of).toBe(a.id);
     expect(next.status).toBe("Queued");
-    expect(next.active_source_ids_snapshot).toEqual([{ source_id: SRC, revision: 2 }]);
+    expect(next.source_revisions_snapshot).toEqual([{ source_id: SRC, revision: 2 }]);
     expect((await repo.getById(a.id))?.status).toBe("Failed");
   });
 

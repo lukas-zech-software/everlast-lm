@@ -166,7 +166,7 @@ export class StudioJobRunner {
     registry: StudioPluginRegistry
   ): Promise<StudioFailure | null> {
     const { repo, access, scopedContext } = this.deps;
-    const snapshot = artifact.active_source_ids_snapshot;
+    const snapshot = artifact.source_revisions_snapshot;
     const guard = (): void => {
       if (signal.aborted) throw new CancelledSignal();
     };

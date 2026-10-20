@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS studio_artifacts (
     title TEXT NOT NULL CHECK (char_length(title) >= 1),
     params_json JSONB NOT NULL DEFAULT '{}'::jsonb,
     payload_json JSONB,
-    active_source_ids_snapshot JSONB NOT NULL,
+    source_revisions_snapshot JSONB NOT NULL,
     output_language TEXT,
     progress_json JSONB,
     failure_json JSONB,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS studio_artifacts (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT studio_artifacts_payload_iff_completed CHECK ((status = 'Completed') = (payload_json IS NOT NULL)),
-    CONSTRAINT studio_artifacts_snapshot_nonempty CHECK (jsonb_array_length(active_source_ids_snapshot) >= 1)
+    CONSTRAINT studio_artifacts_snapshot_nonempty CHECK (jsonb_array_length(source_revisions_snapshot) >= 1)
 );
 
 CREATE INDEX IF NOT EXISTS idx_studio_artifacts_notebook ON studio_artifacts(notebook_id, created_at DESC);

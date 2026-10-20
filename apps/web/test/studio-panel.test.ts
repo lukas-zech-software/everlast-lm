@@ -90,7 +90,7 @@ function createFakeStudioApi() {
     title: r.title,
     params_json: {},
     payload_json: r.status === "Completed" && !r.unavailable ? r.payload_json : null,
-    active_source_ids_snapshot: [{ source_id: SRC_A, revision: 1 }],
+    source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
     output_language: "en-US",
     progress: null,
     failure: r.failure,
