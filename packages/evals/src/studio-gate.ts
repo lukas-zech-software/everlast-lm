@@ -44,15 +44,48 @@ const chunk = (n: number, source_id: string, text: string): UnifiedDocumentChunk
   text,
 });
 
-/** Declared Gate v2.0 #3 fixture: two selected sources (dated events, definitions) and one unselected source. */
+const HISTORY_TEXTS = [
+  "The Peace of Westphalia was signed in 1648 by Count Maximilian von Trauttmansdorff and Axel Oxenstierna. It ended the Thirty Years War. Historians often describe the settlement as the origin of the modern state system.",
+  "Sovereignty is the principle that each state has exclusive authority over its own territory. The Westphalian treaties applied this principle to the princes of the Holy Roman Empire. Rulers could choose the official religion of their own lands.",
+  "The Treaty of Utrecht was concluded in 1713 and ended the War of the Spanish Succession. Philip V kept the Spanish throne but renounced any claim to the French crown. Great Britain gained Gibraltar under the treaty.",
+  "The balance of power is a policy in which states form alliances so that no single state dominates the others. British diplomats followed this policy throughout the eighteenth century. It shaped the coalitions against France after 1792.",
+  "In 1815 the Congress of Vienna reorganised Europe under Klemens von Metternich. Representatives of Austria, Prussia, Russia and Great Britain redrew the borders of the continent. The settlement lasted for decades.",
+  "The Concert of Europe refers to the system of regular conferences among the great powers after 1815. Its members met to settle disputes before they turned into wars. The system weakened after the revolutions of 1848.",
+  "Otto von Bismarck became Minister President of Prussia in 1862. He unified Germany through three short wars and proclaimed the German Empire in 1871. The proclamation took place in the Hall of Mirrors at Versailles.",
+  "The Congress of Berlin met in 1878 under the chairmanship of Otto von Bismarck. It revised the Treaty of San Stefano after the Russo-Turkish War. Serbia, Montenegro and Romania were recognised as independent states.",
+  "An entente is an informal understanding between states that falls short of a binding alliance. The Entente Cordiale between France and Great Britain was signed in 1904. It settled colonial disputes between the two countries.",
+  "The Treaty of Versailles was signed in 1919 after the First World War. Georges Clemenceau, David Lloyd George and Woodrow Wilson led the negotiations. The treaty also created the League of Nations.",
+];
+
+const TECH_TEXTS = [
+  "A hash function is a function that maps data of arbitrary size to fixed-size values. Hash functions are used in data indexing. A good hash function spreads its inputs evenly across the output range.",
+  "A cryptographic hash function is a hash function for which finding two inputs with the same output is computationally infeasible. The SHA-256 function was published by the National Institute of Standards and Technology in 2001. It produces a 256-bit digest.",
+  "Public-key cryptography means a method of encryption that uses a pair of related keys. Whitfield Diffie and Martin Hellman described the key exchange idea in 1976. The public key can be shared openly while the private key stays secret.",
+  "The RSA algorithm was published in 1977 by Ron Rivest, Adi Shamir and Leonard Adleman. Its security rests on the difficulty of factoring large numbers. RSA is used for both encryption and digital signatures.",
+  "A digital signature is a value computed with a private key that lets anyone holding the public key verify the origin of a message. A valid signature shows that the message was not changed after signing. Signatures are central to software updates and certificates.",
+  "A Merkle tree is a tree in which every leaf holds the hash of a data block and every inner node holds the hash of its children. Ralph Merkle patented the structure in 1979. It allows efficient verification of large data sets.",
+  "Blockchain means a distributed ledger of linked blocks. Each block stores the hash of the previous block, so changing one block breaks every later link. Satoshi Nakamoto described Bitcoin in 2008.",
+  "Proof of work refers to a consensus method in which participants must solve a costly computational puzzle before adding a block. The Bitcoin network started using proof of work in 2009. The method consumes a large amount of electricity.",
+  "A smart contract is a program stored on a blockchain that runs automatically when its conditions are met. Vitalik Buterin proposed the Ethereum platform for smart contracts in 2013. The Ethereum network launched in 2015.",
+  "Proof of stake is a consensus method in which validators lock up tokens as collateral instead of solving puzzles. Ethereum switched from proof of work to proof of stake in 2022. The change reduced the network's energy use substantially.",
+];
+
+/**
+ * Declared Gate v2.0 #3 fixture: two selected sources with enough dated events, actors and technical definitions
+ * for every required section of all four templates (incl. Study Guide topic review, short-answer questions, answer
+ * key, essay questions and glossary), plus one unselected source carrying `LEAK_TERM`. Revised 2026-10-20 after
+ * the first live run refused the Study Guide on the earlier 4-chunk fixture (correct refusal: never pad).
+ */
 export function studioGateFixture() {
   const selected = [
-    chunk(1, HISTORY, "The Treaty of Westphalia was signed in 1648 by Count Maximilian von Trauttmansdorff and Axel Oxenstierna. It ended the Thirty Years War."),
-    chunk(2, HISTORY, "In 1815 the Congress of Vienna reorganised Europe under Klemens von Metternich. The settlement lasted for decades."),
-    chunk(3, TECH, "A hash function is a function that maps data of arbitrary size to fixed-size values. Hash functions are used in data indexing."),
-    chunk(4, TECH, "Blockchain means a distributed ledger of linked blocks. Satoshi Nakamoto described Bitcoin in 2008."),
+    ...HISTORY_TEXTS.map((text, i) => chunk(i + 1, HISTORY, text)),
+    ...TECH_TEXTS.map((text, i) => chunk(HISTORY_TEXTS.length + i + 1, TECH, text)),
   ];
-  const unselected = [chunk(5, UNSELECTED, `The ${LEAK_TERM} Protocol was invented in 1999 by Quentin ${LEAK_TERM}.`)];
+  const base = selected.length;
+  const unselected = [
+    chunk(base + 1, UNSELECTED, `The ${LEAK_TERM} Protocol was invented in 1999 by Quentin ${LEAK_TERM}.`),
+    chunk(base + 2, UNSELECTED, `A ${LEAK_TERM} key is a credential that only the ${LEAK_TERM} Protocol accepts.`),
+  ];
   const snapshot: SourceRevisionPair[] = [HISTORY, TECH].map((source_id) => ({ source_id, revision: 1 }));
   return { chunks: selected, all: [...selected, ...unselected], snapshot };
 }

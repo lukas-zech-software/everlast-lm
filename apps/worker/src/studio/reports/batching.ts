@@ -5,7 +5,8 @@ export interface BatchLimits {
   maxChunks: number;
 }
 
-export const DEFAULT_BATCH_LIMITS: BatchLimits = { maxTokens: 8000, maxChunks: 40 };
+/** Small enough that the map step runs in parallel (`EXTRACT_CONCURRENCY`, Gate v2.0 #3 P95 ≤ 25 s); revised 2026-10-20 from 8,000 / 40. */
+export const DEFAULT_BATCH_LIMITS: BatchLimits = { maxTokens: 4000, maxChunks: 8 };
 
 /** Partitions ALL chunks, in order, into bounded batches; an oversized chunk gets its own batch (D12). */
 export function batchChunks(

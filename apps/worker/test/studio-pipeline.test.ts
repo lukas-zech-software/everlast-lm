@@ -153,3 +153,35 @@ describe("generateReport output language (FR-UI-02, FR-ST-10/11)", () => {
     expect(en.payload.sections[1]!.heading).toBe("Cast of Characters");
   });
 });
+
+describe("map step latency (D12, Gate v2.0 #3 P95 ≤ 25 s)", () => {
+  it("extracts bounded batches concurrently (≤ EXTRACT_CONCURRENCY in flight) and keeps findings in batch order", async () => {
+    const { EXTRACT_CONCURRENCY } = await import("../src/studio/reports/pipeline.ts");
+    const inner = new DeterministicReportModel();
+    let inFlight = 0;
+    let peak = 0;
+    let calls = 0;
+    const seen: string[] = [];
+    const model: ReportModelClient = {
+      async extract(req) {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        // Later batches finish first, so order must come from the batch index, not completion time.
+        await new Promise((r) => setTimeout(r, Math.max(1, 40 - 10 * calls++)));
+        inFlight -= 1;
+        return inner.extract(req);
+      },
+      async compose(req) {
+        seen.push(...req.findings.map((f) => f.chunk_id));
+        return inner.compose(req);
+      },
+    };
+    const out = await generateReport({ subtype: "faq", chunks, model, limits: { maxTokens: 100_000, maxChunks: 1 }, signal: new AbortController().signal, reportProgress: () => undefined });
+    expect(out.status).toBe("completed");
+    expect(EXTRACT_CONCURRENCY).toBeGreaterThan(1);
+    expect(peak).toBeGreaterThan(1);
+    expect(peak).toBeLessThanOrEqual(EXTRACT_CONCURRENCY);
+    const order = [...new Set(seen)];
+    expect(order).toEqual(chunks.map((c) => c.chunk_id).filter((id) => order.includes(id)));
+  });
+});

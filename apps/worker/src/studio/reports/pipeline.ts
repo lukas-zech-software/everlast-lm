@@ -36,6 +36,12 @@ function dedupe(findings: Finding[]): Finding[] {
   });
 }
 
+/**
+ * Bounded parallelism of the map step (D12): batches are independent, so up to this many extract calls run at
+ * once; findings are concatenated in batch order, so the result is identical to the sequential run.
+ */
+export const EXTRACT_CONCURRENCY = 4;
+
 const filled = (b: ReportBlock | undefined): boolean => !!b && (b.items.length > 0 || (b.table?.rows.length ?? 0) > 0);
 
 /** Map-reduce over bounded batches of ALL scoped chunks (D12); no agent loop, no sampling. */
@@ -46,13 +52,27 @@ export async function generateReport(input: GenerateReportInput): Promise<Studio
   if (chunks.length === 0) return refuse("InsufficientEvidence", "The selected sources contain no readable content.");
 
   const batches = input.limits ? batchChunks(chunks, input.limits) : batchChunks(chunks);
-  const findings: Finding[] = [];
   input.reportProgress("reading", 5);
-  for (const [i, batch] of batches.entries()) {
-    guard();
-    findings.push(...(await model.extract({ subtype, custom_prompt: input.custom_prompt, output_language, chunks: batch, signal })));
-    input.reportProgress("extracting", 10 + Math.round(((i + 1) / batches.length) * 60));
-  }
+  const perBatch: Finding[][] = new Array(batches.length);
+  let next = 0;
+  let done = 0;
+  let failed = false;
+  const worker = async (): Promise<void> => {
+    while (next < batches.length && !failed) {
+      const i = next++;
+      guard();
+      try {
+        perBatch[i] = await model.extract({ subtype, custom_prompt: input.custom_prompt, output_language, chunks: batches[i]!, signal });
+      } catch (error) {
+        failed = true; // no further batches are started once one fails
+        throw error;
+      }
+      done += 1;
+      input.reportProgress("extracting", 10 + Math.round((done / batches.length) * 60));
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(EXTRACT_CONCURRENCY, batches.length) }, worker));
+  const findings = perBatch.flat();
 
   guard();
   input.reportProgress("composing", 75);

@@ -57,3 +57,41 @@ Worktree `impl-008`, Node 24, PostgreSQL 16 + pgvector (`everlast-pg-test`, port
 **Gate v2.0 #3:** passed for the deterministic run (T042 and T049 pass). **UNAVAILABLE:** the Vertex Flash release
 variant (P95 ≤ 25.0 s with the live model) and the LLM-judged evals (`NFR-EVAL-01/03`) until a deployed run against
 Vertex AI `europe-west4` exists; no live Vertex run was made.
+
+## Live Gate v2.0 fixes, 2026-10-20 (branch `fix/v2-008-live-gate`, T062–T065)
+
+**Before (first live `pnpm eval:judged`, Vertex `europe-west4:gemini-2.5-flash`):** Gate v2.0 #3 FAIL — validity
+75 % (3/4), citation precision 1.000, leakage 0, P95 28,379.6 ms (> 25,000 ms). The Study Guide was refused with
+`InsufficientEvidence` ("The selected sources do not contain enough supported content for every required section of
+this report"). That was correct: the 4-chunk fixture could not support every required section, and the card says never pad.
+
+**Changes (FR-ST-10, Gate v2.0 #3, D12):**
+
+- Latency: every report call (extract and compose) now sends `thinkingConfig: { thinkingBudget: 0 }` and
+  `maxOutputTokens: 8192` (`REPORT_GENERATION_CONFIG`, `@google/genai` 2.30 `ThinkingConfig`; 0 = thinking off on
+  `gemini-2.5-flash`). It goes through a new optional `generationConfig` on the shared Package 2.2
+  `generateStructured`. Source Guide, overview and follow-up requests stay byte-identical (tested). A truncated
+  response fails JSON validation and becomes a `GenerationError`; it never produces a partial report.
+- Pipeline: the map step runs up to `EXTRACT_CONCURRENCY` = 4 extract calls in parallel, with findings merged in
+  batch order. No new batches start after a failure. The default batches shrink to ≤ 8 chunks / 4,000 tokens
+  (research R2), so a 20-chunk notebook needs 3 parallel extract calls instead of 1 long one. Compose stays one call.
+- Gate fixture: `studioGateFixture()` now has two selected sources with 10 chunks each (diplomatic history
+  1648–1919 with dated events and actors; cryptography/ledger definitions with dates and people), plus a two-chunk
+  unselected source that carries `LEAK_TERM`. Every validation rule is unchanged; this changes test data, not the bar.
+
+**Verification (local, keyless):**
+
+| Gate / command | Result |
+| :- | :- |
+| `pnpm lint` | pass |
+| `pnpm typecheck` | pass, 0 errors |
+| `pnpm test:unit` | 20 files / 276 tests passed |
+| `pnpm test:integration` (`TEST_DATABASE_URL` set) | 67 files / 467 tests passed |
+| `env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_GENAI_API_KEY pnpm eval:deterministic` | exit 0; citation_precision 160/160 = 1.0, scoping leakage 0; **Gate v2.0 #3 (deterministic): PASS**, validity 100 % (4/4), precision 1.000, leakage 0, P95 7.5 ms |
+| `pnpm test:e2e` (Chromium) | 37 passed, 1 skipped (`GC-E04`, pre-existing `test.fixme`) |
+| `node scripts/check-spec-integrity.mjs` | pass |
+
+**Live Gate v2.0 #3 re-run: UNAVAILABLE (T065).** One attempt with `runStudioReportsReleaseGate` (`VERTEX_PROJECT=lukas-gcloud-playground`,
+`VERTEX_LOCATION=europe-west4`) failed during authentication with `invalid_grant`, because the ADC refresh token
+has expired. No model call was made. After `gcloud auth application-default login` the check must be re-run, and
+the validity, precision, leakage and P95 values recorded here. Until then the live P95 ≤ 25.0 s is not proven.
