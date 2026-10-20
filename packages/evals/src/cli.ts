@@ -12,6 +12,7 @@ import { runResponseLengthEval, type ResponseLengthMetric } from "./response-len
 import { runSecurityPreflight } from "./security-preflight.ts";
 import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence } from "./report.ts";
 import { renderStudioGate, runStudioReportsGate, runStudioReportsReleaseGate } from "./studio-gate.ts";
+import { renderSourceGuideGate, runSourceGuideReleaseGate } from "./source-guide-gate.ts";
 
 /**
  * `pnpm eval:deterministic` — every PR: Precision_ID and leakage with test doubles (no cloud), incl. an
@@ -173,6 +174,17 @@ try {
     if (!studio.result.passed) exitCode = 1;
   } else {
     log(`[UNAVAILABLE] Gate v2.0 #3 Studio reports (Vertex Flash): ${studio.reason}`);
+  }
+
+  // Gate v2.0 #1 (FR-SI-02): Source Guide < 10 s P95 from Ready, release-only on Vertex AI Flash-Lite.
+  if (mode === "release") {
+    const guides = await runSourceGuideReleaseGate(process.env);
+    if (guides.status === "ran") {
+      for (const line of renderSourceGuideGate(guides.result)) log(line);
+      if (!guides.result.passed) exitCode = 1;
+    } else {
+      log(`[UNAVAILABLE] Gate v2.0 #1 Source Guide (Vertex Flash-Lite): ${guides.reason}`);
+    }
   }
 } finally {
   await db.drop();
