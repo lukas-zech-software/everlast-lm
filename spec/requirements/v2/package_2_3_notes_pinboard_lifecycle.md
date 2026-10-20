@@ -4,7 +4,7 @@
 - **Goal:** Provide a persistent notes pinboard in the Right Panel supporting manual rich-text/Markdown notes, saving chat responses as notes, one-click conversion of notes into citable sources, and contextual AI actions across selected notes.
 - **FRs:** FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04
 - **Gate criteria (SRS §5.4):** Gate v2.0 #2 — round trip passes: *chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*.
-- **v2.0 proof of concept (D16, SRS §5.5 DEV-04):** v2 data lives in API process memory until v3. "Persisted" in this package means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. Access control, sources and chat stay in PostgreSQL.
+- **v2.0 proof of concept (D16, SRS §5.5 DEV-04):** v2 data lives in API process memory until v3. "Persisted" in this package means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. Access control, sources and chat stay in PostgreSQL. Sources made from notes (note-sources) are normal v1 PostgreSQL sources (`media_type: 'note_markdown'`) that share the notebook's source limit with uploads and survive a restart; the notes themselves stay in memory (owner decision 2026-10-20, D16).
 - **Out of scope:** Real-time multi-cursor collaborative editing inside a single note (`v6.0` supports notebook-level sharing).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -167,7 +167,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.4 FR
 
 **Outputs & state**
 - Visible: New `Ready` source in Left Panel (`Sources`) with checkbox selected; active source count increments by $1$.
-- Persisted: New `Source` (`media_type: 'note_markdown'`, origin note IDs and revision snapshot; preserved old citations are provenance, while new answers cite the converted source's own C-01 chunks; inline citation markers such as `[1]` from saved responses are removed from the source text and kept only as provenance metadata) and `UnifiedDocumentChunk` records (`C-01`).
+- Persisted: New v1 PostgreSQL `Source` (`media_type: 'note_markdown'`, origin note IDs and revision snapshot; preserved old citations are provenance, while new answers cite the converted source's own C-01 chunks; inline citation markers such as `[1]` from saved responses are removed from the source text and kept only as provenance metadata) and `UnifiedDocumentChunk` records (`C-01`).
 - States: `Note` $\rightarrow$ `IngestingAsSource` $\rightarrow$ `SourceReady`.
 
 **Acceptance criteria (Gherkin)**

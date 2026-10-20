@@ -1,6 +1,6 @@
 # Interface Contracts: Notes & Pinboard Lifecycle
 
-Trace: FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04, FR-GC-09, FR-SI-01, FR-WM-07, C-01, C-02. `C-01` (`UnifiedDocumentChunk`) and `C-02` (`ScopedContextProvider`) are imported from `packages/contracts`; nothing here redefines them. All Zod schemas live in `packages/contracts/src/package-v2-3.ts`.
+Trace: FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04, FR-GC-09, FR-SI-01, FR-WM-07, C-01, C-02. Storage: notes in memory (`D16`); note-sources are v1 PostgreSQL sources (owner decision 2026-10-20). `C-01` (`UnifiedDocumentChunk`) and `C-02` (`ScopedContextProvider`) are imported from `packages/contracts`; nothing here redefines them. All Zod schemas live in `packages/contracts/src/package-v2-3.ts`.
 
 ## Constants (FR-NM-01..04)
 
@@ -15,24 +15,31 @@ Trace: FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04, FR-GC-09, FR-SI-01, FR-WM-07, C-0
 | `GET /api/notebooks/:id/notes/:noteId` | Open note | 200 `{note}` | 403, 404 NoteNotFound |
 | `PATCH /api/notebooks/:id/notes/:noteId` | Auto-save `{title?, content_md?, base_revision?}` | 200 `{note}` | 404, 409 NoteReadOnly, 409 RevisionConflict, 422 |
 | `DELETE /api/notebooks/:id/notes/:noteId` | Permanent delete, requires `?confirm=true` | 200 `{deleted:true}` | 400 ConfirmationRequired, 404 |
-| `POST /api/notebooks/:id/notes/from-message` | Save to note `{message_id}` (FR-NM-02, FR-GC-09; shared with 2.2) | 201 `{note, created:true, toast:"Saved to notes"}`; 200 `{note, created:false}` on repeat | 403, 404 MessageNotFound, 422 |
+| `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` | Shared save-note route (FR-NM-02, FR-GC-09; Package 2.2 and 2.3). Body `{notebook_id, message_id}` equal to the path IDs | 200 `{note: {id, notebook_id, source_message_id, title, content_md, citations_json, origin_type: "saved_response", read_only: true, created_at}}`, same note on repeat | 400 ValidationError (invalid body or IDs differ from path), 404 MessageNotFound/NotFound, 503 |
 | `POST /api/notebooks/:id/notes/:noteId/convert-to-editable` | Manual copy without citation badges (FR-NM-02) | 201 `{note}` | 404, 409 NotSavedResponse |
-| `POST /api/notebooks/:id/notes/convert-to-source` | `{note_ids:[…]}` or `{all:true}` (FR-NM-03) | 201 `{source}` | 404 NoteNotFound (invalid/cross-notebook id), 409 SourceLimitReached ("Source limit reached"), 422 NoteSourceEmpty / SourceOversized / SourceOversizedWords, 502 IngestionFailed |
-| `POST /api/notebooks/:id/notes/assistant` | `{action_type, selected_note_ids, selected_source_ids}` (FR-NM-04) | 200 `{message, note_source, snapshot, note_assertion_source_ids}` | 400 ComparisonSourceRequired, 404, 409 SourceLimitReached, 409 SourceSnapshotInvalid, 422, 502 |
+| `POST /api/notebooks/:id/notes/convert-to-source` | `{note_ids:[…], reuse?: boolean}` or `{all:true}` (FR-NM-03); `reuse: true` (used by the Note Assistant bar for its snapshot phase) returns an existing Ready note-source of the same notes and revisions | 201 `{source, reused}` (`source` is a v1 source DTO plus `origin_notes`, `origin_citations`) | 404 NoteNotFound (invalid/cross-notebook id), 409 SourceLimitReached ("Source limit reached"), 422 NoteSourceEmpty / SourceOversized / SourceOversizedWords, 502 IngestionFailed |
+| `POST /api/notebooks/:id/notes/assistant` | `{action_type, selected_note_ids, selected_source_ids}` (FR-NM-04) | 200 `{message, messages, note_source, reused, snapshot, note_assertion_source_ids, citation_kinds}` (`messages` = question and answer as v1 history messages; citations carry `source_media_type`) | 400 ComparisonSourceRequired, 404, 409 SourceLimitReached, 409 SourceSnapshotInvalid, 422, 502 IngestionFailed, 503 Unavailable |
 
-## Ports
+## Ports (`apps/api/src/notes/service.ts`)
 
 ```ts
-// FR-NM-03 / FR-SI-01 / C-01 — implemented in apps/worker over IngestionPipeline
-interface NoteSourceIngestor {
-  ingest(input: { attempt_id: string; notebook_id: string; source_id: string; revision_id: number;
-                  title: string; markdown: string }): Promise<NoteSourceIngestionResult>;
+// FR-NM-03 / FR-WM-07 / FR-SI-01 / C-01 — apps/api/src/notes/note-sources.ts over the v1 reservation and ingestion
+interface NoteSourceStore {
+  slots(notebookId: string): Promise<{ used: number; limit: number }>;
+  findReusable(ownerId: string, notebookId: string, origins: NoteSourceOrigin[]): Promise<NoteSource | null>;
+  create(ownerId: string, notebookId: string, input: { title: string; markdown: string;
+         origin_notes: NoteSourceOrigin[]; origin_citations: Citation[] }): Promise<NoteSource>;
 }
-// NoteSourceIngestionResult = { status: 'Ready' | 'Failed'; byte_size; word_count; chunks: UnifiedDocumentChunk[]; error_message? }
-
-// C-02 — implemented by packages/db source-registry (and by the production Postgres provider)
-interface ScopedContextProvider { getScopedContext(notebook_id: string, active_source_ids: string[]): Promise<UnifiedDocumentChunk[]> }
+// FR-NM-04 / C-02 / FR-GC-06 — apps/api/src/v2/runtime.ts over captureScopeSnapshot, listSnapshotChunks,
+// verifyScopeSnapshot and publishTurn (v1 PostgreSQL chat)
+interface NoteAssistantContext {
+  read(ownerId, notebookId, sourceIds): Promise<{ snapshot: SourceRevisionPair[]; chunks: UnifiedDocumentChunk[] }>;
+  verify(ownerId, notebookId, snapshot): Promise<void>;
+  publish(input: { ownerId; notebookId; snapshot; question; answer }): Promise<VisibleMessage[]>;
+}
 ```
+
+`C-01` chunks and `C-02` reads are the v1 ones; there is no separate note-source read path.
 
 ## Error → message mapping (exact strings)
 
@@ -40,4 +47,8 @@ interface ScopedContextProvider { getScopedContext(notebook_id: string, active_s
 
 ## Universal failure rules
 
-Over-limit values are rejected, never truncated; limits are inclusive (`200,000,000` bytes, `500,000` words, 200 code points, 100,000 words, 50 notes); a failed conversion releases its slot and makes **no** model call; stale or unauthorized captured source revisions fail without publishing output; all source reads use `C-02`.
+Over-limit values are rejected, never truncated; limits are inclusive (`200,000,000` bytes, `500,000` words, 200 code points, 100,000 words, 50 notes); a failed conversion releases its slot (source `Failed`) and makes **no** model call; upstream error text never reaches a response; stale or unauthorized captured source revisions fail without publishing output; all source reads use `C-02`.
+
+## `Note` label (FR-NM-04, FR-017)
+
+History and turn citations carry `source_media_type`; the Chat panel shows a `Note` label on every citation whose source is `note_markdown`. Note Assistant results also return `citation_kinds` (`note_assertion` | `source_fact`, keyed by chunk ID).
