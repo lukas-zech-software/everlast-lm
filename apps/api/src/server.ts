@@ -99,6 +99,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           sourceLimit: config.sourceLimit,
           model,
           generation: createV2Generation(env, modelConfigured),
+          // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
+          readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
   const chat =
