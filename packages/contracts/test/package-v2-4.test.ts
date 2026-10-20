@@ -6,6 +6,8 @@ import {
   StudioArtifactSchema,
   StudioPluginRegistry,
   canTransitionStudioStatus,
+  REQUIRED_REPORT_SECTIONS,
+  StudioReportPayloadSchema,
   validateCustomReportPrompt,
   type StudioGeneratorPlugin,
 } from "../src/index.ts";
@@ -47,6 +49,8 @@ describe("C-03 lifecycle (Queued → Running → Completed | Failed | Cancelled)
   });
 });
 
+const briefingSections = ["executive_summary", "core_themes", "key_takeaways", "quotes"].map((key) => ({ key, heading: key }));
+
 describe("FR-ST-10 StudioArtifact schema", () => {
   it("accepts a Queued artifact without payload", () => {
     expect(StudioArtifactSchema.safeParse({ ...base, status: "Queued" }).success).toBe(true);
@@ -55,6 +59,7 @@ describe("FR-ST-10 StudioArtifact schema", () => {
     const payload = {
       content_md: "# Report [1]",
       citations: [{ badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" }],
+      sections: briefingSections,
     };
     expect(StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: payload }).success).toBe(true);
     expect(StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: null }).success).toBe(false);
@@ -138,5 +143,34 @@ describe("C-03 StudioPluginRegistry", () => {
     expect(registry.list().map((p) => p.manifest.plugin_type)).toEqual(["report", "mindmap"]);
     expect(() => registry.register(plugin("report"))).toThrow(/already registered/);
     expect(() => registry.get("nope")).toThrow(/Unknown Studio plugin/);
+  });
+});
+
+/** [008-studio-text-reports] T041 — card section model (FR-ST-10, FR-002..FR-005a, FR-015). */
+describe("FR-ST-10 report sections (stable keys, localized headings)", () => {
+  const citations = [{ badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" }];
+  it("declares the card's required section keys per template", () => {
+    expect(REQUIRED_REPORT_SECTIONS).toEqual({
+      briefing_doc: ["executive_summary", "core_themes", "key_takeaways", "quotes"],
+      study_guide: ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+      faq: ["faq"],
+      timeline: ["events", "cast_of_characters"],
+    });
+  });
+  it("requires sections with a stable key and a localized heading", () => {
+    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations }).success).toBe(false);
+    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "faq" }] }).success).toBe(false);
+    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "Not A Key", heading: "x" }] }).success).toBe(false);
+    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "faq", heading: "Häufige Fragen" }] }).success).toBe(true);
+  });
+  it("a Completed template artifact must carry every required key of its template", () => {
+    const completed = (subtype: string, keys: string[]) =>
+      StudioArtifactSchema.safeParse({ ...base, subtype, status: "Completed", payload_json: { content_md: "# R [1]", citations, sections: keys.map((key) => ({ key, heading: key })) } }).success;
+    expect(completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways", "quotes"])).toBe(true);
+    expect(completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways"])).toBe(false);
+    expect(completed("study_guide", ["topic_review", "short_answer_questions", "essay_questions", "glossary"])).toBe(false);
+    expect(completed("timeline", ["events", "cast_of_characters"])).toBe(true);
+    expect(completed("timeline", ["events"])).toBe(false);
+    expect(completed("custom", ["report"])).toBe(true);
   });
 });

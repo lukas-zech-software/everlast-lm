@@ -8,7 +8,7 @@ import { createWorkerHandler } from "@everlast/worker";
 import { ChatService } from "../src/chat/service.ts";
 import type { GroundedModel, GroundedModelInput } from "../src/chat/model.ts";
 import type { GroundedDraft } from "../src/chat/draft.ts";
-import { createV2Runtime, type V2Runtime } from "../src/v2/runtime.ts";
+import { createV2Runtime, type V2Runtime, type V2RuntimeOptions } from "../src/v2/runtime.ts";
 import { startTestApi, type TestApi } from "./support.ts";
 
 /**
@@ -98,7 +98,8 @@ export interface NotesApi {
   close(): Promise<void>;
 }
 
-export async function startNotesApi(options: { sourceLimit?: number } = {}): Promise<NotesApi> {
+/** `v2` adds runtime options (e.g. a Studio report model test double, [008-studio-text-reports] T040/T043/T047). */
+export async function startNotesApi(options: { sourceLimit?: number; v2?: Partial<V2RuntimeOptions> } = {}): Promise<NotesApi> {
   const sourceLimit = options.sourceLimit ?? 50;
   const dir = await mkdtemp(join(tmpdir(), "everlast-notes-"));
   const embedder = new ControlledEmbedder();
@@ -111,7 +112,7 @@ export async function startNotesApi(options: { sourceLimit?: number } = {}): Pro
   };
   let v2!: V2Runtime;
   const api = await startTestApi({ sourceLimit }, (db) => {
-    v2 = createV2Runtime({ pool: db.pool, sourceLimit, model, storage, embedder, notifyJobs });
+    v2 = createV2Runtime({ pool: db.pool, sourceLimit, model, storage, embedder, notifyJobs, ...options.v2 });
     return { embedder, storage, notifyJobs, v2, chat: new ChatService({ pool: db.pool, embedder, model }) };
   });
   const worker = createWorkerHandler({ pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
