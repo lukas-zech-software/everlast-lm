@@ -61,7 +61,7 @@ T057–T059 were first run red (four expected schema/pipeline failures), then pa
 
 ## Convergence 2 against the revised card (2026-10-20, Phase 11 T060–T083)
 
-Worktree `impl-006`, branch `feat/v2-006-converge` (stacked on `feat/v2-005-converge`), Node 24.22.0 via pnpm,
+Worktree `impl-006`, branch `feat/v2-006-converge` (built on `feat/v2-005-converge`, rebased onto `main` after #128 merged), Node 24.22.0 via pnpm,
 PostgreSQL 16 + pgvector at `127.0.0.1:54329` (`TEST_DATABASE_URL`), `GEMINI_API_KEY`/`GOOGLE_API_KEY` unset.
 
 | Check | Result |
@@ -72,7 +72,7 @@ PostgreSQL 16 + pgvector at `127.0.0.1:54329` (`TEST_DATABASE_URL`), `GEMINI_API
 | `pnpm test:integration` | **PASS**: 58 files, 371 tests |
 | Focused Package 2.2 suites (13 files incl. `package-v2-2-gemini`, `package-v2-2-runtime`, `chat-control`, `response-length`) | **PASS**: 13 files, 85 tests |
 | `pnpm eval:deterministic` | **PASS** (exit 0): Precision_ID 160/160, leakage 0, adversarial 0/60 published; judged metrics and FR-GC-07 response length UNAVAILABLE |
-| `pnpm test:e2e` (Chromium) | **PASS**: 35/35 |
+| `pnpm test:e2e` (Chromium) | **PASS**: 34 passed, 1 skipped (GC-E04 is `test.fixme` on `main`, not changed here) |
 | `node scripts/check-spec-integrity.mjs` | **PASS**: 134 Markdown files, 55 SRS IDs, 24 feature artifact sets |
 | `git diff --check` | **PASS** |
 
