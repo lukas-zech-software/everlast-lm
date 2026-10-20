@@ -75,3 +75,7 @@ Scenario: Needle-in-a-haystack query at 1,000,000 tokens meets TTFT and citation
 **Out of scope:** Cross-notebook vector search.
 
 **Open questions:** `None`
+
+## Implementation-planning refinements (2026-10-20)
+
+`NFR-PERF-01`, `C-02/C-03`, `NFR-EVAL-01..04`: Use nearest-rank P95 for20warm runs (19thsorted latency), client-monotonic submission→first validated answer receipt, prospective instance/readiness cohort classification and complete attempted-run reports. Wake measurements retain D15/DEV-04 without latency threshold; concurrency2 over two Owner-isolated notebooks is a separate diagnostic. Use production scoped vector/FTS/RRF in existing `document_chunks`, exact scoped fallback, strict history provenance and effective-ACL-aware revision caches. Budget total model envelopes including overhead, segment oversized original chunks with parent references, and recursively reduce bounded findings with complete chunk/segment coverage. Qualify full-source million-token capacity with sufficient overhead rather than truncate. No runtime result is claimed; see `specs/012-long-context-latency-scaling/plan.md` and its benchmark contract.

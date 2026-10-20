@@ -1,6 +1,6 @@
 # Feature Specification: Long-Context and Latency Scaling
 
-**Feature Branch**: `clarify-v3/012-long-context-latency-scaling`
+**Feature Branch**: `plan-v3/012-long-context-latency-scaling`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`
@@ -127,3 +127,7 @@ The Owner generates an existing Studio artifact from large selected collections 
 - **Binding architecture (`C-01..C-03`, D1, D12, D13)**: Retrieval-first chat and complete-evidence Studio modes above restate existing decisions, not new implementation choices. No language, framework, datastore or deployment design is introduced.
 - **Evidence (`CC-01`)**: Reference-product behavior in the card is explicitly unverified provenance, not evidence of tested performance. These are Everlast LM acceptance requirements.
 - **Out of Scope / Deferred (`FR-INT-01`, D5/DEV-03)**: Cross-notebook search, federated indexing and multi-notebook synthesis. Sharing roles are v6 scope. New implementation, plan/tasks generation, deployment and runtime gate execution are outside this specify invocation.
+
+## Planning Refinements (2026-10-20; `NFR-PERF-01`, `C-02/C-03`)
+
+The plan fixes nearest-rank P95 (20warm runs→19thsorted value), client-monotonic submission-to-first-validated-answer timing, prospective readiness/instance cohort classification and full attempted-run reporting. Wake delays remain separate without threshold (D15/DEV-04). A separate concurrency2 diagnostic uses two Owner-isolated notebooks. Production C-02 must replace fixture-only retrieval with same-table scoped vector/FTS/RRF and exact scoped fallback, strict provenance eligibility, effective-ACL-aware caches and revision-bound guide reads. Studio requires actual model-envelope budgets, complete chunk/segment manifests and bounded recursive reduction; no oversized chunk or all-findings request may escape the bounds. At the million-token full-source boundary, qualify sufficient model overhead budget rather than silently truncate. These technical refinements are mirrored in the package card and architecture; runtime qualification remains UNAVAILABLE, not unresolved product scope.

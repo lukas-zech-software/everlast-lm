@@ -352,3 +352,7 @@ artifacts retain upstream authorization provenance (NFR-SEC-02).
 
 D11–D13 clarify existing assigned requirements during the requirements consistency audit.
 They authorize design changes, not enabling cloud products or bypassing release gates.
+
+### Package3.4 integration refinement (2026-10-20; NFR-PERF-01, C-02/C-03)
+
+Keep D1/D12/D13/D15: production retrieval adds embeddings/FTS to existing `document_chunks` behind C-02, preserves notebook/source/revision filters in both ranked branches and exact scoped fallback, and excludes unknown history provenance. Cache keys include effective ACL identity and model/content versions with reauthorization at use/publication. Studio full-source contexts require total model-envelope qualification; above capacity, oversized chunks become parent-linked segments and all original evidence passes bounded map and recursive reduce with coverage manifests. Benchmark uses20warm sequential runs, nearest-rank P95=19thsorted, client submission-to-validated-answer receipt, prospective readiness classification and all-attempt reporting. Wake delays have no blocking threshold; concurrency2 uses separate Owner notebooks as diagnostic. These are implementation refinements, no new service/deviation or claimed runtime acceptance. D16's managed2vCPU/1.5GB and pending R6 qualification are preserved.
