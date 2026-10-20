@@ -5,7 +5,7 @@ import { seedReadySource } from "@everlast/db/testing";
 import { ChatService } from "../src/chat/service.ts";
 import type { GroundedModel, GroundedModelInput } from "../src/chat/model.ts";
 import type { GroundedDraft } from "../src/chat/draft.ts";
-import { buildUserPayload, GROUNDING_INSTRUCTION } from "../src/chat/prompt.ts";
+import { buildUserPayload, GROUNDING_INSTRUCTION, preferenceLines } from "../src/chat/prompt.ts";
 import { browserLocaleOf } from "../src/routes/chat.ts";
 import { createV2Runtime } from "../src/v2/runtime.ts";
 import { startTestApi, type TestApi } from "./support.ts";
@@ -40,6 +40,21 @@ describe("response preferences in the model payload (FR-GC-07, FR-UI-02, FR-GC-0
     expect(payload.indexOf("RESPONSE PREFERENCES")).toBeGreaterThan(payload.indexOf("QUESTION:"));
     expect(payload).toContain(chunk.text);
     expect(GROUNDING_INSTRUCTION).toMatch(/Use ONLY the facts in the SOURCE CHUNKS/);
+  });
+
+  it("states concrete, testable length targets that never override grounding (FR-GC-07, FR-GC-01/02; live Gate v2.0, 2026-10-20)", () => {
+    const shorter = preferenceLines({ style: "default", response_length: "shorter" }).join(" ");
+    const longer = preferenceLines({ style: "default", response_length: "longer" }).join(" ");
+    expect(shorter).toMatch(/at most 2 sentences/);
+    expect(shorter).toMatch(/only the fact\(s\) directly asked/i);
+    expect(longer).toMatch(/at least 4 sentences/);
+    expect(longer).toMatch(/every relevant (supported )?fact/i);
+    for (const line of [shorter, longer]) {
+      expect(line).toMatch(/cite/i);
+      expect(line).toMatch(/never add facts that are not in the SOURCE CHUNKS/i);
+    }
+    expect(longer).toMatch(/refuse exactly as the rules require/i);
+    expect(preferenceLines({ style: "default", response_length: "default" })).toEqual([]);
   });
 
   it("leaves the release-gate payload unchanged when no preferences apply", () => {

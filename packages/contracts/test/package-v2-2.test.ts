@@ -26,9 +26,14 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
     const base = { notebook_id: notebook, source_id: source, revision: 1, output_language: "en-US", status: "GuideReady", source_word_count: 12, supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
     expect(schema.safeParse({ ...base, summary_md: "One sentence.", key_topics: ["Topic"] }).success).toBe(true);
     expect(schema.safeParse({ ...base, source_word_count: 49, summary_md: "One sentence.", key_topics: Array(4).fill("Topic") }).success).toBe(false);
-    expect(schema.safeParse({ ...base, source_word_count: 50, summary_md: "A full source summary.", key_topics: Array(4).fill("Topic") }).success).toBe(false);
+    // 5–10 topics is a prompt target, not a hard floor (card: "Target 5–10 … no unsupported padding"; live Gate v2.0 #1, 2026-10-20).
+    expect(schema.safeParse({ ...base, source_word_count: 50, summary_md: "A full source summary.", key_topics: Array(4).fill("Topic") }).success).toBe(true);
+    expect(schema.safeParse({ ...base, source_word_count: 52, summary_md: "A full source summary.", key_topics: ["Per diem", "Rail travel"] }).success).toBe(true);
+    expect(schema.safeParse({ ...base, source_word_count: 400, summary_md: "A full source summary.", key_topics: [] }).success).toBe(false);
+    expect(schema.safeParse({ ...base, summary_md: "One sentence.", key_topics: [] }).success).toBe(false);
     expect(schema.safeParse({ ...base, source_word_count: 50, summary_md: "A full source summary.", key_topics: Array(11).fill("Topic") }).success).toBe(false);
     expect(schema.safeParse({ ...base, summary_md: "word ".repeat(251), key_topics: ["Topic"] }).success).toBe(false);
+    expect(schema.safeParse({ ...base, source_word_count: 400, summary_md: "word ".repeat(250), key_topics: ["Topic"] }).success).toBe(true);
     expect(schema.safeParse({ ...base, summary_md: "Summary", key_topics: Array(5).fill("x".repeat(41)) }).success).toBe(false);
     expect(schema.safeParse({ ...base, unexpected: true, summary_md: "One sentence.", key_topics: ["Topic"] }).success).toBe(false);
   });
@@ -36,7 +41,8 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
   it("enforces the normal-source topic, prompt and follow-up code-point boundaries", () => {
     const guide = { notebook_id: notebook, source_id: source, revision: 1, output_language: "en-US", status: "GuideReady", source_word_count: 50, summary_md: "A full-source summary.", supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: Array(5).fill("🌱".repeat(40)) }).success).toBe(true);
-    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["a", "b", "c", "d"] }).success).toBe(false);
+    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["a", "b", "c", "d"] }).success).toBe(true);
+    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: [] }).success).toBe(false);
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["🌱".repeat(41), "b", "c", "d", "e"] }).success).toBe(false);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(100)).success).toBe(true);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(101)).success).toBe(false);

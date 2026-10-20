@@ -81,6 +81,22 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateSourceGuide({ notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language: "en", reader: shortReader, model: invalidModel })).rejects.toThrow(/one sentence/i);
   });
 
+  it("counts one sentence across Markdown line breaks and abbreviations, still rejecting two (FR-SI-02, live Gate v2.0 #1)", async () => {
+    const shortSource = { ...material, word_count: 45 };
+    const shortReader: PackageV22SourceReader = { readReadySources: async () => [shortSource] };
+    const guideWith = (summary_md: string, output_language: string) => generateSourceGuide({
+      notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language, reader: shortReader,
+      model: { ...model, generateSourceGuide: async () => ({ summary_md, key_topics: ["Office rules"], supporting_chunk_ids: [chunk] }) },
+    });
+    await expect(guideWith("**Office Handbook:**\nVisitors are escorted, badges are worn and the canteen closes at 15:30 on Fridays.", "en-US")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("Das Handbuch regelt z. B. Besuche, u. a. Ausweise und die Kantine (Fr. 15:30 Uhr).", "de-DE")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("The handbook covers visitors, e.g. escorts, and the canteen (closes 15:30 Fri.).", "en-US")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("Visitors are escorted. Badges are worn.", "en-US")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("Besucher werden begleitet. Die Kantine schließt um 15:30 Uhr.", "de-DE")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("Visitors are escorted! Badges are worn?", "en-US")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("- Visitors are escorted.\n- Badges are worn.", "en-US")).rejects.toThrow(/one sentence/i);
+  });
+
   it("offers follow-ups only after completion and binds them to the authorized snapshot", async () => {
     await expect(generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model, streaming: true })).rejects.toThrow(/after answer completion/);
     const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });

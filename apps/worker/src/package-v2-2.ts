@@ -104,13 +104,62 @@ const validateSupport = (supportIds: string[], sources: ScopedSourceMaterial[], 
   if (supportIds.some((id) => !allowed.has(id))) throw new Error("Generated output references a chunk outside the authorized scope");
 };
 
-function assertSingleSentence(text: string, locale: string): void {
-  const Segmenter = (Intl as unknown as {
-    Segmenter: new (locale: string, options: { granularity: "sentence" }) => { segment(value: string): Iterable<{ segment: string }> };
-  }).Segmenter;
-  const sentenceCount = Array.from(new Segmenter(locale, { granularity: "sentence" }).segment(text))
-    .filter((part) => part.segment.trim().length > 0).length;
-  if (sentenceCount !== 1) throw new Error("Source Guide summaries for sources under 50 words must contain exactly one sentence");
+/** Lower-cased abbreviations (without the final dot) that do not end a sentence (en/de). Single letters are always abbreviations. */
+const ABBREVIATIONS = new Set([
+  "e.g", "i.e", "etc", "vs", "approx", "no", "nr", "fr", "mo", "di", "mi", "do", "sa", "so", "mon", "tue", "wed", "thu", "fri", "sat", "sun",
+  "dr", "mr", "mrs", "ms", "st", "ca", "bzw", "usw", "vgl", "ggf", "inkl", "evtl", "z.b", "u.a", "d.h", "s.o", "s.u", "u.u",
+]);
+const TRAILING_CLOSERS = new Set(["\"", "'", ")", "]", "*", "_", "»", "«", "“", "”", "’"]);
+const LEADING_OPENERS = new Set(["\"", "'", "(", "[", "*", "_", "»", "«", "“", "„", "‘", "#", "-", "•"]);
+
+/**
+ * Sentence count for the "exactly one sentence" rule (FR-SI-02, < 50-word sources). Deterministic and linear:
+ * whitespace tokens only (line breaks and Markdown emphasis are not boundaries), `!`/`?` always end a sentence,
+ * `.`/`…` only before an upper-case or numeric next token and not after an abbreviation or a German ordinal
+ * ("z. B.", "u. a.", "Fr.", "e.g.", "10."). A line that starts a Markdown list item is a new sentence.
+ * `Intl.Segmenter` miscounted both cases in the live Gate v2.0 #1 run (2026-10-20).
+ */
+export function countSentences(text: string): number {
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const tokens: Array<{ value: string; lineStart: boolean }> = [];
+  for (const line of lines) line.split(/\s+/u).filter(Boolean).forEach((value, index) => tokens.push({ value, lineStart: index === 0 }));
+  if (tokens.length === 0) return 0;
+  let sentences = 1;
+  for (let i = 0; i < tokens.length - 1; i += 1) {
+    const next = tokens[i + 1]!;
+    if (next.lineStart && (next.value === "-" || next.value === "*" || next.value === "•" || isOrderedMarker(next.value))) { sentences += 1; continue; }
+    let end = tokens[i]!.value.length;
+    while (end > 0 && TRAILING_CLOSERS.has(tokens[i]!.value[end - 1]!)) end -= 1;
+    const core = tokens[i]!.value.slice(0, end);
+    const last = core[core.length - 1];
+    if (last === "!" || last === "?") { sentences += 1; continue; }
+    if (last !== "." && last !== "…") continue;
+    let begin = 0;
+    while (begin < next.value.length && LEADING_OPENERS.has(next.value[begin]!)) begin += 1;
+    const first = next.value[begin];
+    if (!first || !(first !== first.toLowerCase() || (first >= "0" && first <= "9"))) continue;
+    if (last === "." && isAbbreviation(core.slice(0, -1))) continue;
+    sentences += 1;
+  }
+  return sentences;
+}
+
+function isOrderedMarker(token: string): boolean {
+  const body = token.endsWith(".") || token.endsWith(")") ? token.slice(0, -1) : "";
+  return body.length > 0 && body.length <= 3 && [...body].every((c) => c >= "0" && c <= "9");
+}
+
+function isAbbreviation(word: string): boolean {
+  let begin = 0;
+  while (begin < word.length && LEADING_OPENERS.has(word[begin]!)) begin += 1;
+  const bare = word.slice(begin).toLowerCase();
+  if ([...bare].length === 1) return true;
+  if (bare.length > 0 && bare.length <= 2 && [...bare].every((c) => c >= "0" && c <= "9")) return true; // German ordinal "10."
+  return ABBREVIATIONS.has(bare);
+}
+
+function assertSingleSentence(text: string): void {
+  if (countSentences(text) !== 1) throw new Error("Source Guide summaries for sources under 50 words must contain exactly one sentence");
 }
 
 export async function generateSourceGuide(input: {
@@ -151,7 +200,7 @@ export async function generateSourceGuide(input: {
     const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: snapshot });
     assertExactScope(snapshot, currentSources);
     validateSupport(generated.supporting_chunk_ids, currentSources);
-    if (wordCount < 50) assertSingleSentence(generated.summary_md, input.output_language);
+    if (wordCount < 50) assertSingleSentence(generated.summary_md);
     const ready = SourceGuideSchema.parse({
       ...pending, status: "GuideReady", source_word_count: wordCount,
       summary_md: generated.summary_md, key_topics: generated.key_topics, supporting_chunk_ids: generated.supporting_chunk_ids,

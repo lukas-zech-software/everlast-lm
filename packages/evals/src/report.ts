@@ -151,6 +151,7 @@ export function renderMarkdown(report: GateReport): string {
       `- **Status:** ${length.status}${length.detail ? ` (${length.detail})` : ""}`,
       `- **Shorter / Default:** ${pct(length.shorter_ratio)} (≤ 50 %) · **Longer / Default:** ${pct(length.longer_ratio)} (≥ 150 %)`,
       `- **Sample case IDs:** ${length.case_ids.join(", ") || "—"}`,
+      `- **Excluded (Default refusal):** ${length.excluded_case_ids?.join(", ") || "—"}`,
       `- **Generation parameters:** ${JSON.stringify(length.generation_parameters)}`
     );
   }

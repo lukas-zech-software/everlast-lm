@@ -45,6 +45,30 @@ describe("response-length release metric (FR-GC-07, FR-012)", () => {
     expect(computeResponseLengthMetric([])).toMatchObject({ status: "fail", passed: false });
   });
 
+  it("excludes cases whose Default answer is a refusal, records them, and fails closed when none remain (FR-GC-07 card; live Gate v2.0, 2026-10-20)", async () => {
+    const eligible = responseLengthEligible(sample);
+    expect(eligible.length).toBeGreaterThan(1);
+    const refused = eligible[0]!.id;
+    const answer = vi.fn(async (c: { id: string }, length: "default" | "shorter" | "longer") =>
+      c.id === refused && length === "default" ? null : "word ".repeat(length === "default" ? 20 : length === "shorter" ? 8 : 40));
+    const metric = await runResponseLengthEval({ answer }, sample);
+    expect(metric).toMatchObject({ status: "pass", passed: true, excluded_case_ids: [refused] });
+    expect(metric.case_ids).toEqual(eligible.slice(1).map((c) => c.id));
+    // No Shorter/Longer calls for an excluded case.
+    expect(answer).toHaveBeenCalledTimes(1 + (eligible.length - 1) * 3);
+
+    const allRefused = await runResponseLengthEval({ answer: async () => null }, sample);
+    expect(allRefused).toMatchObject({ status: "fail", passed: false, case_ids: [], excluded_case_ids: eligible.map((c) => c.id) });
+    expect(allRefused.detail).toMatch(/no eligible case/i);
+  });
+
+  it("fails closed when Shorter or Longer refuses a case whose Default answered (a length preference never changes grounding)", async () => {
+    const metric = await runResponseLengthEval({ answer: async (_c, length) => (length === "longer" ? null : "word ".repeat(length === "default" ? 20 : 8)) }, sample);
+    expect(metric).toMatchObject({ status: "fail", passed: false });
+    expect(metric.detail).toMatch(/refus/i);
+    expect(computeResponseLengthMetric([{ case_id: "SYN-009", default_tokens: 20, shorter_tokens: 0, longer_tokens: 40, shorter_refused: true }])).toMatchObject({ status: "fail", passed: false });
+  });
+
   it("reports UNAVAILABLE rather than pass when the judged runner or model is not configured", async () => {
     const metric = await runResponseLengthEval(null, sample);
     expect(metric).toMatchObject({ status: "unavailable", passed: false, shorter_ratio: null, longer_ratio: null });

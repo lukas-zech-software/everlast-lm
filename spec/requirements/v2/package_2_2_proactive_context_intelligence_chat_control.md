@@ -40,8 +40,8 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Source chunks | Array of `UnifiedDocumentChunk` | All chunks belonging to `source_id` | — |
-| Summary length | Markdown text | Target 100–250 words; shorter when evidence is insufficient, including the short-source exception below | — |
-| Key topic chips | Array of strings | Target 5–10 topics (1–3 for very short sources), each at most 40 characters; no unsupported padding | — |
+| Summary length | Markdown text | Target 100–250 words; shorter when evidence is insufficient, including the short-source exception below. 250 words is a hard limit (rejected, never truncated) | — |
+| Key topic chips | Array of strings | Target 5–10 topics (1–3 for very short sources), each at most 40 characters; no unsupported padding. Hard limits: 1–10 topics (≤ 3 below 50 words); fewer than 5 is valid | — |
 
 **Outputs & state**
 - Visible: Collapsible `Source Guide` box inside the Source Inspector containing `Summary` and clickable `Key topics` pills.
@@ -265,7 +265,7 @@ Scenario: Persona character boundary and Analyst preset
 - User selects `Custom` and clicks `Save` with an empty text box $\rightarrow$ Reject the save with a non-empty-instructions validation message; retain the previous saved configuration.
 
 **Measurable criteria**
-- Measured once per release gate on the fixed 50-case sample (Constitution v2.0.0), on cases whose sources support a longer answer: `Shorter` responses average $\le 50\%$ and `Longer` responses $\ge 150\%$ of the `Default` response token count for the same question.
+- Measured once per release gate on the fixed 50-case sample (Constitution v2.0.0), on cases whose sources support a longer answer: `Shorter` responses average $\le 50\%$ and `Longer` responses $\ge 150\%$ of the `Default` response token count for the same question. A case whose `Default` answer is a refusal is not eligible (excluded and listed); no eligible case left fails closed.
 
 **Deviations from reference:** Everlast LM follows the SRS limit of 5,000 characters and includes its Analyst preset; reference limits are unverified.
 
