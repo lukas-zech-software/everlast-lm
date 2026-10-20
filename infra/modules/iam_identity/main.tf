@@ -99,9 +99,11 @@ resource "google_identity_platform_config" "auth" {
       enabled = false
     }
 
+    # Dev PoC (owner decision 2026-10-20): Identity Platform email/password lets stakeholders sign in without
+    # an external OIDC/SAML IdP. Off by default; staging/prod keep corporate OIDC/SAML (D6).
     email {
-      enabled           = false
-      password_required = false
+      enabled           = var.enable_email_password_sign_in
+      password_required = var.enable_email_password_sign_in
     }
   }
 

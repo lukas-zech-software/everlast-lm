@@ -32,3 +32,9 @@ output "workload_identity_provider_name" {
   description = "Full resource name of the GitHub OIDC Workload Identity Provider (when enabled)."
   value       = var.enable_github_wif ? google_iam_workload_identity_pool_provider.github[0].name : null
 }
+
+output "identity_platform_api_key" {
+  description = "Public Identity Platform browser API key (not a model API key; D6). Empty when Identity Platform is disabled."
+  value       = try(google_identity_platform_config.auth[0].client[0].api_key, "")
+  sensitive   = true
+}

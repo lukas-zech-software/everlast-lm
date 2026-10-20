@@ -38,6 +38,47 @@ function tokenExpired(token: string): boolean {
   }
 }
 
+/**
+ * Identity Platform sign-in method from the configured provider id (D6). `password` is the dev PoC method
+ * (Identity Platform email/password, no external IdP); `saml.*` and other ids redirect to the OIDC/SAML provider.
+ */
+export function signInMethod(providerId: string): "password" | "saml" | "oauth" {
+  if (providerId === "password") return "password";
+  return providerId.startsWith("saml.") ? "saml" : "oauth";
+}
+
+/** Email/password form for Identity Platform (dev PoC): sign in, or create the account on first use. */
+function renderPasswordSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    clear(root);
+    const email = h("input", { type: "email", name: "email", placeholder: "you@example.com", required: true, "data-testid": "signin-email", autocomplete: "email" });
+    const password = h("input", { type: "password", name: "password", placeholder: "Password (min. 6 characters)", required: true, minlength: "6", "data-testid": "signin-password", autocomplete: "current-password" });
+    const message = h("p", { class: "muted", "data-testid": "signin-message", text: "Sign in, or create an account with a new email and password." });
+    const signIn = h("button", { class: "btn btn-primary", type: "submit", text: "Sign in" });
+    const signUp = h("button", { class: "btn", type: "button", "data-testid": "signup", text: "Create account" });
+    const form = h("form", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message, email, password, signIn, signUp);
+    const run = async (create: boolean) => {
+      if (!form.reportValidity()) return;
+      message.textContent = create ? "Creating account…" : "Signing in…";
+      try {
+        if (create) await authModule.createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
+        else await authModule.signInWithEmailAndPassword(auth, email.value.trim(), password.value);
+        resolve();
+      } catch (error) {
+        const code = String((error as { code?: unknown })?.code ?? "");
+        message.textContent =
+          code === "auth/email-already-in-use" ? "This email already has an account. Use Sign in." :
+          code === "auth/weak-password" ? "The password needs at least 6 characters." :
+          create ? "The account could not be created." : "Sign-in failed. Check email and password, or create an account.";
+      }
+    };
+    form.addEventListener("submit", (event) => { event.preventDefault(); void run(false); });
+    signUp.addEventListener("click", () => void run(true));
+    root.append(form);
+    email.focus();
+  });
+}
+
 function renderLocalSignIn(root: HTMLElement): Promise<string> {
   return new Promise((resolve) => {
     clear(root);
@@ -115,14 +156,18 @@ export async function startSession(root: HTMLElement): Promise<Session> {
   const auth = authModule.getAuth(app);
   if (ip.tenantId) auth.tenantId = ip.tenantId;
   await authModule.getRedirectResult(auth).catch(() => null);
-  const user = await new Promise<any>((resolve) => {
+  let user = await new Promise<any>((resolve) => {
     const unsubscribe = authModule.onAuthStateChanged(auth, (u: unknown) => {
       unsubscribe();
       resolve(u);
     });
   });
+  if (!user && signInMethod(ip.providerId) === "password") {
+    await renderPasswordSignIn(root, authModule, auth);
+    user = auth.currentUser;
+  }
   if (!user) {
-    const provider = ip.providerId.startsWith("saml.") ? new authModule.SAMLAuthProvider(ip.providerId) : new authModule.OAuthProvider(ip.providerId);
+    const provider = signInMethod(ip.providerId) === "saml" ? new authModule.SAMLAuthProvider(ip.providerId) : new authModule.OAuthProvider(ip.providerId);
     await authModule.signInWithRedirect(auth, provider);
     await new Promise(() => undefined); // navigation away
   }
