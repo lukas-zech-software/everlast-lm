@@ -8,7 +8,8 @@ import {
   VertexStructuredGenerationClient,
   type GenAiFactoryOptions,
 } from "../src/package-v2-2-gemini.ts";
-import type { ScopedSourceMaterial } from "../src/package-v2-2.ts";
+import { generateSourceGuide, type ScopedSourceMaterial } from "../src/package-v2-2.ts";
+import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
 
 /**
  * Vertex AI structured generation for Source Guide, notebook overview and follow-ups (FR-SI-02, FR-GC-04/05).
@@ -125,5 +126,24 @@ describe("Vertex StructuredGenerationClient (FR-SI-02, FR-GC-04/05, D3, NFR-SEC-
     expect(await outcome()).toBe("permanent");
     expect(await outcome()).toBe("permanent");
     expect(await outcome()).toBe("permanent");
+  });
+
+  it("never puts upstream error text into the error, stored guide state or logs other than a server-side warning (NFR-SEC-01)", async () => {
+    resetPackageV22Store();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const upstream = () => { throw Object.assign(new Error("secret-detail from upstream"), { name: "ApiError", status: 400 }); };
+    const fake = fakeTransport([upstream, upstream]);
+    const client = new VertexStructuredGenerationClient({ project: "p", createClient: fake.createClient });
+    const error = (await client.generateSourceGuide({ source: material, output_language: "en-US" }).then(() => new Error("resolved"), (e: unknown) => e)) as Error & { reason?: string; status?: number };
+    expect(error.message).not.toContain("secret-detail");
+    expect(error).toMatchObject({ transient: false, reason: "upstream_rejected", status: 400 });
+    expect(JSON.stringify(warn.mock.calls)).toContain("secret-detail");
+    expect(JSON.stringify(warn.mock.calls)).not.toContain(material.chunks[0]!.text);
+    const reader = { readReadySources: async () => [material] };
+    await expect(generateSourceGuide({ notebook_id: "11111111-1111-4111-8111-111111111111", user_id: "owner", source_id: source, revision: 1, output_language: "en-US", reader, model: client })).rejects.toBeTruthy();
+    const stored = await getSourceGuide("11111111-1111-4111-8111-111111111111", source, 1, "en-US");
+    expect(stored?.status).toBe("GuideFailed");
+    expect(JSON.stringify(stored)).not.toContain("secret-detail");
+    warn.mockRestore();
   });
 });

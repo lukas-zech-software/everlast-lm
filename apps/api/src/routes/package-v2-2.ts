@@ -121,8 +121,7 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
         if (result.notebook_id !== notebookId || result.authorization_key !== (await import("node:crypto")).createHash("sha256").update(userId).digest("hex")) throw new Error("Overview does not match the authenticated notebook owner");
         sendJson(res, 200, result);
       } catch (error) {
-        const unavailable = error instanceof Error && error.name === "PackageV22GenerationUnavailableError";
-        sendJson(res, unavailable ? 503 : 409, { error: { code: unavailable ? "Unavailable" : "SnapshotInvalid", message: error instanceof Error ? error.message : "Source snapshot is stale" } });
+        sendGenerationError(res, error);
       }
       return true;
     }
@@ -209,8 +208,7 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
       await (deps.saveFollowUps ?? saveMessageFollowUps)({ notebook_id: notebookId, user_id: userId, message_id: messageId, followups: result });
       sendJson(res, 200, result);
     } catch (error) {
-      const unavailable = error instanceof Error && error.name === "PackageV22GenerationUnavailableError";
-      sendJson(res, unavailable ? 503 : 409, { error: { code: unavailable ? "Unavailable" : "SnapshotInvalid", message: error instanceof Error ? error.message : "Source snapshot is stale" } });
+      sendGenerationError(res, error);
     }
     return true;
   }
@@ -248,4 +246,19 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
     return true;
   }
   return false;
+}
+
+/**
+ * Fixed error bodies for generation routes: model or upstream error text never reaches a response (NFR-SEC-01).
+ * Unconfigured → 503; model failure → 502; anything else (stale or unauthorized snapshot, invalid output) → 409.
+ */
+function sendGenerationError(res: ServerResponse, error: unknown): void {
+  const name = error instanceof Error ? error.name : "";
+  if (name === "PackageV22GenerationUnavailableError") {
+    sendJson(res, 503, { error: { code: "Unavailable", message: "Generation is not configured" } });
+  } else if (name === "StructuredGenerationError") {
+    sendJson(res, 502, { error: { code: "GenerationFailed", message: "Generation failed; please try again" } });
+  } else {
+    sendJson(res, 409, { error: { code: "SnapshotInvalid", message: "Source snapshot is stale, inaccessible or produced unsupported output" } });
+  }
 }

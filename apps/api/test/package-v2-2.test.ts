@@ -195,3 +195,17 @@ it("persists only the in-scope follow-up chips on the assistant message (FR-GC-0
   expect(req.result().body.suggested_followups).toHaveLength(1);
   expect((await getMessageFollowUps(notebook, "owner", message, "en-US"))?.suggested_followups.map((c) => c.text)).toEqual(["What evidence supports it?"]);
 });
+
+it("never returns upstream generation error text in overview or follow-up responses (NFR-SEC-01)", async () => {
+  const message = "77777777-7777-4777-8777-777777777777";
+  await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Answer", active_source_revisions_snapshot: [{ source_id: source, revision: 2 }] });
+  const leak = vi.fn(async () => { throw new Error("secret-detail from upstream"); });
+  const overview = invoke(`/api/notebooks/${notebook}/overview`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }], output_language: "en-US" } });
+  await handlePackageV22Route(overview.req, overview.res, "owner", { ...deps, generateOverview: leak });
+  expect(overview.result().status).toBeGreaterThanOrEqual(400);
+  expect(JSON.stringify(overview.result().body)).not.toContain("secret-detail");
+  const followUps = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/follow-ups`, { method: "POST", body: { source_revisions: [{ source_id: source, revision: 2 }] } });
+  await handlePackageV22Route(followUps.req, followUps.res, "owner", { ...deps, generateFollowUps: leak });
+  expect(followUps.result().status).toBeGreaterThanOrEqual(400);
+  expect(JSON.stringify(followUps.result().body)).not.toContain("secret-detail");
+});

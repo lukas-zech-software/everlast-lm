@@ -36,13 +36,33 @@ export type GenAiFactory = (options: GenAiFactoryOptions) => GenAiClientLike;
 
 const defaultFactory: GenAiFactory = (options) => new GoogleGenAI(options) as unknown as GenAiClientLike;
 
+/** Fixed, non-sensitive failure reasons; upstream error text is logged server-side only (NFR-SEC-01). */
+export type StructuredGenerationFailure = "upstream_unavailable" | "upstream_rejected" | "invalid_json" | "schema_mismatch";
+
 export class StructuredGenerationError extends Error {
   readonly transient: boolean;
-  constructor(message: string, transient: boolean) {
-    super(message);
+  readonly reason: StructuredGenerationFailure;
+  readonly status: number | undefined;
+  constructor(reason: StructuredGenerationFailure, transient: boolean, status?: number) {
+    super("Structured generation failed");
     this.name = "StructuredGenerationError";
+    this.reason = reason;
     this.transient = transient;
+    this.status = status;
   }
+}
+
+/** Server-side structured log of the upstream failure: status, error name and message; never prompt or source text. */
+function logUpstreamFailure(model: string, error: unknown): void {
+  const { status, name, message } = (error ?? {}) as { status?: unknown; name?: unknown; message?: unknown };
+  console.warn(JSON.stringify({
+    severity: "WARNING",
+    message: "Vertex AI structured generation failed",
+    model,
+    upstream_status: typeof status === "number" ? status : null,
+    upstream_error: typeof name === "string" ? name : null,
+    upstream_message: typeof message === "string" ? message.slice(0, 500) : null,
+  }));
 }
 
 function isTransient(error: unknown): boolean {
@@ -159,16 +179,19 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
       });
       text = response.text ?? "";
     } catch (error) {
-      throw new StructuredGenerationError(`Vertex AI structured generation failed: ${(error as Error)?.message ?? "unknown error"}`, isTransient(error));
+      logUpstreamFailure(this.model, error);
+      const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : undefined;
+      const transient = isTransient(error);
+      throw new StructuredGenerationError(transient ? "upstream_unavailable" : "upstream_rejected", transient, status);
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(text);
     } catch {
-      throw new StructuredGenerationError("Vertex AI returned invalid JSON", false);
+      throw new StructuredGenerationError("invalid_json", false);
     }
     const result = schema.safeParse(parsed);
-    if (!result.success) throw new StructuredGenerationError("Vertex AI output does not match the response schema", false);
+    if (!result.success) throw new StructuredGenerationError("schema_mismatch", false);
     return result.data;
   }
 }

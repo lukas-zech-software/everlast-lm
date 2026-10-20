@@ -148,7 +148,8 @@ export async function generateSourceGuide(input: {
     return await saveSourceGuide(ready);
   } catch (error) {
     if (authorized) {
-      const failed: SourceGuide = { ...pending, status: "GuideFailed", error: error instanceof Error ? error.message : "Guide generation failed" };
+      // Fixed text only: model/upstream error details never reach stored or returned guide state (NFR-SEC-01).
+      const failed: SourceGuide = { ...pending, status: "GuideFailed", error: "Source Guide generation failed" };
       await saveSourceGuide(failed);
     }
     throw error;
