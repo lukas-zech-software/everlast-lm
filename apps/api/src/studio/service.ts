@@ -48,6 +48,8 @@ export interface StudioServiceDeps {
   dispatcher: StudioJobDispatcher;
   convertToSource?: ConvertToSource;
   suggestions?: StudioSuggestionsPort;
+  /** Effective output language (FR-UI-02: notebook > user > en-US) for requests that omit `output_language`. */
+  resolveOutputLanguage?: (ownerId: string, notebookId: string) => Promise<string>;
   /** Advances the notebook's `updated_at` after an artifact write (FR-WM-02). */
   onNotebookModified?: (notebookId: string) => Promise<unknown> | void;
 }
@@ -78,6 +80,10 @@ export class StudioService {
     this.deps = deps;
   }
 
+  private async language(ownerId: string, notebookId: string, requested: string | undefined): Promise<string | undefined> {
+    return requested ?? (await this.deps.resolveOutputLanguage?.(ownerId, notebookId));
+  }
+
   private async modified<T>(notebookId: string, result: T): Promise<T> {
     await this.deps.onNotebookModified?.(notebookId);
     return result;
@@ -88,12 +94,13 @@ export class StudioService {
     const req = CreateStudioJobRequestSchema.parse(body);
     const plugin = this.deps.registry.get(req.plugin_type);
     const snapshot = await this.deps.access.resolveSnapshot(ownerId, notebookId, req.active_source_ids);
+    const output_language = await this.language(ownerId, notebookId, req.output_language);
     const plan = plugin.triggerJob({
       notebook_id: notebookId,
       subtype: req.subtype,
       params: { custom_prompt: req.custom_prompt },
       snapshot,
-      output_language: req.output_language,
+      output_language,
     });
     const row = await this.deps.repo.createQueued({
       notebook_id: notebookId,
@@ -102,7 +109,7 @@ export class StudioService {
       title: plan.title,
       params_json: plan.params_json,
       snapshot,
-      output_language: req.output_language,
+      output_language,
     });
     await this.deps.dispatcher.enqueue(row.id, ownerId);
     return this.modified(notebookId, publicView(row));
@@ -133,12 +140,6 @@ export class StudioService {
     return { artifact: publicView(row) };
   }
 
-  async cancel(ownerId: string, notebookId: string, id: string) {
-    const row = await this.owned(ownerId, notebookId, id);
-    if (row.status !== "Queued" && row.status !== "Running") throw new StudioConflictError("Artifact is already finished.");
-    return this.modified(notebookId, publicView(await this.deps.repo.cancel(id)));
-  }
-
   async retry(ownerId: string, notebookId: string, id: string, body: unknown) {
     const prev = await this.owned(ownerId, notebookId, id);
     if (prev.status !== "Failed" && prev.status !== "Cancelled") {
@@ -152,7 +153,7 @@ export class StudioService {
         previous_id: id,
         owner_id: ownerId,
         snapshot,
-        output_language: req.output_language,
+        output_language: await this.language(ownerId, notebookId, req.output_language),
       });
       await this.deps.dispatcher.enqueue(row.id, ownerId);
       return this.modified(notebookId, publicView(row));
@@ -194,7 +195,7 @@ export class StudioService {
       notebook_id: notebookId,
       owner_id: ownerId,
       snapshot,
-      output_language: ids.output_language,
+      output_language: await this.language(ownerId, notebookId, ids.output_language),
     });
   }
 

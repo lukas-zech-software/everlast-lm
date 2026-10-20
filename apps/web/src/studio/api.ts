@@ -14,7 +14,6 @@ export interface StudioApi {
   list(): Promise<ArtifactDto[]>;
   get(id: string): Promise<{ artifact: ArtifactDto; unavailable?: { code: string; message: string } }>;
   create(body: CreateBody): Promise<ArtifactDto>;
-  cancel(id: string): Promise<ArtifactDto>;
   retry(id: string, activeSourceIds: string[]): Promise<ArtifactDto>;
   convert(id: string): Promise<{ source_id: string }>;
   remove(id: string): Promise<void>;
@@ -55,7 +54,6 @@ export function createStudioApi(opts: { notebookId: string; token: string; fetch
     list: async () => (await call<{ artifacts: ArtifactDto[] }>("/artifacts")).artifacts,
     get: (id) => call(`/artifacts/${enc(id)}`),
     create: async (b) => (await call<{ artifact: ArtifactDto }>("/artifacts", "POST", b)).artifact,
-    cancel: async (id) => (await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/cancel`, "POST", {})).artifact,
     retry: async (id, ids) => (await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/retry`, "POST", { active_source_ids: ids })).artifact,
     convert: (id) => call(`/artifacts/${enc(id)}/convert-to-source`, "POST", {}),
     remove: (id) => call(`/artifacts/${enc(id)}`, "DELETE"),

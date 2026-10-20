@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderMarkdown } from "../src/studio/markdown.ts";
 import { StudioArtifactListController } from "../src/studio/artifact-list.ts";
-import type { StudioApi, ArtifactDto } from "../src/studio/api.ts";
+import { createStudioApi, type StudioApi, type ArtifactDto } from "../src/studio/api.ts";
 
 const base = { notebook_id: "n", plugin_type: "report", payload_json: null, progress: null, failure: null, attempt: 1, retry_of: null } as const;
 const mk = (o: Partial<ArtifactDto> & { id: string; status: ArtifactDto["status"] }): ArtifactDto => ({ ...base, subtype: "briefing_doc", title: "Briefing doc", ...o } as ArtifactDto);
@@ -12,7 +12,6 @@ function setup(artifacts: ArtifactDto[]) {
     list: async () => artifacts,
     get: async (id) => ({ artifact: { ...mk({ id, status: "Completed" }), payload_json: { content_md: "# T\n\n- <script>x</script> [1]", citations: [] } } }),
     create: async () => mk({ id: "new", status: "Queued" }),
-    cancel: async () => mk({ id: "c", status: "Cancelled" }),
     retry: async () => mk({ id: "r", status: "Queued" }),
     convert: async (id) => (calls.push("convert:" + id), { source_id: "s" }),
     remove: async (id) => void calls.push("delete:" + id),
@@ -56,5 +55,15 @@ describe("StudioArtifactListController (FR-ST-10, FR-008)", () => {
     const html = renderMarkdown("| A | B |\n| --- | --- |\n| x | <b>y</b> [1] |");
     expect(html).toContain("<table>");
     expect(html).toContain("&lt;b&gt;");
+  });
+});
+
+/** [008-studio-text-reports] T046 — v2 has no cancel action (FR-ST-10 card, C-03). */
+describe("Studio web API has no cancel action", () => {
+  it("createStudioApi exposes no cancel method and the controller none either", () => {
+    const api = createStudioApi({ notebookId: "n", token: "t", fetch: async () => ({ status: 200, ok: true, json: async () => ({}) }) });
+    expect(Object.keys(api)).not.toContain("cancel");
+    const { ctl } = setup([]);
+    expect("cancel" in ctl).toBe(false);
   });
 });

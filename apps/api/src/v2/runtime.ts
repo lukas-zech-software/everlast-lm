@@ -390,6 +390,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return { source_id: source.id };
     },
     suggestions: new ReportSuggestionService({ guides, model: reportModel }),
+    // FR-UI-02: requests without output_language use the effective language (notebook > user > en-US).
+    resolveOutputLanguage: async (ownerId, notebookId) => (await workspace.resolveLanguagePreferences(ownerId, notebookId)).output_language,
     onNotebookModified: touchNotebookModified,
   };
 
