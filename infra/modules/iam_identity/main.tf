@@ -42,6 +42,7 @@ locals {
     "roles/logging.logWriter",     # Structured JSON logs (§5.3)
     "roles/cloudtrace.agent",      # OpenTelemetry trace export (§5.3)
     "roles/monitoring.metricWriter",
+    "roles/firebaseauth.viewer", # Identity Platform token revocation check (accounts:lookup; FR-WM-04, D6)
   ], var.enable_model_armor ? ["roles/modelarmor.user"] : []))
 
   worker_project_roles = toset(concat([

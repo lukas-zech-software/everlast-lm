@@ -38,7 +38,8 @@ export function databaseConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Poo
       password: async () => (await auth.getAccessToken()) ?? "",
       max: Number(env.PGPOOL_MAX ?? 10),
       idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 10_000,
+      // Cold start: socket setup + IAM token login can exceed 10 s (dev deployment 2026-10-20).
+      connectionTimeoutMillis: 30_000,
     };
   }
   const url = env.DATABASE_URL;
