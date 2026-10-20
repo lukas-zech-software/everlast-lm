@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { SourceGuideState } from "@everlast/contracts";
 import { ReportSuggestionService } from "../src/studio/reports/suggestions.ts";
 import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
-import type { ReportModelClient } from "../src/studio/reports/model.ts";
+import type { ReportSuggestionModel } from "../src/studio/reports/model.ts";
 import { FakeGuides, NB, OWNER, VENDOR_A, VENDOR_B } from "./studio-fixtures.ts";
 
 const snap = [VENDOR_A, VENDOR_B].map((source_id) => ({ source_id, revision: 1 }));
@@ -13,7 +13,7 @@ describe("ReportSuggestionService (FR-ST-11, FR-009, FR-018)", () => {
   it("returns 3–4 suggestions within 3 s and caches by identity", async () => {
     let calls = 0;
     const model = new DeterministicReportModel();
-    const counting: ReportModelClient = { extract: (r) => model.extract(r), compose: (r) => model.compose(r), suggest: (r) => (calls++, model.suggest(r)) };
+    const counting: ReportSuggestionModel = { suggest: (r) => (calls++, model.suggest(r)) };
     const svc = new ReportSuggestionService({ guides: new FakeGuides(new Map([[VENDOR_A, ready(VENDOR_A)], [VENDOR_B, ready(VENDOR_B)]])), model: counting });
     const t0 = Date.now();
     const first = await svc.getSuggestions(req());
@@ -38,9 +38,9 @@ describe("ReportSuggestionService (FR-ST-11, FR-009, FR-018)", () => {
     const ok = new FakeGuides(new Map([[VENDOR_A, ready(VENDOR_A)]]));
     const one = [{ source_id: VENDOR_A, revision: 1 }];
     const base = new DeterministicReportModel();
-    const slow: ReportModelClient = { ...base, extract: base.extract, compose: base.compose, suggest: () => new Promise(() => undefined) };
+    const slow: ReportSuggestionModel = { suggest: () => new Promise(() => undefined) };
     expect((await new ReportSuggestionService({ guides: ok, model: slow, timeoutMs: 20 }).getSuggestions(req(one))).state).toBe("SuggestionsUnavailable");
-    const few: ReportModelClient = { extract: base.extract, compose: base.compose, suggest: async () => (await base.suggest({ guides: [], signal: new AbortController().signal })).slice(0, 2) };
+    const few: ReportSuggestionModel = { suggest: async () => (await base.suggest({ guides: [], signal: new AbortController().signal })).slice(0, 2) };
     expect((await new ReportSuggestionService({ guides: ok, model: few }).getSuggestions(req(one))).state).toBe("SuggestionsUnavailable");
   });
 });

@@ -116,10 +116,39 @@ export const ReportCitationSchema = z
   .strict();
 export type ReportCitation = z.infer<typeof ReportCitationSchema>;
 
+/**
+ * FR-ST-10 required sections per template, identified by stable keys in `payload_json.sections`; headings follow
+ * the output language (FR-UI-02). Dynamic and custom reports use model-defined keys.
+ */
+export const REQUIRED_REPORT_SECTIONS = {
+  briefing_doc: ["executive_summary", "core_themes", "key_takeaways", "quotes"],
+  study_guide: ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+  faq: ["faq"],
+  timeline: ["events", "cast_of_characters"],
+} as const satisfies Record<ReportTemplateType, readonly string[]>;
+
+export function requiredReportSections(subtype: string): readonly string[] {
+  return (REQUIRED_REPORT_SECTIONS as Record<string, readonly string[]>)[subtype] ?? [];
+}
+
+export const REPORT_SECTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+export const ReportSectionSchema = z
+  .object({
+    key: z.string().regex(REPORT_SECTION_KEY_PATTERN, "section key must be a stable snake_case identifier"),
+    heading: z.string().min(1),
+  })
+  .strict();
+export type ReportSection = z.infer<typeof ReportSectionSchema>;
+
 export const StudioReportPayloadSchema = z
   .object({
     content_md: z.string().min(1),
     citations: z.array(ReportCitationSchema).min(1, "A completed report must carry at least one citation"),
+    sections: z
+      .array(ReportSectionSchema)
+      .min(1, "A completed report must carry its sections")
+      .refine((list) => new Set(list.map((x) => x.key)).size === list.length, "section keys must be unique"),
   })
   .strict();
 export type StudioReportPayload = z.infer<typeof StudioReportPayloadSchema>;
@@ -154,6 +183,17 @@ export const StudioArtifactSchema = z
         path: ["payload_json"],
         message: "payload_json must be present if and only if status is Completed",
       });
+    }
+    if (artifact.payload_json) {
+      const present = new Set(artifact.payload_json.sections.map((x) => x.key));
+      const missing = requiredReportSections(artifact.subtype).filter((key) => !present.has(key));
+      if (missing.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["payload_json", "sections"],
+          message: `a completed ${artifact.subtype} report must carry the sections ${missing.join(", ")}`,
+        });
+      }
     }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
     if (needsFailure !== (artifact.failure !== null)) {

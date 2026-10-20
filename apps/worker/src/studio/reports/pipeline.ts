@@ -11,12 +11,15 @@ export interface GenerateReportInput {
   chunks: UnifiedDocumentChunk[];
   model: ReportModelClient;
   custom_prompt?: string | undefined;
+  /** Effective output language (FR-UI-02): passed to the model and used for section headings. */
+  output_language?: string | undefined;
   limits?: BatchLimits;
   signal: AbortSignal;
   reportProgress(stage: StudioProgress["stage"], percent: number): void;
 }
 
 const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome => ({ status: "refused", code, message });
+const INSUFFICIENT = "The selected sources do not contain enough supported content for every required section of this report.";
 
 function sortEvents(block: ReportBlock): ReportBlock {
   const items = [...block.items].sort((a, b) => Number(a.date) - Number(b.date));
@@ -33,9 +36,11 @@ function dedupe(findings: Finding[]): Finding[] {
   });
 }
 
+const filled = (b: ReportBlock | undefined): boolean => !!b && (b.items.length > 0 || (b.table?.rows.length ?? 0) > 0);
+
 /** Map-reduce over bounded batches of ALL scoped chunks (D12); no agent loop, no sampling. */
 export async function generateReport(input: GenerateReportInput): Promise<StudioGenerationOutcome> {
-  const { subtype, chunks, model, signal } = input;
+  const { subtype, chunks, model, signal, output_language } = input;
   const guard = (): void => signal.throwIfAborted();
   const template = TEMPLATES[subtype];
   if (chunks.length === 0) return refuse("InsufficientEvidence", "The selected sources contain no readable content.");
@@ -45,27 +50,40 @@ export async function generateReport(input: GenerateReportInput): Promise<Studio
   input.reportProgress("reading", 5);
   for (const [i, batch] of batches.entries()) {
     guard();
-    findings.push(...(await model.extract({ subtype, custom_prompt: input.custom_prompt, chunks: batch, signal })));
+    findings.push(...(await model.extract({ subtype, custom_prompt: input.custom_prompt, output_language, chunks: batch, signal })));
     input.reportProgress("extracting", 10 + Math.round(((i + 1) / batches.length) * 60));
   }
 
   guard();
   input.reportProgress("composing", 75);
-  let blocks = await model.compose({ subtype, custom_prompt: input.custom_prompt, findings: dedupe(findings), signal });
-  blocks = blocks.map((b) => (b.id === "timeline_events" ? sortEvents(b) : b));
+  let blocks = await model.compose({ subtype, custom_prompt: input.custom_prompt, output_language, findings: dedupe(findings), signal });
+  blocks = blocks.map((b) => (b.id === "events" ? sortEvents(b) : b));
 
   guard();
   input.reportProgress("validating", 90);
   const problem = validateReportBlocks(blocks, chunks);
   if (problem) return refuse("CitationValidationFailed", problem);
 
-  const filled = (id: string): boolean => {
-    const b = blocks.find((x) => x.id === id);
-    return !!b && (b.items.length > 0 || (b.table?.rows.length ?? 0) > 0);
-  };
-  const coreOk = template.coreRule === "any" ? template.core.some(filled) : template.core.every(filled);
-  if (!coreOk) return refuse("InsufficientEvidence", "The selected sources do not contain enough supported content for this report.");
+  // FR-015: every required section must be non-empty. The only exception is a Timeline without dated events,
+  // which completes with an explicit notice when `cast_of_characters` is supported.
+  const byKey = new Map(blocks.map((b) => [b.id, b]));
+  let noDatedEvents = false;
+  if (template.sections.length > 0) {
+    for (const key of template.sections) {
+      if (filled(byKey.get(key))) continue;
+      if (subtype === "timeline" && key === "events" && filled(byKey.get("cast_of_characters"))) {
+        noDatedEvents = true;
+        continue;
+      }
+      return refuse("InsufficientEvidence", INSUFFICIENT);
+    }
+    if (subtype === "study_guide" && byKey.get("answer_key")!.items.length !== byKey.get("short_answer_questions")!.items.length) {
+      return refuse("InsufficientEvidence", "The answer key does not match the short-answer questions.");
+    }
+  } else if (!blocks.some(filled)) {
+    return refuse("InsufficientEvidence", INSUFFICIENT);
+  }
 
   input.reportProgress("publishing", 95);
-  return { status: "completed", payload: renderReport(template.title, template.blocks, blocks, chunks) };
+  return { status: "completed", payload: renderReport({ subtype, blocks, chunks, output_language, noDatedEvents }) };
 }

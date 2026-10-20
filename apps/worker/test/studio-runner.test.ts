@@ -52,6 +52,7 @@ const goodOutcome = (ctx: StudioGenerationContext): StudioGenerationOutcome => {
     payload: {
       content_md: "# Briefing [1]",
       citations: [{ badge_number: 1, chunk_id: c.chunk_id, source_id: c.source_id, revision: c.revision, snippet: c.text.slice(0, 20) }],
+      sections: [{ key: "report", heading: "Report" }],
     },
   };
 };

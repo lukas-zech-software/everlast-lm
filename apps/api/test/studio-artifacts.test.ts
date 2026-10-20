@@ -91,7 +91,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("lists without payload and gets a completed artifact with payload", async () => {
     const { artifact } = await (await create()).json();
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     const list = await (await fetch(`${base}/artifacts`)).json();
     expect(list.artifacts[0]).not.toHaveProperty("payload_json");
     const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
@@ -100,7 +100,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("returns an unavailable placeholder without payload after a source change", async () => {
     const { artifact } = await (await create()).json();
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     deps.revisions.set(S1, 2);
     const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
     expect(got.artifact.payload_json).toBeNull();
@@ -128,7 +128,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
     const { artifact } = await (await create()).json();
     expect((await post(`/artifacts/${artifact.id}/convert-to-source`, {})).status).toBe(409);
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     const r = await post(`/artifacts/${artifact.id}/convert-to-source`, {});
     expect(r.status).toBe(201);
     expect(await r.json()).toEqual({ source_id: "new-source" });

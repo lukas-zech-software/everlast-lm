@@ -15,6 +15,7 @@ const payload: StudioReportPayload = {
   citations: [
     { badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: SRC, revision: 1, snippet: "s" },
   ],
+  sections: [{ key: "report", heading: "Report" }],
 };
 const input = {
   notebook_id: NB,
