@@ -8,6 +8,7 @@ const c = chunks[0]!;
 const good = () => ({
   content_md: "Claim [1]",
   citations: [{ badge_number: 1, chunk_id: c.chunk_id, source_id: c.source_id, revision: 1, snippet: "Treaty of Westphalia" }],
+  sections: [{ key: "report", heading: "Report" }],
 });
 
 describe("validateReportPayload (FR-014, NFR-EVAL-02, NFR-EVAL-04)", () => {
@@ -36,6 +37,7 @@ describe("validateReportPayload (FR-014, NFR-EVAL-02, NFR-EVAL-04)", () => {
     const p = {
       content_md: "x [1]",
       citations: [{ badge_number: 1, chunk_id: foreign.chunk_id, source_id: SRC_UNSELECTED, revision: 1, snippet: "Zorblax" }],
+      sections: [{ key: "report", heading: "Report" }],
     };
     expect(validateReportPayload(p, [...chunks, foreign], snapshot)).toMatch(/snapshot/);
   });

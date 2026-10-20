@@ -47,6 +47,7 @@ export class ReportGeneratorPlugin implements StudioGeneratorPlugin {
       chunks: ctx.chunks,
       model: this.model,
       custom_prompt: ctx.params_json.custom_prompt,
+      output_language: ctx.output_language,
       ...(this.limits ? { limits: this.limits } : {}),
       signal: ctx.signal,
       reportProgress: ctx.reportProgress,

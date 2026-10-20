@@ -3,10 +3,12 @@ import { randomUUID } from "node:crypto";
 import {
   AppError,
   InvalidScopeError,
+  OutputLanguageSchema,
   SourceQuotaExceededError,
   SourceSnapshotInvalidError,
   StudioPluginRegistry,
   type ChatMessage,
+  type Citation,
   type Notebook,
   type NotebookDto,
   type ScopedContextProvider,
@@ -18,15 +20,16 @@ import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
-  createNote,
   forgetNotebook,
   getChatConfiguration,
   getNotebook,
   getNotebookRaw,
   getOrCreateThread,
   getSource,
+  getSnapshotChunksByIds,
   getSourceGuide,
   InMemoryStudioArtifactRepository,
+  listAllSnapshotChunks,
   listSnapshotChunks,
   listSources,
   listThreadMessages,
@@ -47,7 +50,8 @@ import { InlineStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
 import { ReportGeneratorPlugin } from "@everlast/worker/studio/reports/plugin";
 import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
-import { ReportSuggestionService } from "@everlast/worker/studio/reports/suggestions";
+import type { ReportModelClient, ReportSuggestionModel } from "@everlast/worker/studio/reports/model";
+import { ReportSuggestionService, structuredSuggestionModel } from "@everlast/worker/studio/reports/suggestions";
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
@@ -94,6 +98,16 @@ export interface V2RuntimeOptions {
   embedder?: Embedder | undefined;
   /** Wakes the worker so the durable ingest job of a converted note settles (it finds the source already done). */
   notifyJobs?: (() => void) | undefined;
+  /**
+   * Studio report model (FR-ST-10/11): Vertex AI Flash from `server.ts` when Vertex is configured; absent →
+   * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
+   */
+  reportModel?: ReportModelClient | undefined;
+  /**
+   * Dynamic report suggestions (FR-ST-11). Default: Flash-Lite through `generation` (Package 2.2 client); without
+   * it suggestions are unavailable (owner default 2026-10-20). Tests may inject a deterministic model.
+   */
+  suggestionModel?: ReportSuggestionModel | undefined;
 }
 
 export interface V2Runtime {
@@ -334,11 +348,19 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
   const repo = new InMemoryStudioArtifactRepository();
   const registry = new StudioPluginRegistry();
-  // No Gemini report adapter exists yet: the deterministic, citation-checked extractor is used (D16).
   const reportModel = new DeterministicReportModel();
-  registry.register(new ReportGeneratorPlugin(reportModel));
+  registry.register(new ReportGeneratorPlugin(options.reportModel ?? reportModel));
   const access = { resolveSnapshot, verifySnapshot };
-  const runner = new StudioJobRunner({ repo, registry, scopedContext: provider, access });
+  // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
+  // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
+  const studioContext = {
+    async getScopedContext(notebookId: string, activeSourceIds: string[]): Promise<UnifiedDocumentChunk[]> {
+      const owner = ownerOf(notebookId);
+      if (!owner) throw new InvalidScopeError("Notebook is not available");
+      return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
+    },
+  };
+  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access });
   // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
   const runAndTouch = {
     async run(id: string) {
@@ -347,14 +369,23 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return row;
     },
   };
+  // FR-SI-02 / FR-ST-11: guides for the effective output language; a missing language variant is generated on
+  // demand (one run per source, revision and language) and reports Pending meanwhile.
   const guides = {
-    async getGuides(notebookId: string, snapshot: SourceRevisionPair[]): Promise<SourceGuideState[]> {
+    async getGuides(notebookId: string, snapshot: SourceRevisionPair[], outputLanguage?: string): Promise<SourceGuideState[]> {
       return Promise.all(
         snapshot.map(async (pair): Promise<SourceGuideState> => {
-          const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision);
+          const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision, outputLanguage);
+          const owner = ownerOf(notebookId);
+          // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
+          if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
+            startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
+          }
           if (guide?.status === "GuideReady") {
             return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };
           }
+          // Without guide generation a missing guide never arrives: report it as unavailable, not endless loading (FR-018).
+          if (!guide && !options.generation) return { ...pair, status: "Failed" };
           return { ...pair, status: guide?.status === "GuideFailed" ? "Failed" : "Pending" };
         })
       );
@@ -365,16 +396,25 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     registry,
     access,
     dispatcher: new InlineStudioDispatcher(runAndTouch),
+    // FR-008 / FR-NM-03: report → cited note (NotesService, sanitized) → v1 note-source through the same admission
+    // and ingestion as any note; verified markers are stripped and the citations kept as origin_citations.
     convertToSource: async (input) => {
-      const note = await createNote(input.notebook_id, input.owner_id, {
-        title: input.title.slice(0, 100) || "Report",
-        content_md: input.content_md,
+      const scope = { notebook_id: input.notebook_id, owner_id: input.owner_id, sources: input.snapshot };
+      const chunks = new Map((await getSnapshotChunksByIds(pool, scope, input.citations.map((c) => c.chunk_id))).map((c) => [c.chunk_id, c]));
+      const titles = new Map((await listSources(pool, input.owner_id, input.notebook_id)).map((s) => [s.id, s.title]));
+      const citations: Citation[] = input.citations.map((c) => {
+        const chunk = chunks.get(c.chunk_id);
+        const title = titles.get(c.source_id);
+        if (!chunk || !title) throw new SourceSnapshotInvalidError("A cited source of this report is no longer available");
+        return { badge_number: c.badge_number, source_id: c.source_id, source_title: title, chunk_id: c.chunk_id, snippet: c.snippet, locator: chunk.locator };
       });
-      // Package 2.4 Studio → note → v1 note-source, through the same admission and ingestion as FR-NM-03.
-      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id] });
+      const note = await notes.saveStudioReport(input.notebook_id, input.owner_id, { artifact_id: input.artifact_id, title: input.title, content_md: input.content_md, citations });
+      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id], reuse: true });
       return { source_id: source.id };
     },
-    suggestions: new ReportSuggestionService({ guides, model: reportModel }),
+    suggestions: new ReportSuggestionService({ guides, model: options.suggestionModel ?? structuredSuggestionModel(options.generation) }),
+    // FR-UI-02: requests without output_language use the effective language (notebook > user > en-US).
+    resolveOutputLanguage: async (ownerId, notebookId) => (await workspace.resolveLanguagePreferences(ownerId, notebookId)).output_language,
     onNotebookModified: touchNotebookModified,
   };
 

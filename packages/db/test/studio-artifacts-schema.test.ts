@@ -21,7 +21,7 @@ describe("C-03, FR-ST-10: draft v3 studio_artifacts table (D16)", () => {
       "title",
       "params_json",
       "payload_json",
-      "active_source_ids_snapshot",
+      "source_revisions_snapshot",
       "failure_json",
       "attempt",
       "retry_of",
@@ -37,6 +37,6 @@ describe("C-03, FR-ST-10: draft v3 studio_artifacts table (D16)", () => {
     expect(sql).toMatch(/'Queued'.*'Running'.*'Completed'.*'Failed'.*'Cancelled'/s);
     expect(sql).toMatch(/'briefing_doc'.*'study_guide'.*'faq'.*'timeline'.*'dynamic'.*'custom'/s);
     expect(sql).toMatch(/status = 'Completed'\) = \(payload_json IS NOT NULL\)/);
-    expect(sql).toMatch(/jsonb_array_length\(active_source_ids_snapshot\) >= 1/);
+    expect(sql).toMatch(/jsonb_array_length\(source_revisions_snapshot\) >= 1/);
   });
 });

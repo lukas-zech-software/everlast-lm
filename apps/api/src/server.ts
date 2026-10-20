@@ -11,6 +11,7 @@ import { createGroundedModelFromEnv } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
 import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 
 /**
@@ -67,6 +68,14 @@ export function createV2Generation(env: NodeJS.ProcessEnv, modelConfigured: bool
   return modelConfigured ? createVertexStructuredGenerationFromEnv(env) : undefined;
 }
 
+/**
+ * Studio report model (FR-ST-10/11): Vertex AI Flash in the configured EU region with keyless ADC (model routing,
+ * D3, NFR-SEC-01), under the same condition as the grounded chat model; otherwise the deterministic extractor.
+ */
+export function createV2ReportModel(env: NodeJS.ProcessEnv, modelConfigured: boolean): VertexReportModel | undefined {
+  return modelConfigured ? createVertexReportModelFromEnv(env) : undefined;
+}
+
 export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}) {
   const config = loadApiConfig(env);
   const pool = createPool();
@@ -101,6 +110,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           sourceLimit: config.sourceLimit,
           model,
           generation: createV2Generation(env, modelConfigured),
+          reportModel: createV2ReportModel(env, modelConfigured),
           // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
           readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
           // FR-NM-03 (owner decision 2026-10-20): note-sources run the v1 ingestion with this storage and embedder.

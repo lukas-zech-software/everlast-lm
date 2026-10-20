@@ -26,8 +26,10 @@ export interface ReportTable {
   rows: { cells: string[]; chunk_id: string }[];
 }
 
+/** One composed section; `id` is the stable section key (C-03 payload `sections`), `heading` an optional localized one. */
 export interface ReportBlock {
   id: string;
+  heading?: string;
   items: ReportItem[];
   table?: ReportTable;
 }
@@ -35,6 +37,8 @@ export interface ReportBlock {
 export interface ExtractRequest {
   subtype: ReportSubtype;
   custom_prompt?: string | undefined;
+  /** Effective output language (FR-UI-02). */
+  output_language?: string | undefined;
   chunks: UnifiedDocumentChunk[];
   signal: AbortSignal;
 }
@@ -42,6 +46,7 @@ export interface ExtractRequest {
 export interface ComposeRequest {
   subtype: ReportSubtype;
   custom_prompt?: string | undefined;
+  output_language?: string | undefined;
   findings: Finding[];
   signal: AbortSignal;
 }
@@ -52,9 +57,21 @@ export interface SuggestRequest {
   signal: AbortSignal;
 }
 
-/** Injectable model boundary; a Gemini adapter is out of scope for this slice. */
+/** Report model boundary (map: extract per bounded batch, reduce: compose). Outputs are validated before use. */
 export interface ReportModelClient {
   extract(request: ExtractRequest): Promise<Finding[]>;
   compose(request: ComposeRequest): Promise<ReportBlock[]>;
+}
+
+/** Dynamic report suggestions from Source Guide metadata (FR-ST-11, Flash-Lite). */
+export interface ReportSuggestionModel {
   suggest(request: SuggestRequest): Promise<ReportSuggestion[]>;
+}
+
+/** Invalid or failed model output; carries no upstream text (NFR-SEC-01). */
+export class ReportGenerationError extends Error {
+  constructor(message = "The report model returned invalid output.") {
+    super(message);
+    this.name = "ReportGenerationError";
+  }
 }

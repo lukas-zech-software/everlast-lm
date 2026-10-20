@@ -18,4 +18,7 @@ pnpm exec vitest run packages/contracts/test/package-v2-4.test.ts \
 4. **Suggestions**: 3–4 cards ≤ 3.0 s, cached per source-set identity; Pending → loading; Failed → unavailable (FR-ST-11).
 5. **Studio list/viewer** (`apps/web/test/studio-*.test.ts`): `Generating Briefing doc...` row, viewer with copy/convert/delete.
 
-Status of external runners: Playwright E2E and LLM-judged evals (`NFR-EVAL-01/03`): `UNAVAILABLE` (no live model/browser harness in this slice).
+6. **Gate v2.0 #3 (deterministic)**: `pnpm eval:deterministic` runs `packages/evals/test/studio-reports-gate.eval.test.ts` (all four templates, required section keys, per-sentence citations in scope, precision 1.0, leakage 0).
+7. **Browser journey**: `pnpm test:e2e` runs `apps/web/test/studio-reports.spec.ts` (needs `TEST_DATABASE_URL`).
+
+Status of external runners: LLM-judged evals (`NFR-EVAL-01/03`) and the Vertex Flash P95: `UNAVAILABLE` until a deployed run against Vertex AI `europe-west4` exists.

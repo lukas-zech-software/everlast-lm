@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.ts";
+import { OutputLanguageSchema } from "./package-v2-1.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).
@@ -116,10 +117,39 @@ export const ReportCitationSchema = z
   .strict();
 export type ReportCitation = z.infer<typeof ReportCitationSchema>;
 
+/**
+ * FR-ST-10 required sections per template, identified by stable keys in `payload_json.sections`; headings follow
+ * the output language (FR-UI-02). Dynamic and custom reports use model-defined keys.
+ */
+export const REQUIRED_REPORT_SECTIONS = {
+  briefing_doc: ["executive_summary", "core_themes", "key_takeaways", "quotes"],
+  study_guide: ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+  faq: ["faq"],
+  timeline: ["events", "cast_of_characters"],
+} as const satisfies Record<ReportTemplateType, readonly string[]>;
+
+export function requiredReportSections(subtype: string): readonly string[] {
+  return (REQUIRED_REPORT_SECTIONS as Record<string, readonly string[]>)[subtype] ?? [];
+}
+
+export const REPORT_SECTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
+
+export const ReportSectionSchema = z
+  .object({
+    key: z.string().regex(REPORT_SECTION_KEY_PATTERN, "section key must be a stable snake_case identifier"),
+    heading: z.string().min(1),
+  })
+  .strict();
+export type ReportSection = z.infer<typeof ReportSectionSchema>;
+
 export const StudioReportPayloadSchema = z
   .object({
     content_md: z.string().min(1),
     citations: z.array(ReportCitationSchema).min(1, "A completed report must carry at least one citation"),
+    sections: z
+      .array(ReportSectionSchema)
+      .min(1, "A completed report must carry its sections")
+      .refine((list) => new Set(list.map((x) => x.key)).size === list.length, "section keys must be unique"),
   })
   .strict();
 export type StudioReportPayload = z.infer<typeof StudioReportPayloadSchema>;
@@ -137,7 +167,7 @@ export const StudioArtifactSchema = z
     title: z.string().min(1),
     params_json: StudioReportParamsSchema,
     payload_json: StudioReportPayloadSchema.nullable(),
-    active_source_ids_snapshot: z.array(SourceRevisionPairSchema).min(1),
+    source_revisions_snapshot: z.array(SourceRevisionPairSchema).min(1),
     output_language: z.string().min(1).nullable(),
     progress: StudioProgressSchema.nullable(),
     failure: StudioFailureSchema.nullable(),
@@ -155,6 +185,17 @@ export const StudioArtifactSchema = z
         message: "payload_json must be present if and only if status is Completed",
       });
     }
+    if (artifact.payload_json) {
+      const present = new Set(artifact.payload_json.sections.map((x) => x.key));
+      const missing = requiredReportSections(artifact.subtype).filter((key) => !present.has(key));
+      if (missing.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["payload_json", "sections"],
+          message: `a completed ${artifact.subtype} report must carry the sections ${missing.join(", ")}`,
+        });
+      }
+    }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
     if (needsFailure !== (artifact.failure !== null)) {
       ctx.addIssue({
@@ -163,11 +204,11 @@ export const StudioArtifactSchema = z
         message: "failure must be present if and only if status is Failed or Cancelled",
       });
     }
-    const ids = artifact.active_source_ids_snapshot.map((s) => s.source_id);
+    const ids = artifact.source_revisions_snapshot.map((s) => s.source_id);
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["active_source_ids_snapshot"],
+        path: ["source_revisions_snapshot"],
         message: "snapshot source IDs must be unique",
       });
     }
@@ -185,7 +226,8 @@ export const CreateStudioJobRequestSchema = z
     subtype: ReportSubtypeSchema,
     active_source_ids: ActiveSourceIdsSchema,
     custom_prompt: CustomReportPromptSchema.optional(),
-    output_language: z.string().min(1).optional(),
+    /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
+    output_language: OutputLanguageSchema.optional(),
   })
   .strict()
   .superRefine((req, ctx) => {
@@ -201,7 +243,7 @@ export type CreateStudioJobRequest = z.output<typeof CreateStudioJobRequestSchem
 
 /** Retry is a fresh, explicitly scoped request (C-03, FR-013). */
 export const RetryStudioJobRequestSchema = z
-  .object({ active_source_ids: ActiveSourceIdsSchema, output_language: z.string().min(1).optional() })
+  .object({ active_source_ids: ActiveSourceIdsSchema, output_language: OutputLanguageSchema.optional() })
   .strict();
 export type RetryStudioJobRequest = z.output<typeof RetryStudioJobRequestSchema>;
 
@@ -234,6 +276,46 @@ export const SourceGuideStateSchema = z
   })
   .strict();
 export type SourceGuideState = z.infer<typeof SourceGuideStateSchema>;
+
+/* ------------------------ Report model outputs (FR-ST-10/11) ------------------------ */
+
+export const REPORT_FINDING_KINDS = ["summary", "fact", "quote", "term", "event", "person", "qa", "risk"] as const;
+const ModelText = z.string().trim().min(1).max(4000);
+const OptionalModelText = ModelText.optional();
+
+/** Map step: chunk-anchored findings of one bounded batch (shape only; chunk membership is checked by the adapter). */
+export const ReportExtractOutputSchema = z.object({
+  findings: z
+    .array(z.object({ kind: z.enum(REPORT_FINDING_KINDS), text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText }))
+    .max(1000),
+});
+export type ReportExtractOutput = z.infer<typeof ReportExtractOutputSchema>;
+
+const ReportModelItemSchema = z.object({ text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText });
+
+/** Reduce step: sections keyed by stable section keys with localized headings. */
+export const ReportComposeOutputSchema = z.object({
+  sections: z
+    .array(
+      z.object({
+        key: z.string().regex(REPORT_SECTION_KEY_PATTERN),
+        heading: z.string().trim().min(1).max(200),
+        items: z.array(ReportModelItemSchema).max(500),
+        table: z
+          .object({
+            columns: z.array(z.string().min(1)).min(1).max(8),
+            rows: z.array(z.object({ cells: z.array(z.string()).max(8), chunk_id: z.string().min(1) })).max(200),
+          })
+          .optional(),
+      })
+    )
+    .min(1)
+    .max(20),
+});
+export type ReportComposeOutput = z.infer<typeof ReportComposeOutputSchema>;
+
+/** Dynamic report suggestions from Source Guides (FR-ST-11): 3–4 validated cards. */
+export const ReportSuggestionsOutputSchema = z.object({ suggestions: z.array(ReportSuggestionSchema).min(3).max(4) });
 
 /* ------------------------------ C-03 plugin ------------------------------ */
 

@@ -12,7 +12,7 @@ const OWNER = "owner-1";
 
 let server: Server;
 let base: string;
-let deps: StudioRouteDeps & { enqueued: string[]; revisions: Map<string, number>; converted: unknown[] };
+let deps: StudioRouteDeps & { enqueued: string[]; revisions: Map<string, number>; converted: unknown[]; suggestionLanguages: (string | undefined)[] };
 let currentUser = OWNER;
 
 beforeEach(async () => {
@@ -29,6 +29,7 @@ beforeEach(async () => {
   const revisions = new Map([[S1, 1], [S2, 1]]);
   const enqueued: string[] = [];
   const converted: unknown[] = [];
+  const suggestionLanguages: (string | undefined)[] = [];
   const access = {
     async resolveSnapshot(owner: string, nb: string, ids: string[]): Promise<SourceRevisionPair[]> {
       if (owner !== OWNER || nb !== NB) throw new InvalidScopeError("not yours");
@@ -48,8 +49,10 @@ beforeEach(async () => {
     access,
     dispatcher: { enqueue: async (id) => void enqueued.push(id) },
     convertToSource: async (i) => (converted.push(i), { source_id: "new-source" }),
-    suggestions: { getSuggestions: async (): Promise<ReportSuggestionsResult> => ({ state: "SuggestionsLoading" }) },
-    enqueued, revisions, converted,
+    suggestions: { getSuggestions: async (r): Promise<ReportSuggestionsResult> => (suggestionLanguages.push(r.output_language), { state: "SuggestionsLoading" }) },
+    // FR-UI-02: effective output language (notebook > user > en-US) when a request omits it.
+    resolveOutputLanguage: async (owner: string, nb: string) => (owner === OWNER && nb === NB ? "de-DE" : "en-US"),
+    enqueued, revisions, converted, suggestionLanguages,
   };
   server = createServer(async (req, res) => {
     if (!(await handleStudioRoute(req, res, deps, currentUser))) { res.statusCode = 404; res.end(); }
@@ -77,7 +80,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
     expect(r.status).toBe(202);
     const { artifact } = await r.json();
     expect(artifact.status).toBe("Queued");
-    expect(artifact.active_source_ids_snapshot).toEqual([{ source_id: S1, revision: 1 }, { source_id: S2, revision: 1 }]);
+    expect(artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }, { source_id: S2, revision: 1 }]);
     expect(deps.enqueued).toEqual([artifact.id]);
   });
   it("403 for a foreign source and for another owner's notebook; 404 for other owners' artifacts", async () => {
@@ -91,7 +94,7 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("lists without payload and gets a completed artifact with payload", async () => {
     const { artifact } = await (await create()).json();
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     const list = await (await fetch(`${base}/artifacts`)).json();
     expect(list.artifacts[0]).not.toHaveProperty("payload_json");
     const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
@@ -100,35 +103,30 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("returns an unavailable placeholder without payload after a source change", async () => {
     const { artifact } = await (await create()).json();
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     deps.revisions.set(S1, 2);
     const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
     expect(got.artifact.payload_json).toBeNull();
     expect(got.unavailable.code).toBe("SourceChanged");
   });
-  it("cancels a queued job; 409 when already terminal", async () => {
-    const { artifact } = await (await create()).json();
-    const r = await post(`/artifacts/${artifact.id}/cancel`, {});
-    expect((await r.json()).artifact.status).toBe("Cancelled");
-    expect((await post(`/artifacts/${artifact.id}/cancel`, {})).status).toBe(409);
-  });
-  it("retry requires explicit scope and only from Failed/Cancelled", async () => {
+  it("retry requires explicit scope and only from Failed", async () => {
     const { artifact } = await (await create()).json();
     expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1] })).status).toBe(409);
-    await post(`/artifacts/${artifact.id}/cancel`, {});
+    await deps.repo.markRunning(artifact.id);
+    await deps.repo.fail(artifact.id, { code: "SourceChanged", message: "Source was replaced." });
     expect((await post(`/artifacts/${artifact.id}/retry`, {})).status).toBe(400);
     const r = await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1] });
     expect(r.status).toBe(202);
     const body = await r.json();
     expect(body.artifact).toMatchObject({ attempt: 2, retry_of: artifact.id });
-    expect(body.artifact.active_source_ids_snapshot).toEqual([{ source_id: S1, revision: 1 }]);
+    expect(body.artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }]);
     expect(deps.enqueued).toContain(body.artifact.id);
   });
   it("converts completed artifacts to a source; 409 otherwise; 501 without port", async () => {
     const { artifact } = await (await create()).json();
     expect((await post(`/artifacts/${artifact.id}/convert-to-source`, {})).status).toBe(409);
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }] });
+    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
     const r = await post(`/artifacts/${artifact.id}/convert-to-source`, {});
     expect(r.status).toBe(201);
     expect(await r.json()).toEqual({ source_id: "new-source" });
@@ -139,5 +137,58 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
     const { artifact } = await (await create()).json();
     expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(204);
     expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(404);
+  });
+});
+
+/** [008-studio-text-reports] T045 — the effective output language is resolved server-side (FR-UI-02, FR-ST-10/11). */
+describe("Studio output language (FR-UI-02)", () => {
+  it("create and retry without output_language store the resolved effective language; an explicit one wins", async () => {
+    const a = (await (await create()).json()).artifact;
+    expect(a.output_language).toBe("de-DE");
+    const b = (await (await create({ output_language: "fr-FR" })).json()).artifact;
+    expect(b.output_language).toBe("fr-FR");
+    await deps.repo.markRunning(a.id);
+    await deps.repo.fail(a.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
+    deps.resolveOutputLanguage = async () => "es-ES";
+    const retried = (await (await post(`/artifacts/${a.id}/retry`, { active_source_ids: [S1] })).json()).artifact;
+    expect(retried.output_language).toBe("es-ES");
+  });
+  it("suggestions without output_language use the resolved language (cache key, guide lookup)", async () => {
+    expect((await post("/report-suggestions", { active_source_ids: [S1] })).status).toBe(200);
+    expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: "fr-FR" })).status).toBe(200);
+    expect(deps.suggestionLanguages).toEqual(["de-DE", "fr-FR"]);
+  });
+});
+
+/** Security review 2026-10-20: client-supplied output_language must be one of the FR-UI-02 supported tags. */
+describe("unsupported output_language is rejected (FR-UI-02)", () => {
+  it("create, retry and suggestions reject an unsupported or garbage tag with 400 and never reach the suggestions port", async () => {
+    for (const tag of ["xx-INVALID", "../../etc", "de", "en-GB"]) {
+      const r = await create({ output_language: tag });
+      expect(r.status, tag).toBe(400);
+      expect((await r.json()).error.code).toBe("UnsupportedOutputLanguage");
+      expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: tag })).status, tag).toBe(400);
+    }
+    expect(deps.suggestionLanguages).toEqual([]);
+    const { artifact } = await (await create()).json();
+    await deps.repo.markRunning(artifact.id);
+    await deps.repo.fail(artifact.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
+    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1], output_language: "zz-ZZ" })).status).toBe(400);
+    expect(deps.enqueued).toHaveLength(1);
+  });
+});
+
+/** [008-studio-text-reports] T046 — v2 exposes no cancel action; Cancelled stays a C-03 state (FR-ST-10, C-03). */
+describe("no cancel action in v2 (FR-ST-10 card, C-03)", () => {
+  it("POST …/cancel is not routed (404) and leaves the job untouched", async () => {
+    const { artifact } = await (await create()).json();
+    expect((await post(`/artifacts/${artifact.id}/cancel`, {})).status).toBe(404);
+    expect((await (await fetch(`${base}/artifacts/${artifact.id}`)).json()).artifact.status).toBe("Queued");
+  });
+  it("Cancelled remains a valid C-03 repository state, and retry from it still needs an explicit scope", async () => {
+    const { artifact } = await (await create()).json();
+    expect((await deps.repo.cancel(artifact.id)).status).toBe("Cancelled");
+    expect((await post(`/artifacts/${artifact.id}/retry`, {})).status).toBe(400);
+    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S2] })).status).toBe(202);
   });
 });
