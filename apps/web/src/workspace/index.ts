@@ -97,6 +97,9 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
     tools: features.chatTools,
     intro: features.chatIntro,
     decorateAnswer: (bubble, message, fresh) => features.decorateAnswer(bubble, message, fresh),
+    aboveInput: features.followUpBar,
+    onStreamStart: () => features.onStreamStart(),
+    onStreamEnd: () => features.onStreamEnd(),
   });
   sources = createSourcesPanel({
     notebookId,

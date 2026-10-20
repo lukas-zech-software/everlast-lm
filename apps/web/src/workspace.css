@@ -204,7 +204,9 @@ input, textarea { font: inherit; color: inherit; }
 .chat-response-actions button { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
 .chat-response-actions [aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 .chat-response-actions form { display: grid; gap: 4px; width: 100%; }
-.follow-ups { margin-top: 6px; }
+.follow-ups { display: flex; flex-wrap: nowrap; overflow-x: auto; padding: 4px 0; }
+.follow-ups[hidden] { display: none; }
+.follow-ups .follow-up-chip { flex: 0 0 auto; margin-top: 0; }
 .field { display: grid; gap: 4px; }
 .field select, .field textarea { padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
 .saved-response-note { padding: 10px 12px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); }

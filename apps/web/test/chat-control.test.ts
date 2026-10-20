@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderResponseActions } from "../src/chat-control.ts";
+import { createChatPanel } from "../src/chat/panel.ts";
+import { SelectionModel } from "../src/lib/selection.ts";
 import { setupMockDOM } from "./mock-dom.ts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
@@ -49,5 +51,31 @@ describe("Package 2.2 response actions (FR-GC-09)", () => {
     expect(methods).toEqual(["POST", "DELETE"]);
     expect(down.getAttribute("aria-pressed")).toBe("false");
     expect(form.getAttribute("hidden")).not.toBeNull();
+  });
+});
+
+describe("Follow-up row above the chat input bar (FR-GC-05, US3/AC3)", () => {
+  it("mounts the follow-up row directly above the input bar and reports stream start", async () => {
+    const dom = setupMockDOM(1440);
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ error: { code: "X", message: "x" } }), { status: 500 })) as unknown as typeof fetch;
+    try {
+      const selection = new SelectionModel(notebook);
+      selection.sync([{ id: "22222222-2222-4222-8222-222222222222", status: "Ready" } as any], true);
+      const aboveInput = dom.document.createElement("div");
+      const onStreamStart = vi.fn();
+      const onStreamEnd = vi.fn();
+      const panel = createChatPanel({ notebookId: notebook, selection, onCitationClick: vi.fn(), onNotebookMissing: vi.fn(), aboveInput: aboveInput as any, onStreamStart, onStreamEnd });
+      const children = (panel.element as any).children as any[];
+      const bar = children.findIndex((c) => c.classList.contains("chat-input-bar"));
+      expect(bar).toBeGreaterThan(0);
+      expect(children[bar - 1]).toBe(aboveInput);
+      panel.ask("What is mTLS?");
+      await flush();
+      expect(onStreamStart).toHaveBeenCalledTimes(1);
+      expect(onStreamEnd).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

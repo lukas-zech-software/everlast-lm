@@ -87,4 +87,63 @@ describe("Package 2.2 workspace integration (FR-SI-02, FR-GC-04/05/07/09)", () =
     expect(studio.querySelector(`[data-saved-note-id="${note.id}"]`)).not.toBeNull();
     expect(saved).toEqual([{ note_id: note.id }]);
   });
+
+  it("renders follow-up chips in one row above the input, never in the bubble, and drops stale scopes (FR-GC-05, Constitution III)", async () => {
+    const dom = setupMockDOM(1440);
+    const messageId = "66666666-6666-4666-8666-666666666666";
+    let release: (() => void) | null = null;
+    let hold = false;
+    const calls = fakeApi({
+      [`POST /chat/messages/${messageId}/follow-ups`]: () => json({ suggested_followups: [{ text: "What needs mTLS?", supporting_chunk_ids: ["018f6b40-0001-7000-8000-000000000001"] }, { text: "Which port?", supporting_chunk_ids: ["018f6b40-0001-7000-8000-000000000001"] }] }),
+    });
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (hold && String(input).endsWith("/follow-ups")) await new Promise<void>((resolve) => { release = resolve; });
+      return baseFetch(input, init);
+    }) as typeof fetch;
+    const features = createWorkspaceFeatures({ notebookId: notebook, notebookTitle: "Field Notes" });
+    const ask = vi.fn();
+    features.bind({ ask, studio: dom.document.createElement("aside") as any, openCitation: vi.fn() });
+    features.onSelectionChange(readySources, [sourceA]);
+    const answer = { id: messageId, role: "assistant", kind: "answer", content: "Port 8080 needs mTLS.", citations: [] } as any;
+    const bubble = dom.document.createElement("div");
+    features.onStreamStart();
+    features.onStreamEnd();
+    features.decorateAnswer(bubble as any, answer, true);
+    await flush();
+    const bar = features.followUpBar as any;
+    expect(bar.querySelectorAll(".follow-up-chip").map((c: any) => c.textContent)).toEqual(["What needs mTLS?", "Which port?"]);
+    expect(bubble.querySelector(".follow-up-chip")).toBeNull();
+    expect(calls.find((c) => c.url.endsWith("/follow-ups"))?.body).toEqual({ source_revisions: [{ source_id: sourceA, revision: 2 }] });
+
+    // A new stream removes the row immediately.
+    features.onStreamStart();
+    expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(0);
+    features.onStreamEnd();
+    features.decorateAnswer(dom.document.createElement("div") as any, answer, true);
+    await flush();
+    expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(2);
+
+    // A selection change clears synchronously.
+    features.onSelectionChange(readySources, [sourceA, sourceB]);
+    expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(0);
+
+    // Chips from an earlier scope that arrive late are never shown or clickable.
+    hold = true;
+    features.decorateAnswer(dom.document.createElement("div") as any, answer, true);
+    await flush();
+    features.onSelectionChange(readySources, [sourceB]);
+    release!();
+    await flush();
+    expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(0);
+    expect(ask).not.toHaveBeenCalled();
+
+    // Current-scope chips submit the next turn.
+    hold = false;
+    features.decorateAnswer(dom.document.createElement("div") as any, answer, true);
+    await flush();
+    bar.querySelector(".follow-up-chip").click();
+    expect(ask).toHaveBeenCalledWith("What needs mTLS?");
+    expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(0);
+  });
 });
