@@ -131,6 +131,10 @@ const sourcePayload = (source: ScopedSourceMaterial) => ({
   chunks: source.chunks.map((chunk) => ({ chunk_id: chunk.chunk_id, text: chunk.text })),
 });
 
+export interface ZodLike<T> {
+  safeParse(value: unknown): { success: true; data: T } | { success: false };
+}
+
 export interface VertexStructuredGenerationOptions {
   project: string;
   location?: string | undefined;
@@ -168,14 +172,29 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
     return this.generate(FOLLOW_UP_INSTRUCTION, { output_language: input.output_language, answer: input.answer, sources: input.sources.map(sourcePayload) }, FOLLOW_UP_RESPONSE_SCHEMA, FollowUpGenerationSchema);
   }
 
-  private async generate<T>(instruction: string, data: Record<string, unknown>, responseSchema: object, schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }): Promise<T> {
+  private generate<T>(instruction: string, data: Record<string, unknown>, responseSchema: object, schema: ZodLike<T>): Promise<T> {
+    return this.generateStructured({ contents: { instruction, ...data }, responseSchema, schema });
+  }
+
+  /**
+   * Shared structured call for other v2 pipelines on the same Vertex client setup (Studio reports, report
+   * suggestions; specs/008): fixed `systemInstruction`, JSON `contents`, JSON response schema, temperature 0.
+   * Output is shape-validated with `schema`; failures raise `StructuredGenerationError` without upstream text.
+   */
+  async generateStructured<T>(input: { systemInstruction?: string | undefined; contents: Record<string, unknown>; responseSchema: object; schema: ZodLike<T> }): Promise<T> {
     this.client ??= this.createClient({ vertexai: true, project: this.project, location: this.location, httpOptions: { timeout: this.timeoutMs } });
     let text: string;
     try {
       const response = await this.client.models.generateContent({
         model: this.model,
-        contents: JSON.stringify({ instruction, ...data }),
-        config: { temperature: 0, candidateCount: 1, responseMimeType: "application/json", responseSchema },
+        contents: JSON.stringify(input.contents),
+        config: {
+          ...(input.systemInstruction ? { systemInstruction: input.systemInstruction } : {}),
+          temperature: 0,
+          candidateCount: 1,
+          responseMimeType: "application/json",
+          responseSchema: input.responseSchema,
+        },
       });
       text = response.text ?? "";
     } catch (error) {
@@ -190,7 +209,7 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
     } catch {
       throw new StructuredGenerationError("invalid_json", false);
     }
-    const result = schema.safeParse(parsed);
+    const result = input.schema.safeParse(parsed);
     if (!result.success) throw new StructuredGenerationError("schema_mismatch", false);
     return result.data;
   }

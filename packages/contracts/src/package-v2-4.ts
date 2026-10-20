@@ -275,6 +275,46 @@ export const SourceGuideStateSchema = z
   .strict();
 export type SourceGuideState = z.infer<typeof SourceGuideStateSchema>;
 
+/* ------------------------ Report model outputs (FR-ST-10/11) ------------------------ */
+
+export const REPORT_FINDING_KINDS = ["summary", "fact", "quote", "term", "event", "person", "qa", "risk"] as const;
+const ModelText = z.string().trim().min(1).max(4000);
+const OptionalModelText = ModelText.optional();
+
+/** Map step: chunk-anchored findings of one bounded batch (shape only; chunk membership is checked by the adapter). */
+export const ReportExtractOutputSchema = z.object({
+  findings: z
+    .array(z.object({ kind: z.enum(REPORT_FINDING_KINDS), text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText }))
+    .max(1000),
+});
+export type ReportExtractOutput = z.infer<typeof ReportExtractOutputSchema>;
+
+const ReportModelItemSchema = z.object({ text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText });
+
+/** Reduce step: sections keyed by stable section keys with localized headings. */
+export const ReportComposeOutputSchema = z.object({
+  sections: z
+    .array(
+      z.object({
+        key: z.string().regex(REPORT_SECTION_KEY_PATTERN),
+        heading: z.string().trim().min(1).max(200),
+        items: z.array(ReportModelItemSchema).max(500),
+        table: z
+          .object({
+            columns: z.array(z.string().min(1)).min(1).max(8),
+            rows: z.array(z.object({ cells: z.array(z.string()).max(8), chunk_id: z.string().min(1) })).max(200),
+          })
+          .optional(),
+      })
+    )
+    .min(1)
+    .max(20),
+});
+export type ReportComposeOutput = z.infer<typeof ReportComposeOutputSchema>;
+
+/** Dynamic report suggestions from Source Guides (FR-ST-11): 3–4 validated cards. */
+export const ReportSuggestionsOutputSchema = z.object({ suggestions: z.array(ReportSuggestionSchema).min(3).max(4) });
+
 /* ------------------------------ C-03 plugin ------------------------------ */
 
 export const StudioGeneratorPluginManifestSchema = z
