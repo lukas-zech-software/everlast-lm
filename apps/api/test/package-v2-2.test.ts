@@ -5,7 +5,7 @@ import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV
 import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
 import { NotesService } from "../src/notes/service.ts";
 import { createNoteMarkdownIngestor } from "@everlast/worker/ingestion/note-markdown";
-import { listNotes, resetNoteStore } from "@everlast/db";
+import { getMessageFeedback, listNotes, resetNoteStore } from "@everlast/db";
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import { getMessageFollowUps } from "@everlast/db";
 
@@ -276,4 +276,21 @@ describe("shared save-note route writes the Package 2.3 notes store (FR-GC-09, F
     expect(await save(service, { notebook_id: notebook, message_id: assistant, user_id: "intruder" })).toMatchObject({ status: 400 });
     expect(await listNotes(notebook, "owner")).toHaveLength(0);
   });
+});
+
+it("replaces a rating and clears it with DELETE for the owner only (FR-GC-09, FR-014)", async () => {
+  const message = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+  await persistChatMessage(undefined, { id: message, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Answer" });
+  const post = async (body: unknown) => { const r = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/feedback`, { method: "POST", body }); await handlePackageV22Route(r.req, r.res, "owner", deps); return r.result(); };
+  expect((await post({ rating: "up" })).status).toBe(200);
+  expect((await post({ rating: "down", category: "other" })).status).toBe(200);
+  expect(await getMessageFeedback(notebook, "owner", message)).toMatchObject({ rating: "down" });
+  const denied = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/feedback`, { method: "DELETE" });
+  await handlePackageV22Route(denied.req, denied.res, "foreign", { ...deps, authorizeNotebook: vi.fn(async () => false) });
+  expect(denied.result().status).toBe(404);
+  expect(await getMessageFeedback(notebook, "owner", message)).not.toBeNull();
+  const clear = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/feedback`, { method: "DELETE" });
+  expect(await handlePackageV22Route(clear.req, clear.res, "owner", deps)).toBe(true);
+  expect(clear.result().status).toBe(204);
+  expect(await getMessageFeedback(notebook, "owner", message)).toBeNull();
 });

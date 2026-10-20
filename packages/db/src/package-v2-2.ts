@@ -106,6 +106,11 @@ export async function getMessageFollowUps(notebookId: string, userId: string, me
   return followUpStore.get(followUpKey(notebookId, userId, messageId, outputLanguage))?.suggestions ?? null;
 }
 
+/** Clears the caller's rating for one message (`Unrated`, FR-GC-09 / FR-014); true when a record existed. */
+export async function clearMessageFeedback(notebookId: string, userId: string, messageId: string): Promise<boolean> {
+  return feedbackStore.delete(feedbackKey(notebookId, userId, messageId));
+}
+
 export async function getMessageFeedback(notebookId: string, userId: string, messageId: string): Promise<MessageFeedback | null> {
   return feedbackStore.get(feedbackKey(notebookId, userId, messageId)) ?? null;
 }

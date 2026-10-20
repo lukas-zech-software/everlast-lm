@@ -5,6 +5,7 @@ import {
   getSourceGuide,
   saveChatConfiguration,
   saveMessageFeedback,
+  clearMessageFeedback,
   getChatMessages,
   getMessageFollowUps,
   saveMessageFollowUps,
@@ -48,6 +49,7 @@ export interface PackageV22ApiDependencies {
   getOverview?: typeof getOverviewForUser;
   saveConfiguration?: typeof saveChatConfiguration;
   saveFeedback?: typeof saveMessageFeedback;
+  clearFeedback?: typeof clearMessageFeedback;
   /** Shared save-note writer (see `savedResponseNoteSaver`); absent → 503. */
   saveNote?: (input: { notebook_id: string; message_id: string; user_id: string }) => Promise<SavedResponseNote>;
   generateFollowUps?: (input: { notebook_id: string; user_id: string; answer: string; source_revisions: { source_id: string; revision: number }[]; output_language: string }) => Promise<unknown>;
@@ -237,6 +239,19 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
     } catch (error) {
       sendGenerationError(res, error);
     }
+    return true;
+  }
+
+  const feedbackMatch = suffix.match(/^chat\/messages\/([0-9a-f-]{36})\/feedback$/i);
+  if (method === "DELETE" && feedbackMatch) {
+    // FR-GC-09 / FR-014: clicking the active thumb clears the caller's own rating.
+    if (!(await deps.authorizeNotebook(userId, notebookId))) {
+      sendJson(res, 404, { error: { code: "NotFound", message: "Notebook not found" } });
+      return true;
+    }
+    await (deps.clearFeedback ?? clearMessageFeedback)(notebookId, userId, feedbackMatch[1]!);
+    res.writeHead(204);
+    res.end();
     return true;
   }
 

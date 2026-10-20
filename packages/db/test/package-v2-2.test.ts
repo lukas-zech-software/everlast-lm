@@ -63,3 +63,14 @@ it("keys Source Guides by notebook, source, revision and output language; anothe
   expect((await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE"))?.summary_md).toBe("Eine Zusammenfassung.");
   expect((await repo.getSourceGuide(notebookId, sourceId, 2, "en-US"))?.summary_md).toBe("An English summary.");
 });
+
+it("keeps one feedback record per user and message: re-rating replaces it, clearing removes it (FR-GC-09, FR-014)", async () => {
+  const assistantId = "66666666-6666-4666-8666-666666666666";
+  await persistChatMessage(undefined, { id: assistantId, thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "assistant", content: "Answer", created_at: timestamp });
+  await repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: assistantId, rating: "up" });
+  await repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: assistantId, rating: "down", category: "incomplete" });
+  expect(await repo.getMessageFeedback(notebookId, userId, assistantId)).toMatchObject({ rating: "down", category: "incomplete" });
+  expect(await repo.clearMessageFeedback(notebookId, userId, assistantId)).toBe(true);
+  expect(await repo.getMessageFeedback(notebookId, userId, assistantId)).toBeNull();
+  expect(await repo.clearMessageFeedback(notebookId, userId, assistantId)).toBe(false);
+});
