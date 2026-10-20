@@ -223,3 +223,14 @@ Scenario: Conflicting values remain individually cited in one cell
 **Out of scope:** Full two-way live spreadsheet formula editing inside the Studio viewer.
 
 **Open questions:** `None`
+
+## Planning contract refinements (2026-10-20)
+
+These refine FR-ST-08/09/18 and C-03 without altering release scope or accepted clarification answers.
+
+- **Shared plugin integration (C-03):** Existing report-specialized DTOs, repository and database kind/subtype checks must be extended additively for mindmap/data_table before registration. Preserve report wire shapes, exported report schemas and existing report plugin behavior. Use one shared typed registry and a new compatible migration; do not fork C-01/C-02 or a second Studio lifecycle.
+- **Evidence and validation (FR-ST-08/18, C-02/C-03):** Process all original scoped chunks with retained coverage and field-level evidence. Validate required output dimensions and individual conflicting values before atomic publication. Invalid citations fail immediately; package detail may identify InvalidMindmap/InvalidTable/TableLimitExceeded under existing safe failure codes. A capped model sample must not hide a requested result exceeding500rows/25columns.
+- **Drilldown (FR-ST-09, FR-GC-01/02/06):** API accepts artifact/node identity and current explicit Ready selection. Verify node plus parent supporting revisions and authorization before constructing any source-derived prompt; do not trust client labels or auto-restore sources. Reuse ordinary chat admission/history/citation checks.
+- **Map presentation/export (FR-ST-08/09):** Use deterministic native SVG layout and browser Canvas for2× PNG from a validated self-contained scene; bounds include every currently expanded node irrespective of viewport transform. Escape labels and forbid active SVG/external resource content. Expansion and sorting are local view state.
+- **Table serialization/export (FR-ST-18):** Use text-only ExcelJS XLSX serialization in the existing runtime and deterministic RFC4180 CSV with UTF-8 BOM. Sanitize formula-risk prefixes including whitespace/control bypasses in headers and values before CSV quoting, and use explicit string XLSX cells without formulas/macros/external links. Preserve conflict alternatives, disagreement and per-value citation references within the same exported cell; do not mutate canonical source values.
+- **Export authorization (FR-ST-09/18, NFR-SEC-02):** Serve through the application API with live source/notebook access checks and private/no-store delivery; no reusable signed URL bypass. Deletion/revocation invalidates loaded/pending/cached content and delivery; mere deselection alone retains authorized historical export. Clearing application state cannot revoke already downloaded files.

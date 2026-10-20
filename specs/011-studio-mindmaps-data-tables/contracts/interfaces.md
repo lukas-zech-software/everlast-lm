@@ -1,0 +1,31 @@
+# Interfaces: Studio mindmaps and tables
+
+Scope:`FR-ST-08/09/18`,`C-01/C-02/C-03`,`FR-GC-01/02/06`,`NFR-SEC-02`,`NFR-EVAL-01..04`. User/API DTOs are defined once as shared Zod schemas. All IDs are validated; every endpoint authenticates and enforces owner notebook/document access server-side. Caller token alone grants no resource access.
+
+## Studio admission and lifecycle (`C-03`, `FR-ST-08/18`)
+
+Reuse `/api/notebooks/{notebook_id}/studio/artifacts` and existing list/get/cancel/retry/delete behavior. POST accepts existing report request unchanged, plus discriminated `plugin_type:mindmap|data_table`, `subtype:default`, explicit nonempty unique `active_source_ids`, optional effective `output_language`; table adds optional `focus_prompt` (0–2,000 trimmed code points) or registered `schema_id`, mindmap has neither. If both table controls are supplied, focus narrows the selected schema without bypassing bounds. Unknown fields/IDs fail validation, not model passthrough.
+
+Return202 `{artifact}` with Queued state, captured source/revision pairs, attempt and safe progress metadata. Empty scope400, auth401, foreign/not authorized403, missing resource404, stale snapshot/conflicting lifecycle409, invalid parameters422. Async failures use existing failure union and safe detail/message; requested table overflow becomes Failed/TableLimitExceeded with narrowing request and no payload. Existing repeated request semantics remain; do not create duplicate worker publications on task redelivery. Retry requires fresh explicit selection/authorization and creates a new attempt.
+
+Read/list responses discriminate plugin_type and suppress invalidated payloads. Report convert-to-source remains report-only; do not offer or silently implement conversion for map/table. Viewer displays AI-generated label, illustration status for structural visuals, source references and unavailable state.
+
+## Plugin/worker (`C-03`, `FR-ST-08/18`, `D12`)
+
+Register independent manifests `mindmap/default`, `data_table/default`. Existing triggerJob/generate lifecycle is retained with compatible typed params/outcome variants. Import C-01 chunks and C-02 provider; no duplicate schemas or direct chunk SQL/read bypass. All original captured chunks feed bounded structured extraction and merge. Output validation includes dimensions/shape, factual field and per-alternative references, whole-batch coverage, safe strings and exact source continuity. Publication commits payload and Completed together under attempt/status/snapshot fence. Abort/cancel/stale access suppresses result. No invalid candidate JSON, partial table or uncited draft reaches API/UI.
+
+## Guarded node drilldown (`FR-ST-09`, `FR-GC-01/02/06`)
+
+POST `/api/notebooks/{notebook_id}/studio/artifacts/{artifact_id}/drilldown` with `{node_id,active_source_ids}`. Server loads currently authorized Completed mindmap, validates node identity, resolves current Ready snapshot through C-02 and tests node+parent factual provenance eligibility before constructing prompt. Never accept client-supplied labels or summaries.
+
+Missing supporting sources/revisions returns409 `{error:{code:SupportingSourcesRequired,message}}` and prompts selection; no node-derived text is submitted to model/history and no source automatically selected. Empty selection400; deleted/revoked artifact returns unavailable without labels. Eligible action constructs contextual prompt, rechecks at chat admission and delegates to ordinary chat turn/stream transport (content-type/event format identical to chat API); persists resulting question and validated cited answer with current scope. Root node omits absent parent context. One-active-request admission, refusal, abort, draft preservation and history filtering use existing chat rules. Progress events do not count as validated-answer TTFT.
+
+## Exports (`FR-ST-09/18`, `NFR-SEC-02`)
+
+POST `/api/notebooks/{notebook_id}/studio/artifacts/{artifact_id}/export` with either `{format:svg|png,expanded_node_ids}` or `{format:csv|xlsx,ordered_row_ids?}`. Server verifies Completed kind, live artifact/source revisions/ACL and requested IDs; ordered rows must be full permutation, not a filter. Map returns validated self-contained SVG scene for both formats; png request returns the same scene with2× rasterization metadata for browser Canvas download, not mislabeled PNG bytes. UI serializes the scene as lossless SVG or rasterizes2× to image/png Blob. API contract declares SVG response content type for scene responses; no automatic file download until final format conversion succeeds. Expansion IDs describe valid ancestor-closed expanded state, not arbitrary serialized SVG. SVG scene includes all visible node labels and full expanded bounds independent of viewport transform. Format labels shown to users match final files.
+
+CSV returns `text/csv;charset=utf-8` with UTF-8 BOM; XLSX returns `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Both attachment names are server-generated. CSV obeys RFC4180 equal fields,CRLF, doubled quotes; sanitize dangerous prefixes=,+,-,@ and whitespace/control bypasses with leading apostrophe before quoting. XLSX uses text-only cell values, no formulas/macros/external links; apply safe export text consistently. Preserve conflicting alternatives, marker and per-value citations; flatten source references as inert text, not externally resolving formulas. Independent parser/application checks required.
+
+All exports use private/no-store, current provenance checks and application delivery, no reusable signed object URLs. Reauthorize every request and terminate affected active delivery on invalidation. Frontend clears cached content and pending Blob/object URLs on invalidation. Already downloaded files are outside application revocation control; the application must stop further delivery. Mere current deselection permits authorized historical export but does not grant drilldown scope.
+
+SVG is generated exclusively from allowed primitives/text, with XML escaping, fixed style palette, no scripts/event handlers/foreignObject/external URLs/fonts. Export error produces no substitute/cropped/partial download. Raster/format failure leaves the source artifact available for viewing and explicit export retry; it does not rerun generation.
