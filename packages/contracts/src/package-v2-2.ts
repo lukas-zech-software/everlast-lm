@@ -89,6 +89,24 @@ export const FollowUpSuggestionsSchema = z.object({
 });
 export type FollowUpSuggestions = z.infer<typeof FollowUpSuggestionsSchema>;
 
+/**
+ * Raw structured-model outputs (FR-SI-02, FR-GC-04/05): shape only. Limits, support IDs and C-02 scope are
+ * validated by the generation pipelines before anything is stored or shown.
+ */
+export const SourceGuideGenerationSchema = z.object({
+  summary_md: z.string().min(1),
+  key_topics: z.array(z.string().min(1)).max(10),
+  supporting_chunk_ids: z.array(uuid),
+}).strict();
+export const OverviewGenerationSchema = z.object({
+  overview_md: z.string().min(1),
+  starter_prompts: z.array(StarterPromptSchema).max(5),
+  supporting_chunk_ids: z.array(uuid).min(1),
+}).strict();
+export const FollowUpGenerationSchema = z.object({
+  suggested_followups: z.array(z.object({ text: FollowUpSuggestionSchema, supporting_chunk_ids: z.array(uuid) }).strict()).max(3),
+}).strict();
+
 export const PersistedMessageFollowUpsSchema = z.object({
   notebook_id: uuid,
   user_id: z.string().min(1),
