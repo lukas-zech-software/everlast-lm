@@ -264,6 +264,41 @@ export class MockElement {
     return this.attributes.has("hidden");
   }
 
+  /** Reflects the `disabled` attribute like the real DOM property. */
+  get disabled(): boolean {
+    return this.attributes.has("disabled");
+  }
+
+  set disabled(value: boolean) {
+    if (value) this.setAttribute("disabled", "");
+    else this.removeAttribute("disabled");
+  }
+
+  private _checked: boolean | undefined;
+
+  /** Current checkedness; starts from the `checked` attribute like the real DOM. */
+  get checked(): boolean {
+    return this._checked ?? this.attributes.has("checked");
+  }
+
+  set checked(value: boolean) {
+    this._checked = value;
+  }
+
+  get title(): string {
+    return this.attributes.get("title") ?? "";
+  }
+
+  set title(value: string) {
+    this.setAttribute("title", value);
+  }
+
+  /** Records focus on the mock document (`document.activeElement`). */
+  focus() {
+    const doc = (globalThis as any).document;
+    if (doc) doc.activeElement = this;
+  }
+
   set hidden(value: boolean) {
     if (value) this.setAttribute("hidden", "");
     else this.removeAttribute("hidden");

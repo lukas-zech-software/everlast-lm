@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { CitationSchema } from "./package-v1-3.ts";
 import { SourceRevisionPairSchema } from "./scoped-context.ts";
 
 const uuid = z.string().uuid();
@@ -14,7 +13,7 @@ export const NotebookSourceSelectionSchema = z.object({
   id: uuid,
   notebook_id: uuid,
   title: z.string().min(1),
-  media_type: z.enum(["application/pdf", "text/plain", "text/markdown", "copied_text"]),
+  media_type: z.enum(["application/pdf", "text/plain", "text/markdown", "copied_text", "note_markdown"]),
   status: z.enum(["Uploading", "Processing", "Ready", "Failed"]),
   revision_id: z.number().int().positive(),
 }).strict();
@@ -161,21 +160,12 @@ export const MessageFeedbackSchema = MessageFeedbackBaseSchema.extend({
 }).strict().superRefine(validateFeedback);
 export type MessageFeedback = z.infer<typeof MessageFeedbackSchema>;
 
-export const SaveResponseNoteRequestSchema = z.object({ notebook_id: uuid, message_id: uuid }).strict();
-export type SaveResponseNoteRequest = z.infer<typeof SaveResponseNoteRequestSchema>;
-
-export const SavedResponseNoteSchema = z.object({
-  id: uuid,
-  notebook_id: uuid,
-  source_message_id: uuid,
-  title: trimmedText(1, 200, "note title"),
-  content_md: z.string(),
-  citations_json: z.array(CitationSchema),
-  origin_type: z.literal("saved_response"),
-  read_only: z.literal(true),
-  created_at: z.string().datetime(),
-}).strict();
-export type SavedResponseNote = z.infer<typeof SavedResponseNoteSchema>;
-
-export const SaveResponseNoteResponseSchema = z.object({ note: SavedResponseNoteSchema }).strict();
-export type SaveResponseNoteResponse = z.infer<typeof SaveResponseNoteResponseSchema>;
+// FR-GC-09 / FR-NM-02: the one shared save-note contract is defined in Package 2.3 and re-exported here.
+export {
+  SaveResponseNoteRequestSchema,
+  SavedResponseNoteSchema,
+  SaveResponseNoteResponseSchema,
+  type SaveResponseNoteRequest,
+  type SavedResponseNote,
+  type SaveResponseNoteResponse,
+} from "./package-v2-3.ts";

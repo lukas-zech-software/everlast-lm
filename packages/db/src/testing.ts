@@ -75,7 +75,7 @@ export async function seedReadySource(
     title?: string;
     pages: string[];
     embed: (texts: string[]) => Promise<number[][]>;
-    mediaType?: "application/pdf" | "text/plain" | "text/markdown" | "copied_text";
+    mediaType?: "application/pdf" | "text/plain" | "text/markdown" | "copied_text" | "note_markdown";
   }
 ): Promise<{ sourceId: string; revision: number; chunkIds: string[] }> {
   const { reserveSources, acceptReceivedSource } = await import("./quota.ts");

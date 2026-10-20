@@ -44,6 +44,8 @@ export interface HydratedCitation {
   chunk_id: string;
   status: "available" | "deleted";
   source_title: string | null;
+  /** Media type of the cited source; `note_markdown` marks a note-source (FR-NM-04 `Note` label). */
+  source_media_type: string | null;
   snippet: string | null;
   locator: ChunkLocator | null;
 }
@@ -178,6 +180,7 @@ export async function clearThread(pool: Pool, ownerId: string, notebookId: strin
 interface CurrentSourceRow {
   id: string;
   title: string;
+  media_type: string;
   status: string;
   active_revision: number | null;
 }
@@ -204,7 +207,7 @@ export async function projectVisibleMessages(
   const sources = new Map<string, CurrentSourceRow>();
   if (sourceIds.size > 0) {
     const rows = await db.query<CurrentSourceRow>(
-      "SELECT id, title, status, active_revision FROM sources WHERE notebook_id = $1 AND id = ANY($2::uuid[])",
+      "SELECT id, title, media_type, status, active_revision FROM sources WHERE notebook_id = $1 AND id = ANY($2::uuid[])",
       [notebookId, [...sourceIds]]
     );
     rows.rows.forEach((r) => sources.set(r.id, r));
@@ -234,10 +237,11 @@ export async function projectVisibleMessages(
             chunk_id: c.chunk_id,
             status: "available",
             source_title: sources.get(c.source_id)!.title,
+            source_media_type: sources.get(c.source_id)!.media_type,
             snippet: chunk!.text,
             locator: chunk!.locator,
           }
-        : { badge_number: c.badge_number, source_id: c.source_id, chunk_id: c.chunk_id, status: "deleted", source_title: null, snippet: null, locator: null };
+        : { badge_number: c.badge_number, source_id: c.source_id, chunk_id: c.chunk_id, status: "deleted", source_title: null, source_media_type: null, snippet: null, locator: null };
     });
     return {
       id: m.id,

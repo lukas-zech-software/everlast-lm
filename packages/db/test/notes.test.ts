@@ -13,17 +13,11 @@ import {
   NoteReadOnlyError,
   RevisionConflictError,
   NotSavedResponseError,
-  registerSource,
-  replaceSource,
-  deleteSource,
-  getNoteSource,
-  getScopedContext,
-  resetSourceRegistry,
   clearChatThread,
   getOrCreateChatThread,
   resetChatStore,
 } from "@everlast/db";
-import type { Citation, UnifiedDocumentChunk } from "@everlast/contracts";
+import type { Citation } from "@everlast/contracts";
 
 const nb = "11111111-1111-4111-8111-111111111111";
 const nb2 = "22222222-2222-4222-8222-222222222222";
@@ -42,7 +36,6 @@ const citation: Citation = {
 
 beforeEach(() => {
   resetNoteStore();
-  resetSourceRegistry();
   resetChatStore();
 });
 
@@ -111,27 +104,39 @@ describe("FR-NM-02 / FR-GC-09: saved responses", () => {
   });
 });
 
-describe("C-02: source registry", () => {
-  const chunk = (revision: number): UnifiedDocumentChunk => ({
-    chunk_id: "018f6b40-0001-7000-8000-00000000000" + revision,
-    source_id: src,
-    revision,
-    locator: { selector: "h1", start_offset: 0, end_offset: 3 },
-    token_count: 1,
-    text: "rev" + revision,
+describe("[007] T038 FR-NM-02 FR-006: saved-response title rule", () => {
+  it("uses the given title clamped to 200 code points, else Saved response (never the first content line)", async () => {
+    const titled = await saveResponseAsNote(nb, owner, { message_id: msg, content: "# Heading line\nBody", citations: [], title: `  ${"🌱".repeat(205)}  ` });
+    expect(titled.note.title).toBe("🌱".repeat(200));
+    const untitled = await saveResponseAsNote(nb, owner, { message_id: "55555555-5555-4555-8555-555555555555", content: "# Heading line\nBody", citations: [] });
+    expect(untitled.note.title).toBe("Saved response");
+  });
+});
+
+describe("[007] T043 FR-NM-01 FR-002: every note write path stores sanitized Markdown", () => {
+  const unsafe = 'Intro <script>alert(1)</script><b onclick="x()">bold</b> [x](javascript:alert) end';
+  const safe = "## Heading\n\n- item **bold** _it_\n1. one\n[site](https://example.test) [mail](mailto:a@example.test)";
+
+  it("createNote and updateNote remove raw HTML and unsafe links and keep safe Markdown", async () => {
+    const a = await createNote(nb, owner, { title: "T", content_md: unsafe });
+    expect(a.content_md).toBe("Intro bold x end");
+    const b = await updateNote(nb, owner, a.id, { content_md: `${safe}<img src=x onerror=alert(1)>` });
+    expect(b.content_md).toBe(safe);
+    const c = await createNote(nb, owner, { title: "Safe", content_md: safe });
+    expect(c.content_md).toBe(safe);
   });
 
-  it("serves only current-revision chunks of Ready sources in the notebook", async () => {
-    await registerSource({
-      id: src, notebook_id: nb, title: "T", media_type: "note_markdown", status: "Ready", revision_id: 1,
-      byte_size: 1, word_count: 1, origin_notes: [{ note_id: msg, revision: 1, title: "n" }], created_at: new Date().toISOString(),
-    }, [chunk(1)]);
-    expect((await getScopedContext(nb, [src])).map((c) => c.text)).toEqual(["rev1"]);
-    await expect(getScopedContext(nb2, [src])).rejects.toThrow();
-    await replaceSource(nb, src, [chunk(2)]);
-    expect((await getNoteSource(nb, src))?.revision_id).toBe(2);
-    expect((await getScopedContext(nb, [src])).map((c) => c.text)).toEqual(["rev2"]);
-    await deleteSource(nb, src);
-    await expect(getScopedContext(nb, [src])).rejects.toThrow();
+  it("saveResponseAsNote and convertToEditable sanitize assistant content", async () => {
+    const { note } = await saveResponseAsNote(nb, owner, { message_id: msg, content: `Claim [[1]] ${unsafe}`, citations: [citation] });
+    expect(note.content_md).not.toContain("<script>");
+    expect(note.content_md).not.toContain("javascript:");
+    expect(note.content_md).toContain("[[1]]");
+    const copy = await convertToEditable(nb, owner, note.id);
+    expect(copy.content_md).toBe("Claim Intro bold x end");
+  });
+
+  it("the repository call used by the Studio convert path (createNote) sanitizes too", async () => {
+    const studio = await createNote(nb, owner, { title: "Briefing doc", content_md: "Report <iframe src=//evil></iframe>[a](JaVaScRiPt:void)" });
+    expect(studio.content_md).toBe("Report a");
   });
 });

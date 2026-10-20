@@ -4,6 +4,9 @@ import {
   clampCodePoints,
   DEFAULT_NOTE_TITLE,
   NOTE_TITLE_MAX_CODE_POINTS,
+  SAVED_RESPONSE_DEFAULT_TITLE,
+  sanitizeNoteMarkdown,
+  stripCitationMarkers,
   type Citation,
   type CreateNoteInput,
   type Note,
@@ -11,6 +14,8 @@ import {
 } from "@everlast/contracts";
 
 // In-memory notes store (FR-NM-01, FR-NM-02, FR-GC-09); PoC per D16, PostgreSQL persistence follows in v3.
+// Every write stores sanitized Markdown (FR-NM-01 FR-002): raw HTML and unsafe link targets never reach the store,
+// whichever path wrote the note (routes, saved responses, editable copies, Studio conversion).
 
 export class NoteNotFoundError extends Error {
   constructor(message = "Note not found") {
@@ -65,6 +70,7 @@ function scoped(notebookId: string, ownerId: string, noteId: string): Note | und
 
 function insert(notebookId: string, ownerId: string, fields: Partial<Note> & Pick<Note, "title" | "content_md">): Note {
   const now = new Date().toISOString();
+  fields = { ...fields, content_md: sanitizeNoteMarkdown(fields.content_md) };
   const note: Note = {
     id: randomUUID(),
     notebook_id: notebookId,
@@ -120,7 +126,7 @@ export async function updateNote(
   }
   if (patch.title === undefined && patch.content_md === undefined) return structuredClone(n);
   if (patch.title !== undefined) n.title = patch.title;
-  if (patch.content_md !== undefined) n.content_md = patch.content_md;
+  if (patch.content_md !== undefined) n.content_md = sanitizeNoteMarkdown(patch.content_md);
   n.revision += 1;
   n.updated_at = new Date().toISOString();
   return structuredClone(n);
@@ -130,13 +136,10 @@ export async function deleteNote(notebookId: string, ownerId: string, noteId: st
   return scoped(notebookId, ownerId, noteId) ? noteStore.delete(noteId) : false;
 }
 
-function savedResponseTitle(content: string): string {
-  const firstLine =
-    content
-      .split("\n")
-      .map((l) => l.replace(/\[\d+\]/g, "").replace(/[#*_`>\-]/g, "").trim())
-      .find((l) => l.length > 0) ?? "Saved response";
-  return clampCodePoints(firstLine, NOTE_TITLE_MAX_CODE_POINTS);
+/** Shared save-note title rule (FR-NM-02 FR-006): the given title (the preceding user question) trimmed and clamped. */
+function savedResponseTitle(title: string | undefined): string {
+  const clamped = clampCodePoints((title ?? "").trim(), NOTE_TITLE_MAX_CODE_POINTS).trim();
+  return clamped || SAVED_RESPONSE_DEFAULT_TITLE;
 }
 
 /** Idempotent on (notebook, owner, source_message_id) (FR-GC-09). Copies content and citations. */
@@ -151,7 +154,7 @@ export async function saveResponseAsNote(
     }
   }
   const note = insert(notebookId, ownerId, {
-    title: input.title ?? savedResponseTitle(input.content),
+    title: savedResponseTitle(input.title),
     content_md: input.content,
     origin_type: "saved_response",
     source_message_id: input.message_id,
@@ -165,10 +168,7 @@ export async function convertToEditable(notebookId: string, ownerId: string, not
   const n = scoped(notebookId, ownerId, noteId);
   if (!n) throw new NoteNotFoundError();
   if (n.origin_type !== "saved_response") throw new NotSavedResponseError();
-  const badges = new Set(n.citations_json.map((c) => c.badge_number));
-  const content = n.content_md
-    .replace(/[ \t]?\[(\d+)\]/g, (m, d: string) => (badges.has(Number(d)) ? "" : m))
-    .trim();
+  const content = stripCitationMarkers(n.content_md, new Set(n.citations_json.map((c) => c.badge_number))).trim();
   return insert(notebookId, ownerId, {
     title: n.title,
     content_md: content,

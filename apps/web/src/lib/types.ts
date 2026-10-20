@@ -14,6 +14,8 @@ export interface Citation {
   chunk_id: string;
   status: "available" | "deleted";
   source_title: string | null;
+  /** `note_markdown` marks a note-source (FR-NM-04 `Note` label). */
+  source_media_type?: string | null;
   snippet: string | null;
   locator: PageSpan | null;
 }

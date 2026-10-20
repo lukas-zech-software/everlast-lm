@@ -10,13 +10,16 @@ export type SavedResponseSegment = { type: "text"; text: string } | { type: "bad
 
 export const isEditable = (note: Pick<SavedResponseNote, "origin_type">): boolean => note.origin_type === "manual";
 
-/** FR-NM-02: read-only view whose verified [n] badges stay clickable (open the Source Inspector). */
+/**
+ * FR-NM-02: read-only view whose verified badges stay clickable (open the Source Inspector). Markers are `[[n]]` as
+ * stored by the v1 chat, or the legacy `[n]`; only numbers that have a copied citation become badges.
+ */
 export function savedResponseView(note: SavedResponseNote): { readOnly: boolean; segments: SavedResponseSegment[] } {
   const known = new Set(note.citations_json.map((c) => c.badge_number));
   const segments: SavedResponseSegment[] = [];
   let last = 0;
-  for (const m of note.content_md.matchAll(/\[(\d+)\]/g)) {
-    const n = Number(m[1]);
+  for (const m of note.content_md.matchAll(/\[\[(\d{1,6})\]\]|\[(\d{1,6})\]/g)) {
+    const n = Number(m[1] ?? m[2]);
     if (!known.has(n)) continue;
     if (m.index! > last) segments.push({ type: "text", text: note.content_md.slice(last, m.index) });
     segments.push({ type: "badge", badge_number: n });

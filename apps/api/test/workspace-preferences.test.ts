@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { LocalObjectStorage } from "@everlast/cloud";
+import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { createPocNotebook, getNotebookRaw } from "@everlast/db";
 import { createV2Runtime } from "../src/v2/runtime.ts";
 import { WorkspacePreferencesService } from "../src/services/workspace-preferences.ts";
@@ -19,7 +19,10 @@ let dir: string;
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "everlast-api-wc-"));
-  api = await startTestApi({}, (db) => ({ v2: createV2Runtime({ pool: db.pool, sourceLimit: 50 }) }));
+  // Note-sources run the v1 ingestion (owner decision 2026-10-20), so the runtime gets storage and an embedder.
+  const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
+  const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: "http://127.0.0.1:9" });
+  api = await startTestApi({}, (db) => ({ embedder, v2: createV2Runtime({ pool: db.pool, sourceLimit: 50, storage, embedder }) }));
   api.deps.storage = new LocalObjectStorage({ root: dir, publicBaseUrl: api.baseUrl });
 });
 

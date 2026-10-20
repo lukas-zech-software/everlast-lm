@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV22Store, saveSourceGuide } from "@everlast/db";
 import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
 import { NotesService } from "../src/notes/service.ts";
-import { createNoteMarkdownIngestor } from "@everlast/worker/ingestion/note-markdown";
 import { getMessageFeedback, listNotes, resetNoteStore } from "@everlast/db";
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import { getMessageFollowUps } from "@everlast/db";
@@ -27,7 +26,7 @@ const deps: PackageV22ApiDependencies = {
   authorizeSource: vi.fn(async () => ({ exists: true, ready: true, revision: 2 })),
 };
 beforeEach(() => { resetPackageV22Store(); resetChatStore(); resetNoteStore(); });
-const notesService = () => new NotesService({ ingestor: createNoteMarkdownIngestor() });
+const notesService = () => new NotesService({});
 
 describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-02)", () => {
   it("returns pending guide status for an authorized Ready source without changing selection", async () => {

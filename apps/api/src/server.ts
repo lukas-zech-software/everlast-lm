@@ -89,6 +89,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         : undefined);
   const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
   const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
+  const storage = extra.storage ?? createObjectStorage(env);
+  const notifyJobs = extra.notifyJobs ?? createJobNotifier(env);
   // Release v2 proof of concept (D16): in-memory stores in this process; set V2_POC=off to serve v1 only.
   const v2 =
     extra.v2 ??
@@ -101,6 +103,10 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           generation: createV2Generation(env, modelConfigured),
           // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
           readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
+          // FR-NM-03 (owner decision 2026-10-20): note-sources run the v1 ingestion with this storage and embedder.
+          storage,
+          embedder,
+          notifyJobs,
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
   const chat =
@@ -118,11 +124,11 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     config,
     verifier,
     localIssuer,
-    storage: extra.storage ?? createObjectStorage(env),
+    storage,
     embedder,
     chat,
     v2,
-    notifyJobs: createJobNotifier(env),
+    notifyJobs,
     ...extra,
   };
   const server = http.createServer(createApp(deps));

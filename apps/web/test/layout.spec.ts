@@ -18,7 +18,9 @@ test("UI-E01: 1440x900 shows Sources, Chat and Studio together with '3 sources'"
   await openNotebook(page);
   for (const panel of ["panel-sources", "panel-chat", "panel-studio"]) await expect(page.getByTestId(panel)).toBeVisible();
   await expect(page.getByTestId("sources-pill")).toHaveText("3 sources");
-  await expect(page.getByTestId("studio-placeholder")).toHaveText("Notes and Studio tools will appear here");
+  // Release v2 (FR-NM-01): the Right Panel holds the notes pinboard above the Studio placeholder.
+  await expect(page.getByTestId("notes-panel")).toBeVisible();
+  await expect(page.getByTestId("studio-placeholder")).toHaveText("Studio tools will appear here");
   await expect(page.getByTestId("workspace-tabs")).toBeHidden();
   await expect(page.getByTestId("notebook-title")).toBeVisible();
   await expect(page.getByTestId("user-profile")).toBeVisible();

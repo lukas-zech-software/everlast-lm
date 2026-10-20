@@ -1,4 +1,4 @@
-import { api, ApiError } from "../lib/api.ts";
+import { api, ApiError, authFetch } from "../lib/api.ts";
 import { confirmDialog, h, toast } from "../lib/dom.ts";
 import { SelectionModel } from "../lib/selection.ts";
 import type { NotebookDto, QuotaSummary } from "../lib/types.ts";
@@ -9,9 +9,10 @@ import { createSourcesPanel } from "../sources/panel.ts";
 import { createInspector } from "../sources/inspector.ts";
 import { createChatPanel } from "../chat/panel.ts";
 import { createWorkspaceFeatures } from "../v2/workspace-features.ts";
+import { createNotesPanel } from "../notes/panel.ts";
 import { renderIconPicker } from "../home.ts";
 
-/** Notebook workspace (FR-UI-01) wiring sources, inspector, chat and the v1 Studio placeholder. */
+/** Notebook workspace (FR-UI-01) wiring sources, inspector, chat, the notes pinboard (FR-NM-01..04) and the Studio placeholder. */
 
 export interface WorkspaceRouteOptions {
   root: HTMLElement;
@@ -75,6 +76,7 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
   });
 
   let sources: ReturnType<typeof createSourcesPanel>;
+  let notesPanel: ReturnType<typeof createNotesPanel> | null = null;
   const inspector = createInspector({
     notebookId,
     onClose: () => {
@@ -108,6 +110,7 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
     onSelectionChange: () => {
       chat.updateSelection();
       features.onSelectionChange(sources.sources(), selection.ids());
+      notesPanel?.updateSourceSelection();
     },
     onNotebookMissing: options.notebookMissing,
     onOpenSource: (sourceId) => {
@@ -116,12 +119,25 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
       void inspector.open(sourceId, null);
     },
   });
+  // Right Panel notes pinboard (FR-NM-01..04). A converted note becomes a v1 source: this browser selects it.
+  const notes = createNotesPanel({
+    notebookId,
+    fetcher: authFetch,
+    openCitation,
+    onSourceCreated: async (sourceId) => {
+      selection.markImported(sourceId);
+      await sources.refresh();
+    },
+    selectedSourceIds: () => selection.ids(),
+    onAssistantMessages: (messages) => chat.append(messages),
+  });
+  notesPanel = notes;
   shell.left.append(sources.element, inspector.element);
   shell.center.append(chat.element);
-  shell.right.append(h("p", { class: "studio-placeholder muted", "data-testid": "studio-placeholder", text: "Notes and Studio tools will appear here" }));
+  shell.right.append(notes.element, h("p", { class: "studio-placeholder muted", "data-testid": "studio-placeholder", text: "Studio tools will appear here" }));
 
-  features.bind({ ask: (text) => chat.ask(text), studio: shell.right, openCitation });
-  await Promise.all([sources.refresh(), chat.load()]);
+  features.bind({ ask: (text) => chat.ask(text), studio: shell.right, openCitation, onSavedNote: (note) => notes.showSavedNote(note) });
+  await Promise.all([sources.refresh(), chat.load(), notes.refresh()]);
   features.onSelectionChange(sources.sources(), selection.ids());
   if (options.openAddSources) sources.openAddSources();
   return () => shell.destroy();
