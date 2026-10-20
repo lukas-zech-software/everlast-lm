@@ -384,6 +384,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
           if (guide?.status === "GuideReady") {
             return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };
           }
+          // Without guide generation a missing guide never arrives: report it as unavailable, not endless loading (FR-018).
+          if (!guide && !options.generation) return { ...pair, status: "Failed" };
           return { ...pair, status: guide?.status === "GuideFailed" ? "Failed" : "Pending" };
         })
       );

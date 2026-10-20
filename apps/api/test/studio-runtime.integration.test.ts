@@ -223,3 +223,22 @@ describe("report suggestions start on-demand guides only for supported languages
     }
   });
 });
+
+/** FR-018 / owner default 2026-10-20: no guide generation configured → suggestions unavailable, never endless loading. */
+describe("suggestions with a suggestion model but no guide generation", () => {
+  it("answers SuggestionsUnavailable instead of SuggestionsLoading for guides that can never be generated", async () => {
+    const g = await startNotesApi({ v2: { suggestionModel: new DeterministicReportModel() } });
+    try {
+      const nb = await g.notebook(OWNER);
+      const owner = await g.userId(OWNER);
+      const src = await seedReadySource(g.api.db.pool, owner, nb, { title: "Vendor.txt", mediaType: "text/plain", pages: ["Vendor Beta proposes microservices."], embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT") });
+      for (const body of [{ active_source_ids: [src.sourceId] }, { active_source_ids: [src.sourceId], output_language: "de-DE" }]) {
+        const r = await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, body);
+        expect(r.status).toBe(200);
+        expect(r.json.state).toBe("SuggestionsUnavailable");
+      }
+    } finally {
+      await g.close();
+    }
+  });
+});
