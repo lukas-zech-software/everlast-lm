@@ -40,9 +40,10 @@ export const SourceGuideSchema = z.object({
 }).strict().superRefine((guide, ctx) => {
   if (guide.status === "GuideReady") {
     if (guide.supporting_chunk_ids.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["supporting_chunk_ids"], message: "ready guides require supporting chunks" });
-    const minTopics = guide.source_word_count < 50 ? 1 : 5;
-    if (guide.key_topics.length < minTopics) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["key_topics"], message: `must contain at least ${minTopics} topics for this source length` });
+    // Hard rules: 1..10 topics (1..3 under 50 words), each ≤ 40 code points. "5–10" is the prompt target only:
+    // fewer topics are valid, padding is not (FR-SI-02 card; live Gate v2.0 #1, 2026-10-20).
+    if (guide.key_topics.length < 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["key_topics"], message: "ready guides require at least one key topic" });
     }
     if (guide.source_word_count < 50 && guide.key_topics.length > 3) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["key_topics"], message: "sources under 50 words support at most 3 topics" });

@@ -69,6 +69,27 @@ describe("Vertex StructuredGenerationClient (FR-SI-02, FR-GC-04/05, D3, NFR-SEC-
     expect(request.config.responseSchema.required).toEqual(expect.arrayContaining(["summary_md", "key_topics", "supporting_chunk_ids"]));
   });
 
+  it("states the source word_count and the hard summary/topic limits in the guide instruction (FR-SI-02, live Gate v2.0 #1)", async () => {
+    const fake = fakeTransport([
+      { summary_md: "Zero Trust needs mTLS.", key_topics: ["Zero Trust"], supporting_chunk_ids: [chunk] },
+      { summary_md: "Zero Trust needs mTLS.", key_topics: ["Zero Trust"], supporting_chunk_ids: [chunk] },
+    ]);
+    const client = new VertexStructuredGenerationClient({ project: "everlast-test", createClient: fake.createClient });
+    await client.generateSourceGuide({ source: { ...material, word_count: 372 }, output_language: "en-US" });
+    await client.generateSourceGuide({ source: { ...material, word_count: 45 }, output_language: "en-US" });
+    const long = JSON.parse(fake.requests[0]!.contents).instruction as string;
+    const short = JSON.parse(fake.requests[1]!.contents).instruction as string;
+    expect(long).toMatch(/372 words/);
+    expect(long).toMatch(/never more than 250 words/i);
+    expect(long).toMatch(/5 to 10/);
+    expect(short).toMatch(/45 words/);
+    expect(short).toMatch(/exactly one sentence/i);
+    expect(short).toMatch(/1 to 3/);
+    const schema = fake.requests[0]!.config.responseSchema;
+    expect(schema.properties.key_topics).toMatchObject({ minItems: 1, maxItems: 10 });
+    expect(schema.properties.summary_md.description).toMatch(/250 words/);
+  });
+
   it("reads project and VERTEX_LOCATION from the environment like the embeddings client, and nothing else", () => {
     const source = readFileSync(fileURLToPath(new URL("../src/package-v2-2-gemini.ts", import.meta.url)), "utf8");
     expect(source).not.toMatch(/API_KEY|apiKey/);

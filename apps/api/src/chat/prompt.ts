@@ -43,8 +43,18 @@ export function preferenceLines(preferences?: ResponsePreferences): string[] {
   if (preferences.style === "custom" && preferences.custom_instructions) {
     lines.push(`User style preference (form only): ${preferences.custom_instructions.replace(/\s+/g, " ").slice(0, 5000)}`);
   }
-  if (preferences.response_length === "longer") lines.push("Prefer a more detailed answer when the sources support it.");
-  if (preferences.response_length === "shorter") lines.push("Prefer a concise answer.");
+  // FR-GC-07: concrete length targets (live Gate v2.0, 2026-10-20: the soft "prefer …" lines left all three
+  // lengths identical). Length changes form only; grounding, citations and refusals (FR-GC-01/02) still rule.
+  if (preferences.response_length === "longer") {
+    lines.push(
+      "Length: Longer (replaces \"Be concise\" in rule 8 only). Write a thorough answer of at least 4 sentences, each a claim that cites its supporting chunk_id, covering every relevant supported fact and the surrounding context from the SOURCE CHUNKS (conditions, numbers, owners, dates, exceptions). Never add facts that are not in the SOURCE CHUNKS; if they do not support the question, refuse exactly as the rules require."
+    );
+  }
+  if (preferences.response_length === "shorter") {
+    lines.push(
+      "Length: Shorter. Answer in at most 2 sentences with only the fact(s) directly asked for, and still cite their chunk_id; leave out background, context and lists. Never add facts that are not in the SOURCE CHUNKS."
+    );
+  }
   if (preferences.input_language && preferences.input_language !== "auto") {
     lines.push(`The question is written in ${preferences.input_language}.`);
   }

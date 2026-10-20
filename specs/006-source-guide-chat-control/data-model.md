@@ -7,7 +7,7 @@ All records are scoped to the listed SRS IDs. Inputs use shared UUID and chunk t
 - Identity: `(notebook_id, source_id, revision, output_language)`; source ID is a UUID, revision a positive integer, output language a supported BCP-47 tag (FR-UI-02). A different language is a cache miss and is generated on demand.
 - Fields: `status: GuidePending | GuideReady | GuideFailed`; `output_language`; `source_word_count`; `summary_md`; `key_topics[]`; `supporting_chunk_ids[]`; `ready_at?` (observed `Ready` transition, for latency from `Ready`); `generated_at?`; `error?`.
 - Scope invariant: generation requests C-02 with exactly `[source_id]`; every C-01 chunk belongs to that source and captured revision; the guide never alters user selection.
-- Validation: `<50` source words → one sentence and 1–3 topics; otherwise 100–250 summary words (or shorter only when evidence is insufficient) and 5–10 topics; topic ≤40 code points; topic/summary supporting chunk IDs must exist in scoped C-01 set. Never pad unsupported material.
+- Validation: `<50` source words → one sentence and 1–3 topics; otherwise 100–250 summary words (or shorter only when evidence is insufficient; > 250 rejected) and target 5–10 topics (hard: 1–10); topic ≤40 code points; topic/summary supporting chunk IDs must exist in scoped C-01 set. Never pad unsupported material.
 - Transition: `GuidePending → GuideReady | GuideFailed`; retries are transient and bounded, source remains Ready and viewable on failure.
 
 ## NotebookOverview (`FR-GC-04`)

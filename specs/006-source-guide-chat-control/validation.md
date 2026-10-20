@@ -95,3 +95,36 @@ T074/T080 contract change), T065, T066, T067, T068, T070, T071.
   v2.0 #1 cloud P95 < 10 s from `Ready`; the FR-GC-07 response-length release metric and the judged suite
   (`pnpm eval:judged`), until a deployed run against Vertex AI in `europe-west4` exists.
 - **Pending:** Gate v2.0 #2 (save → convert → cite) until Package 2.3 conversion is proven end to end.
+
+## Live Gate v2.0 fixes, 2026-10-20
+
+Branch `fix/v2-006-live-gate` (base `main` 5a8dbe0, which includes the Gate v2.0 #1 harness from #133). Tasks `[006-source-guide-chat-control] T084–T088`.
+
+**Before (first live Gate v2.0 run, 2026-10-20):**
+- Gate v2.0 #1 (`FR-SI-02`, FR-018): timing passed (P95 2.8 s from `Ready`), but 6/20 guides were rejected, so the gate failed:
+  - `key_topics` "at least 5 topics" (Travel_Policy.md en/de, Infrastructure_Inventory.pdf de).
+  - `summary_md` over 250 words (Vendor_Contracts.md en).
+  - "exactly one sentence" for a source under 50 words (Office_Handbook.pdf en/de).
+- FR-GC-07 (FR-012): Shorter, Default and Longer gave identical token counts (e.g. 15/15/15, 25/25/25). Six eligible synthesis cases had a Default refusal (0 tokens), so the metric failed closed.
+
+**Root causes and fixes:**
+- The contract required at least 5 topics, but the card treats 5–10 as a target ("no unsupported padding"). The hard rules are now 1–10 topics (≤ 3 under 50 words), each ≤ 40 code points (`FR-SI-02`).
+- `Intl.Segmenter` counted Markdown line breaks and German abbreviations as sentence boundaries ("**Title**\n…" = 2; "z. B." = 3; "u. a. … (Fr. 15:30 Uhr)" = 3). It is replaced by the deterministic, linear `countSentences`. Real second sentences are still rejected.
+- The guide instruction now states the source's word count, "never more than 250 words" and, under 50 words, the one-sentence rule, with no line breaks or lists. The response schema also has `minItems: 1` / `maxItems: 10` and a 250-word description. Invalid structured output is still not retried, and 250 words is still a hard limit (rejected, never truncated).
+- The length preferences were soft "prefer …" hints. They now set concrete targets:
+  - Shorter: at most 2 cited sentences with only the asked fact(s).
+  - Longer: at least 4 cited claim sentences covering every relevant supported fact; this replaces "Be concise" in rule 8 only.
+  - Both lines repeat that no fact may come from outside the SOURCE CHUNKS, and Longer refuses exactly as the rules require (`FR-GC-01/02`).
+- FR-GC-07 eligibility: a Default refusal is not "a case whose sources support a longer answer". Such a case is excluded and listed in `excluded_case_ids` (Shorter/Longer are not run for it). If no eligible case remains, the metric fails closed. A Shorter or Longer refusal where Default answered also fails closed.
+
+**Flow-back:** Package 2.2 card (key-topic and summary hard limits; measurable criterion for FR-GC-07), `spec.md` FR-002/FR-012, `plan.md` (limits, evals row), `data-model.md` (guide validation).
+
+**Offline verification (CC-02: T084/T086 first ran red with 4 + 3 expected failures, then passed):**
+- `pnpm lint` passed. `pnpm typecheck` passed.
+- `pnpm test:unit`: 20 files / 278 tests passed.
+- `pnpm test:integration` (`TEST_DATABASE_URL` set): 67 files / 466 tests passed.
+- `pnpm test:e2e`: 37 passed, 1 skipped.
+- `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic`: exit 0. citation_precision 160/160, leakage 0, Gate v2.0 #3 deterministic PASS, FR-GC-07 `unavailable` (judged only).
+- `node scripts/check-spec-integrity.mjs` passed.
+
+**Live verification:** `UNAVAILABLE`. The targeted live check (`runSourceGuideReleaseGate`, project `lukas-gcloud-playground`, `europe-west4`) failed before any model call: every request returned `400 invalid_grant` from Application Default Credentials, because the ADC refresh token had expired. No billable calls were made. Gate v2.0 #1 and the FR-GC-07 numbers stay open (T088) until the owner re-runs `gcloud auth application-default login` and then `pnpm eval:judged` once.

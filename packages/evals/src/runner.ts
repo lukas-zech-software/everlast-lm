@@ -376,7 +376,8 @@ export async function createResponseLengthRunner(env: EvalEnvironment): Promise<
       length = requested;
       const final = await runTurn(ctx, testCase.question, testCase.active);
       const answer = final?.messages.find((m) => m.role === "assistant");
-      return answer?.kind === "answer" ? stripBadges(answer.content ?? "") : "";
+      // A refusal (or no assistant answer) is `null`: excluded for Default, fail-closed for Shorter/Longer (FR-GC-07).
+      return answer?.kind === "answer" ? stripBadges(answer.content ?? "") : null;
     },
     async close() {
       await rm(dir, { recursive: true, force: true });
