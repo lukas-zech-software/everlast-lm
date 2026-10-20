@@ -27,6 +27,7 @@ import {
   getSource,
   getSourceGuide,
   InMemoryStudioArtifactRepository,
+  listAllSnapshotChunks,
   listSnapshotChunks,
   listSources,
   listThreadMessages,
@@ -47,6 +48,7 @@ import { InlineStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
 import { ReportGeneratorPlugin } from "@everlast/worker/studio/reports/plugin";
 import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
+import type { ReportModelClient } from "@everlast/worker/studio/reports/model";
 import { ReportSuggestionService } from "@everlast/worker/studio/reports/suggestions";
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
@@ -94,6 +96,11 @@ export interface V2RuntimeOptions {
   embedder?: Embedder | undefined;
   /** Wakes the worker so the durable ingest job of a converted note settles (it finds the source already done). */
   notifyJobs?: (() => void) | undefined;
+  /**
+   * Studio report model (FR-ST-10/11): Vertex AI Flash from `server.ts` when Vertex is configured; absent →
+   * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
+   */
+  reportModel?: ReportModelClient | undefined;
 }
 
 export interface V2Runtime {
@@ -334,11 +341,19 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
   const repo = new InMemoryStudioArtifactRepository();
   const registry = new StudioPluginRegistry();
-  // No Gemini report adapter exists yet: the deterministic, citation-checked extractor is used (D16).
   const reportModel = new DeterministicReportModel();
-  registry.register(new ReportGeneratorPlugin(reportModel));
+  registry.register(new ReportGeneratorPlugin(options.reportModel ?? reportModel));
   const access = { resolveSnapshot, verifySnapshot };
-  const runner = new StudioJobRunner({ repo, registry, scopedContext: provider, access });
+  // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
+  // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
+  const studioContext = {
+    async getScopedContext(notebookId: string, activeSourceIds: string[]): Promise<UnifiedDocumentChunk[]> {
+      const owner = ownerOf(notebookId);
+      if (!owner) throw new InvalidScopeError("Notebook is not available");
+      return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
+    },
+  };
+  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access });
   // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
   const runAndTouch = {
     async run(id: string) {

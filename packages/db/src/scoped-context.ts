@@ -164,6 +164,42 @@ export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot,
   return filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
 }
 
+/**
+ * Loads EVERY chunk of a captured snapshot in reading order (source_id, sequence) through keyset-paged queries of
+ * `pageSize` rows (Constitution IV, D12: large-context Studio jobs process all original scoped chunks; callers bound
+ * model work with batches). Each page is hard-filtered on notebook and (source_id, revision) and passes the shared
+ * membership check. Chat, Source Guide and Note Assistant keep their bounded `listSnapshotChunks` reads.
+ */
+export async function listAllSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, pageSize = 500): Promise<UnifiedDocumentChunk[]> {
+  if (snapshot.sources.length === 0) return [];
+  const size = Math.max(1, Math.floor(pageSize));
+  const out: UnifiedDocumentChunk[] = [];
+  let cursor: { source_id: string; sequence: number } | null = null;
+  for (;;) {
+    const result: { rows: (ChunkRow & { sequence: number })[] } = await db.query<ChunkRow & { sequence: number }>(
+      `SELECT c.chunk_id, c.source_id, c.revision, c.locator, c.token_count, c.text, c.sequence, 0::float8 AS score
+       FROM chunks c JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
+         ON s.source_id = c.source_id AND s.revision = c.revision
+       WHERE c.notebook_id = $1 AND ($4::uuid IS NULL OR (c.source_id, c.sequence) > ($4::uuid, $5::int))
+       ORDER BY c.source_id, c.sequence
+       LIMIT $6`,
+      [
+        snapshot.notebook_id,
+        snapshot.sources.map((p) => p.source_id),
+        snapshot.sources.map((p) => p.revision),
+        cursor?.source_id ?? null,
+        cursor?.sequence ?? 0,
+        size,
+      ]
+    );
+    out.push(...filterScopedChunks(snapshot.sources, result.rows.map(toChunk)));
+    const last = result.rows.at(-1);
+    if (!last || result.rows.length < size) break;
+    cursor = { source_id: last.source_id, sequence: last.sequence };
+  }
+  return out;
+}
+
 export interface InspectorPage {
   page_number: number;
   physical_page?: number;
