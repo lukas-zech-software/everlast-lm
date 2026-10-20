@@ -20,6 +20,13 @@ export interface ChatPanelOptions {
   tools?: HTMLElement[];
   intro?: HTMLElement;
   decorateAnswer?(bubble: HTMLElement, message: ChatMessage, fresh: boolean): void;
+  /** One row directly above the chat input bar (FR-GC-05 follow-up chips). */
+  aboveInput?: HTMLElement;
+  /** Called when a turn starts streaming and when it ends (FR-GC-05: chips are hidden while streaming). */
+  onStreamStart?(): void;
+  onStreamEnd?(): void;
+  /** Whether the notebook has any source; without one the overview shows "Add a source to get started" (FR-GC-04). */
+  hasSources?(): boolean;
 }
 
 export interface ChatPanel {
@@ -146,6 +153,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     status,
     errorLine,
     prompt,
+    ...(options.aboveInput ? [options.aboveInput] : []),
     h("div", { class: "chat-input-bar" }, input, h("div", { class: "chat-input-meta" }, pill, send))
   );
 
@@ -179,7 +187,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     pill.textContent = sourcesLabel(count);
     const empty = count === 0;
     send.disabled = empty || inflight !== null;
-    prompt.hidden = !empty;
+    prompt.hidden = !empty || options.hasSources?.() === false;
   };
 
   const submit = async () => {
@@ -198,6 +206,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     messages.append(pending);
     scrollToEnd();
     inflight = new AbortController();
+    options.onStreamStart?.();
     updateSelection();
     status.hidden = false;
     status.textContent = PHASE_LABEL.retrieving!;
@@ -230,6 +239,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     } finally {
       inflight = null;
       status.hidden = true;
+      options.onStreamEnd?.();
       updateSelection();
     }
   };

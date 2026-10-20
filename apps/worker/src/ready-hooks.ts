@@ -13,6 +13,8 @@ export interface ReadySourceEvent {
   revision_id: number;
   title: string;
   media_type: string;
+  /** Observed `Ready` transition (source `updated_at` when it became Ready); Source Guide latency starts here (FR-018). */
+  ready_at?: string | undefined;
 }
 
 export type ReadySourceHook = (event: ReadySourceEvent) => Promise<unknown>;

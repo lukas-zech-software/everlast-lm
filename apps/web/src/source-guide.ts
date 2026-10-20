@@ -8,6 +8,12 @@ export interface SourceGuideControllerOptions {
   notebookId: string;
   fetcher?: typeof fetch;
   onTopic?: (topic: string, sourceId: string) => void;
+  /**
+   * Whether the source is in the user's current selection (FR-SI-02, binding scope rule). A topic chip sends
+   * only for a selected source; otherwise the guide shows a select-sources prompt and never changes the
+   * selection. Absent → the caller sends unconditionally.
+   */
+  isSelected?: (sourceId: string) => boolean;
 }
 
 export class SourceGuideController {
@@ -63,13 +69,19 @@ export class SourceGuideController {
       ? (guide.key_topics ?? []).map((topic) => `<button type="button" data-topic="${escapeHtml(topic)}">${escapeHtml(topic)}</button>`).join("")
       : "";
     const label = guide?.status === "GuideReady" ? "Source guide" : guide?.status === "GuideFailed" ? "Guide unavailable" : "Guide is being prepared";
-    container.innerHTML = `<section class="source-guide" data-status="${guide?.status ?? "GuidePending"}"><button type="button" class="source-guide-toggle" aria-expanded="${this.expanded}">${label}</button><div class="source-guide-content" ${this.expanded ? "" : "hidden"}>${summary}${topics}${guide?.status === "GuideFailed" ? `<p>${escapeHtml(guide.error ?? "")}</p>` : ""}</div></section>`;
+    const selectPrompt = `<p class="source-guide-select-prompt" data-testid="source-guide-select-prompt" role="status" hidden>Select this source to ask about its topics.</p>`;
+    container.innerHTML = `<section class="source-guide" data-status="${guide?.status ?? "GuidePending"}"><button type="button" class="source-guide-toggle" aria-expanded="${this.expanded}">${label}</button><div class="source-guide-content" ${this.expanded ? "" : "hidden"}>${summary}${topics}${selectPrompt}${guide?.status === "GuideFailed" ? `<p>${escapeHtml(guide.error ?? "")}</p>` : ""}</div></section>`;
     container.querySelector(".source-guide-toggle")?.addEventListener("click", () => {
       this.expanded = !this.expanded;
       this.render(container);
     });
+    const prompt = container.querySelector<HTMLElement>("[data-testid=source-guide-select-prompt]");
     container.querySelectorAll<HTMLButtonElement>("[data-topic]").forEach((button) => button.addEventListener("click", () => {
-      if (this.sourceId) this.options.onTopic?.(button.dataset.topic ?? "", this.sourceId);
+      const sourceId = this.sourceId;
+      if (!sourceId) return;
+      const selected = this.options.isSelected?.(sourceId) ?? true;
+      if (prompt) prompt.hidden = selected;
+      if (selected) this.options.onTopic?.(button.dataset.topic ?? "", sourceId);
     }));
   }
 }

@@ -20,6 +20,7 @@ import { buildPdf, wrapLines } from "@everlast/testkit/pdf-builder";
 import { buildCorpus, type CorpusDocument } from "./corpus.ts";
 import type { GoldenCaseV1 } from "./dataset.ts";
 import type { Judge } from "./judge.ts";
+import type { ResponseLength, ResponseLengthRunner } from "./response-length.ts";
 import { containsForbidden, judgeMetric, ratio, type MetricResult } from "./metrics.ts";
 
 /**
@@ -345,4 +346,40 @@ async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<v
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
     while (next < items.length) await fn(items[next++]!);
   }));
+}
+
+/**
+ * FR-GC-07 response-length runner for the judged release run: one notebook with the ingested corpus, each
+ * answer from an empty thread through the production chat pipeline with the requested response length.
+ */
+export async function createResponseLengthRunner(env: EvalEnvironment): Promise<ResponseLengthRunner & { close(): Promise<void> }> {
+  const dir = await mkdtemp(join(tmpdir(), "everlast-eval-length-"));
+  const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: "http://localhost" });
+  const { rows } = await env.pool.query<{ id: string }>(
+    "INSERT INTO users (id, issuer, subject) VALUES ($1, 'https://eval.everlast.local', $2) RETURNING id",
+    [randomUUID(), `eval-length-${randomUUID()}`]
+  );
+  const ownerId = rows[0]!.id;
+  const { notebook } = await createNotebook(env.pool, ownerId, { title: "FR-GC-07 response length" });
+  const { sources } = await ingestCorpus(env, storage, ownerId, notebook.id, buildCorpus());
+  let length: ResponseLength = "default";
+  const chat = new ChatService({
+    pool: env.pool,
+    embedder: env.embedder,
+    model: env.model,
+    resolvePreferences: async () => ({ style: "default", response_length: length, input_language: "auto", output_language: "en-US" }),
+  });
+  const ctx: NotebookContext = { pool: env.pool, notebookId: notebook.id, ownerId, sources, chat, observations: [] };
+  return {
+    async answer(testCase, requested) {
+      await clearThread(env.pool, ownerId, notebook.id);
+      length = requested;
+      const final = await runTurn(ctx, testCase.question, testCase.active);
+      const answer = final?.messages.find((m) => m.role === "assistant");
+      return answer?.kind === "answer" ? stripBadges(answer.content ?? "") : "";
+    },
+    async close() {
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
 }

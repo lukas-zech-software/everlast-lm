@@ -85,7 +85,9 @@ export function renderResponseActions(container: HTMLElement, input: {
   const categoryInput = feedbackForm?.querySelector("select") as HTMLSelectElement | null;
   const commentInput = feedbackForm?.querySelector("textarea") as HTMLTextAreaElement | null;
   const clipboard = input.clipboard ?? navigator.clipboard;
-  const updateRating = (rating: "up" | "down") => {
+  let activeRating: "up" | "down" | null = null;
+  const updateRating = (rating: "up" | "down" | null) => {
+    activeRating = rating;
     container.querySelector<HTMLButtonElement>('[data-action="feedback-up"]')?.setAttribute("aria-pressed", String(rating === "up"));
     container.querySelector<HTMLButtonElement>('[data-action="feedback-down"]')?.setAttribute("aria-pressed", String(rating === "down"));
   };
@@ -98,6 +100,14 @@ export function renderResponseActions(container: HTMLElement, input: {
     updateRating(rating);
     if (feedbackForm) feedbackForm.setAttribute("hidden", "");
     if (status) status.textContent = "Feedback saved";
+  };
+  // FR-014: clicking the active thumb clears the rating (one record per user and message).
+  const clearFeedback = async () => {
+    const response = await fetcher(`/api/notebooks/${input.notebookId}/chat/messages/${input.messageId}/feedback`, { method: "DELETE" });
+    if (!response.ok) throw new Error("Could not clear feedback");
+    updateRating(null);
+    if (feedbackForm) feedbackForm.setAttribute("hidden", "");
+    if (status) status.textContent = "Feedback cleared";
   };
   feedbackForm?.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -112,16 +122,18 @@ export function renderResponseActions(container: HTMLElement, input: {
           await copyResponse(input.content, input.citations, action === "copy-citations", clipboard);
           if (status) status.textContent = "Copied";
         } else if (action === "feedback-up") {
-          await sendFeedback("up");
+          if (activeRating === "up") await clearFeedback();
+          else await sendFeedback("up");
         } else if (action === "feedback-down") {
-          feedbackForm?.removeAttribute("hidden");
+          if (activeRating === "down") await clearFeedback();
+          else feedbackForm?.removeAttribute("hidden");
         } else if (action === "save-note") {
           button.disabled = true;
           const response = await fetcher(`/api/notebooks/${input.notebookId}/chat/messages/${input.messageId}/note`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notebook_id: input.notebookId, message_id: input.messageId }) });
           if (!response.ok) throw new Error("Could not save note");
           const result = await response.json() as { note: SavedResponseNote };
           input.onSavedNote?.(result.note);
-          if (status) status.textContent = `Saved: ${result.note.title}`;
+          if (status) status.textContent = "Saved to notes";
         }
       } catch {
         if (status) status.textContent = "Action failed";
@@ -172,10 +184,11 @@ export function formatChatConfigurationLabel(configuration: ChatConfig): string 
   return `Style: ${styles[configuration.style]} · Length: ${lengths[configuration.response_length]}`;
 }
 
-export function renderNotebookOverview(container: HTMLElement, input: { notebookTitle: string; sourceCount: number; overview: string; starterPrompts: string[]; onPrompt: (prompt: string) => void }): void {
+export function renderNotebookOverview(container: HTMLElement, input: { notebookTitle: string; notebookIcon?: string | undefined; sourceCount: number; overview: string; starterPrompts: string[]; onPrompt: (prompt: string) => void }): void {
   container.innerHTML = "";
   const heading = document.createElement("h3");
-  heading.textContent = `📓 ${input.notebookTitle} · ${input.sourceCount} ${input.sourceCount === 1 ? "source" : "sources"}`;
+  // FR-GC-04 / FR-006: the notebook's own icon (FR-WM-02), falling back to the default.
+  heading.textContent = `${input.notebookIcon || "📓"} ${input.notebookTitle} · ${input.sourceCount} ${input.sourceCount === 1 ? "source" : "sources"}`;
   container.appendChild(heading);
   const summary = document.createElement("p");
   summary.textContent = input.overview;
@@ -187,4 +200,14 @@ export function renderNotebookOverview(container: HTMLElement, input: { notebook
     button.addEventListener("click", () => input.onPrompt(prompt));
     container.appendChild(button);
   }
+}
+
+/** FR-GC-04 / FR-007: the notebook has no sources (none uploaded yet, or all deleted). */
+export function renderAddSourceEmptyState(container: HTMLElement): void {
+  while (container.firstChild) container.removeChild(container.firstChild);
+  const message = document.createElement("p");
+  message.className = "muted";
+  message.setAttribute("data-testid", "add-source-empty-state");
+  message.textContent = "Add a source to get started";
+  container.appendChild(message);
 }

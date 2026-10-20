@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   FollowUpSuggestionsSchema,
+  type FollowUpChip,
   NotebookOverviewSchema,
   SourceGuideSchema,
   type FollowUpSuggestions,
@@ -73,7 +74,8 @@ export function createC02PackageV22SourceReader(input: {
 export interface StructuredGenerationClient {
   generateSourceGuide(input: { source: ScopedSourceMaterial; output_language: string }): Promise<Pick<SourceGuide, "summary_md" | "key_topics" | "supporting_chunk_ids">>;
   generateOverview(input: { sources: ScopedSourceMaterial[]; output_language: string }): Promise<Pick<NotebookOverview, "overview_md" | "starter_prompts" | "supporting_chunk_ids">>;
-  generateFollowUps(input: { answer: string; sources: ScopedSourceMaterial[]; output_language: string }): Promise<Pick<FollowUpSuggestions, "suggested_followups" | "supporting_chunk_ids">>;
+  /** Each chip carries the chunk IDs it can be answered from (FR-GC-05, FR-008). */
+  generateFollowUps(input: { answer: string; sources: ScopedSourceMaterial[]; output_language: string }): Promise<{ suggested_followups: FollowUpChip[] }>;
 }
 export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>;
@@ -101,10 +103,16 @@ function assertSingleSentence(text: string, locale: string): void {
 
 export async function generateSourceGuide(input: {
   notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string;
+  /** Observed `Ready` transition; stored so latency is measured from `Ready` (FR-018). */
+  ready_at?: string | undefined;
   reader: PackageV22SourceReader; model: StructuredGenerationClient; retry?: RetryOptions;
 }): Promise<SourceGuide> {
   const snapshot = [{ source_id: input.source_id, revision: input.revision }];
-  const pending: SourceGuide = { notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision, status: "GuidePending", source_word_count: 0, summary_md: "Generation pending", key_topics: [], supporting_chunk_ids: [] };
+  const pending: SourceGuide = {
+    notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision, output_language: input.output_language,
+    status: "GuidePending", source_word_count: 0, summary_md: "Generation pending", key_topics: [], supporting_chunk_ids: [],
+    ...(input.ready_at ? { ready_at: input.ready_at } : {}),
+  };
   let authorized = false;
   try {
     const sources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: snapshot });
@@ -133,13 +141,15 @@ export async function generateSourceGuide(input: {
     validateSupport(generated.supporting_chunk_ids, currentSources);
     if (wordCount < 50) assertSingleSentence(generated.summary_md, input.output_language);
     const ready = SourceGuideSchema.parse({
-      notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision,
-      status: "GuideReady", source_word_count: wordCount, ...generated, generated_at: new Date().toISOString(),
+      ...pending, status: "GuideReady", source_word_count: wordCount,
+      summary_md: generated.summary_md, key_topics: generated.key_topics, supporting_chunk_ids: generated.supporting_chunk_ids,
+      generated_at: new Date().toISOString(),
     });
     return await saveSourceGuide(ready);
   } catch (error) {
     if (authorized) {
-      const failed: SourceGuide = { ...pending, status: "GuideFailed", error: error instanceof Error ? error.message : "Guide generation failed" };
+      // Fixed text only: model/upstream error details never reach stored or returned guide state (NFR-SEC-01).
+      const failed: SourceGuide = { ...pending, status: "GuideFailed", error: "Source Guide generation failed" };
       await saveSourceGuide(failed);
     }
     throw error;
@@ -160,13 +170,14 @@ export async function generateNotebookOverview(input: {
   const cacheKey = createHash("sha256").update(JSON.stringify({ notebook_id: input.notebook_id, user_id: input.user_id, scope, output_language: input.output_language, parameters })).digest("hex");
   const sources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: scope });
   assertExactScope(scope, sources);
+  const authorizationKey = createHash("sha256").update(input.user_id).digest("hex");
   const cached = await getOverview(cacheKey);
-  if (cached?.authorization_key === input.user_id) return cached;
+  if (cached?.authorization_key === authorizationKey) return cached;
   const result = await input.model.generateOverview({ sources, output_language: input.output_language });
   const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: scope });
   assertExactScope(scope, currentSources);
   validateSupport(result.supporting_chunk_ids, currentSources, true);
-  return saveOverview(NotebookOverviewSchema.parse({ notebook_id: input.notebook_id, source_revisions: scope, authorization_key: createHash("sha256").update(input.user_id).digest("hex"), output_language: input.output_language, generation_parameters: parameters, cache_key: cacheKey, ...result, generated_at: new Date().toISOString() }));
+  return saveOverview(NotebookOverviewSchema.parse({ notebook_id: input.notebook_id, source_revisions: scope, authorization_key: authorizationKey, output_language: input.output_language, generation_parameters: parameters, cache_key: cacheKey, ...result, generated_at: new Date().toISOString() }));
 }
 
 export async function generateFollowUps(input: {
@@ -180,8 +191,10 @@ export async function generateFollowUps(input: {
   const result = await input.model.generateFollowUps({ answer: input.answer, sources, output_language: input.output_language });
   const currentSources = await input.reader.readReadySources({ notebook_id: input.notebook_id, user_id: input.user_id, source_revisions: input.source_revisions });
   assertExactScope(input.source_revisions, currentSources);
-  validateSupport(result.supporting_chunk_ids, currentSources);
-  return FollowUpSuggestionsSchema.parse({ ...result, source_revisions: input.source_revisions, generated_at: new Date().toISOString() });
+  // FR-008 / C-02: a chip whose support is missing or outside the current scope is dropped; the others survive.
+  const allowed = new Set(currentSources.flatMap((source) => source.chunks.map((chunk) => chunk.chunk_id)));
+  const chips = result.suggested_followups.filter((chip) => chip.supporting_chunk_ids.length > 0 && chip.supporting_chunk_ids.every((id) => allowed.has(id)));
+  return FollowUpSuggestionsSchema.parse({ suggested_followups: chips, source_revisions: input.source_revisions, output_language: input.output_language, generated_at: new Date().toISOString() });
 }
 
 function assertExactScope(scope: SourceRevisionPair[], sources: ScopedSourceMaterial[]): void {

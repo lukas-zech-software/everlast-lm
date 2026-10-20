@@ -35,8 +35,8 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
   document.title = `${data.notebook.title} · Everlast LM`;
   const shell = createWorkspaceShell(root);
   const selection = new SelectionModel(notebookId);
-  const features = createWorkspaceFeatures({ notebookId, notebookTitle: data.notebook.title });
   const icon = (data.notebook as { icon_emoji?: string }).icon_emoji;
+  const features = createWorkspaceFeatures({ notebookId, notebookTitle: data.notebook.title, notebookIcon: icon });
   // FR-WM-02: the header icon is the same picker as on the home card (saved through PATCH /icon).
   const headerIcon = icon ? renderIconPicker({ id: notebookId, title: data.notebook.title, icon_emoji: icon }, () => undefined, "workspace-notebook-icon") : null;
   headerIcon?.classList.add("workspace-notebook-icon");
@@ -97,6 +97,10 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
     tools: features.chatTools,
     intro: features.chatIntro,
     decorateAnswer: (bubble, message, fresh) => features.decorateAnswer(bubble, message, fresh),
+    aboveInput: features.followUpBar,
+    onStreamStart: () => features.onStreamStart(),
+    onStreamEnd: () => features.onStreamEnd(),
+    hasSources: () => (sources ? sources.sources().length > 0 : true),
   });
   sources = createSourcesPanel({
     notebookId,

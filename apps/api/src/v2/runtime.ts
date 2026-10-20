@@ -21,6 +21,7 @@ import {
   createNote,
   forgetNotebook,
   getChatConfiguration,
+  getNotebook,
   getNoteSource,
   getNotebookRaw,
   getOrCreateThread,
@@ -54,7 +55,7 @@ import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
 import { NotesService } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
-import { handlePackageV22Route, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
+import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
 import { handleStudioRoute } from "../routes/studio.ts";
 import { handleWorkspacePreferencesRoute } from "../routes/workspace-preferences.ts";
 import { WorkspacePreferencesService } from "../services/workspace-preferences.ts";
@@ -83,6 +84,11 @@ export interface V2RuntimeOptions {
   generation?: StructuredGenerationClient | undefined;
   /** Topic emoji for a notebook's first Ready source (FR-WM-02). */
   topicEmoji?: TopicEmojiSelector | undefined;
+  /**
+   * Ready-transition watcher (FR-SI-02, Gate v2.0 #1): polls PostgreSQL at this bounded interval and starts the
+   * Ready-source hooks without waiting for a source listing. Absent → listing-time dispatch only.
+   */
+  readyWatch?: { intervalMs: number; batchSize?: number } | undefined;
 }
 
 export interface V2Runtime {
@@ -92,10 +98,14 @@ export interface V2Runtime {
   syncNotebook(userId: string, notebook: NotebookDto): Notebook;
   /** Advances `updated_at` of an authorized notebook after a source write (FR-WM-02). */
   notebookModified(userId: string, notebook: NotebookDto): Promise<void>;
-  /** Updates Ready counts and starts Ready-source hooks after the API listed a notebook's sources. */
+  /** Updates Ready counts and starts Ready-source hooks after the API listed a notebook's sources (fallback to the watcher). */
   syncSources(userId: string, notebookId: string, sources: SourceRecord[]): void;
   notebookDeleted(notebookId: string): Promise<void>;
   chatPreferences(userId: string, notebookId: string, browserLocale?: string): Promise<ResponsePreferences>;
+  /** One watcher pass: dispatches Ready-source hooks for new `(source_id, active_revision)` Ready transitions. */
+  pollReadySources(): Promise<number>;
+  /** Stops background work (the Ready watcher). */
+  close(): void;
 }
 
 const NOTE_SOURCE_CHUNK_LIMIT = 200;
@@ -210,33 +220,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     },
     ...(options.generation ? { model: options.generation } : {}),
     resolveOwner: async (notebookId) => ownerOf(notebookId),
+    // FR-UI-02: background work has no browser locale, so notebook > user > en-US.
+    resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
-  const v22Deps: PackageV22ApiDependencies = {
-    // The API checked notebook ownership in PostgreSQL before any v2 handler runs.
-    authorizeNotebook: async (userId, notebookId) => ownerOf(notebookId) === userId,
-    authorizeSource: async (userId, notebookId, sourceId) => {
-      try {
-        const source = await getSource(pool, userId, notebookId, sourceId);
-        return { exists: true, ready: source.status === "Ready", revision: source.active_revision ?? 0 };
-      } catch (err) {
-        if (err instanceof AppError && err.status === 404) return { exists: false, ready: false, revision: 0 };
-        throw err;
-      }
-    },
-    ...(options.generation
-      ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps }
-      : {}),
+  // On-demand guides for another output language (FR-SI-02): one background run per (source, revision, language).
+  const guideRuns = new Set<string>();
+  const startGuide = (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => {
+    const key = `${input.notebook_id}:${input.source_id}:${input.revision}:${input.output_language}`;
+    if (guideRuns.has(key)) return;
+    guideRuns.add(key);
+    // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
+    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
   };
-
-  // ---- Ready-source hooks: Source Guide (2.2) and topic icon (2.1) --------------------------------------
-  const hooks: ReadySourceHook[] = [];
-  if (options.generation) hooks.push((event) => v22.onSourceReady(event));
-  if (options.topicEmoji) {
-    const selector = options.topicEmoji;
-    hooks.push((event) => applyTopicIcon(event, selector));
-  }
-  const dispatchReady = createReadySourceDispatcher(hooks);
-
   // ---- Package 2.3: notes -------------------------------------------------------------------------------
   const notes = new NotesService({
     ingestor: createNoteMarkdownIngestor(),
@@ -250,6 +245,97 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     sourceTitles,
     onNotebookModified: touchNotebookModified,
   });
+  const v22Deps: PackageV22ApiDependencies = {
+    // The API checked notebook ownership in PostgreSQL before any v2 handler runs.
+    authorizeNotebook: async (userId, notebookId) => ownerOf(notebookId) === userId,
+    authorizeSource: async (userId, notebookId, sourceId) => {
+      try {
+        const source = await getSource(pool, userId, notebookId, sourceId);
+        return { exists: true, ready: source.status === "Ready", revision: source.active_revision ?? 0 };
+      } catch (err) {
+        if (err instanceof AppError && err.status === 404) return { exists: false, ready: false, revision: 0 };
+        throw err;
+      }
+    },
+    resolveOutputLanguage: async (userId, notebookId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
+    // FR-GC-09 / FR-NM-02: the shared save-note route writes the Package 2.3 notes store.
+    saveNote: savedResponseNoteSaver(notes),
+    ...(options.generation
+      ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps, startGuide }
+      : {}),
+  };
+
+  // ---- Ready-source hooks: Source Guide (2.2) and topic icon (2.1) --------------------------------------
+  const hooks: ReadySourceHook[] = [];
+  if (options.generation) hooks.push((event) => v22.onSourceReady(event));
+  if (options.topicEmoji) {
+    const selector = options.topicEmoji;
+    hooks.push((event) => applyTopicIcon(event, selector));
+  }
+  const dispatchReady = createReadySourceDispatcher(hooks);
+
+  // ---- Ready watcher (FR-SI-02, Gate v2.0 #1, D16: single API instance) --------------------------------
+  // Each poll pages with a keyset cursor over (updated_at, id) from READY_LOOKBACK_MS before the newest Ready
+  // transition seen, until a short page. The lookback catches transactions that committed late; keyset paging
+  // guarantees progress past full pages; `watched` skips (source, revision) pairs already dispatched.
+  const READY_LOOKBACK_MS = 30_000;
+  const readyBatch = Math.max(1, options.readyWatch?.batchSize ?? 500);
+  const watched = new Set<string>();
+  let readyHighWater: Date | null = null;
+  const pollReadySources = async (): Promise<number> => {
+    if (hooks.length === 0) return 0;
+    if (!readyHighWater) readyHighWater = (await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now;
+    // The cursor keeps PostgreSQL's microsecond text form: a JS Date would truncate it and re-read the same rows.
+    let cursor: { at: string; id: string } = { at: new Date(readyHighWater.getTime() - READY_LOOKBACK_MS).toISOString(), id: "00000000-0000-0000-0000-000000000000" };
+    let dispatched = 0;
+    for (;;) {
+      const { rows } = await pool.query<{ id: string; notebook_id: string; active_revision: number; title: string; media_type: string; updated_at: Date; cursor_at: string; owner_id: string }>(
+        `SELECT s.id, s.notebook_id, s.active_revision, s.title, s.media_type, s.updated_at, s.updated_at::text AS cursor_at, n.owner_id
+           FROM sources s JOIN notebooks n ON n.id = s.notebook_id
+          WHERE s.status = 'Ready' AND s.active_revision IS NOT NULL AND (s.updated_at, s.id) > ($1::timestamptz, $2::uuid)
+          ORDER BY s.updated_at, s.id
+          LIMIT $3`,
+        [cursor.at, cursor.id, readyBatch]
+      );
+      for (const row of rows) {
+        cursor = { at: row.cursor_at, id: row.id };
+        if (row.updated_at > readyHighWater) readyHighWater = row.updated_at;
+        const key = `${row.id}:${row.active_revision}`;
+        if (watched.has(key)) continue;
+        try {
+          // Ownership comes from PostgreSQL; mirror the notebook so v2 reads it like a request would (D16).
+          if (!ownerOf(row.notebook_id)) rememberNotebook({ ...(await getNotebook(pool, row.owner_id, row.notebook_id)), owner_id: row.owner_id });
+        } catch {
+          continue; // notebook deleted meanwhile
+        }
+        watched.add(key);
+        dispatched += 1;
+        void dispatchReady({
+          notebook_id: row.notebook_id,
+          source_id: row.id,
+          revision_id: row.active_revision,
+          title: row.title,
+          media_type: row.media_type,
+          ready_at: row.updated_at.toISOString(),
+        });
+      }
+      if (rows.length < readyBatch) break;
+    }
+    return dispatched;
+  };
+  let readyTimer: ReturnType<typeof setInterval> | null = null;
+  if (options.readyWatch && hooks.length > 0) {
+    let running = false;
+    readyTimer = setInterval(() => {
+      if (running) return;
+      running = true;
+      pollReadySources()
+        .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 ready watcher: ${(err as Error).message}` })))
+        .finally(() => (running = false));
+    }, Math.max(10, options.readyWatch.intervalMs));
+    readyTimer.unref?.();
+  }
+
   const sourceSlots = async (notebookId: string) => ({
     used: (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId),
     limit: options.sourceLimit,
@@ -326,6 +412,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
           revision_id: s.active_revision!,
           title: s.title,
           media_type: s.media_type,
+          ready_at: s.updated_at,
         };
         void dispatchReady(event);
       }
@@ -346,6 +433,11 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         input_language: languages.input_language,
         output_language: languages.output_language,
       };
+    },
+    pollReadySources,
+    close() {
+      if (readyTimer) clearInterval(readyTimer);
+      readyTimer = null;
     },
   };
 }

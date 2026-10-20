@@ -7,7 +7,8 @@ import { AdkGroundedModel } from "@everlast/api/chat/model";
 import { assertDatasetMinimums, buildGoldenDataset, corpusHash, datasetCounts, datasetHash, DATASET_VERSION, releaseSample, RELEASE_SAMPLE_SIZE } from "./dataset.ts";
 import { AdversarialCitingModel, LexicalCitingModel } from "./deterministic-models.ts";
 import { VertexJudge } from "./judge.ts";
-import { runEvaluation, type EvalRunResult } from "./runner.ts";
+import { createResponseLengthRunner, runEvaluation, type EvalRunResult } from "./runner.ts";
+import { runResponseLengthEval, type ResponseLengthMetric } from "./response-length.ts";
 import { runSecurityPreflight } from "./security-preflight.ts";
 import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence } from "./report.ts";
 
@@ -90,6 +91,8 @@ try {
   let run: EvalRunResult;
   let models: Record<string, string>;
   let preflight = null;
+  // FR-GC-07: measured only in the judged release run on the fixed sample; UNAVAILABLE otherwise.
+  let responseLength: ResponseLengthMetric = await runResponseLengthEval(null, selected);
 
   if (mode === "deterministic") {
     const embedder = new HashingTestEmbedder();
@@ -137,10 +140,19 @@ try {
     });
     if (!preflight.passed) log(`NFR-SEC-01 preflight failed: ${preflight.checks.filter((c) => c.status !== "pass").map((c) => c.id).join(", ")}`);
     run = await runEvaluation({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log }, selected);
+    if (!full && !onlyCases) {
+      const lengthRunner = await createResponseLengthRunner({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log });
+      try {
+        responseLength = await runResponseLengthEval(lengthRunner, selected);
+        log(`FR-GC-07 response length: ${responseLength.status} (shorter ${responseLength.shorter_ratio}, longer ${responseLength.longer_ratio})`);
+      } finally {
+        await lengthRunner.close();
+      }
+    }
     models = { chat: chat.id, embedding: `vertex:${vertex.location}:${embedder.model}`, judge: `vertex:${vertex.location}:${judge.model}`, ocr: ocr.name };
   }
 
-  const report = buildGateReport({ mode, commit: commit(), run, preflight, ui: await readUiEvidence(), dataset, models });
+  const report = buildGateReport({ mode, commit: commit(), run, preflight, ui: await readUiEvidence(), dataset, models, responseLength });
   if (onlyCases) {
     // Diagnostic subset: never gate evidence and never overwrites the release report.
     report.state = report.state === "GateFailed" ? "GateFailed" : "GatePending";

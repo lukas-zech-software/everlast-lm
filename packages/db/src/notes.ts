@@ -143,7 +143,7 @@ function savedResponseTitle(content: string): string {
 export async function saveResponseAsNote(
   notebookId: string,
   ownerId: string,
-  input: { message_id: string; content: string; citations: Citation[] }
+  input: { message_id: string; content: string; citations: Citation[]; title?: string | undefined }
 ): Promise<{ note: Note; created: boolean }> {
   for (const n of noteStore.values()) {
     if (n.notebook_id === notebookId && n.owner_id === ownerId && n.source_message_id === input.message_id) {
@@ -151,7 +151,7 @@ export async function saveResponseAsNote(
     }
   }
   const note = insert(notebookId, ownerId, {
-    title: savedResponseTitle(input.content),
+    title: input.title ?? savedResponseTitle(input.content),
     content_md: input.content,
     origin_type: "saved_response",
     source_message_id: input.message_id,

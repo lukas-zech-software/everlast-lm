@@ -4,6 +4,8 @@ import type { ChatMessage, SourceDto } from "../lib/types.ts";
 import {
   ChatControlController,
   formatChatConfigurationLabel,
+  scopeSignature,
+  renderAddSourceEmptyState,
   renderNotebookOverview,
   renderResponseActions,
   renderSavedResponseNote,
@@ -30,6 +32,8 @@ import {
 export interface WorkspaceFeaturesOptions {
   notebookId: string;
   notebookTitle: string;
+  /** Notebook icon (FR-WM-02) shown in the overview hero (FR-GC-04). */
+  notebookIcon?: string | undefined;
 }
 
 export interface WorkspaceFeatures {
@@ -37,6 +41,10 @@ export interface WorkspaceFeatures {
   settingsPanel: HTMLElement;
   chatTools: HTMLElement[];
   chatIntro: HTMLElement;
+  /** Follow-up chips row, mounted directly above the chat input bar (FR-GC-05). */
+  followUpBar: HTMLElement;
+  onStreamStart(): void;
+  onStreamEnd(): void;
   decorateAnswer(bubble: HTMLElement, message: ChatMessage, fresh: boolean): void;
   onSourceOpened(source: { id: string; revision: number }, slot: HTMLElement, viaCitation: boolean): void;
   onSelectionChange(sources: SourceDto[], selectedIds: string[]): void;
@@ -49,6 +57,8 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let studio: HTMLElement | null = null;
   let openCitation: (sourceId: string, chunkId: string) => void = () => undefined;
   let revisions: SourceRevision[] = [];
+  // Current browser-local selection (C-02, FR-SI-02): topic chips send only for selected sources.
+  let selectedSourceIds = new Set<string>();
 
   // ---- Settings (theme, languages) ---------------------------------------------------------------------
   const settingsPanel = h("div", { class: "workspace-settings-host", "data-testid": "workspace-settings", hidden: true });
@@ -77,7 +87,10 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ [key]: value }),
         }).catch(() => undefined);
-        if (key === "output_language" || notebookLevel) refreshOverview();
+        if (key === "output_language" || notebookLevel) {
+          syncFollowUpScope();
+          refreshOverview();
+        }
       },
     });
   settingsToggle.addEventListener("click", () => {
@@ -111,8 +124,20 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let overviewToken = 0;
   // FR-UI-02 / FR-012: a supported tag only (notebook > user > supported browser locale > en-US).
   const outputLanguage = () => effectiveOutputLanguage(settings);
+  let hasSources = true;
   function refreshOverview(): void {
     if (overviewTimer) clearTimeout(overviewTimer);
+    if (!hasSources) {
+      // FR-GC-04 / FR-007: no sources → clear the overview at once and show the add-source state.
+      overviewToken += 1;
+      renderAddSourceEmptyState(chatIntro);
+      chatIntro.hidden = false;
+      return;
+    }
+    if (chatIntro.querySelector("[data-testid=add-source-empty-state]")) {
+      while (chatIntro.firstChild) chatIntro.removeChild(chatIntro.firstChild);
+      chatIntro.hidden = true;
+    }
     overviewTimer = setTimeout(async () => {
       const token = ++overviewToken;
       if (revisions.length === 0) {
@@ -136,6 +161,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
         controls.setOverview(overview);
         renderNotebookOverview(chatIntro, {
           notebookTitle: options.notebookTitle,
+          notebookIcon: options.notebookIcon,
           sourceCount: revisions.length,
           overview: overview.overview_md,
           starterPrompts: overview.starter_prompts,
@@ -148,10 +174,34 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     }, 300);
   }
 
+  // ---- Follow-up chips above the chat input bar (FR-GC-05, C-02) --------------------------------------
+  // Driven by ChatControlController: chips show only for the current scope signature and never while streaming.
+  const followUpBar = h("div", { class: "follow-ups", "data-testid": "follow-ups", hidden: true });
+  const renderFollowUps = () => {
+    while (followUpBar.firstChild) followUpBar.removeChild(followUpBar.firstChild);
+    const prompts = controls.getFollowUps();
+    for (const prompt of prompts) {
+      const chip = h("button", { class: "follow-up-chip", type: "button", text: prompt });
+      chip.addEventListener("click", () => {
+        // submitFollowUp sends only a chip of the current scope that is not hidden by streaming.
+        controls.submitFollowUp(prompt);
+        controls.setFollowUps([]);
+        renderFollowUps();
+      });
+      followUpBar.append(chip);
+    }
+    followUpBar.hidden = prompts.length === 0;
+  };
+  const syncFollowUpScope = () => {
+    controls.updateScope(revisions, outputLanguage());
+    renderFollowUps();
+  };
+
   // ---- Source Guide (FR-SI-02) -------------------------------------------------------------------------
   const guide = new SourceGuideController({
     notebookId,
     fetcher: authFetch,
+    isSelected: (sourceId) => selectedSourceIds.has(sourceId),
     onTopic: (topic) => ask(`Explain “${topic}” using only the selected sources and cite supporting passages.`),
   });
 
@@ -160,6 +210,14 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     settingsPanel,
     chatTools: [configLabel, configButton],
     chatIntro,
+    followUpBar,
+    onStreamStart() {
+      controls.setStreaming(true);
+      renderFollowUps();
+    },
+    onStreamEnd() {
+      controls.setStreaming(false);
+    },
     decorateAnswer(bubble, message, fresh) {
       const actions = h("div", { class: "answer-actions" });
       bubble.append(actions);
@@ -172,10 +230,13 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
         onSavedNote: (note) => {
           if (!studio) return;
           renderSavedResponseNote(studio, note, (citation) => openCitation(citation.source_id, citation.chunk_id));
+          // FR-NM-02: the note is in the single notes store; the Package 2.3 notes panel refreshes on this event.
+          studio.dispatchEvent(new CustomEvent("everlast:note-saved", { detail: { note_id: note.id } }));
         },
       });
       if (!fresh || revisions.length === 0) return;
       const snapshot = [...revisions];
+      const signature = scopeSignature(snapshot, outputLanguage());
       void authFetch(`/api/notebooks/${notebookId}/chat/messages/${message.id}/follow-ups`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -183,17 +244,10 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
       })
         .then(async (res) => {
           if (!res.ok) return;
-          const { suggested_followups } = (await res.json()) as { suggested_followups?: string[] };
-          const chips = h("div", { class: "follow-ups", "data-testid": "follow-ups" });
-          for (const prompt of suggested_followups ?? []) {
-            const chip = h("button", { class: "follow-up-chip", text: prompt });
-            chip.addEventListener("click", () => {
-              chips.remove();
-              ask(prompt);
-            });
-            chips.append(chip);
-          }
-          if (chips.childElementCount) bubble.append(chips);
+          const { suggested_followups } = (await res.json()) as { suggested_followups?: { text: string }[] };
+          // Stored only when the signature still equals the current scope; otherwise dropped (C-02).
+          controls.setFollowUps((suggested_followups ?? []).map((chip) => chip.text), signature);
+          renderFollowUps();
         })
         .catch(() => undefined);
     },
@@ -203,10 +257,13 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     },
     onSelectionChange(sources, selectedIds) {
       const selected = new Set(selectedIds);
+      selectedSourceIds = selected;
+      hasSources = sources.length > 0;
       revisions = sources
         .filter((s) => selected.has(s.id) && s.status === "Ready" && s.revision !== null)
         .map((s) => ({ source_id: s.id, revision: s.revision! }))
         .sort((a, b) => a.source_id.localeCompare(b.source_id));
+      syncFollowUpScope();
       refreshOverview();
     },
     bind(input) {

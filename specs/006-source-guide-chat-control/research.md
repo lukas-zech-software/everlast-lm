@@ -6,7 +6,13 @@ All decisions trace to `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09
 
 - **Decision**: Orchestrate source guide, overview, and follow-up generation in plain TypeScript functions. Inject a narrow structured-generation interface; unit tests use a deterministic fake and validate returned data with Zod.
 - **Rationale**: These workflows have fixed steps and do not need dynamic tool selection. This follows the architecture boundary for Source Guide and other deterministic generation (`FR-SI-02`, `FR-GC-04/05`, Constitution IV).
-- **Alternatives considered**: ADK `LlmAgent`/agent loop (rejected: unnecessary autonomy, latency, and nondeterminism); direct model SDK dependency (rejected: no approved endpoint/configuration in this worktree and avoid new dependency); heuristic-only production summaries (rejected: cannot represent the intended synthesis quality).
+- **Alternatives considered**: ADK `LlmAgent`/agent loop (rejected: unnecessary autonomy, latency, and nondeterminism); heuristic-only production summaries (rejected: cannot represent the intended synthesis quality).
+
+## Decision: Vertex AI Flash-Lite structured client (convergence 2026-10-20)
+
+- **Decision**: Implement `StructuredGenerationClient` with the already-installed `@google/genai` SDK on Vertex AI (`vertexai: true`, `europe-west4`, `VERTEX_LOCATION` override, keyless ADC), model `gemini-2.5-flash-lite`, structured JSON output with a response schema, temperature 0, bounded timeout, Zod validation. Wire it in the API process under the same Vertex-configured condition as the grounded chat model and topic emoji (`FR-SI-02`, `FR-GC-04/05`, D3, D16, `NFR-SEC-01`).
+- **Rationale**: Without a client the features answered `503`; the topic-emoji client already proves the pattern, so no new dependency or cloud API is needed.
+- **Alternatives considered**: Gemini Developer API with an API key (rejected: `NFR-SEC-01`, enterprise data governance); ADK agent (rejected above); a Pro-tier model (rejected: cost/latency for short structured outputs).
 
 ## Decision: C-02 owns every source read and the source/revision snapshot
 
@@ -26,8 +32,8 @@ All decisions trace to `FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09
 - **Rationale**: Stable DTO can be consumed by Package 2.3 without exposing user identity or making duplicate saves; citations are copied as structured links and content remains intact after chat deletion.
 - **Alternatives considered**: Package-specific response shapes (rejected: cross-package drift); trust a caller-supplied owner ID (rejected: authorization boundary); serialize citations as prose only (rejected: not clickable/preservable).
 
-## Decision: In-memory repository is a test/local adapter, not durable production storage
+## Decision: v2 records live in the API process until v3 (D16)
 
-- **Decision**: Add isolated Map-backed records matching existing in-memory DB tests, keyed by notebook/user/message or exact scope key. Production database persistence remains Cloud SQL (`D1`) and requires the existing approved database adapter path.
-- **Rationale**: Explicit request calls for an in-memory repo and existing tests use this pattern. This provides deterministic behavior without claiming durability or creating schema migrations ahead of Package 2.3.
+- **Decision**: Keep isolated Map-backed records keyed by notebook/user/message or exact scope key in the single API process (D16, SRS §5.5 DEV-04). Saved responses are written to the Package 2.3 notes store, not a separate 2.2 store. v3 moves these stores to PostgreSQL behind the same repository functions (`packages/db/migrations/v3-draft/`).
+- **Rationale**: Owner decision 2026-10-19 for an earlier running proof of concept; access control, sources and chat stay in PostgreSQL, so v2 never decides access.
 - **Alternatives considered**: New database (rejected by D1/D4); SQLite or file cache (rejected as unapproved store); global mutable single-user state without notebook/user keys (rejected for isolation).

@@ -10,6 +10,8 @@ import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
+import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 
 /**
  * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 24 (type stripping, no build step).
@@ -57,6 +59,14 @@ export function createJobNotifier(env: NodeJS.ProcessEnv = process.env): () => v
   };
 }
 
+/**
+ * Structured model for Source Guides, overviews and follow-ups (FR-SI-02, FR-GC-04/05): Vertex AI Flash-Lite in
+ * the configured EU region with keyless ADC (D3, NFR-SEC-01), under the same condition as the grounded chat model.
+ */
+export function createV2Generation(env: NodeJS.ProcessEnv, modelConfigured: boolean): StructuredGenerationClient | undefined {
+  return modelConfigured ? createVertexStructuredGenerationFromEnv(env) : undefined;
+}
+
 export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}) {
   const config = loadApiConfig(env);
   const pool = createPool();
@@ -88,6 +98,9 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           pool,
           sourceLimit: config.sourceLimit,
           model,
+          generation: createV2Generation(env, modelConfigured),
+          // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
+          readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
   const chat =

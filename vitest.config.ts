@@ -14,6 +14,7 @@ const UNIT = [
   "apps/web/test/lib.test.ts",
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",
+  "packages/evals/test/response-length.test.ts",
 ];
 
 export default defineConfig({

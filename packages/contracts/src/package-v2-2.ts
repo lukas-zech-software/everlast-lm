@@ -23,15 +23,19 @@ export type NotebookSourceSelection = z.infer<typeof NotebookSourceSelectionSche
 export const SourceGuideStatusSchema = z.enum(["GuidePending", "GuideReady", "GuideFailed"]);
 export type SourceGuideStatus = z.infer<typeof SourceGuideStatusSchema>;
 
+/** Identity (notebook_id, source_id, revision, output_language): another language is a cache miss (FR-SI-02, FR-UI-02). */
 export const SourceGuideSchema = z.object({
   notebook_id: uuid,
   source_id: uuid,
   revision: z.number().int().positive(),
+  output_language: z.string().min(2).max(35),
   status: SourceGuideStatusSchema,
   source_word_count: z.number().int().nonnegative(),
   summary_md: z.string().trim().min(1).max(10000),
   key_topics: z.array(trimmedText(1, 40, "key topic")).max(10),
   supporting_chunk_ids: z.array(uuid),
+  /** Observed `Ready` transition of the source revision; latency is measured from here (FR-018, Gate v2.0 #1). */
+  ready_at: z.string().datetime().optional(),
   generated_at: z.string().datetime().optional(),
   error: z.string().optional(),
 }).strict().superRefine((guide, ctx) => {
@@ -67,17 +71,41 @@ export const NotebookOverviewSchema = z.object({
 }).strict();
 export type NotebookOverview = z.infer<typeof NotebookOverviewSchema>;
 
+/** One follow-up chip and the chunks it can be answered from (FR-GC-05, FR-008, C-02). */
+export const FollowUpChipSchema = z.object({
+  text: FollowUpSuggestionSchema,
+  supporting_chunk_ids: z.array(uuid).min(1),
+}).strict();
+export type FollowUpChip = z.infer<typeof FollowUpChipSchema>;
+
 export const FollowUpSuggestionsSchema = z.object({
-  suggested_followups: z.array(FollowUpSuggestionSchema).max(3),
-  supporting_chunk_ids: z.array(uuid),
+  suggested_followups: z.array(FollowUpChipSchema).max(3),
   source_revisions: z.array(SourceRevisionPairSchema).min(1),
+  output_language: z.string().min(2).max(35),
   generated_at: z.string().datetime(),
 }).strict().superRefine((result, ctx) => {
-  const unique = new Set(result.suggested_followups.map((suggestion) => suggestion.toLocaleLowerCase()));
+  const unique = new Set(result.suggested_followups.map((chip) => chip.text.toLocaleLowerCase()));
   if (unique.size !== result.suggested_followups.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["suggested_followups"], message: "follow-up suggestions must be unique" });
-  if (result.suggested_followups.length > 0 && result.supporting_chunk_ids.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["supporting_chunk_ids"], message: "follow-up suggestions require supporting chunks" });
 });
 export type FollowUpSuggestions = z.infer<typeof FollowUpSuggestionsSchema>;
+
+/**
+ * Raw structured-model outputs (FR-SI-02, FR-GC-04/05): shape only. Limits, support IDs and C-02 scope are
+ * validated by the generation pipelines before anything is stored or shown.
+ */
+export const SourceGuideGenerationSchema = z.object({
+  summary_md: z.string().min(1),
+  key_topics: z.array(z.string().min(1)).max(10),
+  supporting_chunk_ids: z.array(uuid),
+}).strict();
+export const OverviewGenerationSchema = z.object({
+  overview_md: z.string().min(1),
+  starter_prompts: z.array(StarterPromptSchema).max(5),
+  supporting_chunk_ids: z.array(uuid).min(1),
+}).strict();
+export const FollowUpGenerationSchema = z.object({
+  suggested_followups: z.array(z.object({ text: FollowUpSuggestionSchema, supporting_chunk_ids: z.array(uuid) }).strict()).max(3),
+}).strict();
 
 export const PersistedMessageFollowUpsSchema = z.object({
   notebook_id: uuid,
