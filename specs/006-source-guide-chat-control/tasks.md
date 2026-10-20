@@ -189,7 +189,7 @@ Assessed on 2026-10-20 against the revised Package 2.2 card (PR #127), SRS §5.4
 
 ### Verification
 
-- [ ] T083 Run the focused Package 2.2 Vitest suites, `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs` and `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic`, and record the exact results in `specs/006-source-guide-chat-control/validation.md`. Replace the "Known duplication … unify in v3" and "No Gemini client … 503" notes with the current state. Record Gate v2.0 #1 cloud P95 and the response-length release metric as `UNAVAILABLE` until a deployed run against Vertex AI in `europe-west4` exists. Leave Gate v2.0 #2 pending until Package 2.3 conversion is proven. Per `CC-02`, Gate v2.0 #1/#2, `NFR-EVAL-02/04` (partial)
+- [X] T083 Run the focused Package 2.2 Vitest suites, `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs` and `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic`, and record the exact results in `specs/006-source-guide-chat-control/validation.md`. Replace the "Known duplication … unify in v3" and "No Gemini client … 503" notes with the current state. Record Gate v2.0 #1 cloud P95 and the response-length release metric as `UNAVAILABLE` until a deployed run against Vertex AI in `europe-west4` exists. Leave Gate v2.0 #2 pending until Package 2.3 conversion is proven. Per `CC-02`, Gate v2.0 #1/#2, `NFR-EVAL-02/04` (partial)
 
 ### Dependencies and execution order (Phase 11)
 
