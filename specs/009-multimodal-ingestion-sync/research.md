@@ -1,0 +1,35 @@
+# Research: Multimodal Ingestion & Sync
+
+Date: 2026-10-20. Scope: FR-SI-01/05, C-01, NFR-SEC-01/02. Research conducted within the single package agent to preserve sequential orchestration. No unresolved product clarification remains; live deployment/performance evidence is not asserted.
+
+## Baseline reuse and compatibility (C-01/C-02, FR-SI-01/05)
+
+**Decision:** Extend existing `apps/worker/src/ingestion/pipeline.ts`, shared `document-chunk.ts`, DB ingestion and source routes. Do not build a second ingestion stack. **Rationale:** These already supply admission, quota constants, source identity and consumers. **Alternatives considered:** New framework or standalone ingestion datastore adds unapproved contracts/cost.
+
+Inspection found incomplete baseline wiring: source route includes a response-only copied-text path; pipeline has process-local attempt tracking; shared C-01 runtime contains revision and millisecond-shaped locators while the old v1 planning contract describes an abstract five-field projection and discriminated seconds. The SRS governs the conceptual contract. Package 3.1 must not silently treat code as an amendment or rewrite consumer wire shapes. Preserve shared exports and require compatibility tests and upstream baseline reconciliation before v3 implementation under Gate v2. This planning stage does not certify the existing runtime. Derived `display_time` belongs in the transcript/view DTO, leaving the shared locator union unchanged.
+
+## ASR and regional choice (FR-SI-01, D3)
+
+**Decision:** Use architecture-selected Speech V2 batch Chirp 2 with word offsets in europe-west4, subject to deployment-time project/language availability verification. **Rationale:** Official [Chirp 2 documentation](https://cloud.google.com/speech-to-text/v2/docs/chirp_2-model) lists word timestamps, long batch audio and europe-west4 (labelled Private GA). **Alternatives considered:** [Chirp 3](https://cloud.google.com/speech-to-text/v2/docs/chirp_3-model) currently lists eu/us multi-regions and a 20-minute word-timestamp batch limit; do not silently switch regions. Gemini generated timestamps do not meet architecture's precision choice.
+
+Use bounded parallel segments only if the actual supported provider limits require them; preserve absolute millisecond offsets and deduplicate overlap deterministically. Entire acceptance-to-assembled-transcript timing includes queue, preprocessing and provider wait. Neither source guarantees ≤45s; benchmark is mandatory and remains a delivery risk, not a relaxed requirement.
+
+## Drive and Office (FR-SI-01/05, D11)
+
+**Decision:** Delegated read-only Drive access, explicit Docs→DOCX and Slides→PPTX export, then existing LibreOffice/PDF path plus supplemental OOXML notes/table/visual extraction. **Rationale:** [Download/export guide](https://developers.google.com/drive/api/guides/manage-downloads) requires checking download permission; [files.export](https://developers.google.com/drive/api/reference/rest/v3/files/export) supports these delegated scopes but caps exported content at 10MB. Use [files.download](https://developers.google.com/drive/api/reference/rest/v3/files/download) long-running export when required and supported, validating MIME and complete byte count. Do not assert that its undocumented size ceiling guarantees all 200MB exports. **Alternatives considered:** Privileged service-account access, manual-only uploads, or parsing the live Docs HTML cannot meet D11.
+
+Use read-only delegated scope adequate for user-pasted links; picker-only drive.file access cannot be assumed to authorize arbitrary existing links. Keep refresh credentials in approved secret storage referenced by opaque IDs. Provider capability/size errors remain explicit import failures, preserve old revision on re-sync, and do not redefine the product's inclusive 200MB quota. Check upstream metadata around export; if it changes mid-export, discard/retry within the same operation rather than publish a mixed revision. Access revocation must hide otherwise retained data through C-02 authorization checks.
+
+Normalize each page plus supplemental speaker notes and embedded descriptions into one persisted viewer representation with deterministic page/offset mapping. Avoid executing macros or fetching embedded external references. Images with existing descriptions retain them; any necessary enterprise visual extraction produces source-derived descriptions validated against the image, without inventing missing labels. Empty/corrupt normalization fails rather than publishing partial evidence.
+
+## Video and web (FR-SI-01, NFR-SEC-02)
+
+**Decision:** Use accessible timestamped caption tracks, otherwise authorized accessible audio through ASR. **Rationale:** [YouTube captions.download](https://developers.google.com/youtube/v3/docs/captions/download) requires edit permission; a public URL alone does not grant API caption access. **Alternatives considered:** Assuming a public-caption API or bypassing access/paywalls is incorrect. An inaccessible video follows the existing `No transcript available for this video` failure; no new downloader service or discovery capability is introduced.
+
+**Decision:** Architecture-selected [Mozilla Readability](https://github.com/mozilla/readability) on an inert DOM, followed by sanitized canonical content and DOM locators. **Rationale:** Deterministic retained DOM supports citations; model URL context does not. Use no script execution or remote subresource loading. SSRF checks bind validated resolved addresses to the actual connection and repeat per redirect/reconnect; canonical URL metadata never triggers an unchecked fetch. Strip active content before rendering. URL returned PDF follows existing bounded PDF ingestion.
+
+## Safety and atomicity (FR-SI-05, NFR-SEC-02, C-02)
+
+**Decision:** Mandatory regional Model Armor screening before indexing/model use for web/synced content; fail closed on screen failure. **Rationale:** [Model Armor feature availability](https://docs.cloud.google.com/model-armor/feature-availability-by-region) confirms europe-west4 template support with EU jurisdiction controls. The old cloud.google.com/model-armor/locations URL returned 404; the current docs.cloud.google.com page was used instead. **Alternatives considered:** Silent skip or non-EU fallback violates constitution.
+
+**Decision:** DB uniqueness/row fence enforces one active operation per source, persistent outbox delivers work; staged objects/rows and expected revision commit together. **Rationale:** Cloud Tasks redelivery and worker restarts must not multiply chunks or slots. **Alternatives considered:** In-memory locks cannot serialize across instances; deleting old chunks before validation violates failure preservation. Incoming distinct requests while active return `Sync already in progress`; transport replay of the same operation resumes it without creating another refresh. Lease recovery uses fencing tokens so stale workers cannot publish. Authoritative ACL and deletion checks remain in reads/publication, not only delayed cleanup jobs.

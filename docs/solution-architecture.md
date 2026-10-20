@@ -149,6 +149,14 @@ A **pnpm monorepo** holds the shared `packages/contracts`, which defines C-01, C
 | **Deep Research (v6)** | ADK `LoopAgent` (or managed **Interactions API background execution** if available in EU): generates a **Research Plan** in ≤ 5 s for explicit user approval, reserves ≥ 2 source slots (≥ 1 primary + 1 report), runs 2–5 search hops (≤ 180 s, progress every ≤ 3 s), imports up to 25 primary sources through `C-01` to `Ready`, then synthesizes the cited report via `C-02` and `C-03` and ingests it as a `Ready` source (`FR-SI-07`) | Enforces primary-source-first grounding, OBO token refresh (aborting intranet branch on auth expiry without service-account fallback), and clean cancellation | — | Check availability and EU processing at v6 time |
 | **@Notebook (deferred)** | Later: expose the chat agent over **A2A** from ADK; if the target is Gemini Enterprise, publish it there | No v1–v6 work (`D5`/`DEV-03`), just keep the agent stateless and behind C3 | — | — |
 
+### 4.1.1. Package 3.1 ingestion implementation refinements (FR-SI-01/05, C-01)
+
+Under D3/D11, use Speech V2 Chirp 2 word offsets in `europe-west4`, verifying project/language availability before deployment; no silent fallback to a non-approved region. The 30-minute audio P95 target remains 45 seconds including queue wait, measured through complete timestamped transcript availability. Use existing LibreOffice/PDF normalization plus supplemental notes/visual descriptions with deterministic page anchors. Model Armor screening fails closed; its regional template is configured in `europe-west4` with EU jurisdiction controls.
+
+Delegated Drive export must distinguish provider capability/size failures from the application quota, use supported long-running download/export when appropriate, and never truncate or substitute privileged credentials. Public YouTube visibility does not establish permission to download captions or audio; inaccessible media follows the existing explicit error. These choices do not defer assigned v3 scope. Provider references and deployment risks are recorded in [package 3.1 research](../specs/009-multimodal-ingestion-sync/research.md).
+
+Persist a single-active-operation fence and staged revision for re-sync; delivery retries resume the same operation while distinct overlapping requests are rejected without a follow-up queue. Commit chunks/revision/hash and publication events atomically after complete validation and access checks. Source media is served through authorization-checked delivery; a reusable signed Storage URL alone cannot satisfy immediate deletion/revocation invalidation. C-01 consumers remain on shared schemas; display `mm:ss` is derived viewer metadata, not a new locator field or variant.
+
 ### 4.2. ADK vs. Genkit for a TypeScript backend
 
 | Criterion | ADK for TypeScript | Genkit (JS) |

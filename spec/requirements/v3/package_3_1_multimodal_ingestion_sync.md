@@ -169,3 +169,11 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 **Out of scope:** Sub-second live keystroke streaming from external editors.
 
 **Open questions:** `None`
+
+## Planning refinements — 2026-10-20 (FR-SI-01/05, C-01, NFR-SEC-02)
+
+- Preserve the shared C-01 locator union; `mm:ss` is derived from `start_ms` in transcript/view metadata, not an additional required field inserted into strict shared locator objects. Reconcile any earlier plan/runtime encoding drift against SRS and consumer tests before v3 implementation; no breaking migration is authorized here.
+- Use durable operation IDs and a per-source publication fence for re-sync. A transport redelivery resumes the same operation idempotently; a distinct manual/webhook request while active is rejected with `Sync already in progress`, with no queued follow-up. Deletion or stale fencing tokens prevent later publication.
+- Provider export/caption capability failures remain explicit failures without truncation, service-account fallback, or redefining the inclusive application quota. Drive export's documented provider ceiling is not the application's 200MB limit; use supported delegated long-running export where appropriate. Public YouTube visibility alone does not imply authorized caption/audio access. The existing inaccessible-video failure applies; no assigned scope is removed.
+- Source media delivery must recheck document/notebook authorization and revision validity; an expired or revoked source cannot remain readable through a previously issued reusable signed object URL. Use authorization-checked proxy delivery with invalidation of active delivery on revocation.
+- The package plan uses regional Speech V2 Chirp 2 word offsets and existing Office normalization plus supplemental notes/descriptions, with Model Armor fail-closed screening. Deployment availability and the unchanged 45-second P95 target require live evidence; neither is asserted by planning. See `specs/009-multimodal-ingestion-sync/research.md` and `plan.md` for rationale and provider references.
