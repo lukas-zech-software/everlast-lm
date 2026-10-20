@@ -4,6 +4,7 @@ import { parseAnswer, splitBadgeGroup } from "../lib/badges.ts";
 import { sourcesLabel, type SelectionModel } from "../lib/selection.ts";
 import { validateMessage } from "../lib/text.ts";
 import type { ChatMessage, Citation } from "../lib/types.ts";
+import { NOTE_SOURCE_MEDIA_TYPE } from "../lib/v2-contracts.ts";
 
 /**
  * Chat panel (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, FR-SI-03). Sends the explicit selection with every turn,
@@ -35,6 +36,8 @@ export interface ChatPanel {
   updateSelection(): void;
   /** Sends a prompt as if typed (starter prompts, guide topics, follow-ups). */
   ask(text: string): void;
+  /** Appends already-published messages, e.g. a Note Assistant turn (FR-NM-04 FR-017). */
+  append(messages: ChatMessage[]): void;
 }
 
 const PHASE_LABEL: Record<string, string> = {
@@ -56,7 +59,7 @@ function showPopover(anchor: HTMLElement, citation: Citation): void {
   hidePopover();
   const body =
     citation.status === "available"
-      ? [h("div", { class: "popover-title", text: citation.source_title ?? "" }), h("div", { class: "popover-snippet", text: citation.snippet ?? "" })]
+      ? [h("div", { class: "popover-title", text: `${citation.source_media_type === NOTE_SOURCE_MEDIA_TYPE ? "Note · " : ""}${citation.source_title ?? ""}` }), h("div", { class: "popover-snippet", text: citation.snippet ?? "" })]
       : [h("div", { class: "popover-title", text: "Source deleted" })];
   popover = h("div", { class: "citation-popover", "data-testid": "citation-popover", role: "tooltip" }, ...body);
   document.body.append(popover);
@@ -81,15 +84,21 @@ function showPopover(anchor: HTMLElement, citation: Citation): void {
 
 function badgeButton(citation: Citation | undefined, n: number, onClick: (c: Citation) => void): HTMLElement {
   const deleted = !citation || citation.status === "deleted";
-  const button = h("button", {
-    class: `citation-badge${deleted ? " deleted" : ""}`,
-    "data-testid": "citation-badge",
-    "data-badge": n,
-    "data-chunk-id": citation?.chunk_id ?? "",
-    "aria-label": deleted ? `Citation ${n}: source deleted` : `Citation ${n}: ${citation!.source_title}`,
-    "aria-disabled": deleted ? "true" : "false",
-    text: String(n),
-  });
+  // FR-NM-04 FR-017: citations of note-sources carry a "Note" label, so note assertions stay distinguishable.
+  const note = !deleted && citation!.source_media_type === NOTE_SOURCE_MEDIA_TYPE;
+  const button = h(
+    "button",
+    {
+      class: `citation-badge${deleted ? " deleted" : ""}${note ? " citation-note" : ""}`,
+      "data-testid": "citation-badge",
+      "data-badge": n,
+      "data-chunk-id": citation?.chunk_id ?? "",
+      "aria-label": deleted ? `Citation ${n}: source deleted` : `Citation ${n}: ${note ? "Note · " : ""}${citation!.source_title}`,
+      "aria-disabled": deleted ? "true" : "false",
+    },
+    String(n),
+    note ? h("span", { class: "citation-kind", "data-testid": "citation-note-label", text: "Note" }) : null
+  );
   if (citation) {
     button.addEventListener("mouseenter", () => showPopover(button, citation));
     button.addEventListener("focus", () => showPopover(button, citation));
@@ -314,6 +323,9 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     ask(text) {
       input.value = text;
       void submit();
+    },
+    append(list) {
+      appendMessages(list);
     },
   };
 }

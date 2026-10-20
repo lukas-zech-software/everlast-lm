@@ -24,7 +24,7 @@ export interface SourcesPanel {
 }
 
 const ACCEPT = ".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown";
-const ICONS: Record<string, string> = { "application/pdf": "📄", "text/plain": "📝", "text/markdown": "📝", copied_text: "📋" };
+const ICONS: Record<string, string> = { "application/pdf": "📄", "text/plain": "📝", "text/markdown": "📝", copied_text: "📋", note_markdown: "🗒️" };
 
 export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
   let sources: SourceDto[] = [];
@@ -95,6 +95,8 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
       { class: `source-row status-${source.status.toLowerCase()}`, "data-testid": "source-row", "data-source-id": source.id, "data-status": source.status },
       status,
       titleButton,
+      // FR-NM-03: a source made from notes keeps a visible Note label (owner decision 2026-10-20: a v1 source).
+      source.media_type === "note_markdown" ? h("span", { class: "source-kind", "data-testid": "source-kind-note", text: "Note" }) : null,
       source.status === "Failed" ? null : checkbox
     );
     if (source.status === "Failed") {

@@ -1,5 +1,6 @@
 import { authFetch } from "../lib/api.ts";
 import { h } from "../lib/dom.ts";
+import type { SavedResponseNote } from "@everlast/contracts";
 import type { ChatMessage, SourceDto } from "../lib/types.ts";
 import {
   ChatControlController,
@@ -48,7 +49,13 @@ export interface WorkspaceFeatures {
   decorateAnswer(bubble: HTMLElement, message: ChatMessage, fresh: boolean): void;
   onSourceOpened(source: { id: string; revision: number }, slot: HTMLElement, viaCitation: boolean): void;
   onSelectionChange(sources: SourceDto[], selectedIds: string[]): void;
-  bind(input: { ask(text: string): void; studio: HTMLElement; openCitation(sourceId: string, chunkId: string): void }): void;
+  bind(input: {
+    ask(text: string): void;
+    studio: HTMLElement;
+    openCitation(sourceId: string, chunkId: string): void;
+    /** The Package 2.3 notes pinboard receives the saved note (FR-NM-02); without it the note is rendered inline. */
+    onSavedNote?(note: SavedResponseNote): void;
+  }): void;
 }
 
 export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): WorkspaceFeatures {
@@ -56,6 +63,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let ask: (text: string) => void = () => undefined;
   let studio: HTMLElement | null = null;
   let openCitation: (sourceId: string, chunkId: string) => void = () => undefined;
+  let savedNoteHandler: ((note: SavedResponseNote) => void) | null = null;
   let revisions: SourceRevision[] = [];
   // Current browser-local selection (C-02, FR-SI-02): topic chips send only for selected sources.
   let selectedSourceIds = new Set<string>();
@@ -228,8 +236,10 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
         citations: message.citations,
         fetcher: authFetch,
         onSavedNote: (note) => {
+          // FR-NM-02 / FR-GC-09: the saved response lands in the Right Panel pinboard (Package 2.3).
+          if (savedNoteHandler) savedNoteHandler(note);
           if (!studio) return;
-          renderSavedResponseNote(studio, note, (citation) => openCitation(citation.source_id, citation.chunk_id));
+          if (!savedNoteHandler) renderSavedResponseNote(studio, note, (citation) => openCitation(citation.source_id, citation.chunk_id));
           // FR-NM-02: the note is in the single notes store; the Package 2.3 notes panel refreshes on this event.
           studio.dispatchEvent(new CustomEvent("everlast:note-saved", { detail: { note_id: note.id } }));
         },
@@ -270,6 +280,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
       ask = input.ask;
       studio = input.studio;
       openCitation = input.openCitation;
+      savedNoteHandler = input.onSavedNote ?? null;
     },
   };
 }

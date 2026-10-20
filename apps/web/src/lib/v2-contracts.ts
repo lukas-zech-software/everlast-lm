@@ -144,6 +144,8 @@ export const ChatConfigurationSchema: Check<ChatConfiguration> = {
 
 export const NOTE_ASSISTANT_MAX_NOTES = 50;
 export const SOURCE_LIMIT_REACHED_MESSAGE = "Source limit reached";
+export const SAVED_TO_NOTES_MESSAGE = "Saved to notes";
+export const NOTE_SOURCE_MEDIA_TYPE = "note_markdown";
 export const NOTE_AUTOSAVE_DEBOUNCE_MS = 500;
 export const NOTE_ERROR_MESSAGES = {
   SourceLimitReached: SOURCE_LIMIT_REACHED_MESSAGE,

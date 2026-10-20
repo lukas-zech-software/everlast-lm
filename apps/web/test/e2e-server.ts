@@ -32,7 +32,11 @@ class FixtureModel implements GroundedModel {
     if (hits.length === 0) return { status: "not_in_sources", missing_topic: question.replace(/[?.!]+$/, ""), sentences: [] };
     return {
       status: "answered",
-      sentences: hits.slice(0, 8).map((c) => ({ text: c.text.split(/(?<=[.!?])\s/)[0]!.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const })),
+      // First sentence of the chunk's body text; Markdown heading lines (e.g. a converted note's title) are skipped.
+      sentences: hits.slice(0, 8).map((c) => {
+        const body = c.text.split("\n").filter((line) => !line.startsWith("#")).join("\n").trim() || c.text;
+        return { text: body.split(/(?<=[.!?])\s/)[0]!.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const };
+      }),
     };
   }
 }
