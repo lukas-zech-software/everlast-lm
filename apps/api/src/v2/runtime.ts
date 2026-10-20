@@ -48,8 +48,8 @@ import { InlineStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
 import { ReportGeneratorPlugin } from "@everlast/worker/studio/reports/plugin";
 import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
-import type { ReportModelClient } from "@everlast/worker/studio/reports/model";
-import { ReportSuggestionService } from "@everlast/worker/studio/reports/suggestions";
+import type { ReportModelClient, ReportSuggestionModel } from "@everlast/worker/studio/reports/model";
+import { ReportSuggestionService, structuredSuggestionModel } from "@everlast/worker/studio/reports/suggestions";
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
@@ -101,6 +101,11 @@ export interface V2RuntimeOptions {
    * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
    */
   reportModel?: ReportModelClient | undefined;
+  /**
+   * Dynamic report suggestions (FR-ST-11). Default: Flash-Lite through `generation` (Package 2.2 client); without
+   * it suggestions are unavailable (owner default 2026-10-20). Tests may inject a deterministic model.
+   */
+  suggestionModel?: ReportSuggestionModel | undefined;
 }
 
 export interface V2Runtime {
@@ -362,11 +367,17 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return row;
     },
   };
+  // FR-SI-02 / FR-ST-11: guides for the effective output language; a missing language variant is generated on
+  // demand (one run per source, revision and language) and reports Pending meanwhile.
   const guides = {
-    async getGuides(notebookId: string, snapshot: SourceRevisionPair[]): Promise<SourceGuideState[]> {
+    async getGuides(notebookId: string, snapshot: SourceRevisionPair[], outputLanguage?: string): Promise<SourceGuideState[]> {
       return Promise.all(
         snapshot.map(async (pair): Promise<SourceGuideState> => {
-          const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision);
+          const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision, outputLanguage);
+          const owner = ownerOf(notebookId);
+          if (!guide && outputLanguage && options.generation && owner) {
+            startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
+          }
           if (guide?.status === "GuideReady") {
             return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };
           }
@@ -389,7 +400,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id] });
       return { source_id: source.id };
     },
-    suggestions: new ReportSuggestionService({ guides, model: reportModel }),
+    suggestions: new ReportSuggestionService({ guides, model: options.suggestionModel ?? structuredSuggestionModel(options.generation) }),
     // FR-UI-02: requests without output_language use the effective language (notebook > user > en-US).
     resolveOutputLanguage: async (ownerId, notebookId) => (await workspace.resolveLanguagePreferences(ownerId, notebookId)).output_language,
     onNotebookModified: touchNotebookModified,

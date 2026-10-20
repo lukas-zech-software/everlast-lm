@@ -76,6 +76,18 @@ export interface StructuredGenerationClient {
   generateOverview(input: { sources: ScopedSourceMaterial[]; output_language: string }): Promise<Pick<NotebookOverview, "overview_md" | "starter_prompts" | "supporting_chunk_ids">>;
   /** Each chip carries the chunk IDs it can be answered from (FR-GC-05, FR-008). */
   generateFollowUps(input: { answer: string; sources: ScopedSourceMaterial[]; output_language: string }): Promise<{ suggested_followups: FollowUpChip[] }>;
+  /** Dynamic report suggestions from Source Guide metadata only (FR-ST-11, Package 2.4 / specs/008). */
+  generateReportSuggestions?(input: ReportSuggestionInput): Promise<{ suggestions: { title: string; description: string; prompt_template: string }[] }>;
+}
+/** Source Guide metadata of one active source; no chunk text (FR-ST-11, FR-SI-02). */
+export interface ReportSuggestionGuide {
+  source_id: string;
+  summary: string;
+  key_topics: string[];
+}
+export interface ReportSuggestionInput {
+  guides: ReportSuggestionGuide[];
+  output_language: string;
 }
 export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>;
