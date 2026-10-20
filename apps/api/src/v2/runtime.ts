@@ -7,6 +7,7 @@ import {
   SourceSnapshotInvalidError,
   StudioPluginRegistry,
   type ChatMessage,
+  type Citation,
   type Notebook,
   type NotebookDto,
   type ScopedContextProvider,
@@ -18,13 +19,13 @@ import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
-  createNote,
   forgetNotebook,
   getChatConfiguration,
   getNotebook,
   getNotebookRaw,
   getOrCreateThread,
   getSource,
+  getSnapshotChunksByIds,
   getSourceGuide,
   InMemoryStudioArtifactRepository,
   listAllSnapshotChunks,
@@ -391,13 +392,20 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     registry,
     access,
     dispatcher: new InlineStudioDispatcher(runAndTouch),
+    // FR-008 / FR-NM-03: report → cited note (NotesService, sanitized) → v1 note-source through the same admission
+    // and ingestion as any note; verified markers are stripped and the citations kept as origin_citations.
     convertToSource: async (input) => {
-      const note = await createNote(input.notebook_id, input.owner_id, {
-        title: input.title.slice(0, 100) || "Report",
-        content_md: input.content_md,
+      const scope = { notebook_id: input.notebook_id, owner_id: input.owner_id, sources: input.snapshot };
+      const chunks = new Map((await getSnapshotChunksByIds(pool, scope, input.citations.map((c) => c.chunk_id))).map((c) => [c.chunk_id, c]));
+      const titles = new Map((await listSources(pool, input.owner_id, input.notebook_id)).map((s) => [s.id, s.title]));
+      const citations: Citation[] = input.citations.map((c) => {
+        const chunk = chunks.get(c.chunk_id);
+        const title = titles.get(c.source_id);
+        if (!chunk || !title) throw new SourceSnapshotInvalidError("A cited source of this report is no longer available");
+        return { badge_number: c.badge_number, source_id: c.source_id, source_title: title, chunk_id: c.chunk_id, snippet: c.snippet, locator: chunk.locator };
       });
-      // Package 2.4 Studio → note → v1 note-source, through the same admission and ingestion as FR-NM-03.
-      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id] });
+      const note = await notes.saveStudioReport(input.notebook_id, input.owner_id, { artifact_id: input.artifact_id, title: input.title, content_md: input.content_md, citations });
+      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id], reuse: true });
       return { source_id: source.id };
     },
     suggestions: new ReportSuggestionService({ guides, model: options.suggestionModel ?? structuredSuggestionModel(options.generation) }),

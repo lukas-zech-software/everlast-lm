@@ -188,6 +188,17 @@ export class NotesService {
     return saved.created ? this.modified(notebookId, saved) : saved;
   }
 
+  /**
+   * FR-ST-10 / FR-008: a Completed Studio report saved as a read-only cited note through the saved-response write
+   * path (sanitized content, idempotent per artifact, title clamped to the note title limit), so converting it
+   * through FR-NM-03 removes the verified `[n]` markers and keeps `origin_citations` exactly as for saved responses.
+   */
+  async saveStudioReport(notebookId: string, userId: string, input: { artifact_id: string; title: string; content_md: string; citations: Citation[] }): Promise<Note> {
+    await this.assertAuthorized(notebookId, userId);
+    const saved = await saveResponseAsNote(notebookId, userId, { message_id: input.artifact_id, content: input.content_md, citations: input.citations, title: input.title });
+    return saved.created ? (await this.modified(notebookId, saved)).note : saved.note;
+  }
+
   async convertToEditable(notebookId: string, userId: string, noteId: string) {
     return this.modified(notebookId, await convertToEditable(notebookId, userId, noteId));
   }

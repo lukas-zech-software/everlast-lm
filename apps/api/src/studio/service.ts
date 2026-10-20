@@ -4,6 +4,7 @@ import {
   EmptyScopeError,
   CreateStudioJobRequestSchema,
   RetryStudioJobRequestSchema,
+  type ReportCitation,
   type ReportSuggestionsResult,
   type SourceRevisionPair,
   type StudioPluginRegistry,
@@ -28,8 +29,12 @@ export interface StudioJobDispatcher {
 export type ConvertToSource = (input: {
   notebook_id: string;
   owner_id: string;
+  artifact_id: string;
   title: string;
   content_md: string;
+  /** Validated report citations; the port carries them to the note so FR-NM-03 strips markers (FR-008). */
+  citations: ReportCitation[];
+  snapshot: SourceRevisionPair[];
 }) => Promise<{ source_id: string }>;
 
 export interface StudioSuggestionsPort {
@@ -171,8 +176,11 @@ export class StudioService {
     const converted = await this.deps.convertToSource({
       notebook_id: notebookId,
       owner_id: ownerId,
+      artifact_id: row.id,
       title: row.title,
       content_md: row.payload_json.content_md,
+      citations: row.payload_json.citations,
+      snapshot: row.active_source_ids_snapshot,
     });
     return this.modified(notebookId, converted);
   }
