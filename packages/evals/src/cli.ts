@@ -11,6 +11,7 @@ import { createResponseLengthRunner, runEvaluation, type EvalRunResult } from ".
 import { runResponseLengthEval, type ResponseLengthMetric } from "./response-length.ts";
 import { runSecurityPreflight } from "./security-preflight.ts";
 import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence } from "./report.ts";
+import { renderStudioGate, runStudioReportsGate, runStudioReportsReleaseGate } from "./studio-gate.ts";
 
 /**
  * `pnpm eval:deterministic` — every PR: Precision_ID and leakage with test doubles (no cloud), incl. an
@@ -163,6 +164,16 @@ try {
   const evalOk = report.criteria.gate2_evaluation.status === "pass" || (mode === "deterministic" && report.criteria.gate2_evaluation.metrics.filter((m) => m.status !== "unavailable").every((m) => m.passed) && report.criteria.gate2_evaluation.errored_cases.length === 0);
   exitCode = report.state === "GateFailed" ? 1 : evalOk ? 0 : 1;
   if (limit && mode === "deterministic") log(`--limit ${limit}: subset run, not valid deterministic evidence`);
+
+  // Gate v2.0 #3 (FR-ST-10): all four report templates through the Studio runtime path. Deterministic on every
+  // PR; the release run uses Vertex AI Flash and reports UNAVAILABLE without Vertex configuration.
+  const studio = mode === "deterministic" ? { status: "ran" as const, result: await runStudioReportsGate() } : await runStudioReportsReleaseGate(process.env);
+  if (studio.status === "ran") {
+    for (const line of renderStudioGate(studio.result)) log(line);
+    if (!studio.result.passed) exitCode = 1;
+  } else {
+    log(`[UNAVAILABLE] Gate v2.0 #3 Studio reports (Vertex Flash): ${studio.reason}`);
+  }
 } finally {
   await db.drop();
 }

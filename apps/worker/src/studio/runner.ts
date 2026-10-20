@@ -1,5 +1,6 @@
 import {
   InvalidScopeError,
+  requiredReportSections,
   SourceSnapshotInvalidError,
   type SourceRevisionPair,
   type StudioFailure,
@@ -8,6 +9,8 @@ import {
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
 import type { StudioArtifactRecord, StudioArtifactRepository } from "@everlast/db";
+import { splitSentences } from "./reports/sentences.ts";
+import { QUESTION_SECTIONS } from "./reports/templates.ts";
 
 /** Re-verifies owner access and source revisions (D12); throws InvalidScopeError / SourceSnapshotInvalidError. */
 export interface StudioAccessVerifier {
@@ -30,10 +33,73 @@ class CancelledSignal extends Error {}
 
 const MARKER = /\[(\d+)\]/g;
 
+const MARKER_SPLIT = /\[\d+\]/;
+const TRAILING_MARKER = /\[\d+\]$/;
+const LIST_PREFIX = /^(?:[-*>] |\d{1,4}\. )/;
+const TABLE_SEPARATOR = /^\|[\s|:-]+\|$/;
+
+/**
+ * Gate v2.0 #3 / FR-017 section rules: every required key is present with a `## heading` and content, and every
+ * factual sentence of a checked section ends in a `[n]` marker. Notices (`_…_`), questions and table headers are
+ * not factual sentences. Only a Timeline's `events` section may consist of the no-dated-events notice.
+ */
+export function validateReportSections(payload: StudioReportPayload, subtype: string): string | null {
+  const required = requiredReportSections(subtype);
+  const keys = payload.sections.map((x) => x.key);
+  const missing = required.filter((key) => !keys.includes(key));
+  if (missing.length > 0) return `Report is missing the required section(s) ${missing.join(", ")}`;
+
+  const lines = payload.content_md.split("\n");
+  const headingAt = new Map<string, number>();
+  lines.forEach((line, i) => {
+    if (line.startsWith("## ") && !headingAt.has(line.slice(3).trim())) headingAt.set(line.slice(3).trim(), i);
+  });
+  const checked = required.length > 0 ? payload.sections.filter((x) => required.includes(x.key)) : payload.sections;
+  for (const section of checked) {
+    const start = headingAt.get(section.heading.trim());
+    if (start === undefined) return `Section ${section.key} has no heading in the report`;
+    const rest = lines.slice(start + 1);
+    const end = rest.findIndex((l) => l.startsWith("#"));
+    const body = (end < 0 ? rest : rest.slice(0, end)).map((l) => l.trim()).filter((l) => l.length > 0);
+    let factual = 0;
+    let notices = 0;
+    let inTable = false;
+    for (const line of body) {
+      if (line.startsWith("|")) {
+        if (!inTable || TABLE_SEPARATOR.test(line)) {
+          inTable = true;
+          continue;
+        }
+      } else {
+        inTable = false;
+      }
+      if (line.length > 1 && line.startsWith("_") && line.endsWith("_")) {
+        notices += 1;
+        continue;
+      }
+      if (QUESTION_SECTIONS.has(section.key) || line.startsWith("**Q:")) {
+        factual += 1;
+        continue;
+      }
+      const text = line.replace(/\s*\|$/, "").replace(LIST_PREFIX, "");
+      if (!TRAILING_MARKER.test(text)) return `Section ${section.key} contains an uncited factual sentence`;
+      for (const segment of text.split(MARKER_SPLIT)) {
+        if (splitSentences(segment.trim()).length > 1) return `Section ${section.key} contains an uncited factual sentence`;
+      }
+      factual += 1;
+    }
+    if (factual === 0 && !(notices > 0 && subtype === "timeline" && section.key === "events")) {
+      return `Required section ${section.key} is empty`;
+    }
+  }
+  return null;
+}
+
 export function validateReportPayload(
   payload: StudioReportPayload,
   chunks: UnifiedDocumentChunk[],
-  snapshot: SourceRevisionPair[]
+  snapshot: SourceRevisionPair[],
+  subtype?: string
 ): string | null {
   const revisions = new Map(snapshot.map((p) => [p.source_id, p.revision]));
   const byId = new Map(chunks.map((c) => [c.chunk_id, c]));
@@ -52,7 +118,7 @@ export function validateReportPayload(
   for (const m of payload.content_md.matchAll(MARKER)) used.add(Number(m[1]));
   for (const n of used) if (!badges.has(n)) return `Marker [${n}] has no citation`;
   for (const n of badges) if (!used.has(n)) return `Citation ${n} is not referenced in the report`;
-  return null;
+  return subtype === undefined ? null : validateReportSections(payload, subtype);
 }
 
 export class StudioJobRunner {
@@ -150,7 +216,7 @@ export class StudioJobRunner {
     guard();
     if (outcome.status === "refused") return { code: outcome.code, message: outcome.message };
 
-    const problem = validateReportPayload(outcome.payload, chunks, snapshot);
+    const problem = validateReportPayload(outcome.payload, chunks, snapshot, artifact.subtype);
     if (problem) return { code: "CitationValidationFailed", message: problem };
 
     const post = await verify();
