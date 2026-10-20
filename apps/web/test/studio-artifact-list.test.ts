@@ -10,7 +10,7 @@ function setup(artifacts: ArtifactDto[]) {
   const calls: string[] = [];
   const api: StudioApi = {
     list: async () => artifacts,
-    get: async (id) => ({ artifact: { ...mk({ id, status: "Completed" }), payload_json: { content_md: "# T\n\n- <script>x</script> [1]", citations: [] } } }),
+    get: async (id) => ({ artifact: { ...mk({ id, status: "Completed" }), payload_json: { content_md: "# T\n\n- <script>x</script> [1]", citations: [], sections: [{ key: "report", heading: "T" }] } } }),
     create: async () => mk({ id: "new", status: "Queued" }),
     retry: async () => mk({ id: "r", status: "Queued" }),
     convert: async (id) => (calls.push("convert:" + id), { source_id: "s" }),
