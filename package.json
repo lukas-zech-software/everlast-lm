@@ -32,6 +32,7 @@
     "typecheck": "tsc -b --pretty",
     "lint": "node scripts/lint.mjs",
     "check:specs": "node scripts/check-spec-integrity.mjs",
+    "sync:project": "node scripts/sync-github-project.mjs",
     "test:unit": "vitest run --project unit",
     "test:contract": "vitest run packages/contracts",
     "test:integration": "vitest run --project integration",
