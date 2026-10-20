@@ -67,4 +67,24 @@ describe("Package 2.2 workspace integration (FR-SI-02, FR-GC-04/05/07/09)", () =
     expect(ask).toHaveBeenCalledTimes(1);
     expect(ask.mock.calls[0]![0]).toContain("Zero Trust Architecture");
   });
+
+  it("Save to note shows Saved to notes and hands the note to the notes panel (FR-GC-09, FR-NM-02)", async () => {
+    const dom = setupMockDOM(1440);
+    const messageId = "44444444-4444-4444-8444-444444444444";
+    const note = { id: "55555555-5555-4555-8555-555555555555", notebook_id: notebook, source_message_id: messageId, title: "Which port needs mTLS?", content_md: "Port 8080 [1]", citations_json: [], origin_type: "saved_response", read_only: true, created_at: "2026-10-20T00:00:00.000Z" };
+    const calls = fakeApi({ [`POST /chat/messages/${messageId}/note`]: () => json({ note }) });
+    const features = createWorkspaceFeatures({ notebookId: notebook, notebookTitle: "Field Notes" });
+    const studio = dom.document.createElement("aside");
+    const saved: unknown[] = [];
+    studio.addEventListener("everlast:note-saved", (event: any) => saved.push(event.detail));
+    features.bind({ ask: vi.fn(), studio: studio as any, openCitation: vi.fn() });
+    const bubble = dom.document.createElement("div");
+    features.decorateAnswer(bubble as any, { id: messageId, role: "assistant", kind: "answer", content: "Port 8080 [1]", citations: [] } as any, false);
+    bubble.querySelector('[data-action="save-note"]')?.click();
+    await flush();
+    expect(calls.find((c) => c.url.endsWith("/note"))?.body).toEqual({ notebook_id: notebook, message_id: messageId });
+    expect(bubble.querySelector('[role="status"]')?.textContent).toBe("Saved to notes");
+    expect(studio.querySelector(`[data-saved-note-id="${note.id}"]`)).not.toBeNull();
+    expect(saved).toEqual([{ note_id: note.id }]);
+  });
 });

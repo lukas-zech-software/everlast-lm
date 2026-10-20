@@ -5,12 +5,38 @@ import {
   getSourceGuide,
   saveChatConfiguration,
   saveMessageFeedback,
-  saveResponseNote,
   getChatMessages,
   getMessageFollowUps,
   saveMessageFollowUps,
 } from "@everlast/db";
+import type { Note, SavedResponseNote } from "@everlast/contracts";
 import { sendJson, parseJsonBody } from "../http.ts";
+import type { NotesService } from "../notes/service.ts";
+
+/**
+ * Shared save-note route (FR-GC-09, FR-NM-02): writes the single Package 2.3 notes store and maps the note to
+ * the stable 2.2 DTO, so the saved response is the record the notes panel lists.
+ */
+export function savedResponseNoteSaver(service: Pick<NotesService, "saveFromMessage">) {
+  return async (input: { notebook_id: string; message_id: string; user_id: string }): Promise<SavedResponseNote> => {
+    const { note } = await service.saveFromMessage(input.notebook_id, input.user_id, input.message_id);
+    return toSavedResponseNote(note);
+  };
+}
+
+function toSavedResponseNote(note: Note): SavedResponseNote {
+  return {
+    id: note.id,
+    notebook_id: note.notebook_id,
+    source_message_id: note.source_message_id!,
+    title: note.title,
+    content_md: note.content_md,
+    citations_json: note.citations_json,
+    origin_type: "saved_response",
+    read_only: true,
+    created_at: note.created_at,
+  };
+}
 
 export interface PackageV22ApiDependencies {
   authorizeNotebook: (userId: string, notebookId: string) => Promise<boolean>;
@@ -22,7 +48,8 @@ export interface PackageV22ApiDependencies {
   getOverview?: typeof getOverviewForUser;
   saveConfiguration?: typeof saveChatConfiguration;
   saveFeedback?: typeof saveMessageFeedback;
-  saveNote?: typeof saveResponseNote;
+  /** Shared save-note writer (see `savedResponseNoteSaver`); absent → 503. */
+  saveNote?: (input: { notebook_id: string; message_id: string; user_id: string }) => Promise<SavedResponseNote>;
   generateFollowUps?: (input: { notebook_id: string; user_id: string; answer: string; source_revisions: { source_id: string; revision: number }[]; output_language: string }) => Promise<unknown>;
   /** Notebook's effective output language for the caller (FR-UI-02); default `en-US`. */
   resolveOutputLanguage?: (userId: string, notebookId: string) => Promise<string>;
@@ -230,18 +257,31 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
       }
       return true;
     }
-    let body;
+    // Shared contract: the body must be valid and name exactly the path IDs; otherwise 400 (FR-NM-02).
+    let raw: unknown;
     try {
-      body = SaveResponseNoteRequestSchema.parse({ ...(await parseJsonBody<any>(req)), notebook_id: notebookId, message_id: messageId });
-    } catch (error: any) {
-      sendJson(res, 422, { error: { code: "ValidationError", message: error?.message ?? "Invalid note request" } });
+      raw = await parseJsonBody<unknown>(req);
+    } catch {
+      raw = undefined;
+    }
+    const body = SaveResponseNoteRequestSchema.safeParse(raw);
+    if (!body.success) {
+      sendJson(res, 400, { error: { code: "ValidationError", message: "Body must be { notebook_id, message_id } with UUIDs" } });
+      return true;
+    }
+    if (body.data.notebook_id !== notebookId || body.data.message_id !== messageId) {
+      sendJson(res, 400, { error: { code: "ValidationError", message: "Body notebook_id and message_id must equal the path IDs" } });
+      return true;
+    }
+    if (!deps.saveNote) {
+      sendJson(res, 503, { error: { code: "Unavailable", message: "Saving notes is not configured" } });
       return true;
     }
     try {
-      const note = await (deps.saveNote ?? saveResponseNote)({ notebook_id: body.notebook_id, message_id: body.message_id, user_id: userId });
+      const note = await deps.saveNote({ notebook_id: notebookId, message_id: messageId, user_id: userId });
       sendJson(res, 200, SaveResponseNoteResponseSchema.parse({ note }));
-    } catch (error: any) {
-      sendJson(res, 404, { error: { code: "MessageNotFound", message: error?.message ?? "Assistant message not found" } });
+    } catch {
+      sendJson(res, 404, { error: { code: "MessageNotFound", message: "Assistant message not found" } });
     }
     return true;
   }

@@ -138,7 +138,7 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     container.querySelector('[data-action="save-note"]')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[role="status"]')?.textContent).toContain("Saved: Saved answer");
+    expect(container.querySelector('[role="status"]')?.textContent).toBe("Saved to notes");
   });
 
 });

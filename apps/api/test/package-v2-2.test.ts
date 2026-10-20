@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChatConfiguration, persistChatMessage, resetChatStore, resetPackageV22Store, saveSourceGuide } from "@everlast/db";
-import { handlePackageV22Route, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
+import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../src/routes/package-v2-2.ts";
+import { NotesService } from "../src/notes/service.ts";
+import { createNoteMarkdownIngestor } from "@everlast/worker/ingestion/note-markdown";
+import { listNotes, resetNoteStore } from "@everlast/db";
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import { getMessageFollowUps } from "@everlast/db";
 
@@ -23,7 +26,8 @@ const deps: PackageV22ApiDependencies = {
   authorizeNotebook: vi.fn(async () => true),
   authorizeSource: vi.fn(async () => ({ exists: true, ready: true, revision: 2 })),
 };
-beforeEach(() => { resetPackageV22Store(); resetChatStore(); });
+beforeEach(() => { resetPackageV22Store(); resetChatStore(); resetNoteStore(); });
+const notesService = () => new NotesService({ ingestor: createNoteMarkdownIngestor() });
 
 describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-02)", () => {
   it("returns pending guide status for an authorized Ready source without changing selection", async () => {
@@ -61,12 +65,13 @@ describe("Package 2.2 authenticated API routes (FR-SI-02, FR-GC-04/07/09, FR-NM-
     await handlePackageV22Route(feedback.req, feedback.res, "owner", deps);
     expect(feedback.result().status).toBe(200);
     const noteReq = { notebook_id: notebook, message_id: message };
+    const noteDeps = { ...deps, saveNote: savedResponseNoteSaver(notesService()) };
     const save = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/note`, { method: "POST", body: noteReq });
-    await handlePackageV22Route(save.req, save.res, "owner", deps);
+    await handlePackageV22Route(save.req, save.res, "owner", noteDeps);
     expect(save.result().status).toBe(200);
     expect(Object.keys(save.result().body.note).sort()).toEqual(["citations_json", "content_md", "created_at", "id", "notebook_id", "origin_type", "read_only", "source_message_id", "title"].sort());
     const repeat = invoke(`/api/notebooks/${notebook}/chat/messages/${message}/note`, { method: "POST", body: noteReq });
-    await handlePackageV22Route(repeat.req, repeat.res, "owner", deps);
+    await handlePackageV22Route(repeat.req, repeat.res, "owner", noteDeps);
     expect(repeat.result().body.note.id).toBe(save.result().body.note.id);
   });
 
@@ -208,4 +213,67 @@ it("never returns upstream generation error text in overview or follow-up respon
   await handlePackageV22Route(followUps.req, followUps.res, "owner", { ...deps, generateFollowUps: leak });
   expect(followUps.result().status).toBeGreaterThanOrEqual(400);
   expect(JSON.stringify(followUps.result().body)).not.toContain("secret-detail");
+});
+
+describe("shared save-note route writes the Package 2.3 notes store (FR-GC-09, FR-NM-02)", () => {
+  const assistant = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const question = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const citation = { badge_number: 1, source_id: source, source_title: "Brief", chunk_id: chunk, snippet: "supported", locator: { page_number: 1, start_offset: 0, end_offset: 9 } };
+  const save = async (service: NotesService, body: unknown, path = assistant) => {
+    const req = invoke(`/api/notebooks/${notebook}/chat/messages/${path}/note`, { method: "POST", body });
+    await handlePackageV22Route(req.req, req.res, "owner", { ...deps, saveNote: savedResponseNoteSaver(service) });
+    return req.result();
+  };
+  const seed = async (prompt: string | null) => {
+    if (prompt !== null) await persistChatMessage(undefined, { id: question, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "user", content: prompt, created_at: "2026-10-20T00:00:00.000Z" });
+    await persistChatMessage(undefined, { id: assistant, thread_id: notebook, notebook_id: notebook, user_id: "owner", role: "assistant", content: "Port 8080 requires mTLS [1]", citations: [citation], active_source_revisions_snapshot: [{ source_id: source, revision: 2 }], created_at: "2026-10-20T00:00:01.000Z" });
+  };
+
+  it("creates the same record the notes list returns, with the stable 2.2 DTO", async () => {
+    await seed("Which port needs mTLS?");
+    const service = notesService();
+    const result = await save(service, { notebook_id: notebook, message_id: assistant });
+    expect(result.status).toBe(200);
+    expect(Object.keys(result.body.note).sort()).toEqual(["citations_json", "content_md", "created_at", "id", "notebook_id", "origin_type", "read_only", "source_message_id", "title"]);
+    expect(result.body.note).toMatchObject({ origin_type: "saved_response", read_only: true, source_message_id: assistant, content_md: "Port 8080 requires mTLS [1]", citations_json: [citation] });
+    const listed = await listNotes(notebook, "owner");
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ id: result.body.note.id, origin_type: "saved_response", source_message_id: assistant });
+  });
+
+  it("is idempotent per user and message, including a note saved through the 2.3 store", async () => {
+    await seed("Which port needs mTLS?");
+    const service = notesService();
+    const viaNotes = await service.saveFromMessage(notebook, "owner", assistant);
+    const first = await save(service, { notebook_id: notebook, message_id: assistant });
+    const second = await save(service, { notebook_id: notebook, message_id: assistant });
+    expect(first.body.note.id).toBe(viaNotes.note.id);
+    expect(second.body.note.id).toBe(viaNotes.note.id);
+    expect(await listNotes(notebook, "owner")).toHaveLength(1);
+  });
+
+  it("titles the note with the preceding user question trimmed to 200 code points, else Saved response", async () => {
+    await seed(`   ${"🌱".repeat(250)}   `);
+    const long = await save(notesService(), { notebook_id: notebook, message_id: assistant });
+    expect(long.body.note.title).toBe("🌱".repeat(200));
+    resetChatStore();
+    resetNoteStore();
+    await seed("  Which port needs mTLS?  ");
+    expect((await save(notesService(), { notebook_id: notebook, message_id: assistant })).body.note.title).toBe("Which port needs mTLS?");
+    resetChatStore();
+    resetNoteStore();
+    await seed(null);
+    expect((await save(notesService(), { notebook_id: notebook, message_id: assistant })).body.note.title).toBe("Saved response");
+  });
+
+  it("rejects body IDs that differ from the path and invalid bodies with 400 ValidationError", async () => {
+    await seed("Which port needs mTLS?");
+    const service = notesService();
+    const otherNotebook = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    expect(await save(service, { notebook_id: otherNotebook, message_id: assistant })).toMatchObject({ status: 400, body: { error: { code: "ValidationError" } } });
+    expect(await save(service, { notebook_id: notebook, message_id: question })).toMatchObject({ status: 400, body: { error: { code: "ValidationError" } } });
+    expect(await save(service, { notebook_id: notebook })).toMatchObject({ status: 400, body: { error: { code: "ValidationError" } } });
+    expect(await save(service, { notebook_id: notebook, message_id: assistant, user_id: "intruder" })).toMatchObject({ status: 400 });
+    expect(await listNotes(notebook, "owner")).toHaveLength(0);
+  });
 });

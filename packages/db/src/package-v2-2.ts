@@ -1,14 +1,13 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type {
   ChatConfiguration,
   MessageFeedback,
   MessageFeedbackInput,
   FollowUpSuggestions,
   NotebookOverview,
-  SavedResponseNote,
   SourceGuide,
 } from "@everlast/contracts";
-import { ChatConfigurationSchema, ChatMessageSchema, FollowUpSuggestionsSchema, MessageFeedbackSchema, NotebookOverviewSchema, PersistedMessageFollowUpsSchema, SavedResponseNoteSchema, SourceGuideSchema } from "@everlast/contracts";
+import { ChatConfigurationSchema, FollowUpSuggestionsSchema, MessageFeedbackSchema, NotebookOverviewSchema, PersistedMessageFollowUpsSchema, SourceGuideSchema } from "@everlast/contracts";
 import { getChatMessages, onNotebookForgotten, persistChatMessage } from "./poc-bridge.ts";
 
 const guideStore = new Map<string, SourceGuide>();
@@ -16,15 +15,11 @@ const overviewStore = new Map<string, NotebookOverview>();
 const configStore = new Map<string, ChatConfiguration>();
 const feedbackStore = new Map<string, MessageFeedback>();
 const followUpStore = new Map<string, import("@everlast/contracts").PersistedMessageFollowUps>();
-const noteStore = new Map<string, SavedResponseNote>();
-const noteIdempotency = new Map<string, string>();
-const noteOperations = new Map<string, Promise<SavedResponseNote>>();
 
 const guideKey = (notebookId: string, sourceId: string, revision: number, language: string) => `${notebookId}:${sourceId}:${revision}:${language}`;
 const authorizationKey = (userId: string) => createHash("sha256").update(userId).digest("hex");
 const settingKey = (notebookId: string, userId: string) => `${notebookId}:${userId}`;
 const feedbackKey = (notebookId: string, userId: string, messageId: string) => `${notebookId}:${userId}:${messageId}`;
-const noteKey = (userId: string, messageId: string) => `${userId}:${messageId}`;
 
 export function resetPackageV22Store(): void {
   guideStore.clear();
@@ -32,9 +27,6 @@ export function resetPackageV22Store(): void {
   configStore.clear();
   feedbackStore.clear();
   followUpStore.clear();
-  noteStore.clear();
-  noteIdempotency.clear();
-  noteOperations.clear();
 }
 
 /**
@@ -118,65 +110,15 @@ export async function getMessageFeedback(notebookId: string, userId: string, mes
   return feedbackStore.get(feedbackKey(notebookId, userId, messageId)) ?? null;
 }
 
-export function saveResponseNote(input: { notebook_id: string; message_id: string; user_id: string }): Promise<SavedResponseNote> {
-  const key = noteKey(input.user_id, input.message_id);
-  const existingId = noteIdempotency.get(key);
-  if (existingId) return Promise.resolve(noteStore.get(existingId)!);
-  const pending = noteOperations.get(key);
-  if (pending) return pending;
-  const operation = (async () => {
-    const messages = await getChatMessages(undefined, input.notebook_id, input.user_id);
-    const message = messages.find((candidate) => candidate.id === input.message_id);
-    if (!message || message.role !== "assistant") throw new Error("Assistant message not found for user in notebook");
-    const validatedMessage = ChatMessageSchema.parse(message);
-    const messageIndex = messages.findIndex((candidate) => candidate.id === input.message_id);
-    const prompt = messages.slice(0, messageIndex).reverse().find((candidate) => candidate.role === "user")?.content ?? "";
-    const title = Array.from(prompt.trim().split(/\s+/).slice(0, 7).join(" ") || "Saved response").slice(0, 200).join("");
-    const note = SavedResponseNoteSchema.parse({
-      id: randomUUID(),
-      notebook_id: input.notebook_id,
-      source_message_id: validatedMessage.id,
-      title,
-      content_md: validatedMessage.content,
-      citations_json: validatedMessage.citations ?? [],
-      origin_type: "saved_response",
-      read_only: true,
-      created_at: new Date().toISOString(),
-    });
-    noteStore.set(note.id, note);
-    noteIdempotency.set(key, note.id);
-    return note;
-  })();
-  noteOperations.set(key, operation);
-  void operation.finally(() => noteOperations.delete(key)).catch(() => undefined);
-  return operation;
-}
-
-export async function getSavedResponseNote(userId: string, messageId: string): Promise<SavedResponseNote | null> {
-  const id = noteIdempotency.get(noteKey(userId, messageId));
-  return id ? noteStore.get(id) ?? null : null;
-}
-
-export async function deleteSavedResponseNote(userId: string, messageId: string): Promise<void> {
-  const key = noteKey(userId, messageId);
-  const id = noteIdempotency.get(key);
-  if (id) noteStore.delete(id);
-  noteIdempotency.delete(key);
-}
-
 export async function persistPackageV22AssistantMessage(input: Parameters<typeof persistChatMessage>[1]) {
   return persistChatMessage(undefined, input);
 }
 
-// PoC per D16: every Package 2.2 record lives in memory; drop a deleted notebook's records.
+// PoC per D16: every Package 2.2 record lives in memory; drop a deleted notebook's records. Saved responses
+// live in the Package 2.3 notes store (`notes.ts`), the single store behind the shared save-note route (FR-NM-02).
 onNotebookForgotten((notebookId) => {
   for (const store of [guideStore, configStore, feedbackStore, followUpStore] as Map<string, unknown>[]) {
     for (const key of store.keys()) if (key.startsWith(`${notebookId}:`)) store.delete(key);
   }
   for (const [key, overview] of overviewStore) if (overview.notebook_id === notebookId) overviewStore.delete(key);
-  for (const [id, note] of noteStore) {
-    if (note.notebook_id !== notebookId) continue;
-    noteStore.delete(id);
-    for (const [key, noteId] of noteIdempotency) if (noteId === id) noteIdempotency.delete(key);
-  }
 });

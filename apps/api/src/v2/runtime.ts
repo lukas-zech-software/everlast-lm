@@ -55,7 +55,7 @@ import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
 import { NotesService } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
-import { handlePackageV22Route, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
+import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
 import { handleStudioRoute } from "../routes/studio.ts";
 import { handleWorkspacePreferencesRoute } from "../routes/workspace-preferences.ts";
 import { WorkspacePreferencesService } from "../services/workspace-preferences.ts";
@@ -232,6 +232,19 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
     void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
   };
+  // ---- Package 2.3: notes -------------------------------------------------------------------------------
+  const notes = new NotesService({
+    ingestor: createNoteMarkdownIngestor(),
+    ...(options.model ? { assistant: new GroundedNoteAssistant(options.model) } : {}),
+    scopedContext: provider,
+    verifyOwnership: (notebookId, userId) => ownerOf(notebookId) === userId,
+    reserveSlot: async (notebookId) => {
+      const used = (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId);
+      if (used >= options.sourceLimit) throw new SourceQuotaExceededError(`Source limit of ${options.sourceLimit} reached`);
+    },
+    sourceTitles,
+    onNotebookModified: touchNotebookModified,
+  });
   const v22Deps: PackageV22ApiDependencies = {
     // The API checked notebook ownership in PostgreSQL before any v2 handler runs.
     authorizeNotebook: async (userId, notebookId) => ownerOf(notebookId) === userId,
@@ -245,6 +258,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       }
     },
     resolveOutputLanguage: async (userId, notebookId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
+    // FR-GC-09 / FR-NM-02: the shared save-note route writes the Package 2.3 notes store.
+    saveNote: savedResponseNoteSaver(notes),
     ...(options.generation
       ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps, startGuide }
       : {}),
@@ -321,19 +336,6 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     readyTimer.unref?.();
   }
 
-  // ---- Package 2.3: notes -------------------------------------------------------------------------------
-  const notes = new NotesService({
-    ingestor: createNoteMarkdownIngestor(),
-    ...(options.model ? { assistant: new GroundedNoteAssistant(options.model) } : {}),
-    scopedContext: provider,
-    verifyOwnership: (notebookId, userId) => ownerOf(notebookId) === userId,
-    reserveSlot: async (notebookId) => {
-      const used = (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId);
-      if (used >= options.sourceLimit) throw new SourceQuotaExceededError(`Source limit of ${options.sourceLimit} reached`);
-    },
-    sourceTitles,
-    onNotebookModified: touchNotebookModified,
-  });
   const sourceSlots = async (notebookId: string) => ({
     used: (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId),
     limit: options.sourceLimit,

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  clampCodePoints,
+  NOTE_TITLE_MAX_CODE_POINTS,
   NOTE_ASSISTANT_MAX_NOTES,
   NOTE_ERROR_MESSAGES,
   NOTE_SOURCE_MAX_BYTES,
@@ -49,6 +51,7 @@ export class NotesServiceError extends Error {
 }
 
 const err = (code: string, status: number, message = code) => new NotesServiceError(code, status, message);
+const SAVED_RESPONSE_TITLE = "Saved response";
 
 export interface NotesServiceDeps {
   ingestor: NoteSourceIngestor;
@@ -126,10 +129,15 @@ export class NotesService {
       if (existing) return { note: existing, created: false };
       throw err("MessageNotFound", 404, "Assistant message not found");
     }
+    // Shared save-note contract (FR-GC-09, FR-NM-02): title = preceding user question trimmed to 200 code points.
+    const index = messages.findIndex((m) => m.id === msg.id);
+    const question = messages.slice(0, index).reverse().find((m) => m.role === "user")?.content.trim() ?? "";
+    const title = question ? clampCodePoints(question, NOTE_TITLE_MAX_CODE_POINTS).trim() : SAVED_RESPONSE_TITLE;
     const saved = await saveResponseAsNote(notebookId, userId, {
       message_id: msg.id,
       content: msg.content,
       citations: msg.citations ?? [],
+      title,
     });
     return saved.created ? this.modified(notebookId, saved) : saved;
   }

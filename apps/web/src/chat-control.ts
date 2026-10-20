@@ -121,7 +121,7 @@ export function renderResponseActions(container: HTMLElement, input: {
           if (!response.ok) throw new Error("Could not save note");
           const result = await response.json() as { note: SavedResponseNote };
           input.onSavedNote?.(result.note);
-          if (status) status.textContent = `Saved: ${result.note.title}`;
+          if (status) status.textContent = "Saved to notes";
         }
       } catch {
         if (status) status.textContent = "Action failed";

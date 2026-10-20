@@ -175,6 +175,8 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
         onSavedNote: (note) => {
           if (!studio) return;
           renderSavedResponseNote(studio, note, (citation) => openCitation(citation.source_id, citation.chunk_id));
+          // FR-NM-02: the note is in the single notes store; the Package 2.3 notes panel refreshes on this event.
+          studio.dispatchEvent(new CustomEvent("everlast:note-saved", { detail: { note_id: note.id } }));
         },
       });
       if (!fresh || revisions.length === 0) return;
