@@ -25,7 +25,7 @@
 - *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, strictly bounded CPU/memory/execution-time limits, and read-only access solely to the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`).
 - *Event:* When code execution starts, the system shall show a `"Running code…"` status in the chat response within $\le 2.5\text{ s}$ of the user's submission (this progress event is not an answer token and does not satisfy `NFR-PERF-01`; code-execution turns have their own timing criteria).
 - *Event:* When sandbox execution completes, the system shall embed the computed numerical results, each marked with a `Computed` label, generated charts (PNG/SVG), and a collapsible `"View executed code"` (`"Code anzeigen"`) inspection block inside the assistant's grounded chat response alongside source citations `[n]` to the source data used.
-- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($512\text{ MB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
+- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($1.5\text{ GB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
 
 - *Event:* When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, the assistant shall ask a focused follow-up and wait for the answer before calculating, rather than silently choosing an interpretation. Clarification-only turns do not start execution or show “Running code…”; execution-status timing applies to the submission that supplies sufficient statistical intent to start computation.
 
@@ -42,7 +42,7 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Generated Python script | UTF-8 Python code using the managed runtime version verified in the R6 spike | Pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy` | — |
-| Sandbox CPU / RAM limit | Container quota | $\le 1\text{ vCPU}$, $\le 512\text{ MB RAM}$, $\le 64\text{ MB}$ temp `/tmp` disk | Enforced per run |
+| Sandbox CPU / RAM limit | Container quota | $\le 2\text{ vCPU}$, $\le 1.5\text{ GB RAM}$, $\le 64\text{ MB}$ temp `/tmp` disk | Enforced per run |
 | Execution timeout | Wall-clock duration | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
 | Outbound network | Network namespace | Completely disabled and verified for the selected managed sandbox; a local Docker flag is not evidence for a managed service | Disabled |
 
@@ -100,9 +100,10 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 **Open questions:** `None`
 
 
-## Planning feasibility finding (2026-10-20; FR-GC-08, R6)
+## Planning decision history (2026-10-20; FR-GC-08, R6, D16)
 
-The current official Agent Platform Code Execution quickstart documents a default of 2 vCPU / 1.5 GB RAM and an optional 4 vCPU / 4 GB profile, exceeding this package's ≤1 vCPU / ≤512 MB bounds. See [provider quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart). This known mismatch must not be treated as a passed or merely unmeasured configuration. No requirement is relaxed by the finding. The existing Pyodide fallback also needs a concrete security boundary; JavaScript worker separation and import filtering alone do not establish network/filesystem isolation. The owner selected Option A on 2026-10-20: retain the strict caps and hold planning completion until R6 establishes a conforming runtime. Downstream planning is marked ERROR until resolved; no implementation is authorized by this draft.
+The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
 
+**Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. R6 deployment qualification is required before implementation/runtime admission; it is not a condition for completing this design plan.
 
-**Owner decision (2026-10-20, FR-GC-08/R6):** "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." Keep all per-execution caps unchanged; one or two concurrent users is qualification workload context only. Hold package 3.2 planning completion until a conforming runtime is established. Local container probes do not qualify the managed deployment. No further product clarification is outstanding; R6 feasibility evidence is still required.
+This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D16 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.

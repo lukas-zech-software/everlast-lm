@@ -124,6 +124,7 @@ the cited SRS requirements; they do not introduce new release packages.
   notes, research and re-sync paths. Uploading/Processing/Ready sources consume a slot;
   Failed uploads release it and retain only a dismissible error row. Re-sync uses the same
   slot and leaves the old revision intact if validation fails. Each source obeys both limits.
+- **Quantitative sandbox envelope (FR-GC-08, D16):** Use the owner-approved managed default of 2 vCPU / 1.5 GB RAM. This replaces the former CPU/RAM caps only; zero network, read-only scoped input, 64 MB temporary storage, 15.0 s execution and retry rules remain. R6 qualification precedes implementation/runtime admission; planning completion is not runtime evidence.
 - **Validation cadence (NFR-EVAL-01..04, all release gates):** Deterministic citation-ID and
   leakage checks run on every PR. LLM-judged faithfulness/rejection and semantic citation
   support checks run on retrieval/prompt/chat PRs and before every release gate. All other

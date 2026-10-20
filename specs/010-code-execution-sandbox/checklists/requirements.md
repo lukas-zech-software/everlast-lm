@@ -39,3 +39,5 @@
 - Bootstrap: own worktree created from completed package 3.1 commit `c50ec9d5e6982e97b7fedebab55adf1cfb801f4f`. Immediately afterward the parent-supplied `SPECIFY_FEATURE_DIRECTORY=specs/010-code-execution-sandbox` was exported, copied exactly into `.specify/feature.json`, unset and verified absent. Subsequent work uses the JSON pin.
 - Static validation: `node scripts/check-spec-integrity.mjs` and `git diff --check` PASS. Runtime security, sandbox, performance and eval evidence: UNAVAILABLE in this specification-only work; neither R6 nor Gate v3.0 is claimed passed.
 - Ready for `$speckit-plan`; no unresolved product clarification requires `$speckit-clarify`. Planning must retain R6 verification and all applicable constitution gates.
+
+- Revalidation 2026-10-20 (FR-GC-08, D16): all 16 checks remain satisfied. The earlier review quote of 1 vCPU / 512 MB is historical and superseded by the owner-approved 2 vCPU / 1.5 GB managed default. Current FR-003, SC-004, FR card, SRS and architecture agree; 64 MB scratch, zero network, 15.0 seconds and retry semantics are unchanged. Design checks do not claim R6 runtime qualification.

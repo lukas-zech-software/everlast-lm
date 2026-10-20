@@ -1,62 +1,47 @@
-# R6 Feasibility Record: Strict-cap Sandbox
+# R6 Qualification Record: Managed Default Sandbox
 
-Date: 2026-10-20. Scope: FR-GC-08, NFR-SEC-01/02, Gate v3.0 #2, CC-07/08.
-Status: **BLOCKED — no conforming deployed runtime established.** This is an investigation checkpoint, not completed speckit-plan or runtime acceptance evidence.
+Date: 2026-10-20. Scope: FR-GC-08, NFR-SEC-01/02, Gate v3.0 #2, CC-07/08, D16.
+Status: **Design complete; deployment qualification UNAVAILABLE.** This record distinguishes the selected architecture from evidence still required before implementation/runtime admission.
 
-## Owner decision (FR-GC-08)
+## Superseding owner decision (FR-GC-08, D16)
 
-The owner answered: “Option A: We are not expecting more than one or two simultaneous users, so this should be fine.” Option A preserves ≤1 vCPU, ≤512 MB RAM, ≤64 MB temporary storage, zero network access and ≤15.0 s per execution, and holds planning completion until R6 establishes a conforming runtime. Expected load is one or two simultaneous users; resources may not be pooled or increased per execution on that basis. This investigation uses 512,000,000 and 64,000,000 bytes conservatively, without silently substituting the larger MiB values.
+The owner first chose Option A to retain the former 1 vCPU / 512 MB caps and hold planning for feasibility evidence. The owner subsequently instructed: “Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM”. D16 and the SRS amendment apply that later instruction. The managed default is now the primary path and the earlier CPU/RAM-related planning hold is superseded. The optional 4 vCPU / 4 GB profile is not approved.
 
-## Current repository boundary (FR-GC-08, CC-08)
+One or two simultaneous users remains workload context. Zero inbound/outbound network, immutable scoped input, 64 MB temporary storage, 15.0-second per-attempt execution, retry rules and validated publication remain mandatory. Planning completion does not enable a cloud service or prove those controls.
 
-`infra/modules/compute/main.tf` configures the existing worker at 2 vCPU / 2Gi, 600 s request timeout and internal ingress; the API uses 2 vCPU / 1Gi, 300 s timeout and startup CPU boost. Neither is an execution sandbox. There is no Pyodide dependency, dedicated sandbox runtime, read-only input enforcement, bounded scratch mount or independent execution watchdog. Do not run untrusted code in either existing service or treat internal ingress as zero network access. Existing service accounts have application permissions that must not be inherited by untrusted execution.
+## Selected design and documented support (FR-GC-08, R6)
 
-## Documented controls and gaps (FR-GC-08, R6)
+The existing TypeScript API calls Agent Platform Code Execution through authenticated REST. OpenTofu owns one parent runtime resource with no deployed agent code. A fresh Python sandbox is created for every attempt, scoped input bytes are supplied without credentials or source URLs, output bytes are validated, and the child sandbox is destroyed. Parent runtime ownership remains separate from per-attempt cleanup.
 
-Sources below were retrieved through ketch.scrape on 2026-10-20. They support design constraints, not proof that a target deployment has those controls.
+[Google's quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart), retrieved with ketch.scrape on 2026-10-20, documents the selected default resources, parent creation without deployed agent code, file exchange, execution and deletion. The [overview](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-overview) describes no network and preinstalled numerical libraries. Those sources do not establish a configurable 64 MB scratch bound, read-only inputs or actual execution destruction at 15.0 s. No provider configuration parameters for those controls are invented in this plan.
 
-| Source | Finding / implication |
-| --- | --- |
-| [Agent Platform quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart) | Default 2 vCPU / 1.5 GB and optional 4 vCPU / 4 GB exceed the retained caps. Do not deploy default and report compliance. |
-| [Cloud Run memory limits](https://docs.cloud.google.com/run/docs/configuring/services/memory-limits) | Decimal M and binary Mi units are supported. First generation minimum is 128 MiB; second generation minimum is 512 MiB. A first-generation 512M outer limit is a candidate; 512Mi is larger than the retained decimal bound. |
-| [Cloud Run execution environments](https://docs.cloud.google.com/run/docs/about-execution-environments) | First generation emulates only part of Linux syscalls. Second generation is recommended for Linux cgroups and third-party container security infrastructure. A locally working namespace/cgroup hardener cannot be presumed to work under first generation. |
-| [Cloud Run request timeout](https://docs.cloud.google.com/run/docs/configuring/request-timeout) | HTTP timeout closes the connection but does not terminate the container. It cannot enforce the required execution kill. |
-| [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract) | Writable container filesystem consumes memory and is not independently size limited; dedicated volume configuration is required for scratch limits. A 64 MB scratch mount alone does not prevent writes elsewhere. |
-| [In-memory volumes](https://docs.cloud.google.com/run/docs/configuring/services/in-memory-volume-mounts) | A dedicated bounded in-memory volume rejects further writes when full; usage also counts toward container memory. Must verify compatible first-generation deployment and prevent alternate writable paths. |
-| [Cloud Run security](https://docs.cloud.google.com/run/docs/securing/security) | Platform boundary protects instances; it does not automatically remove code access to its own service metadata/credentials or outbound networking. |
-| [Pyodide worker guide](https://pyodide.org/en/stable/usage/webworker.html) | Separate worker prevents UI blocking but is not evidence of a security boundary. Host interoperability requires explicit containment outside generated Python. |
+R6 must qualify those retained controls before application implementation/runtime admission. The controller tracks execution deadline independently of model code and requests destruction, but request dispatch alone is not proof of timely termination. Provider TTL and client HTTP timeout are not substitutes. If qualification demonstrates an unsupported constraint, stop and return that concrete failure for an explicit decision; do not silently fall back, publish output, or widen a limit.
 
-## Local disposable probes (FR-GC-08, CC-02)
+## Historical local investigation (FR-GC-08, CC-02)
 
-Environment: existing Docker Engine 29.8.2 and local `everlast-lm:v1-local` image, Linux arm64 / Node. No cloud deployment, API enablement, image pull, application implementation or company data. Each probe used a new container, no host mounts, no credentials and no published ports. Containers were removed afterward.
+Before the superseding decision, disposable Docker probes investigated an outer container for the former strict-cap fallback. They were Linux arm64 on Docker Engine 29.8.2, using existing everlast-lm:v1-local with no host mounts, credentials, network interface beyond loopback or published ports. Containers were removed. No cloud deployment, API enablement, image pull or production code was performed.
 
-Shared controls: `--network none --read-only --cap-drop ALL --security-opt no-new-privileges --pids-limit 64 --cpus 1 --memory 512000000 --memory-swap 512000000 --tmpfs /tmp:rw,noexec,nosuid,size=64000000 --user 65534:65534`.
-
-| Probe | Observed result | Evidence limit |
+| Probe | Observation | Limit |
 | --- | --- | --- |
-| Inspect cgroup configuration | memory.max = 512000000; cpu.max = 100000 100000 | Configuration observed, not a full enforcement/peak-resource benchmark |
-| Write root path | EROFS | Local read-only root works; no proof for Cloud Run or Pyodide virtual filesystem |
-| Fill scratch in 1,000,000-byte writes | ENOSPC after 64 whole MB written | Local bounded scratch works; underlying page rounding may exist, so exact-byte boundary still requires finer probing |
-| Network interface inventory | Only lo | No external interface observed; loopback remains. No packet-capture or comprehensive socket test performed; zero-network acceptance not claimed |
-| Allocate memory repeatedly | `docker wait` did not complete within 20 s; investigation watchdog timed out and forced container removal | **INCONCLUSIVE / NOT PASSED:** no observed OOM-kill evidence; configured memory.max is not substituted for termination proof |
+| Former memory/CPU configuration | memory.max=512000000; cpu.max=100000 100000 | Configuration only; not enforcement proof or the current profile |
+| Read-only root | EROFS on write | Local filesystem only |
+| Former 64 MB tmpfs | ENOSPC after 64 whole 1,000,000-byte writes | No finer boundary or provider test; page rounding not excluded |
+| Network inventory | Only lo | No packet capture or comprehensive socket test |
+| Memory allocation | docker wait did not finish within 20 s; probe forcibly removed | Inconclusive, not passed; no OOM-kill evidence |
 
-No Python/numpy/pandas/scipy/matplotlib stack was exercised. No arithmetic, latency, 15-second enforcement, read-only Pyodide input, host-bridge escape or selected managed-runtime isolation gate passed. Local architecture differs from Cloud Run's documented Linux x86_64 ABI. These observations establish only a narrow local outer-container starting point; the FR card explicitly rejects local Docker flags as managed-service evidence.
+These probes do not qualify Agent Platform. No Python numerical stack, managed isolation, latency or 15-second kill gate was passed. They are historical evidence, not required work for the selected managed path. The repository's current Cloud Run API/worker configuration is not reused as an untrusted execution sandbox.
 
-## Concrete candidate qualification design (FR-GC-08, C-02)
+## Required R6 admission evidence (FR-GC-08, NFR-SEC-01/02)
 
-Use the already documented Pyodide-on-Cloud-Run fallback as the candidate, rather than introduce a new datastore/framework. A first-generation, scale-to-zero service would have a single active execution per instance, ≤1 vCPU without startup CPU boost and a 512M outer memory limit. Two users can occupy separate instances; concurrency never weakens a per-execution limit. Package libraries must be bundled before execution; no runtime installation or CDN access.
+| Control | Required evidence / fail condition |
+| --- | --- |
+| Resource profile | Returned configuration matches the documented default 2 vCPU / 1.5 GB; record effective memory bytes/runtime versions, reject unexpected or 4 vCPU profile |
+| No network | Attempts covering public/private/metadata/DNS/inbound paths, zero successful connections and zero escaping packets in selected-runtime observations |
+| Input/scratch boundary | Input overwrite and filesystem escape tests fail; all execution scratch is bounded to 64 MB, including alternative writable locations; no credentials injected |
+| Wall clock | Infinite loop is actually stopped by 15.0 s; record provider-side process termination/destruction, not only a timed-out client; cancellation/OOM also destroy the child |
+| Packages/correctness | math, statistics, numpy, pandas, matplotlib, scipy available; exact fixture outputs/charts and required retry semantics |
+| Fresh state and cleanup | No cross-user/attempt files or memory; idempotent deletion, crash/orphan cleanup, no late results after generation-epoch invalidation |
+| Region/security | Intended europe-west4 endpoint, approved service identity and enterprise no-training terms; no undeclared region fallback |
+| Performance | Cold/warm boot+execution ≤4.0 s P95 and submission-to-real-running-code ≤2.5 s under declared one/two-user load, separate from NFR-PERF-01 answer TTFT |
 
-The trusted controller must transfer input/output by a bounded channel into an independently contained execution process. That process must have no service credentials, metadata/DNS/socket access or host filesystem capability; input is immutable and all writable space is bounded. A supervisor outside generated code must enforce the 15.0-second deadline and destroy the execution environment on all terminal paths. The whole instance must be discarded before reuse if isolation cannot prove complete cleanup. Application-level blacklists, Node worker separation, Cloud Run's HTTP timeout and deleting a Python global are specifically rejected as the containment boundary.
-
-**This is a qualification candidate, not an approved design:** compatibility of the required containment/kill mechanisms with first-generation Cloud Run and the Pyodide host bridge is not established. Moving to second generation solely to gain Linux hardening support would exceed the decimal memory cap at the container boundary. Allocating a larger host with a proven smaller nested sandbox is another design possibility, but no such nested boundary is established here and no changed interpretation of the existing cap is assumed.
-
-## Exact remaining blocker and next evidence (FR-GC-08, CC-07/08)
-
-The missing prerequisite is a **target-compatible executable containment design and selected-environment qualification**, not another product answer. In a project-owner-authorized EU test deployment, R6 must demonstrate all of:
-
-1. An actual hard boundary around Pyodide and host interoperability that denies metadata/credentials, all inbound/outbound networking and unauthorized files; packet observations and escape attempts must test that boundary.
-2. Enforced ≤1 vCPU, ≤512 MB total execution memory, read-only input and ≤64 MB total permitted scratch, with required libraries loaded and an exact numerical workload. Resolve the local inconclusive memory-kill probe before treating its pattern as usable.
-3. Independent termination by 15.0 s, confirmed process/sandbox destruction on timeout/OOM/cancel, and no late publication. Client request timeout is insufficient.
-4. Fresh state per attempt, one exception retry/zero timeout-OOM retries, private artifact transfer, EU/no-training settings and cold/warm ≤4.0 s P95 at one and two simultaneous users.
-
-This requires an approved test runtime/image and target-environment deployment permissions, plus any required API/service enablement authorization and IaC. None was exercised or inferred here. If that candidate cannot satisfy the retained caps, return the concrete failed control to the owner before changing architecture or requirements. Until the evidence exists, keep plan status ERROR, CC-07/08 unresolved, runtime/eval gates UNAVAILABLE, and do not start dependent package planning under the current sequential procedure.
+R6 requires a project-owner-authorized EU test deployment and relevant deployment permissions, approved IaC/resources and API enablement approval if new services are needed. Those actions are outside this planning execution and have not occurred. Pyodide remains the recorded architecture fallback candidate only if managed qualification fails and an equivalently conforming design is established. No new product question remains for this plan; runtime results may later require flow-back and an explicit decision.
