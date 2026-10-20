@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import type { EvalRunResult } from "./runner.ts";
 import type { PreflightReport } from "./security-preflight.ts";
 import type { MetricResult } from "./metrics.ts";
+import type { ResponseLengthMetric } from "./response-length.ts";
 
 /**
  * Gate v1.0 report and lifecycle (NFR-EVAL-01..04, Gate v1.0). GatePending → GatePassed | GateFailed.
@@ -39,6 +40,8 @@ export interface GateReport {
     gate3_citation_navigation: { status: CriterionStatus; detail: string };
   };
   security_preflight: PreflightReport | null;
+  /** v2.0 release metrics outside Gate v1.0 (FR-GC-07 response length); recorded, not part of the v1 gate state. */
+  release_metrics?: { response_length: ResponseLengthMetric };
   failures: string[];
   cases: { id: string; category: string; kind: string; response: string; citations: number; leakage: number; judged?: unknown; turns?: unknown; error?: string }[];
 }
@@ -51,6 +54,7 @@ export function buildGateReport(input: {
   ui: UiGateEvidence;
   dataset: GateReport["dataset"];
   models: Record<string, string>;
+  responseLength?: ResponseLengthMetric | undefined;
 }): GateReport {
   const failures: string[] = [];
   const { run } = input;
@@ -94,6 +98,7 @@ export function buildGateReport(input: {
       gate3_citation_navigation: { status: gate3, detail: ui3?.detail ?? "missing UI evidence (run pnpm test:e2e)" },
     },
     security_preflight: input.preflight,
+    ...(input.responseLength ? { release_metrics: { response_length: input.responseLength } } : {}),
     failures,
     cases: run.cases.map((c) => ({
       id: c.id,
@@ -135,6 +140,19 @@ export function renderMarkdown(report: GateReport): string {
   if (report.security_preflight) {
     lines.push("", "## NFR-SEC-01 preflight", "", "| Check | Status | Detail |", "| :-- | :-- | :-- |");
     for (const c of report.security_preflight.checks) lines.push(`| ${c.id} ${c.description} | ${c.status} | ${c.detail} |`);
+  }
+  const length = report.release_metrics?.response_length;
+  if (length) {
+    const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)} %`);
+    lines.push(
+      "",
+      "## FR-GC-07 response length (v2.0 release metric)",
+      "",
+      `- **Status:** ${length.status}${length.detail ? ` (${length.detail})` : ""}`,
+      `- **Shorter / Default:** ${pct(length.shorter_ratio)} (≤ 50 %) · **Longer / Default:** ${pct(length.longer_ratio)} (≥ 150 %)`,
+      `- **Sample case IDs:** ${length.case_ids.join(", ") || "—"}`,
+      `- **Generation parameters:** ${JSON.stringify(length.generation_parameters)}`
+    );
   }
   if (report.failures.length) lines.push("", "## Failures", "", ...report.failures.map((f) => `- ${f}`));
   return `${lines.join("\n")}\n`;

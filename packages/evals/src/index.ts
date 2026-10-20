@@ -6,3 +6,4 @@ export * from "./runner.ts";
 export * from "./report.ts";
 export * from "./security-preflight.ts";
 export * from "./deterministic-models.ts";
+export * from "./response-length.ts";
