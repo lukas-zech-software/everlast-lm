@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { newNotebook, resetAll, startApi, stubIngestor } from "./notes-fixtures.ts";
+import { newNotebook, resetAll, startApi } from "./notes-fixtures.ts";
 
 describe("FR-NM-01: notes CRUD routes", () => {
   let api: Awaited<ReturnType<typeof startApi>>;
@@ -8,7 +8,7 @@ describe("FR-NM-01: notes CRUD routes", () => {
   beforeEach(async () => {
     resetAll();
     nb = await newNotebook();
-    api = await startApi({ ingestor: stubIngestor().ingestor });
+    api = await startApi({});
   });
   afterEach(() => api.close());
 
@@ -60,7 +60,7 @@ describe("FR-NM-01: notes CRUD routes", () => {
   });
 
   it("rejects non-owners", async () => {
-    const denied = await startApi({ ingestor: stubIngestor().ingestor, verifyOwnership: () => false });
+    const denied = await startApi({ verifyOwnership: () => false });
     const r = await denied.call("GET", `/api/notebooks/${nb}/notes`);
     expect(r.status).toBe(403);
     await denied.close();

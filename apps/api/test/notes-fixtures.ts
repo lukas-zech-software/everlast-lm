@@ -1,22 +1,11 @@
 import { createServer, type Server } from "node:http";
 import { randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import {
-  countNoteWords,
-  type NoteSourceIngestor,
-  type UnifiedDocumentChunk,
-} from "@everlast/contracts";
-import {
-  countSourcesForNotebook,
-  createPocNotebook,
-  resetChatStore,
-  resetNoteStore,
-  resetPocBridge,
-  resetSourceRegistry,
-} from "@everlast/db";
-import { SourceQuotaExceededError } from "@everlast/contracts";
+import { createPocNotebook, resetChatStore, resetNoteStore, resetPocBridge } from "@everlast/db";
 import { handleNotesRoute } from "../src/routes/notes.ts";
 import { NotesService, type NotesServiceDeps } from "../src/notes/service.ts";
+
+/** TEST-ONLY: the notes routes over the in-memory note repository (FR-NM-01 CRUD; no sources involved). */
 
 export const USER = "usr_alice";
 
@@ -25,58 +14,18 @@ export function uuidv7(): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-7${h.slice(13, 16)}-8${h.slice(17, 20)}-${h.slice(20, 32)}`;
 }
 
-export function stubIngestor(mode: "ok" | "failed" | "throws" = "ok") {
-  const calls: { markdown: string; title: string }[] = [];
-  const ingestor: NoteSourceIngestor = {
-    async ingest(input) {
-      calls.push({ markdown: input.markdown, title: input.title });
-      if (mode === "throws") throw new Error("boom");
-      if (mode === "failed") {
-        return { status: "Failed", byte_size: 0, word_count: 0, chunks: [], error_message: "parse error" };
-      }
-      const chunk: UnifiedDocumentChunk = {
-        chunk_id: uuidv7(),
-        source_id: input.source_id,
-        revision: input.revision_id,
-        locator: { selector: "body", start_offset: 0, end_offset: input.markdown.length },
-        token_count: countNoteWords(input.markdown),
-        text: input.markdown,
-      };
-      return {
-        status: "Ready",
-        byte_size: Buffer.byteLength(input.markdown, "utf8"),
-        word_count: countNoteWords(input.markdown),
-        chunks: [chunk],
-      };
-    },
-  };
-  return { ingestor, calls };
-}
-
-/** Uploaded sources already occupying slots, per notebook (stands in for the PostgreSQL count). */
-export const seededSlots = new Map<string, number>();
-export const occupiedSlots = (notebookId: string) => (seededSlots.get(notebookId) ?? 0) + countSourcesForNotebook(notebookId);
-const SOURCE_LIMIT = 50;
-
 export function resetAll(): void {
-  seededSlots.clear();
   resetPocBridge();
   resetChatStore();
   resetNoteStore();
-  resetSourceRegistry();
 }
 
 export async function newNotebook(): Promise<string> {
   return createPocNotebook(USER, "NB").id;
 }
 
-export async function startApi(deps: NotesServiceDeps & { verifyOwnership?: NotesServiceDeps["verifyOwnership"] }) {
-  const service = new NotesService({
-    reserveSlot: async (notebookId) => {
-      if (occupiedSlots(notebookId) >= SOURCE_LIMIT) throw new SourceQuotaExceededError("Source limit reached");
-    },
-    ...deps,
-  });
+export async function startApi(deps: NotesServiceDeps) {
+  const service = new NotesService(deps);
   const server: Server = createServer((req, res) => {
     handleNotesRoute(req, res, { service, ...(deps.verifyOwnership ? { verifyOwnership: deps.verifyOwnership } : {}) }, USER)
       .then((handled) => {

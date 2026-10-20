@@ -20,12 +20,5 @@ CREATE TABLE IF NOT EXISTS notes (
 
 CREATE INDEX IF NOT EXISTS idx_notes_notebook_order ON notes(notebook_id, owner_id, display_order);
 
-CREATE TABLE IF NOT EXISTS note_source_origins (
-    notebook_id UUID NOT NULL REFERENCES notebooks(id) ON DELETE CASCADE,
-    source_id UUID NOT NULL,
-    note_id UUID NOT NULL,
-    note_revision INT NOT NULL CHECK (note_revision >= 1),
-    note_title VARCHAR(800) NOT NULL,
-    position INT NOT NULL CHECK (position >= 0),
-    PRIMARY KEY (source_id, position)
-);
+-- Note-source provenance is not part of this draft: note-sources are v1 PostgreSQL sources with their
+-- provenance in migration 0004_note_sources.sql (owner decision 2026-10-20, D16).
