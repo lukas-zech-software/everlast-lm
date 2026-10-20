@@ -134,3 +134,9 @@ variable "deletion_protection" {
   type        = bool
   default     = false
 }
+
+variable "enable_email_password_sign_in" {
+  description = "Dev PoC: Identity Platform email/password sign-in for stakeholders (owner decision 2026-10-20)."
+  type        = bool
+  default     = true
+}

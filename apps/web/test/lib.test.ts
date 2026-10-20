@@ -90,3 +90,12 @@ describe("inspector display spans (FR-SI-04)", () => {
     expect(spans[1]!.text).toBe("alpha ");
   });
 });
+
+describe("Identity Platform sign-in method (FR-WM-04, D6, dev PoC)", () => {
+  it("WEB-AUTH-01: providerId 'password' selects the email/password form; OIDC/SAML ids redirect", async () => {
+    const { signInMethod } = await import("../src/lib/auth.ts");
+    expect(signInMethod("password")).toBe("password");
+    expect(signInMethod("oidc.corporate")).toBe("oauth");
+    expect(signInMethod("saml.corp")).toBe("saml");
+  });
+});

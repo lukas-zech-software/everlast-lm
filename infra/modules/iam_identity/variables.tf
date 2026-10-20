@@ -42,3 +42,9 @@ variable "enable_model_armor" {
   type        = bool
   default     = false
 }
+
+variable "enable_email_password_sign_in" {
+  description = "Enable Identity Platform email/password sign-in (dev PoC only; D6 keeps OIDC/SAML for staging/prod)."
+  type        = bool
+  default     = false
+}

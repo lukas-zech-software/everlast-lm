@@ -11,6 +11,8 @@ locals {
     POSTGRES_DB                    = var.database_name
     GCS_WORKSPACE_BUCKET           = var.workspace_bucket_name
     DOCUMENT_AI_PROCESSOR_NAME     = var.document_ai_layout_processor_name
+    DOCUMENT_AI_PROCESSOR_ID       = var.document_ai_layout_processor_name
+    DOCUMENT_AI_LOCATION           = "eu"
     QUOTA_MAX_SOURCES_PER_NOTEBOOK = tostring(var.max_sources_per_notebook)
     QUOTA_MAX_NOTEBOOKS_PER_USER   = tostring(var.max_notebooks_per_user)
     QUOTA_MAX_SOURCE_BYTES         = "200000000" # FR-WM-07: 200 MB = 200,000,000 bytes inclusive
