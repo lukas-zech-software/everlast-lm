@@ -88,7 +88,7 @@ export interface V2RuntimeOptions {
    * Ready-transition watcher (FR-SI-02, Gate v2.0 #1): polls PostgreSQL at this bounded interval and starts the
    * Ready-source hooks without waiting for a source listing. Absent → listing-time dispatch only.
    */
-  readyWatch?: { intervalMs: number } | undefined;
+  readyWatch?: { intervalMs: number; batchSize?: number } | undefined;
 }
 
 export interface V2Runtime {
@@ -260,41 +260,51 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const dispatchReady = createReadySourceDispatcher(hooks);
 
   // ---- Ready watcher (FR-SI-02, Gate v2.0 #1, D16: single API instance) --------------------------------
-  // Polls Ready transitions in PostgreSQL. The window re-reads the last READY_LOOKBACK_MS so a transaction that
-  // committed late is not missed; the dispatcher runs each (source, revision) once.
+  // Each poll pages with a keyset cursor over (updated_at, id) from READY_LOOKBACK_MS before the newest Ready
+  // transition seen, until a short page. The lookback catches transactions that committed late; keyset paging
+  // guarantees progress past full pages; `watched` skips (source, revision) pairs already dispatched.
   const READY_LOOKBACK_MS = 30_000;
-  const READY_BATCH = 500;
+  const readyBatch = Math.max(1, options.readyWatch?.batchSize ?? 500);
+  const watched = new Set<string>();
   let readyHighWater: Date | null = null;
   const pollReadySources = async (): Promise<number> => {
     if (hooks.length === 0) return 0;
     if (!readyHighWater) readyHighWater = (await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now;
-    const since = new Date(readyHighWater.getTime() - READY_LOOKBACK_MS);
-    const { rows } = await pool.query<{ id: string; notebook_id: string; active_revision: number; title: string; media_type: string; updated_at: Date; owner_id: string }>(
-      `SELECT s.id, s.notebook_id, s.active_revision, s.title, s.media_type, s.updated_at, n.owner_id
-         FROM sources s JOIN notebooks n ON n.id = s.notebook_id
-        WHERE s.status = 'Ready' AND s.active_revision IS NOT NULL AND s.updated_at > $1
-        ORDER BY s.updated_at, s.id
-        LIMIT ${READY_BATCH}`,
-      [since]
-    );
+    // The cursor keeps PostgreSQL's microsecond text form: a JS Date would truncate it and re-read the same rows.
+    let cursor: { at: string; id: string } = { at: new Date(readyHighWater.getTime() - READY_LOOKBACK_MS).toISOString(), id: "00000000-0000-0000-0000-000000000000" };
     let dispatched = 0;
-    for (const row of rows) {
-      if (row.updated_at > readyHighWater) readyHighWater = row.updated_at;
-      try {
-        // Ownership comes from PostgreSQL; mirror the notebook so v2 reads it like a request would (D16).
-        if (!ownerOf(row.notebook_id)) rememberNotebook({ ...(await getNotebook(pool, row.owner_id, row.notebook_id)), owner_id: row.owner_id });
-      } catch {
-        continue; // notebook deleted meanwhile
+    for (;;) {
+      const { rows } = await pool.query<{ id: string; notebook_id: string; active_revision: number; title: string; media_type: string; updated_at: Date; cursor_at: string; owner_id: string }>(
+        `SELECT s.id, s.notebook_id, s.active_revision, s.title, s.media_type, s.updated_at, s.updated_at::text AS cursor_at, n.owner_id
+           FROM sources s JOIN notebooks n ON n.id = s.notebook_id
+          WHERE s.status = 'Ready' AND s.active_revision IS NOT NULL AND (s.updated_at, s.id) > ($1::timestamptz, $2::uuid)
+          ORDER BY s.updated_at, s.id
+          LIMIT $3`,
+        [cursor.at, cursor.id, readyBatch]
+      );
+      for (const row of rows) {
+        cursor = { at: row.cursor_at, id: row.id };
+        if (row.updated_at > readyHighWater) readyHighWater = row.updated_at;
+        const key = `${row.id}:${row.active_revision}`;
+        if (watched.has(key)) continue;
+        try {
+          // Ownership comes from PostgreSQL; mirror the notebook so v2 reads it like a request would (D16).
+          if (!ownerOf(row.notebook_id)) rememberNotebook({ ...(await getNotebook(pool, row.owner_id, row.notebook_id)), owner_id: row.owner_id });
+        } catch {
+          continue; // notebook deleted meanwhile
+        }
+        watched.add(key);
+        dispatched += 1;
+        void dispatchReady({
+          notebook_id: row.notebook_id,
+          source_id: row.id,
+          revision_id: row.active_revision,
+          title: row.title,
+          media_type: row.media_type,
+          ready_at: row.updated_at.toISOString(),
+        });
       }
-      dispatched += 1;
-      void dispatchReady({
-        notebook_id: row.notebook_id,
-        source_id: row.id,
-        revision_id: row.active_revision,
-        title: row.title,
-        media_type: row.media_type,
-        ready_at: row.updated_at.toISOString(),
-      });
+      if (rows.length < readyBatch) break;
     }
     return dispatched;
   };

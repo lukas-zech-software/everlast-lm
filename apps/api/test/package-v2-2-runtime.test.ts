@@ -137,3 +137,45 @@ describe("Ready-transition watcher in the API process (Gate v2.0 #1, FR-SI-02, F
     expect(content.status).toBe(200);
   });
 });
+
+describe("Ready watcher pages past full batches (Gate v2.0 #1, FR-SI-02; security review: no starvation)", () => {
+  let api: TestApi;
+  let v2: V2Runtime;
+  const guideCalls: string[] = [];
+  const counting: StructuredGenerationClient = {
+    ...fakeGeneration,
+    async generateSourceGuide(input) {
+      guideCalls.push(input.source.source_id);
+      return fakeGeneration.generateSourceGuide(input);
+    },
+  };
+  beforeAll(async () => {
+    resetPackageV22Store();
+    // Interval far beyond the test, so only explicit polls run; batch of 2 forces paging.
+    api = await startTestApi({}, (db) => {
+      v2 = createV2Runtime({ pool: db.pool, sourceLimit: 50, generation: counting, readyWatch: { intervalMs: 600_000, batchSize: 2 } });
+      return { embedder, v2 };
+    });
+  });
+  afterAll(async () => {
+    v2?.close();
+    await api?.close();
+  });
+
+  it("dispatches every one of more than batchSize sources that became Ready at the same instant, exactly once", async () => {
+    const first = await setup(api, "batch-a");
+    const owner = first.owner;
+    const ids = [first.sourceId];
+    for (let i = 0; i < 4; i += 1) {
+      const seeded = await seedReadySource(api.db.pool, owner, first.notebookId, { title: `Doc${i}.md`, pages: [`Fact number ${i} about water.`], embed: (t) => embedder.embed(t), mediaType: "text/markdown" });
+      ids.push(seeded.sourceId);
+    }
+    await api.db.pool.query("UPDATE sources SET updated_at = now() WHERE notebook_id = $1", [first.notebookId]);
+    expect(await v2.pollReadySources()).toBe(5);
+    for (const id of ids) {
+      await expect.poll(async () => (await getSourceGuide(first.notebookId, id, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideReady");
+    }
+    expect(await v2.pollReadySources()).toBe(0);
+    expect([...guideCalls].sort()).toEqual([...ids].sort());
+  });
+});
