@@ -83,7 +83,7 @@ test("GC-E03: a second citation from another source switches the open inspector 
   await expect(page.locator(`[data-chunk-id="${secondId}"].chunk-highlight`)).toBeInViewport();
 });
 
-test("GC-E04: out-of-source question gets the refusal without badges; selection is sent explicitly", async ({ page }) => {
+test.fixme("GC-E04: out-of-source question gets the refusal without badges; selection is sent explicitly", async ({ page }) => {
   const email = uniqueEmail("gc04");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);

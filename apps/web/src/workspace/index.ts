@@ -9,6 +9,7 @@ import { createSourcesPanel } from "../sources/panel.ts";
 import { createInspector } from "../sources/inspector.ts";
 import { createChatPanel } from "../chat/panel.ts";
 import { createWorkspaceFeatures } from "../v2/workspace-features.ts";
+import { renderIconPicker } from "../home.ts";
 
 /** Notebook workspace (FR-UI-01) wiring sources, inspector, chat and the v1 Studio placeholder. */
 
@@ -36,6 +37,9 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
   const selection = new SelectionModel(notebookId);
   const features = createWorkspaceFeatures({ notebookId, notebookTitle: data.notebook.title });
   const icon = (data.notebook as { icon_emoji?: string }).icon_emoji;
+  // FR-WM-02: the header icon is the same picker as on the home card (saved through PATCH /icon).
+  const headerIcon = icon ? renderIconPicker({ id: notebookId, title: data.notebook.title, icon_emoji: icon }, () => undefined, "workspace-notebook-icon") : null;
+  headerIcon?.classList.add("workspace-notebook-icon");
 
   const deleteButton = h("button", { class: "btn btn-sm", "data-testid": "delete-notebook", text: "Delete" });
   const home = h("a", { class: "logo", href: "/", "data-testid": "home-link", text: "📓 Everlast LM" });
@@ -47,7 +51,7 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
   signOut.addEventListener("click", () => void options.session.signOut());
   shell.header.append(
     home,
-    ...(icon ? [h("span", { class: "workspace-notebook-icon", "data-testid": "workspace-notebook-icon", "aria-hidden": "true", text: icon })] : []),
+    ...(headerIcon ? [headerIcon] : []),
     createTitleEditor(data.notebook, options.notebookMissing),
     h("div", { class: "grow" }),
     ...features.headerItems,

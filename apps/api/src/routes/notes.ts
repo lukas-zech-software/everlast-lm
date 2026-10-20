@@ -10,15 +10,12 @@ import {
   SaveNoteFromMessageInputSchema,
 } from "@everlast/contracts";
 import {
-  createNote,
-  deleteNote,
   getNote,
   listNotes,
   NoteNotFoundError,
   NoteReadOnlyError,
   NotSavedResponseError,
   RevisionConflictError,
-  updateNote,
 } from "@everlast/db";
 import { parseJsonBody, sendJson } from "../http.ts";
 import { NotesService, NotesServiceError } from "../notes/service.ts";
@@ -76,7 +73,7 @@ export async function handleNotesRoute(
       if (method === "POST") {
         const p = CreateNoteInputSchema.safeParse(await body());
         if (!p.success) throw invalid(p.error.issues);
-        sendJson(res, 201, { note: await createNote(notebookId, userId, p.data) });
+        sendJson(res, 201, { note: await deps.service.create(notebookId, userId, p.data) });
         return true;
       }
       return false;
@@ -117,14 +114,14 @@ export async function handleNotesRoute(
     if (method === "PATCH") {
       const p = PatchNoteInputSchema.safeParse(await body());
       if (!p.success) throw invalid(p.error.issues);
-      sendJson(res, 200, { note: await updateNote(notebookId, userId, seg, p.data) });
+      sendJson(res, 200, { note: await deps.service.update(notebookId, userId, seg, p.data) });
       return true;
     }
     if (method === "DELETE") {
       if (url.searchParams.get("confirm") !== "true") {
         throw new NotesServiceError("ConfirmationRequired", 400, NOTE_ERROR_MESSAGES.ConfirmationRequired);
       }
-      if (!(await deleteNote(notebookId, userId, seg))) throw new NoteNotFoundError();
+      if (!(await deps.service.remove(notebookId, userId, seg))) throw new NoteNotFoundError();
       sendJson(res, 200, { deleted: true });
       return true;
     }

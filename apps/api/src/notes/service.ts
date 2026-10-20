@@ -11,16 +11,20 @@ import {
   noteSourceTitle,
   type ChatMessage,
   type ConvertToSourceInput,
+  type CreateNoteInput,
   type Note,
   type NoteAssistantAction,
   type NoteAssistantInput,
   type NoteSource,
   type NoteSourceIngestor,
+  type PatchNoteInput,
   type ScopedContextProvider,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
 import {
   convertToEditable,
+  createNote,
+  deleteNote,
   getChatMessages,
   getNote,
   getOrCreateChatThread,
@@ -29,6 +33,7 @@ import {
   persistChatMessage,
   registerSource,
   saveResponseAsNote,
+  updateNote,
 } from "@everlast/db";
 import type { NoteAssistantModel } from "./assistant-model.ts";
 
@@ -55,6 +60,8 @@ export interface NotesServiceDeps {
   reserveSlot?: (notebookId: string, bytes: number) => Promise<void>;
   /** Source titles for citation metadata (note sources are resolved from the registry). */
   sourceTitles?: (notebookId: string, sourceIds: string[]) => Promise<Map<string, string>>;
+  /** Advances the notebook's `updated_at` after a note or note-source write (FR-WM-02). */
+  onNotebookModified?: (notebookId: string) => Promise<unknown> | void;
 }
 
 export interface CitationKinds {
@@ -90,6 +97,25 @@ export class NotesService {
     return this.deps.scopedContext ?? { getScopedContext };
   }
 
+  private async modified<T>(notebookId: string, result: T): Promise<T> {
+    await this.deps.onNotebookModified?.(notebookId);
+    return result;
+  }
+
+  /** FR-NM-01: create, edit and delete notes; each write advances the notebook's modified time (FR-WM-02). */
+  async create(notebookId: string, userId: string, input: CreateNoteInput): Promise<Note> {
+    return this.modified(notebookId, await createNote(notebookId, userId, input));
+  }
+
+  async update(notebookId: string, userId: string, noteId: string, patch: PatchNoteInput): Promise<Note> {
+    return this.modified(notebookId, await updateNote(notebookId, userId, noteId, patch));
+  }
+
+  async remove(notebookId: string, userId: string, noteId: string): Promise<boolean> {
+    const deleted = await deleteNote(notebookId, userId, noteId);
+    return deleted ? this.modified(notebookId, deleted) : deleted;
+  }
+
   /** FR-NM-02 / FR-GC-09: copy an assistant message into a read-only saved-response note. */
   async saveFromMessage(notebookId: string, userId: string, messageId: string) {
     const messages = await getChatMessages(undefined, notebookId, userId);
@@ -100,15 +126,16 @@ export class NotesService {
       if (existing) return { note: existing, created: false };
       throw err("MessageNotFound", 404, "Assistant message not found");
     }
-    return saveResponseAsNote(notebookId, userId, {
+    const saved = await saveResponseAsNote(notebookId, userId, {
       message_id: msg.id,
       content: msg.content,
       citations: msg.citations ?? [],
     });
+    return saved.created ? this.modified(notebookId, saved) : saved;
   }
 
   async convertToEditable(notebookId: string, userId: string, noteId: string) {
-    return convertToEditable(notebookId, userId, noteId);
+    return this.modified(notebookId, await convertToEditable(notebookId, userId, noteId));
   }
 
   private async resolveNotes(notebookId: string, userId: string, input: ConvertToSourceInput): Promise<Note[]> {
@@ -176,7 +203,7 @@ export class NotesService {
       created_at: new Date().toISOString(),
     };
     await registerSource(source, result.chunks);
-    return source;
+    return this.modified(notebookId, source);
   }
 
   private async assertAuthorized(notebookId: string, userId: string): Promise<void> {

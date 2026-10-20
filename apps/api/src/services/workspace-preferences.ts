@@ -32,11 +32,13 @@ export class WorkspacePreferencesService {
     return getNotebookRaw(notebookId);
   }
 
-  /** Adds icon, Ready count and the caller's pin/last-opened state to PostgreSQL notebook rows, then sorts. */
-  async overview(ownerId: string, notebooks: Notebook[], requestedSort?: NotebookSortOrder): Promise<NotebookOverviewItem[]> {
-    const preferences = await getOwnerWorkspacePreferences(ownerId);
+  /**
+   * Adds icon, Ready count and the caller's pin/last-opened state to PostgreSQL notebook rows, then sorts.
+   * Sort order has no server copy (it lives in the browser's localStorage, FR-WM-03): default `recent`.
+   */
+  async overview(ownerId: string, notebooks: Notebook[], requestedSort: NotebookSortOrder = "recent"): Promise<NotebookOverviewItem[]> {
     const items = await buildNotebookOverview(ownerId, notebooks);
-    return sortNotebookOverview(items, requestedSort ?? preferences.sort_order);
+    return sortNotebookOverview(items, requestedSort);
   }
 
   async decorate(ownerId: string, notebook: Notebook): Promise<NotebookOverviewItem> {
@@ -91,7 +93,10 @@ export class WorkspacePreferencesService {
     return patchOwnerNotebookPreferences(ownerId, notebookId, patch);
   }
 
-  /** Input/output language precedence: job → personal override → notebook default → user default → browser. */
+  /**
+   * Input/output language precedence (FR-UI-02): job → personal override (from v6.0; unused in v1–v5) →
+   * notebook language set by the Owner → user default → supported browser locale → `en-US` (input: `auto`).
+   */
   async resolveLanguagePreferences(
     ownerId: string,
     notebookId: string,
@@ -105,7 +110,6 @@ export class WorkspacePreferencesService {
     ]);
     const inputCandidates = [
       jobInputLanguage,
-      notebook.input_language_override,
       notebook.notebook_input_language,
       user.input_language,
       "auto",
@@ -115,7 +119,7 @@ export class WorkspacePreferencesService {
       input_language: inputLanguage,
       output_language: resolveOutputLanguage({
         jobLanguage: jobOutputLanguage ?? null,
-        personalOverride: notebook.output_language_override,
+        personalOverride: null,
         notebookDefault: notebook.notebook_output_language,
         userDefault: user.output_language,
         browserLocale: browserLocale ?? null,

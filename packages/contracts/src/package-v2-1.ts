@@ -105,44 +105,45 @@ export const NotebookOverviewItemSchema = NotebookSchema.extend({
   owner_role: z.literal("Owner"),
 }).strict();
 
+/**
+ * Server-side owner display preferences (FR-UI-02). View mode and sort order are not here: they live only in
+ * the browser's localStorage (FR-WM-03). The theme is kept both here and in localStorage.
+ */
 export const OwnerWorkspacePreferencesSchema = z.object({
   owner_id: z.string().min(1),
-  view_mode: NotebookViewModeSchema.default("grid"),
-  sort_order: NotebookSortOrderSchema.default("recent"),
   theme: NotebookThemeSchema.default("system"),
   input_language: InputLanguageSchema.default("auto"),
   output_language: NullableOutputLanguageSchema.default(null),
 }).strict();
 
 export const OwnerWorkspacePreferencesPatchSchema = z.object({
-  view_mode: NotebookViewModeSchema.optional(),
-  sort_order: NotebookSortOrderSchema.optional(),
   theme: NotebookThemeSchema.optional(),
   input_language: InputLanguageSchema.optional(),
   output_language: NullableOutputLanguageSchema.optional(),
 }).strict().refine((patch) => Object.keys(patch).length > 0, { message: "At least one preference field is required" });
 
+/**
+ * Owner's per-notebook state (FR-WM-03, FR-UI-02): pin, last opened, and the notebook language the Owner sets
+ * in v1–v5. Personal per-notebook language overrides start in v6.0 and are rejected until then (FR-015).
+ */
 export const OwnerNotebookPreferencesSchema = z.object({
   owner_id: z.string().min(1),
   notebook_id: z.string().min(1),
   is_pinned: z.boolean().default(false),
   last_opened_at: z.string().datetime().nullable().default(null),
-  input_language_override: InputLanguageSchema.nullable().default(null),
-  output_language_override: NullableOutputLanguageSchema.default(null),
   notebook_input_language: InputLanguageSchema.nullable().default(null),
   notebook_output_language: NullableOutputLanguageSchema.default(null),
 }).strict();
 
 export const OwnerNotebookPreferencesPatchSchema = z.object({
   is_pinned: z.boolean().optional(),
-  input_language_override: InputLanguageSchema.nullable().optional(),
-  output_language_override: NullableOutputLanguageSchema.optional(),
   notebook_input_language: InputLanguageSchema.nullable().optional(),
   notebook_output_language: NullableOutputLanguageSchema.optional(),
 }).strict().refine((patch) => Object.keys(patch).length > 0, { message: "At least one preference field is required" });
 
 export interface OutputLanguageResolutionInput {
   jobLanguage?: string | null;
+  /** Personal per-notebook override; unused until v6.0 (FR-UI-02). */
   personalOverride?: string | null;
   notebookDefault?: string | null;
   userDefault?: string | null;

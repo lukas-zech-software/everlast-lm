@@ -3,7 +3,7 @@ import { clear, confirmDialog, h, toast } from "./lib/dom.ts";
 import { validateTitle } from "./lib/text.ts";
 import type { NotebookDto } from "./lib/types.ts";
 import {
-  applyTheme,
+  adoptServerTheme,
   hydrateWorkspaceSettings,
   loadWorkspacePreferences,
   renderWorkspaceSettings,
@@ -16,6 +16,7 @@ import {
 /**
  * Notebook home (FR-WM-01): cards, create (default title, opens Add sources), rename via card menu, delete.
  * Release v2 (FR-WM-02, FR-WM-03, FR-UI-02): icon, Ready-source count, pin, grid/list view, sort and settings.
+ * View mode and sort order are kept only in this browser's localStorage; the theme also on the server.
  */
 
 /** Notebook row as listed by the API; the v2 fields are present when the release v2 runtime is enabled. */
@@ -67,7 +68,7 @@ export async function renderHome(root: HTMLElement, nav: Navigator): Promise<voi
 
   const settingsPanel = h("div", { class: "workspace-settings-host", "data-testid": "workspace-settings", hidden: true });
   const settingsToggle = h("button", { class: "btn btn-sm", "data-testid": "workspace-settings-toggle", "aria-expanded": "false", text: "Settings" });
-  let settings: WorkspaceSettingsState = { ...prefs, input_language: "auto", output_language: null };
+  let settings: WorkspaceSettingsState = { theme: prefs.theme, input_language: "auto", output_language: null };
   const patchPreference = (key: string, value: unknown) =>
     authFetch("/api/preferences", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ [key]: value }) }).catch(() => undefined);
   settingsToggle.addEventListener("click", () => {
@@ -84,7 +85,8 @@ export async function renderHome(root: HTMLElement, nav: Navigator): Promise<voi
   });
   void hydrateWorkspaceSettings(settings, { fetcher: authFetch }).then((loaded) => {
     settings = loaded;
-    applyTheme(loaded.theme, document.documentElement);
+    adoptServerTheme(loaded.theme, document.documentElement);
+    prefs = { ...prefs, theme: loaded.theme };
   });
 
   const viewButtons = (["grid", "list"] as const).map((view) => {
@@ -122,7 +124,13 @@ export async function renderHome(root: HTMLElement, nav: Navigator): Promise<voi
     grid.dataset.viewMode = prefs.view_mode;
     grid.classList.toggle("notebook-list", prefs.view_mode === "list");
     viewButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(prefs.view_mode === (i === 0 ? "grid" : "list"))));
-    if (notebooks.length === 0) grid.append(h("p", { class: "muted", "data-testid": "empty-home", text: "No notebooks yet. Create one to add sources." }));
+    // FR-WM-03 / FR-009: an empty overview offers creation and has nothing to sort.
+    sort.disabled = notebooks.length === 0;
+    if (notebooks.length === 0) {
+      const cta = h("button", { class: "btn btn-primary empty-home", "data-testid": "empty-home", text: "Create your first notebook" });
+      cta.addEventListener("click", () => void createNotebookAndOpen(nav, cta));
+      grid.append(cta);
+    }
     const rows = notebooks.map((n) => ({ ...n, is_pinned: n.is_pinned ?? false, last_opened_at: n.last_opened_at ?? null }));
     for (const notebook of sortNotebookRows(rows, prefs.sort_order)) {
       grid.append(renderCard(notebook, nav, () => void renderHome(root, nav), (patch) => {
@@ -131,10 +139,11 @@ export async function renderHome(root: HTMLElement, nav: Navigator): Promise<voi
       }));
     }
   };
-  const setPrefs = (patch: Partial<LocalWorkspacePreferences>) => {
-    prefs = { ...prefs, ...patch };
+  /** View mode and sort order: localStorage only, never sent to the server (FR-WM-03, FR-008). */
+  const setPrefs = (patch: Partial<Pick<LocalWorkspacePreferences, "view_mode" | "sort_order">>) => {
+    // The theme may have changed in Settings meanwhile; keep the stored one.
+    prefs = { ...prefs, ...patch, theme: loadWorkspacePreferences().theme };
     saveWorkspacePreferences(prefs);
-    for (const [key, value] of Object.entries(patch)) void patchPreference(key, value);
     render();
   };
   render();
@@ -211,15 +220,24 @@ function renderCard(
   return card;
 }
 
-/** Notebook icon as a compact picker (FR-WM-02): any listed emoji; the server validates one grapheme. */
-function renderIconPicker(notebook: HomeNotebook, update: (patch: Partial<HomeNotebook>) => void): HTMLElement {
-  const picker = h("select", { class: "notebook-icon-picker", "data-testid": "notebook-icon", "aria-label": `Change icon for ${notebook.title}` });
+/**
+ * Notebook icon picker for home cards and the workspace header (FR-WM-02): any listed emoji; the server validates
+ * one grapheme, and a rejected choice keeps the current icon.
+ */
+export function renderIconPicker(
+  notebook: { id: string; title: string; icon_emoji?: string },
+  update: (patch: { icon_emoji: string }) => void,
+  testId = "notebook-icon"
+): HTMLSelectElement {
+  const picker = h("select", { class: "notebook-icon-picker", "data-testid": testId, "aria-label": `Change icon for ${notebook.title}` });
   for (const emoji of new Set([notebook.icon_emoji!, ...ICON_CHOICES])) picker.append(h("option", { value: emoji, text: emoji }));
   picker.value = notebook.icon_emoji!;
   picker.addEventListener("change", async () => {
     const res = await authFetch(`/api/notebooks/${notebook.id}/icon`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ icon_emoji: picker.value }) }).catch(() => null);
-    if (res?.ok) update({ icon_emoji: picker.value });
-    else {
+    if (res?.ok) {
+      notebook.icon_emoji = picker.value;
+      update({ icon_emoji: picker.value });
+    } else {
       picker.value = notebook.icon_emoji!;
       toast("Could not save the notebook icon.");
     }

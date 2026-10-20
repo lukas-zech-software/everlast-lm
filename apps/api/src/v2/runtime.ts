@@ -34,6 +34,7 @@ import {
   projectVisibleMessages,
   rememberNotebook,
   setReadySourceCount,
+  touchNotebookModified,
   verifyScopeSnapshot,
   type Pool,
   type SourceRecord,
@@ -89,6 +90,8 @@ export interface V2Runtime {
   handlers: V2Handler[];
   /** Mirrors an authorized PostgreSQL notebook into the PoC bridge. */
   syncNotebook(userId: string, notebook: NotebookDto): Notebook;
+  /** Advances `updated_at` of an authorized notebook after a source write (FR-WM-02). */
+  notebookModified(userId: string, notebook: NotebookDto): Promise<void>;
   /** Updates Ready counts and starts Ready-source hooks after the API listed a notebook's sources. */
   syncSources(userId: string, notebookId: string, sources: SourceRecord[]): void;
   notebookDeleted(notebookId: string): Promise<void>;
@@ -245,6 +248,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       if (used >= options.sourceLimit) throw new SourceQuotaExceededError(`Source limit of ${options.sourceLimit} reached`);
     },
     sourceTitles,
+    onNotebookModified: touchNotebookModified,
   });
   const sourceSlots = async (notebookId: string) => ({
     used: (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId),
@@ -259,6 +263,14 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   registry.register(new ReportGeneratorPlugin(reportModel));
   const access = { resolveSnapshot, verifySnapshot };
   const runner = new StudioJobRunner({ repo, registry, scopedContext: provider, access });
+  // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
+  const runAndTouch = {
+    async run(id: string) {
+      const row = await runner.run(id);
+      await touchNotebookModified(row.notebook_id);
+      return row;
+    },
+  };
   const guides = {
     async getGuides(notebookId: string, snapshot: SourceRevisionPair[]): Promise<SourceGuideState[]> {
       return Promise.all(
@@ -276,7 +288,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     repo,
     registry,
     access,
-    dispatcher: new InlineStudioDispatcher(runner),
+    dispatcher: new InlineStudioDispatcher(runAndTouch),
     convertToSource: async (input) => {
       const note = await createNote(input.notebook_id, input.owner_id, {
         title: input.title.slice(0, 100) || "Report",
@@ -286,6 +298,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return { source_id: source.id };
     },
     suggestions: new ReportSuggestionService({ guides, model: reportModel }),
+    onNotebookModified: touchNotebookModified,
   };
 
   return {
@@ -298,6 +311,10 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     ],
     syncNotebook(userId, notebook) {
       return rememberNotebook({ ...notebook, owner_id: userId });
+    },
+    async notebookModified(userId, notebook) {
+      rememberNotebook({ ...notebook, owner_id: userId });
+      await touchNotebookModified(notebook.id);
     },
     syncSources(_userId, notebookId, sources) {
       const ready = sources.filter((s) => s.status === "Ready" && s.active_revision !== null);

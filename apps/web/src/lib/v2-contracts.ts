@@ -86,6 +86,27 @@ export const InputLanguageSchema = Object.assign(check<string>((v) => v === "aut
 export const OutputLanguageSchema = oneOf(outputTags);
 export const NullableOutputLanguageSchema = check<string | null>((v) => v === null || OutputLanguageSchema.safeParse(v).success);
 
+export interface OutputLanguageResolutionInput {
+  jobLanguage?: string | null;
+  /** Personal per-notebook override; unused until v6.0 (FR-UI-02). */
+  personalOverride?: string | null;
+  notebookDefault?: string | null;
+  userDefault?: string | null;
+  browserLocale?: string | null;
+}
+
+/** Same rule as resolveOutputLanguage: first supported tag of job > override > notebook > user > browser, else en-US. */
+export function resolveOutputLanguage(input: OutputLanguageResolutionInput): string {
+  const candidates = [input.jobLanguage, input.personalOverride, input.notebookDefault, input.userDefault, input.browserLocale];
+  for (const candidate of candidates) {
+    if (candidate && validBcp47(candidate)) {
+      const canonical = Intl.getCanonicalLocales(candidate)[0];
+      if (canonical && (outputTags as readonly string[]).includes(canonical)) return canonical;
+    }
+  }
+  return "en-US";
+}
+
 export const CHAT_STYLES = ["default", "learning_guide", "analyst", "custom"] as const;
 export const RESPONSE_LENGTHS = ["default", "longer", "shorter"] as const;
 export const CUSTOM_INSTRUCTIONS_MAX = 5000;
