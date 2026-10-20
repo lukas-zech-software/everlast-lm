@@ -70,8 +70,10 @@ describe("FR-NM-02, FR-GC-09: Save to note through the shared route", () => {
     const r = await n.call(OWNER, "POST", `/api/notebooks/${nb}/chat/messages/${unknown}/note`, { notebook_id: nb, message_id: unknown });
     expect(r.status).toBe(404);
     expect(r.json.error.code).toBe("MessageNotFound");
+    // Another user never reaches the v2 handler: v1 ownership is checked first (FR-WM-04).
     const intruder = await n.saveNote("saved-intruder", nb, answer.id);
-    expect(intruder.status).toBe(404);
+    expect([403, 404]).toContain(intruder.status);
+    expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.notes).toHaveLength(0);
   });
 
   it("removes the 2.3 duplicate route: POST /notes/from-message no longer creates notes", async () => {

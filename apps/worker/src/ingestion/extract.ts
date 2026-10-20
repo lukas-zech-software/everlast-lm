@@ -99,7 +99,8 @@ export function decodeUtf8Text(bytes: Buffer): string {
   return text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
 }
 
-export function extractPlainText(bytes: Buffer, mediaType: "text/plain" | "text/markdown" | "copied_text"): CanonicalDocument {
+/** Text formats; `note_markdown` (notes converted to a source, FR-NM-03) is parsed exactly like uploaded Markdown. */
+export function extractPlainText(bytes: Buffer, mediaType: "text/plain" | "text/markdown" | "copied_text" | "note_markdown"): CanonicalDocument {
   if (bytes.length === 0) throw new IngestionFailure("EmptyFile", MSG_EMPTY);
   const text = decodeUtf8Text(bytes);
   if (!text.trim()) throw new IngestionFailure("EmptyFile", MSG_EMPTY);
@@ -107,7 +108,7 @@ export function extractPlainText(bytes: Buffer, mediaType: "text/plain" | "text/
     .map((pageText, i) => ({
       page_number: i + 1,
       text: pageText,
-      sections: mediaType === "text/markdown" ? markdownSections(pageText) : pageSection(pageText),
+      sections: mediaType === "text/markdown" || mediaType === "note_markdown" ? markdownSections(pageText) : pageSection(pageText),
     }))
     .filter((page) => page.sections.length > 0);
   return { pages, pageCount: pages.length, ocrPages: [] };

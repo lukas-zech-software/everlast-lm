@@ -6,8 +6,6 @@ import {
   NOTE_ERROR_MESSAGES,
   NoteAssistantInputSchema,
   PatchNoteInputSchema,
-  SAVED_TO_NOTES_MESSAGE,
-  SaveNoteFromMessageInputSchema,
 } from "@everlast/contracts";
 import {
   getNote,
@@ -23,15 +21,14 @@ import { NotesService, NotesServiceError } from "../notes/service.ts";
 export interface NotesRouteDependencies {
   service: NotesService;
   verifyOwnership?: (notebookId: string, userId: string) => Promise<boolean> | boolean;
-  /** Occupied and maximum source slots of the notebook (FR-WM-07), shown next to the note list. */
-  sourceSlots?: (notebookId: string) => Promise<{ used: number; limit: number }>;
 }
 
 const fail = (res: ServerResponse, status: number, code: string, message: string = code) =>
   sendJson(res, status, { error: { code, message } });
 
 /**
- * Notes & Pinboard HTTP routes (FR-NM-01..04, FR-GC-09). Owner-only: ownership is checked on every request.
+ * Notes & Pinboard HTTP routes (FR-NM-01..04). Owner-only: ownership is checked on every request. Save to note uses
+ * the one shared route `POST /api/notebooks/{id}/chat/messages/{message_id}/note` (routes/package-v2-2.ts).
  */
 export async function handleNotesRoute(
   req: IncomingMessage,
@@ -66,7 +63,8 @@ export async function handleNotesRoute(
     if (seg === undefined) {
       if (method === "GET") {
         const notes = await listNotes(notebookId, userId);
-        const source_slots = (await deps.sourceSlots?.(notebookId)) ?? { used: 0, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK };
+        // FR-WM-07: one occupancy count for uploads and note-sources (owner decision 2026-10-20).
+        const source_slots = (await deps.service.sourceSlots(notebookId)) ?? { used: 0, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK };
         sendJson(res, 200, { notes, source_slots });
         return true;
       }
@@ -79,17 +77,11 @@ export async function handleNotesRoute(
       return false;
     }
 
-    if (seg === "from-message" && method === "POST" && !action) {
-      const p = SaveNoteFromMessageInputSchema.safeParse(await body());
-      if (!p.success) throw invalid(p.error.issues);
-      const { note, created } = await deps.service.saveFromMessage(notebookId, userId, p.data.message_id);
-      sendJson(res, created ? 201 : 200, { note, created, ...(created ? { toast: SAVED_TO_NOTES_MESSAGE } : {}) });
-      return true;
-    }
     if (seg === "convert-to-source" && method === "POST" && !action) {
       const p = ConvertToSourceInputSchema.safeParse(await body());
       if (!p.success) throw invalid(p.error.issues);
-      sendJson(res, 201, { source: await deps.service.convertToSource(notebookId, userId, p.data) });
+      const { source, reused } = await deps.service.convertToSource(notebookId, userId, p.data);
+      sendJson(res, reused ? 200 : 201, { source, reused });
       return true;
     }
     if (seg === "assistant" && method === "POST" && !action) {

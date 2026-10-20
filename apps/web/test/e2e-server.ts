@@ -46,7 +46,11 @@ export async function startE2eServer(port: number) {
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   const worker = createWorkerHandler({ pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
   let pending: Promise<unknown> = Promise.resolve();
-  const v2 = createV2Runtime({ pool: db.pool, sourceLimit: Number(process.env.MAX_SOURCES_PER_NOTEBOOK ?? 50), model: new FixtureModel() });
+  const notifyJobs = () => {
+    pending = pending.then(() => worker.drain());
+  };
+  // Note-sources run the real v1 ingestion with the same storage and lexical embedder (FR-NM-03, Gate v2.0 #2).
+  const v2 = createV2Runtime({ pool: db.pool, sourceLimit: Number(process.env.MAX_SOURCES_PER_NOTEBOOK ?? 50), model: new FixtureModel(), storage, embedder, notifyJobs });
   const deps: AppDeps = {
     pool: db.pool,
     config: {
@@ -69,9 +73,7 @@ export async function startE2eServer(port: number) {
     }),
     // Release v2 PoC stores (D16); no generation client, so Source Guide/overview/follow-ups report 503.
     v2,
-    notifyJobs: () => {
-      pending = pending.then(() => worker.drain());
-    },
+    notifyJobs,
   };
   const server = http.createServer(createApp(deps));
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));

@@ -34,6 +34,8 @@ export const SourceMediaTypeSchema = z.enum([
   "text/plain",
   "text/markdown",
   "copied_text",
+  // FR-NM-03: notes converted to a source (owner decision 2026-10-20, D16); never accepted from uploads.
+  "note_markdown",
 ]);
 export type SourceMediaType = z.infer<typeof SourceMediaTypeSchema>;
 

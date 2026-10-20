@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import {
   AppError,
   InvalidScopeError,
@@ -13,19 +14,16 @@ import {
   type SourceRevisionPair,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
+import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
-  countOccupiedSources,
-  countSourcesForNotebook,
   createNote,
   forgetNotebook,
   getChatConfiguration,
   getNotebook,
-  getNoteSource,
   getNotebookRaw,
   getOrCreateThread,
-  getScopedContext as getNoteSourceChunks,
   getSource,
   getSourceGuide,
   InMemoryStudioArtifactRepository,
@@ -33,6 +31,7 @@ import {
   listSources,
   listThreadMessages,
   projectVisibleMessages,
+  publishTurn,
   rememberNotebook,
   setReadySourceCount,
   touchNotebookModified,
@@ -44,7 +43,6 @@ import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
 import type { TopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
-import { createNoteMarkdownIngestor } from "@everlast/worker/ingestion/note-markdown";
 import { InlineStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
 import { ReportGeneratorPlugin } from "@everlast/worker/studio/reports/plugin";
@@ -53,7 +51,8 @@ import { ReportSuggestionService } from "@everlast/worker/studio/reports/suggest
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
-import { NotesService } from "../notes/service.ts";
+import { createPostgresNoteSources } from "../notes/note-sources.ts";
+import { NotesService, type NoteAssistantContext } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
 import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
 import { handleStudioRoute } from "../routes/studio.ts";
@@ -68,7 +67,8 @@ import type { StudioServiceDeps } from "../studio/service.ts";
  * keep their records in process memory: persistence is not a goal of the proof of concept and moves to
  * PostgreSQL in v3. Everything that decides access still comes from v1: the API authenticates the caller,
  * checks notebook ownership in PostgreSQL before any v2 handler runs, and v2 reads source content only
- * through the PostgreSQL C-02 path (or the in-memory note-source registry for notes converted to sources).
+ * through the PostgreSQL C-02 path. Sources made from notes are normal v1 PostgreSQL sources (owner decision
+ * 2026-10-20, D16 amendment): they share the source limit with uploads and are read like any upload.
  * Because the stores are per process, v2 background work (Source Guides, topic icons, Studio reports) runs
  * in this API process, and the PoC deployment runs a single API instance.
  */
@@ -89,6 +89,11 @@ export interface V2RuntimeOptions {
    * Ready-source hooks without waiting for a source listing. Absent → listing-time dispatch only.
    */
   readyWatch?: { intervalMs: number; batchSize?: number } | undefined;
+  /** v1 object storage and document embedder: notes are converted through the v1 ingestion (FR-NM-03, FR-SI-01). */
+  storage?: ObjectStorage | undefined;
+  embedder?: Embedder | undefined;
+  /** Wakes the worker so the durable ingest job of a converted note settles (it finds the source already done). */
+  notifyJobs?: (() => void) | undefined;
 }
 
 export interface V2Runtime {
@@ -108,7 +113,7 @@ export interface V2Runtime {
   close(): void;
 }
 
-const NOTE_SOURCE_CHUNK_LIMIT = 200;
+const SCOPED_CHUNK_LIMIT = 200;
 
 export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const { pool } = options;
@@ -147,60 +152,25 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       );
   });
 
-  /** Uploaded sources through the PostgreSQL C-02 path; note sources through the in-memory registry. */
-  const isNoteSource = async (notebookId: string, sourceId: string) => (await getNoteSource(notebookId, sourceId)) !== null;
-  const splitIds = async (notebookId: string, ids: string[]) => {
-    const notes: string[] = [];
-    const uploads: string[] = [];
-    for (const id of new Set(ids)) ((await isNoteSource(notebookId, id)) ? notes : uploads).push(id);
-    return { notes, uploads };
-  };
-  const scopedChunks = async (ownerId: string, notebookId: string, ids: string[]): Promise<UnifiedDocumentChunk[]> => {
-    const { notes, uploads } = await splitIds(notebookId, ids);
-    const out = notes.length ? await getNoteSourceChunks(notebookId, notes) : [];
-    if (uploads.length) {
-      const snapshot = await captureScopeSnapshot(pool, ownerId, notebookId, uploads);
-      out.push(...(await listSnapshotChunks(pool, snapshot, NOTE_SOURCE_CHUNK_LIMIT)));
-    }
-    return out;
+  /** Every source, uploads and note-sources alike, through the PostgreSQL C-02 path (bounded per source). */
+  const readSnapshot = async (ownerId: string, notebookId: string, ids: string[]) => {
+    const snapshot = await captureScopeSnapshot(pool, ownerId, notebookId, ids);
+    const perSource = Math.max(20, Math.floor(SCOPED_CHUNK_LIMIT / Math.max(1, snapshot.sources.length)));
+    const chunks: UnifiedDocumentChunk[] = [];
+    for (const pair of snapshot.sources) chunks.push(...(await listSnapshotChunks(pool, { ...snapshot, sources: [pair] }, perSource)));
+    return { snapshot, chunks };
   };
   const provider: ScopedContextProvider = {
     async getScopedContext(notebookId, activeSourceIds) {
       const owner = ownerOf(notebookId);
       if (!owner) throw new InvalidScopeError("Notebook is not available");
-      return scopedChunks(owner, notebookId, activeSourceIds);
+      return (await readSnapshot(owner, notebookId, activeSourceIds)).chunks;
     },
   };
-  const resolveSnapshot = async (ownerId: string, notebookId: string, ids: string[]): Promise<SourceRevisionPair[]> => {
-    const { notes, uploads } = await splitIds(notebookId, ids);
-    const pairs: SourceRevisionPair[] = [];
-    for (const id of notes) {
-      const source = (await getNoteSource(notebookId, id))!;
-      pairs.push({ source_id: id, revision: source.revision_id });
-    }
-    if (uploads.length) pairs.push(...(await captureScopeSnapshot(pool, ownerId, notebookId, uploads)).sources);
-    return pairs.sort((a, b) => a.source_id.localeCompare(b.source_id));
-  };
+  const resolveSnapshot = async (ownerId: string, notebookId: string, ids: string[]): Promise<SourceRevisionPair[]> =>
+    [...(await captureScopeSnapshot(pool, ownerId, notebookId, ids)).sources].sort((a, b) => a.source_id.localeCompare(b.source_id));
   const verifySnapshot = async (ownerId: string, notebookId: string, snapshot: SourceRevisionPair[]): Promise<void> => {
-    const { notes, uploads } = await splitIds(notebookId, snapshot.map((p) => p.source_id));
-    for (const id of notes) {
-      const source = await getNoteSource(notebookId, id);
-      if (!source || source.revision_id !== snapshot.find((p) => p.source_id === id)!.revision) {
-        throw new SourceSnapshotInvalidError(`Source ${id} changed`);
-      }
-    }
-    const uploadPairs = snapshot.filter((p) => uploads.includes(p.source_id));
-    if (uploadPairs.length) await verifyScopeSnapshot(pool, { notebook_id: notebookId, owner_id: ownerId, sources: uploadPairs });
-  };
-  const sourceTitles = async (notebookId: string, ids: string[]) => {
-    const titles = new Map<string, string>();
-    const owner = ownerOf(notebookId);
-    if (owner) for (const s of await listSources(pool, owner, notebookId)) titles.set(s.id, s.title);
-    for (const id of ids) {
-      const note = await getNoteSource(notebookId, id);
-      if (note) titles.set(id, note.title);
-    }
-    return titles;
+    await verifyScopeSnapshot(pool, { notebook_id: notebookId, owner_id: ownerId, sources: snapshot });
   };
 
   // ---- Package 2.2: Source Guide, overview, chat configuration, follow-ups, saved responses -------------
@@ -232,17 +202,42 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
     void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
   };
-  // ---- Package 2.3: notes -------------------------------------------------------------------------------
-  const notes = new NotesService({
-    ingestor: createNoteMarkdownIngestor(),
-    ...(options.model ? { assistant: new GroundedNoteAssistant(options.model) } : {}),
-    scopedContext: provider,
-    verifyOwnership: (notebookId, userId) => ownerOf(notebookId) === userId,
-    reserveSlot: async (notebookId) => {
-      const used = (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId);
-      if (used >= options.sourceLimit) throw new SourceQuotaExceededError(`Source limit of ${options.sourceLimit} reached`);
+  // ---- Package 2.3: notes (in memory, D16) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20) -----
+  const noteSourceStore = createPostgresNoteSources({ pool, storage: options.storage, embedder: options.embedder, sourceLimit: options.sourceLimit });
+  const noteSources: typeof noteSourceStore = {
+    ...noteSourceStore,
+    async create(ownerId, notebookId, input) {
+      try {
+        return await noteSourceStore.create(ownerId, notebookId, input);
+      } finally {
+        options.notifyJobs?.();
+      }
     },
-    sourceTitles,
+  };
+  const assistantContext: NoteAssistantContext = {
+    async read(ownerId, notebookId, sourceIds) {
+      const { snapshot, chunks } = await readSnapshot(ownerId, notebookId, sourceIds);
+      return { snapshot: snapshot.sources, chunks };
+    },
+    verify: verifySnapshot,
+    // FR-NM-04 / FR-GC-06: the action's question and verified answer are one turn of the caller's PostgreSQL thread.
+    async publish(input) {
+      const thread = await getOrCreateThread(pool, input.ownerId, input.notebookId);
+      const stored = await publishTurn(pool, {
+        thread,
+        snapshot: { notebook_id: input.notebookId, owner_id: input.ownerId, sources: input.snapshot },
+        requestId: randomUUID(),
+        question: input.question,
+        answer: input.answer,
+      });
+      return projectVisibleMessages(pool, input.notebookId, stored);
+    },
+  };
+  const notes = new NotesService({
+    noteSources,
+    ...(options.model ? { assistant: new GroundedNoteAssistant(options.model) } : {}),
+    context: assistantContext,
+    verifyOwnership: (notebookId, userId) => ownerOf(notebookId) === userId,
     onNotebookModified: touchNotebookModified,
   });
   const v22Deps: PackageV22ApiDependencies = {
@@ -336,11 +331,6 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     readyTimer.unref?.();
   }
 
-  const sourceSlots = async (notebookId: string) => ({
-    used: (await countOccupiedSources(pool, notebookId)) + countSourcesForNotebook(notebookId),
-    limit: options.sourceLimit,
-  });
-
   // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
   const repo = new InMemoryStudioArtifactRepository();
   const registry = new StudioPluginRegistry();
@@ -380,7 +370,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         title: input.title.slice(0, 100) || "Report",
         content_md: input.content_md,
       });
-      const source = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id] });
+      // Package 2.4 Studio → note → v1 note-source, through the same admission and ingestion as FR-NM-03.
+      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id] });
       return { source_id: source.id };
     },
     suggestions: new ReportSuggestionService({ guides, model: reportModel }),
@@ -392,7 +383,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     handlers: [
       (req, res, userId) => handleWorkspacePreferencesRoute(req, res, workspace, userId),
       (req, res, userId) => handlePackageV22Route(req, res, userId, v22Deps),
-      (req, res, userId) => handleNotesRoute(req, res, { service: notes, verifyOwnership: (nb, uid) => ownerOf(nb) === uid, sourceSlots }, userId),
+      (req, res, userId) => handleNotesRoute(req, res, { service: notes, verifyOwnership: (nb, uid) => ownerOf(nb) === uid }, userId),
       (req, res, userId) => handleStudioRoute(req, res, studioDeps, userId),
     ],
     syncNotebook(userId, notebook) {
