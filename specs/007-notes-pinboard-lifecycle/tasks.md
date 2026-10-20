@@ -129,7 +129,7 @@ Assessed on 2026-10-20 against the revised Package 2.3 card (PR #127), `spec/req
 
 ### Verification
 
-- [ ] T057 Run the focused Package 2.3 Vitest suites, `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` and Playwright `notes-roundtrip.spec.ts` (T037). Record the exact results in `specs/007-notes-pinboard-lifecycle/validation.md`. Replace "Not built: the pinboard UI" and "Note sources … are not visible to the v1 chat" with the current state, and supersede the T029 caveats. Record live Note Assistant TTFT ≤ 2.5 s against Vertex AI `europe-west4` and the LLM-judged gate evals as `UNAVAILABLE` until a deployed run exists. Mark Gate v2.0 #2 as passed only when T037 passes. Per `CC-02`, Gate v2.0 #2, `NFR-EVAL-02/04`, FR-019 (partial)
+- [X] T057 Run the focused Package 2.3 Vitest suites, `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `env -u GEMINI_API_KEY -u GOOGLE_API_KEY pnpm eval:deterministic` and Playwright `notes-roundtrip.spec.ts` (T037). Record the exact results in `specs/007-notes-pinboard-lifecycle/validation.md`. Replace "Not built: the pinboard UI" and "Note sources … are not visible to the v1 chat" with the current state, and supersede the T029 caveats. Record live Note Assistant TTFT ≤ 2.5 s against Vertex AI `europe-west4` and the LLM-judged gate evals as `UNAVAILABLE` until a deployed run exists. Mark Gate v2.0 #2 as passed only when T037 passes. Per `CC-02`, Gate v2.0 #2, `NFR-EVAL-02/04`, FR-019 (partial)
 
 ### Dependencies and execution order (Phase 8)
 
