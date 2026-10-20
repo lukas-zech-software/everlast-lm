@@ -152,3 +152,14 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **Required technical terminology (`FR-GC-08`, CC-01)**: Python, resource units, artifact formats and persisted trace fields are source-mandated acceptance contracts, not new implementation choices. The code drawer is the card's documented auditability behavior; no new deviation is introduced.
 - **Out of Scope (`FR-GC-08`, `FR-SI-01`)**: A user-facing Jupyter IDE, persistent outbound networking, runtime installation of arbitrary third-party pip packages, and raw CSV ingestion. Other v3 packages retain their separate features and acceptance gates.
 - **Evidence boundary (`CC-01`, CC-02)**: Reference behavior is unverified background, not proof of a deployed service. Runtime sandbox/security/performance/eval validation remains UNAVAILABLE in this specification-only work; later tasks must place spec-derived failing tests before implementation.
+
+
+## Planning feasibility finding (2026-10-20; FR-GC-08, R6)
+
+The current official Agent Platform Code Execution quickstart documents a default of 2 vCPU / 1.5 GB RAM and an optional 4 vCPU / 4 GB profile, exceeding this package's ≤1 vCPU / ≤512 MB bounds. See [provider quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart). This known mismatch must not be treated as a passed or merely unmeasured configuration. No requirement is relaxed by the finding. The existing Pyodide fallback also needs a concrete security boundary; JavaScript worker separation and import filtering alone do not establish network/filesystem isolation. The owner selected Option A on 2026-10-20: retain the strict caps and hold planning completion until R6 establishes a conforming runtime. Downstream planning is marked ERROR until resolved; no implementation is authorized by this draft.
+
+
+### Session 2026-10-20 (FR-GC-08, R6)
+
+- Q: Keep the strict caps and hold planning completion for R6, or relax CPU/RAM to the managed defaults? → A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." The ≤1 vCPU / ≤512 MB limits are retained per execution; expected concurrency is one or two users, not permission to increase per-run resources. The zero-network, 64 MB temporary storage and 15.0-second limits also remain unchanged.
+- Feasibility status: Local outer-container controls were probed; selected Cloud Run/Pyodide deployment qualification remains UNAVAILABLE. See [R6 evidence and remaining gate](r6-feasibility.md). Planning completion remains blocked by the selected R6 prerequisite, not an unanswered product question.

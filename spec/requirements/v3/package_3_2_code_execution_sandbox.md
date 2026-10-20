@@ -98,3 +98,11 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 **Clarifications (2026-10-19):** The project owner selected a focused follow-up before ambiguous statistical calculations and ordered persistence/display of both execution attempts after a retry, with the final attempt and published outputs identified.
 
 **Open questions:** `None`
+
+
+## Planning feasibility finding (2026-10-20; FR-GC-08, R6)
+
+The current official Agent Platform Code Execution quickstart documents a default of 2 vCPU / 1.5 GB RAM and an optional 4 vCPU / 4 GB profile, exceeding this package's ≤1 vCPU / ≤512 MB bounds. See [provider quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart). This known mismatch must not be treated as a passed or merely unmeasured configuration. No requirement is relaxed by the finding. The existing Pyodide fallback also needs a concrete security boundary; JavaScript worker separation and import filtering alone do not establish network/filesystem isolation. The owner selected Option A on 2026-10-20: retain the strict caps and hold planning completion until R6 establishes a conforming runtime. Downstream planning is marked ERROR until resolved; no implementation is authorized by this draft.
+
+
+**Owner decision (2026-10-20, FR-GC-08/R6):** "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." Keep all per-execution caps unchanged; one or two concurrent users is qualification workload context only. Hold package 3.2 planning completion until a conforming runtime is established. Local container probes do not qualify the managed deployment. No further product clarification is outstanding; R6 feasibility evidence is still required.

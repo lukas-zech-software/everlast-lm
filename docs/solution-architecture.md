@@ -301,6 +301,9 @@ graph TD
 | **R7** | **Vector scale on a small instance** | At the quota limit, one notebook can hold hundreds of thousands of chunks, and the HNSW index has to fit in RAM to stay fast. | Use reduced embedding dimensions (e.g. 768) or `halfvec`. Size the instance from the v3 benchmark. If one instance is not enough, partition `chunks` by `notebook_id` hash. |
 | **R8** | **Spec contradiction (resolved)** | FR-WM-07 (≈ 200M tokens per notebook) cannot fit NFR-PERF-01's 1M context. | RAG for chat, long context (or chunk map-reduce per D12) only for async Studio jobs (§4.1). |
 
+**R6 planning finding (2026-10-20, FR-GC-08):** The [current provider quickstart](https://docs.cloud.google.com/gemini-enterprise-agent-platform/scale/sandbox/code-execution-quickstart) documents 2 vCPU / 1.5 GB RAM by default and 4 vCPU / 4 GB as an alternative; neither meets the package's current CPU/RAM caps. These are required Everlast limits, not verified provider configuration knobs. Pyodide remains the documented fallback candidate, but its host JavaScript interoperability means a worker/import blacklist alone is not a security boundary. The owner selected Option A on 2026-10-20: retain the exact per-execution caps and hold package 3.2 planning completion until R6 establishes a conforming runtime. Expected workload is one or two simultaneous users; this does not relax the caps. Local Docker control probes are not selected-runtime proof. Cloud Run service request timeouts do not terminate the container; fallback qualification must demonstrate an independent kill boundary, read-only input, bounded writable storage, denial of host/network capabilities and cleanup in the intended EU environment. No relaxed limits, new runtime or successful R6 result is implied.
+
+
 ---
 
 ## 7. Release mapping and next steps

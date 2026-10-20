@@ -1,0 +1,37 @@
+# Contracts: Quantitative Code Execution Sandbox
+
+Scope: FR-GC-08, FR-GC-01/02/06, C-01/C-02, NFR-SEC-02, NFR-EVAL-01..04. All DTOs are defined once in packages/contracts; these are design contracts, not executable implementations.
+
+## Chat entry and progress (FR-GC-08, FR-GC-06, C-02)
+
+Reuse POST /api/notebooks/{notebook_id}/chat, current message and active_source_ids input and existing session/Owner checks. No public arbitrary-Python endpoint. Missing/empty scope stays 400, invalid text 422, inaccessible notebook/source 403; no source-list fallback. Existing per-user/notebook single-request admission and draft preservation remain. Provider unavailable before execution returns a safe unavailable error; never pretend computation happened.
+
+Extend buffered progress with stage running_code, message “Running code…”, execution_id and attempt ordinal. Emit only once execution begins, within ≤2.5 s of the sufficient-intent submission; no status for clarification-only turns. Progress has no numbers, stdout, code or chart contents and is excluded from answer TTFT. Do not fake an early execution status to hide code-generation latency.
+
+Completed response adds optional code_execution_trace and computed_results/chart references after existing citation validation. Each computed value carries Computed, canonical value text/unit and validated source citations. The code drawer renders both attempts in order with final-attempt and published-output markers; stdout, stderr and source are escaped text, never executed as HTML. Numerical responses preserve the sandbox's exact returned representation. No guessed number on failure.
+
+## Sandbox adapter (FR-GC-08, C-02)
+
+Internal-only operations: create(profile, attempt_id), execute(handle, immutable_input_manifest, code, deadline), destroy(handle). Transport uses trusted service identity outside the untrusted code environment. No source credentials or network capability are injected. Runtime must enforce ≤1 vCPU, ≤512 MB RAM, ≤64 MB temporary /tmp, 15.0 seconds per run, no inbound/outbound packets and read-only input. Required Python libraries: math, statistics, numpy, pandas, matplotlib, scipy; no runtime pip installation. R6 records exact runtime version and byte interpretation without weakening caps.
+
+Each attempt gets a fresh sandbox. Capture stdout/stderr and candidate PNG/SVG files; validate filenames, MIME/decoder, SVG safety and citation provenance before publishing. Provider stateful sessions must not be reused across requests. Destroy after successful extraction or any terminal outcome, including API disconnect/abort; TTL is cleanup defense, not the timeout mechanism. If execute outcome is unknown, do not replay it. Provider retries may only reconcile/read/destroy the same attempt, never submit another execution.
+
+| Terminal code | State / retry | Publication |
+| --- | --- | --- |
+| PythonException | Failed attempt; exactly one correction allowed only on ordinal 1 | No failed-attempt results |
+| ExecutionTimeout | TimedOut; zero retry | Transparent error, no number |
+| MemoryLimitExceeded | Failed; zero retry | Transparent error, no number |
+| TemporaryStorageLimit / SecurityViolation | Failed; zero retry | Safe explanation, no artifacts |
+| ProviderUnavailable / ExecutionOutcomeUnknown | Failed; zero retry | Safe error, reconcile destruction |
+| ScopeChanged / AccessRevoked / GenerationCancelled | Failed; zero retry | No stale answer/trace/chart |
+| CitationInvalid / InvalidOutput | Failed; zero retry | Refusal, no stripped-citation answer |
+
+Correction input includes original scoped manifest, failed code/error and resolved intent; the model may correct code but cannot expand scope, alter resource limits or choose a second retry. Read and publication authorization is rechecked for each attempt. A Python exception retry never authorizes retrying citation failure.
+
+## Chart download (FR-GC-08, NFR-SEC-02, NFR-EVAL-04)
+
+GET /api/notebooks/{notebook_id}/chat/messages/{message_id}/charts/{artifact_id} returns validated image/png or image/svg+xml bytes, with optional attachment disposition for download. Authenticate current user, authorize notebook/document/message access, require successful final-attempt publication and non-invalidated source provenance on every request. A guessed cross-notebook ID reveals no bytes. Private object generations are served through the application authorization layer; no reusable Cloud Storage signed URL bypass. Set private/no-store and safe content disposition; sanitize SVG to forbid scripts, event handlers, foreignObject, external references and remote fonts, otherwise reject it. Revalidate streamed/range requests and terminate affected delivery on revocation. Merely deselected sources remain viewable in history, but cannot enter new computation context.
+
+## R6 admission evidence (FR-GC-08, NFR-SEC-01/02)
+
+Before implementation/runtime admission, record provider configuration, runtime/library versions, EU region, no-training terms, exact isolation boundary and test evidence for: attempted network/metadata/DNS/inbound access, filesystem escape/input writes, CPU/memory/disk boundary, infinite loop terminated at 15.0 s, cleanup on all exits, cross-request state, 1-retry exception and no-retry timeout/OOM. Local Docker flags and JavaScript worker separation are not managed deployment evidence. This contract does not approve changing required caps; the owner retained all caps under Option A and requires R6 feasibility before plan completion.
