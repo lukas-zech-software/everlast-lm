@@ -31,6 +31,26 @@ describe("Gate v2.0 #3 Studio reports (deterministic)", () => {
     expect(result.passed).toBe(true);
   });
 
+  it("the declared fixture is realistic enough for a grounded Study Guide: two selected sources with 8–12 chunks each, events, actors, definitions, and an unselected leak probe", async () => {
+    const { studioGateFixture } = await import("../src/studio-gate.ts");
+    const { chunks, all, snapshot } = studioGateFixture();
+    const bySource = new Map<string, typeof chunks>();
+    for (const c of chunks) bySource.set(c.source_id, [...(bySource.get(c.source_id) ?? []), c]);
+    expect([...bySource.keys()].sort()).toEqual(snapshot.map((s) => s.source_id).sort());
+    for (const cs of bySource.values()) {
+      expect(cs.length).toBeGreaterThanOrEqual(8);
+      expect(cs.length).toBeLessThanOrEqual(12);
+    }
+    const text = chunks.map((c) => c.text).join(" ");
+    expect(text.match(/\b(1[0-9]{3}|20[0-9]{2})\b/g)!.length).toBeGreaterThanOrEqual(8);
+    expect(text.match(/\b(?:is a|is an|means|refers to)\b/g)!.length).toBeGreaterThanOrEqual(6);
+    const unselected = all.filter((c) => !snapshot.some((s) => s.source_id === c.source_id));
+    expect(unselected.length).toBeGreaterThan(0);
+    expect(unselected.every((c) => c.text.includes("Zorblax"))).toBe(true);
+    expect(text).not.toContain("Zorblax");
+    expect(new Set(all.map((c) => c.chunk_id)).size).toBe(all.length);
+  });
+
   it("validateReportPayload rejects a payload missing a required key or holding an uncited factual sentence", async () => {
     const { runStudioReportsGate } = await import("../src/studio-gate.ts");
     const result = await runStudioReportsGate();

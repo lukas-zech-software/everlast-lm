@@ -6,7 +6,7 @@ import {
   type ReportSubtype,
 } from "@everlast/contracts";
 import { vertexConfigFromEnv } from "@everlast/cloud";
-import { VertexStructuredGenerationClient, type GenAiFactory } from "../../package-v2-2-gemini.ts";
+import { VertexStructuredGenerationClient, type GenAiFactory, type StructuredGenerationConfig } from "../../package-v2-2-gemini.ts";
 import {
   ReportGenerationError,
   type ComposeRequest,
@@ -31,6 +31,15 @@ import {
 
 export const REPORT_MODEL = "gemini-2.5-flash";
 export const REPORT_TIMEOUT_MS = 20_000;
+
+/**
+ * Latency settings for every report call (Gate v2.0 #3 P95 ≤ 25 s; live run 2026-10-20 measured P95 28.4 s with
+ * the default dynamic thinking). Extract and compose are grounded copy/structure tasks validated after the fact,
+ * so thinking is disabled (`thinkingBudget: 0`, supported by gemini-2.5-flash). `maxOutputTokens` bounds a
+ * runaway response well above a full Study Guide; a truncated response fails JSON validation (GenerationError),
+ * never yields a partial report.
+ */
+export const REPORT_GENERATION_CONFIG: StructuredGenerationConfig = { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 8192 };
 
 export const REPORT_SYSTEM_INSTRUCTION = [
   "You write grounded Studio reports from source chunks.",
@@ -119,7 +128,7 @@ export class VertexReportModel implements ReportModelClient {
 
   private async call<T>(contents: Record<string, unknown>, responseSchema: object, schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } }): Promise<T> {
     try {
-      return await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema });
+      return await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema, generationConfig: REPORT_GENERATION_CONFIG });
     } catch {
       // The Package 2.2 client logged the upstream failure server-side; nothing upstream travels further.
       throw new ReportGenerationError();

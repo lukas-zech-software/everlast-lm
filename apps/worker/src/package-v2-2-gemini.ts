@@ -155,6 +155,16 @@ const sourcePayload = (source: ScopedSourceMaterial) => ({
   chunks: source.chunks.map((chunk) => ({ chunk_id: chunk.chunk_id, text: chunk.text })),
 });
 
+/**
+ * Optional per-call generation settings for `generateStructured` (specs/008 Studio reports: thinking budget and
+ * output bound on Flash). Omitted → the request config is unchanged (Source Guide, overview, follow-ups).
+ */
+export interface StructuredGenerationConfig {
+  /** `@google/genai` ThinkingConfig: `thinkingBudget` 0 disables thinking, -1 is automatic. */
+  thinkingConfig?: { thinkingBudget: number } | undefined;
+  maxOutputTokens?: number | undefined;
+}
+
 export interface ZodLike<T> {
   safeParse(value: unknown): { success: true; data: T } | { success: false };
 }
@@ -209,8 +219,16 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
    * Shared structured call for other v2 pipelines on the same Vertex client setup (Studio reports, report
    * suggestions; specs/008): fixed `systemInstruction`, JSON `contents`, JSON response schema, temperature 0.
    * Output is shape-validated with `schema`; failures raise `StructuredGenerationError` without upstream text.
+   * `generationConfig` adds only thinking budget / output bound; it cannot change the fixed JSON settings.
    */
-  async generateStructured<T>(input: { systemInstruction?: string | undefined; contents: Record<string, unknown>; responseSchema: object; schema: ZodLike<T> }): Promise<T> {
+  async generateStructured<T>(input: {
+    systemInstruction?: string | undefined;
+    contents: Record<string, unknown>;
+    responseSchema: object;
+    schema: ZodLike<T>;
+    generationConfig?: StructuredGenerationConfig | undefined;
+  }): Promise<T> {
+    const extra = input.generationConfig;
     this.client ??= this.createClient({ vertexai: true, project: this.project, location: this.location, httpOptions: { timeout: this.timeoutMs } });
     let text: string;
     try {
@@ -219,6 +237,8 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
         contents: JSON.stringify(input.contents),
         config: {
           ...(input.systemInstruction ? { systemInstruction: input.systemInstruction } : {}),
+          ...(extra?.thinkingConfig ? { thinkingConfig: { thinkingBudget: extra.thinkingConfig.thinkingBudget } } : {}),
+          ...(extra?.maxOutputTokens !== undefined ? { maxOutputTokens: extra.maxOutputTokens } : {}),
           temperature: 0,
           candidateCount: 1,
           responseMimeType: "application/json",

@@ -65,6 +65,32 @@ describe("VertexReportModel client configuration (model routing, D3, NFR-SEC-01)
   });
 });
 
+describe("VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10)", () => {
+  it("disables Flash thinking and bounds output tokens on every report call", async () => {
+    const { VertexReportModel, REPORT_GENERATION_CONFIG } = await load();
+    const c = batch[0]!;
+    const fake = fakeVertex([{ findings: [] }, { sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", chunk_id: c.chunk_id }] }] }]);
+    const model = VertexReportModel.fromFactory("p", fake.factory);
+    await model.extract({ subtype: "faq", chunks: batch, signal });
+    await model.compose({ subtype: "faq", findings: [{ kind: "qa", text: "x", chunk_id: c.chunk_id, source_id: c.source_id }], signal });
+    expect(REPORT_GENERATION_CONFIG).toEqual({ thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: expect.any(Number) });
+    for (const req of fake.requests) {
+      expect(req.config.thinkingConfig).toEqual({ thinkingBudget: 0 });
+      expect(req.config.maxOutputTokens).toBeGreaterThanOrEqual(4096);
+      expect(req.config).toMatchObject({ temperature: 0, responseMimeType: "application/json" });
+    }
+  });
+
+  it("the shared Package 2.2 client keeps its default config when no per-call config is passed", async () => {
+    const { VertexStructuredGenerationClient } = await import("../src/package-v2-2-gemini.ts");
+    const fake = fakeVertex([{ ok: true }]);
+    const client = new VertexStructuredGenerationClient({ project: "p", createClient: fake.factory });
+    await client.generateStructured({ contents: {}, responseSchema: { type: "OBJECT" }, schema: { safeParse: (v: unknown) => ({ success: true as const, data: v }) } });
+    expect(fake.requests[0]!.config).not.toHaveProperty("thinkingConfig");
+    expect(fake.requests[0]!.config).not.toHaveProperty("maxOutputTokens");
+  });
+});
+
 describe("VertexReportModel output validation (FR-ST-10, FR-014)", () => {
   it("extract returns findings anchored to chunks of the batch; outside or missing chunk_id is a GenerationError", async () => {
     const { VertexReportModel } = await load();
