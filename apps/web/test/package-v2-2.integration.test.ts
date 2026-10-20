@@ -146,4 +146,33 @@ describe("Package 2.2 workspace integration (FR-SI-02, FR-GC-04/05/07/09)", () =
     expect(ask).toHaveBeenCalledWith("What needs mTLS?");
     expect(bar.querySelectorAll(".follow-up-chip")).toHaveLength(0);
   });
+
+  it("shows Add a source to get started with no sources and clears the overview after all sources are deleted (FR-GC-04, FR-006/007, US2/AC4)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    setupMockDOM(1440);
+    const calls = fakeApi({ ["POST /overview"]: () => json({ overview_md: "The notebook covers mTLS.", starter_prompts: ["Which port?"] }) });
+    const features = createWorkspaceFeatures({ notebookId: notebook, notebookTitle: "Field Notes", notebookIcon: "🧬" });
+    const intro = features.chatIntro as any;
+    features.onSelectionChange([], []);
+    expect(intro.hidden).toBe(false);
+    expect(intro.querySelector('[data-testid="add-source-empty-state"]')?.textContent).toBe("Add a source to get started");
+    features.onSelectionChange(readySources, [sourceA, sourceB]);
+    expect(intro.querySelector('[data-testid="add-source-empty-state"]')).toBeNull();
+    await vi.advanceTimersByTimeAsync(400);
+    vi.useRealTimers();
+    await flush();
+    expect(intro.querySelector("h3")?.textContent).toBe("🧬 Field Notes · 2 sources");
+    expect(calls.filter((c) => c.url.endsWith("/overview"))).toHaveLength(1);
+    features.onSelectionChange([], []);
+    expect(intro.querySelector("h3")).toBeNull();
+    expect(intro.textContent).not.toContain("The notebook covers mTLS.");
+    expect(intro.querySelector('[data-testid="add-source-empty-state"]')?.textContent).toBe("Add a source to get started");
+  });
+
+  it("uses the notebook's own icon in the overview hero, falling back to the default (FR-GC-04, FR-006)", () => {
+    const dom = setupMockDOM(1440);
+    const container = dom.document.createElement("section");
+    renderNotebookOverview(container as any, { notebookTitle: "Field Notes", notebookIcon: "🧬", sourceCount: 1, overview: "Overview", starterPrompts: [], onPrompt: vi.fn() });
+    expect(container.querySelector("h3")?.textContent).toBe("🧬 Field Notes · 1 source");
+  });
 });

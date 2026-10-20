@@ -25,6 +25,8 @@ export interface ChatPanelOptions {
   /** Called when a turn starts streaming and when it ends (FR-GC-05: chips are hidden while streaming). */
   onStreamStart?(): void;
   onStreamEnd?(): void;
+  /** Whether the notebook has any source; without one the overview shows "Add a source to get started" (FR-GC-04). */
+  hasSources?(): boolean;
 }
 
 export interface ChatPanel {
@@ -185,7 +187,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     pill.textContent = sourcesLabel(count);
     const empty = count === 0;
     send.disabled = empty || inflight !== null;
-    prompt.hidden = !empty;
+    prompt.hidden = !empty || options.hasSources?.() === false;
   };
 
   const submit = async () => {

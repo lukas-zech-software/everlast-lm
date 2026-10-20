@@ -79,3 +79,18 @@ describe("Follow-up row above the chat input bar (FR-GC-05, US3/AC3)", () => {
     }
   });
 });
+
+describe("Chat empty states (FR-GC-04, FR-007)", () => {
+  it("keeps the select-sources prompt only when sources exist but none is selected", () => {
+    setupMockDOM(1440);
+    let hasSources = false;
+    const selection = new SelectionModel(notebook);
+    const panel = createChatPanel({ notebookId: notebook, selection, onCitationClick: vi.fn(), onNotebookMissing: vi.fn(), hasSources: () => hasSources });
+    const prompt = () => (panel.element as any).querySelector('[data-testid="select-sources-prompt"]');
+    panel.updateSelection();
+    expect(prompt().hidden).toBe(true);
+    hasSources = true;
+    panel.updateSelection();
+    expect(prompt().hidden).toBe(false);
+  });
+});

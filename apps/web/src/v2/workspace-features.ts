@@ -5,6 +5,7 @@ import {
   ChatControlController,
   formatChatConfigurationLabel,
   scopeSignature,
+  renderAddSourceEmptyState,
   renderNotebookOverview,
   renderResponseActions,
   renderSavedResponseNote,
@@ -31,6 +32,8 @@ import {
 export interface WorkspaceFeaturesOptions {
   notebookId: string;
   notebookTitle: string;
+  /** Notebook icon (FR-WM-02) shown in the overview hero (FR-GC-04). */
+  notebookIcon?: string | undefined;
 }
 
 export interface WorkspaceFeatures {
@@ -121,8 +124,20 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let overviewToken = 0;
   // FR-UI-02 / FR-012: a supported tag only (notebook > user > supported browser locale > en-US).
   const outputLanguage = () => effectiveOutputLanguage(settings);
+  let hasSources = true;
   function refreshOverview(): void {
     if (overviewTimer) clearTimeout(overviewTimer);
+    if (!hasSources) {
+      // FR-GC-04 / FR-007: no sources → clear the overview at once and show the add-source state.
+      overviewToken += 1;
+      renderAddSourceEmptyState(chatIntro);
+      chatIntro.hidden = false;
+      return;
+    }
+    if (chatIntro.querySelector("[data-testid=add-source-empty-state]")) {
+      while (chatIntro.firstChild) chatIntro.removeChild(chatIntro.firstChild);
+      chatIntro.hidden = true;
+    }
     overviewTimer = setTimeout(async () => {
       const token = ++overviewToken;
       if (revisions.length === 0) {
@@ -146,6 +161,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
         controls.setOverview(overview);
         renderNotebookOverview(chatIntro, {
           notebookTitle: options.notebookTitle,
+          notebookIcon: options.notebookIcon,
           sourceCount: revisions.length,
           overview: overview.overview_md,
           starterPrompts: overview.starter_prompts,
@@ -242,6 +258,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
     onSelectionChange(sources, selectedIds) {
       const selected = new Set(selectedIds);
       selectedSourceIds = selected;
+      hasSources = sources.length > 0;
       revisions = sources
         .filter((s) => selected.has(s.id) && s.status === "Ready" && s.revision !== null)
         .map((s) => ({ source_id: s.id, revision: s.revision! }))
