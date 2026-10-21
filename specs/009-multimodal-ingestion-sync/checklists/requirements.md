@@ -40,3 +40,5 @@
 - Mandatory before-specify git hook executed once. Optional after-specify commit hook dispatched; configuration disables auto-commit. Explicit lineage commit is authorized by orchestration.
 
 - 2026-10-21 latest-main refresh: re-evaluated all 16 built-in quality items against the updated spec; all remain passing, so no checkbox changed. D15/D16 lifecycle and note-source compatibility refinements preserve user acceptance, source authority and measurable failure behavior. Custom ingestion-sync items remain reviewer-owned and unchecked; they were not evaluated. Gate v2 owner override is distinguished from unexecuted post-fix live evidence.
+
+- 2026-10-21 second refresh (dc25c46): all 16 built-in items revalidated against unchanged product limits/accepted answers and the refined restart outcome. D16 persistence is delivered; durable sync dispatch remains planned. Custom questions remain unchecked. No new clarification needed.

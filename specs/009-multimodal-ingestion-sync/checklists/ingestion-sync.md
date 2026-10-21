@@ -82,3 +82,7 @@
 - [ ] CHK034 Are Source Guide invalidation, revision/language identity and restart-safe regeneration requirements explicit after successful re-sync? [Completeness, Spec §Latest-main refinement, FR-SI-02/05, D16]
 - [ ] CHK035 Are rename-title requirements clearly distinguished from the existing copied-text creation limit without broadening the latter? [Clarity, Spec §Latest-main refinement, FR-SI-01/05]
 - [ ] CHK036 Are new source-type requirements consistent with trusted note-source provenance and the shared source quota? [Coverage, Spec §Latest-main refinement, FR-SI-01, FR-NM-03, FR-WM-07]
+
+## Second-refresh recovery coverage (FR-SI-02/05, C-02)
+
+- [ ] CHK037 Do requirements distinguish existing persistent Guide reuse/on-open recovery from guaranteed re-sync regeneration after downtime beyond the watcher lookback, with no user reopen and no stale-revision publication? [Completeness, Spec §Latest-main refinement; Plan §Latest-main design review; FR-SI-02/05, C-02]
