@@ -81,7 +81,11 @@ const EXTRACT_RESPONSE_SCHEMA = {
   },
   required: ["findings"],
 } as const;
-const COMPOSE_RESPONSE_SCHEMA = {
+/**
+ * Compose response schema. With `keys`, the section key is an enum of the group's required sections, so a group
+ * call cannot invent a key such as `timeline` when it has no material for its section (live dev smoke 2026-10-22).
+ */
+const composeResponseSchema = (keys?: readonly string[]) => ({
   type: "OBJECT",
   properties: {
     sections: {
@@ -89,7 +93,7 @@ const COMPOSE_RESPONSE_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          key: STRING,
+          key: keys ? { type: "STRING", enum: [...keys] } : STRING,
           heading: STRING,
           items: { type: "ARRAY", items: COMPOSE_ITEM },
           table: {
@@ -106,7 +110,13 @@ const COMPOSE_RESPONSE_SCHEMA = {
     },
   },
   required: ["sections"],
-} as const;
+});
+
+/**
+ * A section group may answer with no sections when its findings do not support it; the pipeline then reports the
+ * missing required section as `InsufficientEvidence` (FR-015) instead of a generic `GenerationError`.
+ */
+const ComposeGroupOutputSchema = ReportComposeOutputSchema.extend({ sections: ReportComposeOutputSchema.shape.sections.element.array().max(20) });
 
 const EXTRACT_TASK =
   "Extract findings from the chunks for this report type. Kinds: summary (main point of a chunk), fact, quote (verbatim sentence in `quote`), term (glossary term in `quote`, its definition in `text`), event (with its literal `date`), person (name in `quote`), qa (a question in `question` answered by `text`), risk.";
@@ -237,8 +247,8 @@ export class VertexReportModel implements ReportModelClient {
         report_request: request(req.subtype, req.custom_prompt),
         findings: req.findings.map((f, finding) => ({ finding, kind: f.kind, text: f.text, ...optional(f) })),
       },
-      COMPOSE_RESPONSE_SCHEMA,
-      ReportComposeOutputSchema,
+      composeResponseSchema(keys),
+      keys ? ComposeGroupOutputSchema : ReportComposeOutputSchema,
       req.signal
     );
     const blocks = out.sections.map((section): ReportBlock => {

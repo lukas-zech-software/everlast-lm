@@ -146,6 +146,13 @@ Dev deploy smoke test and the T065 live run: only 1 of 4 templates completed. Ca
 - [X] T068 [P] Tests first, then: `VertexReportModel` retries a transient upstream failure (429, 5xx, timeout) up to two times (`REPORT_RETRY_DELAYS_MS` 1 s, 3 s; abortable). This is a transport retry of the same request, not a retry after a citation failure (FR-014). Per Gate v2.0 #3, FR-ST-10
 - [X] T069 [P] Tests first, then: the shared `VertexStructuredGenerationClient` logs `invalid_json` / `schema_mismatch` rejections as warnings with the reason and response length only, never content. Per `NFR-SEC-01`, FR-ST-10
 
+### Section keys per compose group (2026-10-22, branch `fix/studio-report-section-keys`)
+
+Dev smoke test after deploying T066–T069: a Timeline over a memo without named people failed 4/4 with `GenerationError`. The `cast_of_characters` group call answered under an invented key (`timeline`), and once the key was constrained it answered `sections: []`, which failed the compose schema.
+
+- [X] T070 [P] Tests first (`apps/worker/test/studio-vertex-report-model.test.ts`), then: each compose group's response schema restricts the section `key` to that group's required sections (enum); custom/dynamic reports keep a free key. Per FR-ST-10, FR-015, Gate v2.0 #3
+- [X] T071 [P] Tests first, then: a section group may answer with no sections (`ComposeGroupOutputSchema`); the missing required section then fails the job as `InsufficientEvidence` in the pipeline (FR-015) instead of `GenerationError`. A custom report with no sections stays invalid output. Per FR-015, FR-ST-10, C-03
+
 ### Deferred
 
 - [ ] T061 Deferred (owner 2026-10-20, PoC): per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
