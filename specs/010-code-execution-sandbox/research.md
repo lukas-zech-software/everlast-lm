@@ -40,7 +40,7 @@ Date: 2026-10-20. Scope: FR-GC-08, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04.
 
 ## Repository integration (FR-GC-08, CC-01/CC-02)
 
-**Decision:** Extend apps/api/src/chat/{service,model,draft,verifier,prompt}.ts, existing chat routes, packages/contracts/src/package-v1-3.ts and packages/db/src/chat-history.ts; place new execution types in package-v3-2.ts. Use current Node 24 / TypeScript 5 / pnpm workspace tooling and existing Vitest/Playwright runners.
+**Decision:** Extend apps/api/src/chat/{service,model,draft,verifier,prompt}.ts, existing chat routes, packages/contracts/src/package-v1-3.ts and packages/db/src/chat-history.ts; place new execution types in package-v3-2.ts. Use current Node 26 / TypeScript 5 / pnpm workspace tooling and existing Vitest/Playwright runners.
 
 **Rationale:** Current code has grounded model adapters and buffered transport but no sandbox controller, trace schema or chart route. Main now implements dev orchestration and database migrations. Reuse `ChatService.runTurn`, `RequestScopedContextProvider`, `verifyDraft`, `publishTurn` and generation-epoch cancellation. The active-controller Map tracks aborts; it does not prove exclusive admission or safe replay before publication. Add a durable scoped admission fence for execution; keep client drafts when overlaps are rejected. The actual endpoint is `POST /api/notebooks/{notebook_id}/chat/turns`, and SSE serialization must evolve with TurnEvent. No existing sandbox is implied.
 

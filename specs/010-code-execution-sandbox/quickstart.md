@@ -59,3 +59,7 @@ Run `pnpm eval:deterministic` on every PR once the isolated DB and harness are a
 ## Second refresh validation delta (FR-GC-08, FR-GC-06, C-02, NFR-EVAL-04)
 
 Future package tests must use the applied 0005–0008 baseline plus new ordered sandbox migrations. Cover owning-app database context through asynchronous v2 consumers, visible-message projection after restart/revocation, and clear-chat removal/invalidation of trace/chart dependencies alongside feedback/follow-ups. Preserve disabled Send until sources/history load; a later quantitative/clarification reply must use current explicit scope. Exercise sandbox crash/unknown-outcome reconciliation separately from v2 report/Guide startup recovery. Existing v2 durability does not prove sandbox admission, resource enforcement or provider termination. These are future package assertions, not newly executed runtime checks.
+
+## Final main baseline (ce3626b; FR-GC-08, CC-02, CC-08)
+
+Use the workspace-selected Node 26 runtime. API infrastructure sets `MIGRATE_ON_START=true`: pending application migrations run at startup before traffic admission; the advisory-locked runner applies each file once. Future sandbox migrations must extend the numbered migration sequence and preserve compatibility with the previous revision when a new revision fails readiness. General startup migration wiring is present; sandbox-specific schema and recovery remain unimplemented. The changed dev project example is configuration guidance, not an approval to enable APIs or deploy the sandbox.

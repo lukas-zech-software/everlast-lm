@@ -1,6 +1,6 @@
 # Implementation Plan: Quantitative Code Execution Sandbox
 
-**Branch**: `codex/v3-refresh2-3-2-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-refresh-final-3-2-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
 **SRS IDs in Scope**: FR-GC-08; FR-GC-01/02/03/06, FR-SI-03/05, FR-WM-04/05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #2
 **Input**: `specs/010-code-execution-sandbox/spec.md`
@@ -13,7 +13,7 @@ Extend grounded chat with a bounded Python execution tool over immutable scoped 
 
 ## Technical Context (FR-GC-08, C-01/C-02, NFR-SEC-01/02)
 
-- Language/version: TypeScript 5.x strict ESM, Node 24, pnpm workspace; generated Python only inside the sandbox.
+- Language/version: TypeScript 5.x strict ESM, Node 26, pnpm workspace; generated Python only inside the sandbox.
 - Dependencies: shared Zod; ADK TypeScript for grounded chat/tool selection; enterprise Gemini model tier selected by quality/latency checks. No new agent framework/datastore.
 - Runtime: Agent Platform Code Execution, Python, default 2 vCPU / 1.5 GB RAM; one fresh sandbox per attempt under an IaC-managed parent runtime without deployed agent code (D18). Research is resolved; R6 measurements/admission tests are specified in r6-feasibility.md.
 - Storage: existing single Cloud SQL Postgres for ChatMessage trace and private Cloud Storage chart objects. No provider memory/session store for user conversation state.
@@ -92,3 +92,5 @@ Main `dc25c46` applies v2 migrations `0005`–`0008` and closes DEV-04. Reuse th
 V2 stores now resolve the application's pool through `runWithV2Persistence`/AsyncLocalStorage; production request and background continuations that use those stores must retain this scope. Sandbox SQL uses its explicitly injected app pool. Do not rely on the process-default selector or memory fallback outside tests. The v2 chat reader still closes over its configured pool: its projection is an integration boundary to audit, not proof that every callback is isolated by AsyncLocalStorage. Preserve the existing visible-message filtering, saved-response conversion and atomic feedback/follow-up deletion on chat clear. New traces/charts must obey the same invalidation before any consumer receives them.
 
 Preserve web chat's readiness gate: sources and history must be loaded before a quantitative or clarification submission is accepted, preventing missing-scope turns and history replacement of new results. This local gate neither replaces API scope/admission checks nor starts the ≤2.5 s progress clock before actual sufficient-intent submission. All CC-01..CC-08 design conclusions remain PASS; runtime qualification remains UNAVAILABLE.
+
+Final baseline `ce3626b` (FR-GC-08, CC-08): Node 26 is selected by current workspace/CI configuration. API infrastructure now sets `MIGRATE_ON_START=true`; reuse its existing migration runner for future numbered sandbox migrations. This wiring does not supply sandbox schema, admission, cleanup or R6 evidence.
