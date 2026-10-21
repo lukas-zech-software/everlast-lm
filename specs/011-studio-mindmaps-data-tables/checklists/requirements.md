@@ -40,3 +40,5 @@
 - `node scripts/check-spec-integrity.mjs`: PASS. `git diff --check`: PASS. Runtime tests/evals were not run for this specification-only change; no runtime release-gate result is claimed.
 - Mandatory before-specify branch hook executed once with the parent-provided branch name. Optional after-specify commit hook is disabled by repository configuration; package commit is separately authorized for sequential lineage.
 - Ready for `$speckit-plan`; no clarification markers remain.
+
+- Second refresh, 2026-10-21 (`dc25c46`): revalidated all16 spec-quality criteria against FR-017/SC-011 and the unchanged product scenarios/limits. specs/013 already supplies persistence; report interrupted-to-Failed/explicit-retry compatibility and new-kind recovery are distinguished. No new clarification marker or scope change. This is document-quality review, not runtime acceptance.

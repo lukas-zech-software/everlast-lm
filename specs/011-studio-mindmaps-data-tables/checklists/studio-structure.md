@@ -86,3 +86,10 @@
 - [ ] CHK036 Are historical unavailable-state requirements complete for source-derived list titles and cached export metadata as well as artifact payloads? [Coverage, Spec §Edge Cases—History and exports; Contracts §Studio admission and lifecycle; FR-ST-09/18, NFR-SEC-02]
 
 These four refresh questions are appended to the preserved32 questions, remain unchecked, and are not a reviewer evaluation of requirements quality.
+
+## Second latest-main refresh — 2026-10-21
+
+- [ ] CHK037 Are legacy interrupted-report failure and explicit retry distinguished from new-plugin durable recovery, including which attempts the startup sweep may affect and how rollout prevents stale completion? [Consistency, Spec §Functional Requirements FR-017; Data Model §Shared Studio envelope; C-03, FR-ST-10/11, D16/specs/013]
+- [ ] CHK038 Are app-scoped database selection and the retained single-API deployment constraint explicit for requests and asynchronous continuations, without presenting PostgreSQL persistence as proof of multi-instance job recovery? [Completeness, Plan §Phase1 Design; Contracts §Studio admission and lifecycle; C-03, NFR-SEC-02, D16]
+
+The original36 items remain unchanged and unchecked. These two delta questions are also unchecked; this refresh does not evaluate reviewer-owned criteria. CHK033 now refers to a closed exception and applied0008, as explained in the current plan.

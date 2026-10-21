@@ -1,6 +1,6 @@
 # Feature Specification: Studio Mindmaps and Data Tables
 
-**Feature Branch**: `codex/v3-refresh-3-3-20261021`
+**Feature Branch**: `codex/v3-refresh2-3-3-20261021`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md`
@@ -123,7 +123,7 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 - **FR-014 (`FR-WM-04/05`, `NFR-SEC-01/02`, `C-02`)**: v3 operations MUST remain owner-only and notebook/document authorized, preserving upstream restrictions and enterprise no-training handling. Deleted/revoked derived artifacts MUST become unavailable immediately; generated visuals MUST be labelled AI-generated and structural illustration must not be presented as documentary evidence.
 - **FR-015 (`FR-ST-18`, `C-03`)**: If a requested comparison requires more than 500 rows or 25 columns, the system MUST fail the attempt with a clear limit explanation and request narrower instructions; it MUST NOT publish a table for that attempt.
 - **FR-016 (`FR-ST-18`, `NFR-EVAL-02`)**: When selected sources disagree about an item’s attribute, the table MUST retain one row for that item and show all conflicting values in the affected cell, each with its own supporting citation, and explicitly mark the disagreement.
-- **FR-017 (`C-03`, `FR-ST-10/11`, `FR-ST-08/18`, `NFR-SEC-02`, `D16`/`DEV-04`)**: In v3, Studio artifacts, attempts and pending work MUST survive API/worker restart behind the existing Studio interfaces. Cancellation, task redelivery and source invalidation MUST prevent duplicate or stale publication across instances. Existing reports, citations, retries and report-to-source behavior MUST remain compatible. The v2 process-memory exception ends for Studio in this package.
+- **FR-017 (`C-03`, `FR-ST-10/11`, `FR-ST-08/18`, `NFR-SEC-02`, `D16`/`DEV-04`)**: In v3, Studio artifacts and attempt records, plus pending work for new mindmap/table jobs, MUST survive API/worker restart behind the existing Studio interfaces. Cancellation, task redelivery and source invalidation MUST prevent duplicate or stale publication across instances. Existing reports, citations, retries and report-to-source behavior MUST remain compatible. The v2 process-memory exception is already closed by specs/013. Existing reports retain interrupted-to-Failed on restart with explicit retry; automatic delivery recovery applies to new mindmap/table jobs and MUST NOT change that report behavior or reset persisted artifacts.
 
 ### Key Entities *(include if feature involves data)*
 
@@ -147,7 +147,7 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 - **SC-008 (`FR-ST-08/18`, `C-03`, `NFR-SEC-02`)**: Boundary fixtures enforce the specified text/dimension limits and evidence exception; all deletion/replacement/revocation and invalid-citation fixtures fail without exposing invalid artifacts.
 - **SC-009 (`FR-ST-18`, `C-03`)**: Fixtures requiring 501 rows or 26 columns fail with a limit explanation and a request for narrower instructions, publishing zero tables; otherwise valid requests at 500 rows and 25 columns remain within bounds.
 - **SC-010 (`FR-ST-18`, `NFR-EVAL-02`)**: In conflicting-value fixtures, every compared item remains one row and every conflicting source value appears in its attribute cell with an individual supporting citation and an explicit disagreement marker.
-- **SC-011 (`C-03`, `FR-ST-10/11`, `D16`/`DEV-04`)**: Restart and concurrent-worker fixtures retain queued/completed Studio records, recover pending delivery without duplicate publication, reject stale completion after cancellation/source invalidation, and preserve existing report behavior.
+- **SC-011 (`C-03`, `FR-ST-10/11`, `D16`/`DEV-04`)**: Restart and concurrent-worker fixtures retain completed Studio records and queued new-plugin records, recover their pending delivery without duplicate publication, reject stale completion after cancellation/source invalidation, and preserve existing report behavior.
 
 ## Assumptions & Out of Scope
 
@@ -157,7 +157,7 @@ The owner clicks “Data Table” in Studio and optionally selects a suggested s
 
 ## Planning Refinements — latest main 2026-10-21 (`FR-ST-08/09/18`, `C-03`)
 
-- Keep existing report behavior and a single typed Studio registry/lifecycle while introducing mindmap and data-table results. Studio persistence and pending attempts survive restarts in v3 as required by D16/DEV-04; transport redelivery never creates an extra user retry or duplicate result.
+- Keep existing report behavior and a single typed Studio registry/lifecycle while introducing mindmap and data-table results. Studio persistence is already supplied by specs/013 (D16, DEV-04 closed); new-plugin pending delivery survives restarts, while interrupted legacy reports fail for explicit retry; transport redelivery never creates an extra user retry or duplicate result.
 - Consider all original captured evidence and retain support for every factual label, summary and conflicting value. Validate the complete result before publication; invalid citations fail with refusal and no silent generation retry. Oversized comparisons fail rather than returning a capped sample.
 - Drilldown uses current explicit source selection and verifies node and parent support before any contextual text enters chat. Historical provenance grants no extra scope. Reuse ordinary chat admission, history and validated-answer behavior.
 - Map exports include the complete currently expanded tree independently of viewport pan/zoom. Exported content is self-contained and inert. Table downloads preserve canonical values, disagreement markers and each alternative's citations while preventing formula execution, including whitespace/control-prefix bypasses.

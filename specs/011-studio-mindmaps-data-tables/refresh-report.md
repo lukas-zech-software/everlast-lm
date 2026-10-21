@@ -34,3 +34,18 @@ Spec, plan, research, model, interfaces and quickstart updated together; own FR 
 ## Handoff (CC-06, C-03)
 
 Package3.4 must branch from this completed commit and pin its own feature. Next3.3 lifecycle stage is speckit-tasks, then speckit-analyze and gated test-first implementation. Custom reviewer-owned checklist remains unchecked; planning completion is not approval of those quality criteria or runtime gates.
+
+## Second latest-main refresh — 2026-10-21 (`C-03`, `FR-ST-08/09/18`)
+
+This section supersedes the current-state statements above about process-memory Studio, unapplied drafts and initial persistence work; that earlier section remains as historical evidence of the first refresh.
+
+- Main baseline: `dc25c46` (previous `0a94f3f`), inherited through completed package3.2 commit `266236c5495de7b7ac4e21e02b9280bb1d3018a6`.
+- Worktree: `/private/tmp/everlast-v3-refresh2-3-3-20261021`; branch `codex/v3-refresh2-3-3-20261021`. First action created it; second persisted parent-provided `SPECIFY_FEATURE_DIRECTORY=specs/011-studio-mindmaps-data-tables` into `.specify/feature.json`, then unset/asserted the environment variable absent.
+- Evidence inspected: applied `0008_studio_artifacts.sql`, `PostgresStudioArtifactRepository`, `apps/api/src/v2/runtime.ts`, `runWithV2Persistence`, report persistence/restart integration tests, specs/013 and D16/DEV-04 closure. Report-only constraints, existing attempt/retry_of, row-locked terminal transitions, inline dispatch and startup interruption sweep are concrete baseline capabilities; new plugin schemas/outbox/leases/source-publication fences remain planned.
+- Replanned Phase0/1 incrementally: reuse existing table/repository through additive migration; preserve stored reports and their interrupted-to-Failed/explicit-retry semantics. Narrow the legacy sweep before admitting leased new-kind jobs, fence/drain old inline work during rollout, preserve app-scoped pool binding and single-API limit. Do not recreate removed drafts, reset rows or repeat initial v2 persistence work.
+- Updated spec, plan, research, model, interfaces and quickstart plus own FR card and the narrow Studio architecture paragraph. Oversized comparisons still fail without a table; conflicting values retain individual citations. No provider/product decision was reopened.
+- Built-in16 spec-quality criteria revalidated; original36 custom questions preserved verbatim and unchecked, with two distinct delta questions appended (38 unchecked total). Constitution CC-01–CC-08 remain design PASS; runtime acceptance is not implied.
+- Parsed extension YAML before/after planning and checklist handling: only optional `speckit.git.commit` hooks apply. Skipped optional hooks in favor of the explicitly authorized final package commit; no mandatory hook was skipped. `setup-plan.sh --json` reused the pinned plan without replacing it.
+- Verification: spec integrity and diff whitespace checks recorded below. Existing code tests were inspected as regression requirements, not rerun or reported as new passes. New-plugin runtime/export/timing/eval gates remain UNAVAILABLE until implementation. No tasks, analyze, implementation, database mutation or deployment performed.
+
+- Final checks: PASS — integrity (179 Markdown files,55 SRS IDs,35 feature artifacts), `git diff --check`, exact feature pin, latest-main ancestry, and all38 custom items unchecked with original36 unchanged.
