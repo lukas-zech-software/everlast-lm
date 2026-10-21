@@ -4,7 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import type { Pool } from "@everlast/db";
 import { AppError } from "@everlast/contracts";
-import { ensureUser, getNotebook } from "@everlast/db";
+import { ensureUser, getNotebook, runWithV2Persistence } from "@everlast/db";
 import { LocalObjectStorage, type Embedder, type ObjectStorage } from "@everlast/cloud";
 import { readBody, readJson, sendError, sendJson, sendNoContent, validationError } from "./http.ts";
 import { Router, type AuthUser, type RequestContext } from "./router.ts";
@@ -157,6 +157,9 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
     const requestId = typeof header === "string" && /^[\w-]{8,64}$/.test(header) ? header : randomUUID();
     res.setHeader("X-Request-Id", requestId);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
-    handle(req, res, requestId).catch((err) => sendError(res, err, requestId));
+    const run = () => handle(req, res, requestId).catch((err) => sendError(res, err, requestId));
+    // DEV-04 / specs/013: v2 stores read and write this app's PostgreSQL database for the whole request.
+    if (deps.v2) runWithV2Persistence(deps.pool, run);
+    else void run();
   };
 }

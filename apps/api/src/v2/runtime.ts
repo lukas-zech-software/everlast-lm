@@ -20,15 +20,16 @@ import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
+  runWithV2Persistence,
   forgetNotebook,
   getChatConfiguration,
   getNotebook,
-  getNotebookRaw,
+  getNotebookOwner,
   getOrCreateThread,
   getSource,
   getSnapshotChunksByIds,
   getSourceGuide,
-  InMemoryStudioArtifactRepository,
+  PostgresStudioArtifactRepository,
   listAllSnapshotChunks,
   listSnapshotChunks,
   listSources,
@@ -132,7 +133,10 @@ const SCOPED_CHUNK_LIMIT = 200;
 export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const { pool } = options;
   const workspace = new WorkspacePreferencesService();
-  const ownerOf = (notebookId: string) => getNotebookRaw(notebookId)?.owner_id ?? null;
+  // FR-007 / DEV-04 (specs/013): every v2 store reads and writes this pool; ownership comes from `notebooks`.
+  // Requests run in this scope through the app; the runtime's own entry points and timers enter it below.
+  const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
+  const ownerOf = (notebookId: string) => getNotebookOwner(notebookId);
 
   // PostgreSQL chat history as v2 sees it (saved responses, feedback, follow-ups): visible messages only.
   configureChatMessageReader(async (notebookId, userId) => {
@@ -176,7 +180,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   };
   const provider: ScopedContextProvider = {
     async getScopedContext(notebookId, activeSourceIds) {
-      const owner = ownerOf(notebookId);
+      const owner = await ownerOf(notebookId);
       if (!owner) throw new InvalidScopeError("Notebook is not available");
       return (await readSnapshot(owner, notebookId, activeSourceIds)).chunks;
     },
@@ -203,7 +207,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       });
     },
     ...(options.generation ? { model: options.generation } : {}),
-    resolveOwner: async (notebookId) => ownerOf(notebookId),
+    resolveOwner: (notebookId) => ownerOf(notebookId),
     // FR-UI-02: background work has no browser locale, so notebook > user > en-US.
     resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
@@ -251,12 +255,12 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     noteSources,
     ...(options.model ? { assistant: new GroundedNoteAssistant(options.model) } : {}),
     context: assistantContext,
-    verifyOwnership: (notebookId, userId) => ownerOf(notebookId) === userId,
+    verifyOwnership: async (notebookId, userId) => (await ownerOf(notebookId)) === userId,
     onNotebookModified: touchNotebookModified,
   });
   const v22Deps: PackageV22ApiDependencies = {
     // The API checked notebook ownership in PostgreSQL before any v2 handler runs.
-    authorizeNotebook: async (userId, notebookId) => ownerOf(notebookId) === userId,
+    authorizeNotebook: async (userId, notebookId) => (await ownerOf(notebookId)) === userId,
     authorizeSource: async (userId, notebookId, sourceId) => {
       try {
         const source = await getSource(pool, userId, notebookId, sourceId);
@@ -311,12 +315,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         if (row.updated_at > readyHighWater) readyHighWater = row.updated_at;
         const key = `${row.id}:${row.active_revision}`;
         if (watched.has(key)) continue;
-        try {
-          // Ownership comes from PostgreSQL; mirror the notebook so v2 reads it like a request would (D16).
-          if (!ownerOf(row.notebook_id)) rememberNotebook({ ...(await getNotebook(pool, row.owner_id, row.notebook_id)), owner_id: row.owner_id });
-        } catch {
-          continue; // notebook deleted meanwhile
-        }
+        if (!(await ownerOf(row.notebook_id))) continue; // notebook deleted meanwhile
         watched.add(key);
         dispatched += 1;
         void dispatchReady({
@@ -335,18 +334,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   let readyTimer: ReturnType<typeof setInterval> | null = null;
   if (options.readyWatch && hooks.length > 0) {
     let running = false;
-    readyTimer = setInterval(() => {
+    readyTimer = setInterval(() => inScope(() => {
       if (running) return;
       running = true;
       pollReadySources()
         .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 ready watcher: ${(err as Error).message}` })))
         .finally(() => (running = false));
-    }, Math.max(10, options.readyWatch.intervalMs));
+    }), Math.max(10, options.readyWatch.intervalMs));
     readyTimer.unref?.();
   }
 
   // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
-  const repo = new InMemoryStudioArtifactRepository();
+  const repo = new PostgresStudioArtifactRepository(pool);
   const registry = new StudioPluginRegistry();
   const reportModel = new DeterministicReportModel();
   registry.register(new ReportGeneratorPlugin(options.reportModel ?? reportModel));
@@ -355,7 +354,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
   const studioContext = {
     async getScopedContext(notebookId: string, activeSourceIds: string[]): Promise<UnifiedDocumentChunk[]> {
-      const owner = ownerOf(notebookId);
+      const owner = await ownerOf(notebookId);
       if (!owner) throw new InvalidScopeError("Notebook is not available");
       return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
     },
@@ -376,7 +375,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return Promise.all(
         snapshot.map(async (pair): Promise<SourceGuideState> => {
           const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision, outputLanguage);
-          const owner = ownerOf(notebookId);
+          const owner = await ownerOf(notebookId);
           // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
           if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
             startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
@@ -421,19 +420,21 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   return {
     workspace,
     handlers: [
-      (req, res, userId) => handleWorkspacePreferencesRoute(req, res, workspace, userId),
-      (req, res, userId) => handlePackageV22Route(req, res, userId, v22Deps),
-      (req, res, userId) => handleNotesRoute(req, res, { service: notes, verifyOwnership: (nb, uid) => ownerOf(nb) === uid }, userId),
-      (req, res, userId) => handleStudioRoute(req, res, studioDeps, userId),
+      (req, res, userId) => inScope(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
+      (req, res, userId) => inScope(() => handlePackageV22Route(req, res, userId, v22Deps)),
+      (req, res, userId) => inScope(() => handleNotesRoute(req, res, { service: notes, verifyOwnership: async (nb, uid) => (await ownerOf(nb)) === uid }, userId)),
+      (req, res, userId) => inScope(() => handleStudioRoute(req, res, studioDeps, userId)),
     ],
     syncNotebook(userId, notebook) {
-      return rememberNotebook({ ...notebook, owner_id: userId });
+      return inScope(() => rememberNotebook({ ...notebook, owner_id: userId }));
     },
-    async notebookModified(userId, notebook) {
-      rememberNotebook({ ...notebook, owner_id: userId });
-      await touchNotebookModified(notebook.id);
+    notebookModified(userId, notebook) {
+      return inScope(async () => {
+        rememberNotebook({ ...notebook, owner_id: userId });
+        await touchNotebookModified(notebook.id);
+      });
     },
-    syncSources(_userId, notebookId, sources) {
+    syncSources: (_userId, notebookId, sources) => inScope(() => {
       const ready = sources.filter((s) => s.status === "Ready" && s.active_revision !== null);
       setReadySourceCount(notebookId, ready.length);
       for (const s of ready) {
@@ -447,12 +448,12 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         };
         void dispatchReady(event);
       }
-    },
-    async notebookDeleted(notebookId) {
+    }),
+    notebookDeleted: (notebookId) => inScope(async () => {
       forgetNotebook(notebookId);
       await repo.deleteForNotebook(notebookId);
-    },
-    async chatPreferences(userId, notebookId, browserLocale) {
+    }),
+    chatPreferences: (userId, notebookId, browserLocale) => inScope(async () => {
       const [config, languages] = await Promise.all([
         getChatConfiguration(notebookId, userId),
         workspace.resolveLanguagePreferences(userId, notebookId, browserLocale),
@@ -464,8 +465,8 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         input_language: languages.input_language,
         output_language: languages.output_language,
       };
-    },
-    pollReadySources,
+    }),
+    pollReadySources: () => inScope(pollReadySources),
     close() {
       if (readyTimer) clearInterval(readyTimer);
       readyTimer = null;

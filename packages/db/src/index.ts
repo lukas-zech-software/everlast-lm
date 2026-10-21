@@ -13,6 +13,7 @@ export * from "./chat-history.ts";
 // Note-sources are v1 sources with provenance in PostgreSQL (owner decision 2026-10-20, D16).
 export * from "./note-sources.ts";
 // Release v2 proof-of-concept stores (D16): kept in process memory on purpose, PostgreSQL persistence follows in v3.
+export * from "./v2-persistence.ts";
 export * from "./poc-bridge.ts";
 export * from "./workspace-preferences.ts";
 export * from "./package-v2-2.ts";

@@ -46,7 +46,7 @@ export async function handleWorkspacePreferencesRoute(
   const match = url.pathname.match(/^\/api\/notebooks\/([^/]+)\/preferences$/);
   if (match) {
     const notebookId = match[1]!;
-    const raw = service.getNotebookRaw(notebookId);
+    const raw = await service.getNotebook(notebookId);
     if (!raw) {
       sendJson(res, 404, { error: { code: "NotebookNotFound", message: "Notebook not found" } });
       return true;
