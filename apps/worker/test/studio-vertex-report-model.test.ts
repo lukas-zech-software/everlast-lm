@@ -270,3 +270,48 @@ describe("fixed grounding survives custom prompts (FR-ST-11, FR-GC-01/02)", () =
     expect(JSON.stringify(done)).not.toContain("secret");
   });
 });
+
+describe("[008-studio-text-reports] T070 each compose group may only return its own section keys (FR-ST-10, FR-015)", () => {
+  const c = batch[0]!;
+  const findings = [{ kind: "event" as const, text: "x", chunk_id: c.chunk_id, source_id: c.source_id, date: "1890" }];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sectionKeyEnum = (r: GenerateContentRequest) => (r.config.responseSchema as any).properties.sections.items.properties.key.enum;
+
+  it("constrains the section key to the group's required sections in the response schema", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([
+      { sections: [{ key: "events", heading: "Events", items: [{ text: "x", finding: 0 }] }] },
+      { sections: [{ key: "cast_of_characters", heading: "Cast", items: [{ text: "x", finding: 0 }] }] },
+    ]);
+    await VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "timeline", findings, signal });
+    expect(fake.requests.map(sectionKeyEnum).sort()).toEqual([["cast_of_characters"], ["events"]]);
+  });
+
+  it("leaves the key free for custom reports", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([{ sections: [{ key: "anything", heading: "A", items: [{ text: "x", finding: 0 }] }] }]);
+    await VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "custom", findings, signal });
+    expect(sectionKeyEnum(fake.requests[0]!)).toBeUndefined();
+  });
+});
+
+describe("[008-studio-text-reports] T071 a section group with no supporting findings is missing, not a generation error (FR-015)", () => {
+  const c = batch[0]!;
+  const findings = [{ kind: "event" as const, text: "x", chunk_id: c.chunk_id, source_id: c.source_id, date: "1890" }];
+
+  it("an empty group answer leaves its section out so the pipeline refuses with InsufficientEvidence", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([
+      { sections: [{ key: "events", heading: "Events", items: [{ text: "x", finding: 0 }] }] },
+      { sections: [] },
+    ]);
+    const blocks = await VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "timeline", findings, signal });
+    expect(blocks.map((b) => b.id)).toEqual(["events"]);
+  });
+
+  it("a custom report with no sections stays invalid output", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([{ sections: [] }]);
+    await expect(VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "custom", findings, signal })).rejects.toBeInstanceOf(ReportGenerationError);
+  });
+});
