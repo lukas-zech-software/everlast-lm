@@ -34,4 +34,4 @@ Date:2026-10-20. Scope:`FR-ST-08/09/18`,`C-01..C-03`,`NFR-SEC-01/02`,`NFR-EVAL-0
 
 ## Feasibility boundary (`FR-ST-08/09/18`, `NFR-EVAL-01..04`)
 
-No product questions remain. Generic tests/runner scripts are present, but new payloads/plugins/routes/exports and package-specific timing/eval fixtures do not yet exist. They are UNAVAILABLE for runtime qualification during planning. Package3.2 managed default2vCPU/1.5GB (D16) is inherited without changing its pending R6 controls;3.3 requires no sandbox execution. No new cloud API is enabled or deployment made.
+No product questions remain. Generic tests/runner scripts are present, but new payloads/plugins/routes/exports and package-specific timing/eval fixtures do not yet exist. They are UNAVAILABLE for runtime qualification during planning. Package3.2 managed default2vCPU/1.5GB (D18) is inherited without changing its pending R6 controls;3.3 requires no sandbox execution. No new cloud API is enabled or deployment made.

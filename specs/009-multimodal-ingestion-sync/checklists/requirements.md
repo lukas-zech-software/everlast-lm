@@ -38,3 +38,5 @@
 - `node scripts/check-spec-integrity.mjs`: PASS. `git diff --check`: PASS. These are document checks, not runtime proof.
 - Runtime and deterministic eval suites: NOT RUN (specification-only change). Package 3.1 audio/Office/live integration acceptance environment: UNAVAILABLE in this worktree. Judged release evidence: UNAVAILABLE; no release-gate success is claimed.
 - Mandatory before-specify git hook executed once. Optional after-specify commit hook dispatched; configuration disables auto-commit. Explicit lineage commit is authorized by orchestration.
+
+- 2026-10-21 latest-main refresh: re-evaluated all 16 built-in quality items against the updated spec; all remain passing, so no checkbox changed. D15/D16 lifecycle and note-source compatibility refinements preserve user acceptance, source authority and measurable failure behavior. Custom ingestion-sync items remain reviewer-owned and unchecked; they were not evaluated. Gate v2 owner override is distinguished from unexecuted post-fix live evidence.

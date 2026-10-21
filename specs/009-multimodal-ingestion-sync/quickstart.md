@@ -11,7 +11,7 @@ node scripts/check-spec-integrity.mjs
 git diff --check
 ```
 
-Before implementation: documented Gate v2 pass, prior contract/route baseline reconciliation, isolated Postgres/Storage fixture environment, approved Speech/Drive/Model Armor API enablement and delegated test account. Use no production data. Pin cloud regions and provider/language/model revisions in benchmark manifests. Runtime v3 adapters, provider fixtures and live integrated services are currently UNAVAILABLE; root dev/db:migrate scripts print harness placeholders and do not provision them.
+Before implementation: review owner-approved Gate v2 override and unresolved live follow-ups in `docs/gate-v2-live-evaluation.md`; preserve existing contract/routes, isolated Postgres/Storage fixture environment, approved Speech/Drive/Model Armor API enablement and delegated test account. Use no production data. Pin cloud regions and provider/language/model revisions in benchmark manifests. Runtime v3 adapters and live provider fixtures remain UNAVAILABLE. Root `dev` and `db:migrate` are real commands: `pnpm dev -- --offline` starts the local PostgreSQL/storage/application harness with lexical test embeddings and no model answers; configured ADC/Vertex is required for real generation. Do not provision cloud resources for a document refresh.
 
 After the implementation stage supplies those services and failing spec-derived tests, existing commands are:
 
@@ -27,7 +27,7 @@ pnpm test:e2e
 pnpm eval:judged
 ```
 
-Run the package-specific tests first; a green preexisting suite without the scenarios below is not package acceptance. Judged runner currently remains guarded/unavailable until configured. Do not report it passed from an empty run.
+Run the package-specific tests first; a green preexisting suite without the scenarios below is not package acceptance. The judged CLI is real and uses keyless Vertex/ADC when configured; it is not run here. Per Constitution 2.0.0, run it once per release gate on the fixed stratified 50-case sample and retain case IDs, composition and dataset hash. Do not report credential-free or empty execution as a pass.
 
 ## End-to-end scenarios (FR-SI-01/05, C-01/C-02)
 
@@ -43,3 +43,7 @@ Run the package-specific tests first; a green preexisting suite without the scen
 Use a versioned 30-minute fixture and declare codec, language, hash, size, environment, queue/concurrency, sample count and provider configuration before testing. Run at least 20 independent repetitions as an initial benchmark, retain every measurement/failure and compute nearest-rank P95 (sorted sample ceil(0.95*N)); expand samples for release confidence. Start at accepted-for-transcription event after upload, stop when complete timestamped transcript is available; include queue/preprocessing/provider/assembly and exclude subsequent indexing. Failed runs are reported separately and cannot be removed to manufacture a pass. Target ≤45s remains unchanged; record cold/warm context, no warm-only exemption for this audio target.
 
 Gate v3.0 #1 requires the integrated timestamp click scenario. Full v3 also requires other package gates. Deterministic citation validity must equal 1.0 and leakage 0; release judged evidence requires hallucination <5%, out-of-source rejection ≥99% and semantic support checks. All live provider, browser-integrated v3 and performance results are UNAVAILABLE at this planning stage.
+
+## Main regression boundary (FR-SI-01/05, FR-NM-03, C-01/C-02)
+
+Before new adapter implementation, use the existing ingestion/source contract tests and PostgreSQL integration fixtures. Include copied text persistence, source_pages/chunks atomic Ready commit, note-source admission/provenance, stale/deleted worker fencing, scoped hybrid retrieval and singleton Inspector. Add failing sync-specific tests for Ready-preserving replacement and durable Guide regeneration after API/worker restart. This refresh changes documentation only; existing runtime tests are not proof of unimplemented v3 adapters.
