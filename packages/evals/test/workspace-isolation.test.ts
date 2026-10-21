@@ -1,76 +1,69 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { validateRequestScope, InvalidScopeError } from "@everlast/db";
+import { readFileSync } from "node:fs";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { InvalidScopeError } from "@everlast/contracts";
+import { HashingTestEmbedder } from "@everlast/cloud";
+import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "@everlast/db/testing";
+import { createNotebook, retrieveScopedChunks, captureScopeSnapshot } from "@everlast/db";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const fixturePath = path.resolve(__dirname, "../fixtures/workspace-isolation.json");
-const fixtures = JSON.parse(fs.readFileSync(fixturePath, "utf8"));
+/**
+ * T027/T030 — deterministic NFR-EVAL-04 isolation evals from packages/evals/fixtures/workspace-isolation.json,
+ * executed against the real C-02 scope guard and hybrid retrieval (FR-WM-04).
+ */
 
-describe("T027 [US2] Deterministic Workspace Isolation Evals (FR-WM-04, NFR-EVAL-04)", () => {
-  const notebookAlpha = fixtures.notebooks[0];
-  const notebookBeta = fixtures.notebooks[1];
-  const userAlpha = fixtures.users[0];
-  const userBeta = fixtures.users[1];
+interface Fixture {
+  users: { id: string; subject: string }[];
+  notebooks: { id: string; owner_id: string; title: string }[];
+  sources: { id: string; notebook_id: string; title: string }[];
+  chunks: { source_id: string; text: string }[];
+  isolation_test_cases: { case_id: string; request: { notebook_id: string; active_source_ids: string[]; query?: string }; forbidden_token?: string; expected_error?: string }[];
+}
 
-  it("ISO-01: canary containment: OMEGA-991 canary token is completely absent from Notebook Beta context", async () => {
-    const betaCase = fixtures.isolation_test_cases.find(
-      (tc: any) => tc.case_id === "TC-ISO-01-canary-containment"
-    );
-    expect(betaCase).toBeDefined();
+const fixture = JSON.parse(readFileSync(new URL("../fixtures/workspace-isolation.json", import.meta.url), "utf8")) as Fixture;
+const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
+let db: TestDatabase;
+const ids = new Map<string, string>();
+const owners = new Map<string, string>();
 
-    const scopeResult = await validateRequestScope(
-      undefined as any,
-      userBeta.subject,
-      {
-        notebook_id: betaCase.request.notebook_id,
-        active_source_ids: betaCase.request.active_source_ids,
-        query: betaCase.request.query,
+beforeAll(async () => {
+  db = await createTestDatabase();
+  for (const user of fixture.users) owners.set(user.id, await createTestUser(db.pool, user.subject));
+  for (const nb of fixture.notebooks) ids.set(nb.id, (await createNotebook(db.pool, owners.get(nb.owner_id)!, { title: nb.title })).notebook.id);
+  for (const source of fixture.sources) {
+    const nb = fixture.notebooks.find((n) => n.id === source.notebook_id)!;
+    const text = fixture.chunks.filter((c) => c.source_id === source.id).map((c) => c.text).join("\n\n") || source.title;
+    const seeded = await seedReadySource(db.pool, owners.get(nb.owner_id)!, ids.get(nb.id)!, { title: source.title, pages: [text], embed: (t) => embedder.embed(t) });
+    ids.set(source.id, seeded.sourceId);
+  }
+});
+
+afterAll(async () => {
+  await db?.drop();
+});
+
+describe("NFR-EVAL-04 workspace isolation fixtures", () => {
+  for (const tc of fixture.isolation_test_cases) {
+    it(`${tc.case_id}`, async () => {
+      const nb = fixture.notebooks.find((n) => n.id === tc.request.notebook_id)!;
+      const owner = owners.get(nb.owner_id)!;
+      const request = () => captureScopeSnapshot(db.pool, owner, ids.get(nb.id)!, tc.request.active_source_ids.map((s) => ids.get(s)!));
+      if (tc.expected_error) {
+        await expect(request()).rejects.toBeInstanceOf(InvalidScopeError);
+        return;
       }
-    );
+      const snapshot = await request();
+      const query = tc.request.query ?? "";
+      const chunks = await retrieveScopedChunks(db.pool, snapshot, { queryText: query, queryEmbedding: (await embedder.embed([query]))[0]! });
+      const allowed = new Set(snapshot.sources.map((p) => p.source_id));
+      expect(chunks.every((c) => allowed.has(c.source_id))).toBe(true);
+      if (tc.forbidden_token) expect(JSON.stringify(chunks)).not.toContain(tc.forbidden_token);
+    });
+  }
 
-    // Filter chunks matching beta sources
-    const activeIds = new Set(betaCase.request.active_source_ids);
-    const contextChunks = fixtures.chunks.filter((c: any) => activeIds.has(c.source_id));
-
-    // Verify zero chunks contain the canary token
-    const leakedChunks = contextChunks.filter((c: any) =>
-      c.text.includes(betaCase.forbidden_token)
-    );
-    expect(leakedChunks.length).toBe(0);
-  });
-
-  it("ISO-02: tampered source ID from Notebook Alpha into Notebook Beta triggers InvalidScopeError", async () => {
-    const tamperedCase = fixtures.isolation_test_cases.find(
-      (tc: any) => tc.case_id === "TC-ISO-02-tampered-source-id"
-    );
-    expect(tamperedCase).toBeDefined();
-
-    // Owner Beta attempts to request Notebook Alpha's source inside Notebook Beta
-    await expect(
-      validateRequestScope(undefined as any, userBeta.subject, {
-        notebook_id: tamperedCase.request.notebook_id,
-        active_source_ids: tamperedCase.request.active_source_ids,
-      })
-    ).rejects.toThrow(InvalidScopeError);
-  });
-
-  it("ISO-03: defense-in-depth: foreign owner and foreign notebook chunks never pass scope guard", async () => {
-    // User Alpha's notebook requested by User Beta
-    await expect(
-      validateRequestScope(undefined as any, userBeta.subject, {
-        notebook_id: notebookAlpha.id,
-        active_source_ids: ["a1000000-0000-4000-8000-000000000001"],
-      })
-    ).rejects.toThrow(InvalidScopeError);
-
-    // User Alpha requesting non-existent source
-    await expect(
-      validateRequestScope(undefined as any, userAlpha.subject, {
-        notebook_id: notebookAlpha.id,
-        active_source_ids: ["00000000-0000-4000-8000-000000000000"],
-      })
-    ).rejects.toThrow(InvalidScopeError);
+  it("ISO-CANARY: the OMEGA-991 canary is retrievable in its own notebook (control) but never in another", async () => {
+    const alphaNb = fixture.notebooks[0]!;
+    const alphaSources = fixture.sources.filter((s) => s.notebook_id === alphaNb.id).map((s) => ids.get(s.id)!);
+    const snapshot = await captureScopeSnapshot(db.pool, owners.get(alphaNb.owner_id)!, ids.get(alphaNb.id)!, alphaSources);
+    const chunks = await retrieveScopedChunks(db.pool, snapshot, { queryText: "OMEGA-991", queryEmbedding: (await embedder.embed(["OMEGA-991"]))[0]! });
+    expect(JSON.stringify(chunks)).toContain("OMEGA-991");
   });
 });

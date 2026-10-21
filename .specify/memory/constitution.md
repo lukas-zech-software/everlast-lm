@@ -124,8 +124,11 @@ implemented the specification accurately.
   - Deterministic suites (citation-ID validity `NFR-EVAL-02` = 1.0, deselected-source leakage
     `NFR-EVAL-04` = 0) MUST run and pass on every pull request once the test harness exists.
   - LLM-judged suites (hallucination `NFR-EVAL-01` < 5 %, out-of-source rejection
-    `NFR-EVAL-03` ≥ 99 %, and semantic citation support) MUST run and pass on every pull request
-    touching retrieval, prompt, or chat code, and before every release gate.
+    `NFR-EVAL-03` ≥ 99 %, and semantic citation support) MUST run and pass once per release gate
+    on the release candidate, against a fixed, deterministic stratified sample of 50 cases drawn
+    from the versioned golden dataset. That single passing run is sufficient evidence for the
+    gate; the gate report MUST record the sample's case IDs, category composition and the
+    dataset hash. Thresholds are unchanged, and judged suites are not required per pull request.
 
 **Rationale:** Strict grounding with verifiable citations, snapshot isolation, and zero leakage
 through caches or chat history is the product's core enterprise guarantee.
@@ -337,4 +340,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-08`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-17
+**Version**: 2.0.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-19

@@ -5,11 +5,11 @@ import {
   UpdateNotebookInputSchema,
   DEFAULT_NOTEBOOK_TITLE,
   type Notebook,
-} from "../src/workspace.js";
+} from "../src/workspace.ts";
 import {
   normalizeNotebookTitle,
   validateNotebookTitle,
-} from "../src/text-limits.js";
+} from "../src/text-limits.ts";
 
 describe("FR-WM-01: Workspace and Notebook Contracts", () => {
   const validNotebookIdV4 = "a1111111-1111-4111-8111-111111111111";

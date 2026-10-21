@@ -6,7 +6,7 @@ import {
   type StudioGeneratorPlugin,
 } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { StudioJobRunner } from "../src/studio/runner.js";
+import { StudioJobRunner } from "../src/studio/runner.ts";
 import {
   FakeAccess,
   FakeScopedContext,
@@ -18,7 +18,7 @@ import {
   historyChunks,
   techChunks,
   unselectedChunks,
-} from "./studio-fixtures.js";
+} from "./studio-fixtures.ts";
 
 function fixture(generate: (ctx: StudioGenerationContext) => Promise<StudioGenerationOutcome>) {
   const repo = new InMemoryStudioArtifactRepository();
@@ -45,13 +45,15 @@ function fixture(generate: (ctx: StudioGenerationContext) => Promise<StudioGener
   return { repo, runner, scoped, access, queue, chunks };
 }
 
+const BRIEFING_KEYS = ["executive_summary", "core_themes", "key_takeaways", "quotes"];
 const goodOutcome = (ctx: StudioGenerationContext): StudioGenerationOutcome => {
   const c = ctx.chunks[0]!;
   return {
     status: "completed",
     payload: {
-      content_md: "# Briefing [1]",
+      content_md: ["# Briefing", ...BRIEFING_KEYS.map((key) => `## ${key}\n\n- A supported point. [1]`)].join("\n\n"),
       citations: [{ badge_number: 1, chunk_id: c.chunk_id, source_id: c.source_id, revision: c.revision, snippet: c.text.slice(0, 20) }],
+      sections: BRIEFING_KEYS.map((key) => ({ key, heading: key })),
     },
   };
 };

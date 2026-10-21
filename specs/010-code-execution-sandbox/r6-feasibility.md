@@ -1,11 +1,11 @@
 # R6 Qualification Record: Managed Default Sandbox
 
-Date: 2026-10-20. Scope: FR-GC-08, NFR-SEC-01/02, Gate v3.0 #2, CC-07/08, D16.
+Date: 2026-10-20. Scope: FR-GC-08, NFR-SEC-01/02, Gate v3.0 #2, CC-07/08, D18.
 Status: **Design complete; deployment qualification UNAVAILABLE.** This record distinguishes the selected architecture from evidence still required before implementation/runtime admission.
 
-## Superseding owner decision (FR-GC-08, D16)
+## Superseding owner decision (FR-GC-08, D18)
 
-The owner first chose Option A to retain the former 1 vCPU / 512 MB caps and hold planning for feasibility evidence. The owner subsequently instructed: “Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM”. D16 and the SRS amendment apply that later instruction. The managed default is now the primary path and the earlier CPU/RAM-related planning hold is superseded. The optional 4 vCPU / 4 GB profile is not approved.
+The owner first chose Option A to retain the former 1 vCPU / 512 MB caps and hold planning for feasibility evidence. The owner subsequently instructed: “Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM”. D18 and the SRS amendment apply that later instruction. The managed default is now the primary path and the earlier CPU/RAM-related planning hold is superseded. The optional 4 vCPU / 4 GB profile is not approved.
 
 One or two simultaneous users remains workload context. Zero inbound/outbound network, immutable scoped input, 64 MB temporary storage, 15.0-second per-attempt execution, retry rules and validated publication remain mandatory. Planning completion does not enable a cloud service or prove those controls.
 

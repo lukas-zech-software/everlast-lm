@@ -5,18 +5,18 @@ import {
   SourceSnapshotInvalidError,
   StudioParamsError,
 } from "@everlast/contracts";
-import { parseJsonBody, sendJson } from "../http.js";
+import { parseJsonBody, sendJson } from "../http.ts";
 import {
   StudioConflictError,
   StudioNotFoundError,
   StudioNotImplementedError,
   StudioService,
   type StudioServiceDeps,
-} from "../studio/service.js";
+} from "../studio/service.ts";
 
 export type StudioRouteDeps = StudioServiceDeps;
 
-const isZodError = (e: unknown): e is { issues: { message: string }[] } =>
+const isZodError = (e: unknown): e is { issues: { message: string; path: (string | number)[] }[] } =>
   e instanceof Error && e.name === "ZodError" && Array.isArray((e as { issues?: unknown }).issues);
 
 const err = (res: ServerResponse, status: number, code: string, message: string): true => {
@@ -24,7 +24,10 @@ const err = (res: ServerResponse, status: number, code: string, message: string)
   return true;
 };
 
-/** Studio HTTP routes (FR-ST-10, FR-ST-11, FR-NM-03); Owner-only, authorization happens server-side. */
+/**
+ * Studio HTTP routes (FR-ST-10, FR-ST-11, FR-NM-03); Owner-only, authorization happens server-side.
+ * v2 has no cancel action (card FR-ST-10): `Cancelled` stays a C-03 state for later plugins.
+ */
 export async function handleStudioRoute(
   req: IncomingMessage,
   res: ServerResponse,
@@ -33,7 +36,7 @@ export async function handleStudioRoute(
 ): Promise<boolean> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const match = url.pathname.match(
-    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(cancel|retry|convert-to-source))?)?|report-suggestions)$/
+    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|convert-to-source))?)?|report-suggestions)$/
   );
   if (!match) return false;
   const [, notebookId, target, artifactId, action] = match as unknown as [string, string, string, string | undefined, string | undefined];
@@ -61,8 +64,6 @@ export async function handleStudioRoute(
     } else if (artifactId && !action && method === "DELETE") {
       await service.remove(userId, notebookId, artifactId);
       res.writeHead(204).end();
-    } else if (artifactId && action === "cancel" && method === "POST") {
-      sendJson(res, 200, { artifact: await service.cancel(userId, notebookId, artifactId) });
     } else if (artifactId && action === "retry" && method === "POST") {
       sendJson(res, 202, { artifact: await service.retry(userId, notebookId, artifactId, body) });
     } else if (artifactId && action === "convert-to-source" && method === "POST") {
@@ -72,6 +73,10 @@ export async function handleStudioRoute(
     }
   } catch (e) {
     if (e instanceof EmptyScopeError) return err(res, 400, "EmptyScopeError", e.message);
+    // FR-UI-02: an unsupported output language is a bad request (it would key caches and on-demand guide runs).
+    if (isZodError(e) && e.issues.some((x) => x.path[0] === "output_language")) {
+      return err(res, 400, "UnsupportedOutputLanguage", "Output language is not in the supported locale set.");
+    }
     if (isZodError(e)) return err(res, 422, "ValidationError", e.issues.map((x) => x.message).join("; "));
     if (e instanceof StudioParamsError) return err(res, 422, "ValidationError", e.message);
     if (e instanceof InvalidScopeError) return err(res, 403, "InvalidScope", e.message);

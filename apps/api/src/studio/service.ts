@@ -4,6 +4,7 @@ import {
   EmptyScopeError,
   CreateStudioJobRequestSchema,
   RetryStudioJobRequestSchema,
+  type ReportCitation,
   type ReportSuggestionsResult,
   type SourceRevisionPair,
   type StudioPluginRegistry,
@@ -28,8 +29,12 @@ export interface StudioJobDispatcher {
 export type ConvertToSource = (input: {
   notebook_id: string;
   owner_id: string;
+  artifact_id: string;
   title: string;
   content_md: string;
+  /** Validated report citations; the port carries them to the note so FR-NM-03 strips markers (FR-008). */
+  citations: ReportCitation[];
+  snapshot: SourceRevisionPair[];
 }) => Promise<{ source_id: string }>;
 
 export interface StudioSuggestionsPort {
@@ -48,6 +53,10 @@ export interface StudioServiceDeps {
   dispatcher: StudioJobDispatcher;
   convertToSource?: ConvertToSource;
   suggestions?: StudioSuggestionsPort;
+  /** Effective output language (FR-UI-02: notebook > user > en-US) for requests that omit `output_language`. */
+  resolveOutputLanguage?: (ownerId: string, notebookId: string) => Promise<string>;
+  /** Advances the notebook's `updated_at` after an artifact write (FR-WM-02). */
+  onNotebookModified?: (notebookId: string) => Promise<unknown> | void;
 }
 
 export class StudioConflictError extends Error {}
@@ -71,19 +80,32 @@ function requireScope(ids: unknown): void {
 }
 
 export class StudioService {
-  constructor(private readonly deps: StudioServiceDeps) {}
+  private readonly deps: StudioServiceDeps;
+  constructor(deps: StudioServiceDeps) {
+    this.deps = deps;
+  }
+
+  private async language(ownerId: string, notebookId: string, requested: string | undefined): Promise<string | undefined> {
+    return requested ?? (await this.deps.resolveOutputLanguage?.(ownerId, notebookId));
+  }
+
+  private async modified<T>(notebookId: string, result: T): Promise<T> {
+    await this.deps.onNotebookModified?.(notebookId);
+    return result;
+  }
 
   async create(ownerId: string, notebookId: string, body: unknown) {
     requireScope((body as { active_source_ids?: unknown } | null)?.active_source_ids);
     const req = CreateStudioJobRequestSchema.parse(body);
     const plugin = this.deps.registry.get(req.plugin_type);
     const snapshot = await this.deps.access.resolveSnapshot(ownerId, notebookId, req.active_source_ids);
+    const output_language = await this.language(ownerId, notebookId, req.output_language);
     const plan = plugin.triggerJob({
       notebook_id: notebookId,
       subtype: req.subtype,
       params: { custom_prompt: req.custom_prompt },
       snapshot,
-      output_language: req.output_language,
+      output_language,
     });
     const row = await this.deps.repo.createQueued({
       notebook_id: notebookId,
@@ -92,10 +114,10 @@ export class StudioService {
       title: plan.title,
       params_json: plan.params_json,
       snapshot,
-      output_language: req.output_language,
+      output_language,
     });
     await this.deps.dispatcher.enqueue(row.id, ownerId);
-    return publicView(row);
+    return this.modified(notebookId, publicView(row));
   }
 
   async list(ownerId: string, notebookId: string) {
@@ -106,7 +128,7 @@ export class StudioService {
     const row = await this.owned(ownerId, notebookId, id);
     if (row.status === "Completed") {
       try {
-        await this.deps.access.verifySnapshot(ownerId, notebookId, row.active_source_ids_snapshot);
+        await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
       } catch (err) {
         if (err instanceof SourceSnapshotInvalidError || err instanceof InvalidScopeError) {
           return {
@@ -123,12 +145,6 @@ export class StudioService {
     return { artifact: publicView(row) };
   }
 
-  async cancel(ownerId: string, notebookId: string, id: string) {
-    const row = await this.owned(ownerId, notebookId, id);
-    if (row.status !== "Queued" && row.status !== "Running") throw new StudioConflictError("Artifact is already finished.");
-    return publicView(await this.deps.repo.cancel(id));
-  }
-
   async retry(ownerId: string, notebookId: string, id: string, body: unknown) {
     const prev = await this.owned(ownerId, notebookId, id);
     if (prev.status !== "Failed" && prev.status !== "Cancelled") {
@@ -142,10 +158,10 @@ export class StudioService {
         previous_id: id,
         owner_id: ownerId,
         snapshot,
-        output_language: req.output_language,
+        output_language: await this.language(ownerId, notebookId, req.output_language),
       });
       await this.deps.dispatcher.enqueue(row.id, ownerId);
-      return publicView(row);
+      return this.modified(notebookId, publicView(row));
     } catch (err) {
       if (err instanceof StudioRetryNotAllowedError) throw new StudioConflictError(err.message);
       throw err;
@@ -156,17 +172,22 @@ export class StudioService {
     const row = await this.owned(ownerId, notebookId, id);
     if (row.status !== "Completed" || !row.payload_json) throw new StudioConflictError("Only Completed artifacts can be converted.");
     if (!this.deps.convertToSource) throw new StudioNotImplementedError("Convert to source is not configured.");
-    await this.deps.access.verifySnapshot(ownerId, notebookId, row.active_source_ids_snapshot);
-    return this.deps.convertToSource({
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    const converted = await this.deps.convertToSource({
       notebook_id: notebookId,
       owner_id: ownerId,
+      artifact_id: row.id,
       title: row.title,
       content_md: row.payload_json.content_md,
+      citations: row.payload_json.citations,
+      snapshot: row.source_revisions_snapshot,
     });
+    return this.modified(notebookId, converted);
   }
 
   async remove(ownerId: string, notebookId: string, id: string): Promise<void> {
     if (!(await this.deps.repo.delete(notebookId, ownerId, id))) throw new StudioNotFoundError("Artifact not found.");
+    await this.modified(notebookId, undefined);
   }
 
   async suggestions(ownerId: string, notebookId: string, body: unknown) {
@@ -182,7 +203,7 @@ export class StudioService {
       notebook_id: notebookId,
       owner_id: ownerId,
       snapshot,
-      output_language: ids.output_language,
+      output_language: await this.language(ownerId, notebookId, ids.output_language),
     });
   }
 

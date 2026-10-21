@@ -4,7 +4,7 @@ Date: 2026-10-20. Scope: FR-GC-08, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04.
 
 ## Runtime feasibility (FR-GC-08, R6)
 
-**Decision:** Use Agent Platform Code Execution's default Python sandbox (2 vCPU / 1.5 GB RAM), called over authenticated REST by the existing TypeScript API. The owner's superseding 3.2-P1 answer and D16 resolve the CPU/RAM mismatch. Do not select the larger optional profile. Keep one fresh sandbox per attempt, no conversation-level state reuse, and transport only validated scoped bytes.
+**Decision:** Use Agent Platform Code Execution's default Python sandbox (2 vCPU / 1.5 GB RAM), called over authenticated REST by the existing TypeScript API. The owner's superseding 3.2-P1 answer and D18 resolve the CPU/RAM mismatch. Do not select the larger optional profile. Keep one fresh sandbox per attempt, no conversation-level state reuse, and transport only validated scoped bytes.
 
 **Rationale:** This is the originally selected architecture with an explicitly accepted resource-envelope amendment. It avoids introducing a Pyodide host-interoperability hardening layer and preserves the fixed TypeScript orchestration stack. The owner expects one or two simultaneous users; that affects test load, not isolation.
 

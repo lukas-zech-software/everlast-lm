@@ -34,9 +34,9 @@ GET /api/notebooks/{notebook_id}/chat/messages/{message_id}/charts/{artifact_id}
 
 ## R6 admission evidence (FR-GC-08, NFR-SEC-01/02)
 
-Before implementation/runtime admission, record provider configuration, runtime/library versions, EU region, no-training terms, exact isolation boundary and test evidence for: attempted network/metadata/DNS/inbound access, filesystem escape/input writes, CPU/memory/disk boundary, infinite loop terminated at 15.0 s, cleanup on all exits, cross-request state, 1-retry exception and no-retry timeout/OOM. Local Docker flags and JavaScript worker separation are not managed deployment evidence. This contract does not approve changing required caps; D16 selects the managed default and preserves all other controls. R6 qualification must pass before implementation/runtime admission, while design planning can complete.
+Before implementation/runtime admission, record provider configuration, runtime/library versions, EU region, no-training terms, exact isolation boundary and test evidence for: attempted network/metadata/DNS/inbound access, filesystem escape/input writes, CPU/memory/disk boundary, infinite loop terminated at 15.0 s, cleanup on all exits, cross-request state, 1-retry exception and no-retry timeout/OOM. Local Docker flags and JavaScript worker separation are not managed deployment evidence. This contract does not approve changing required caps; D18 selects the managed default and preserves all other controls. R6 qualification must pass before implementation/runtime admission, while design planning can complete.
 
-## Selected managed lifecycle (FR-GC-08, D16)
+## Selected managed lifecycle (FR-GC-08, D18)
 
 Provision one parent Agent Platform runtime resource without deployed agent code through approved OpenTofu IaC; the API's trusted service identity alone invokes the provider. No runtime credentials enter Python. For every attempt, create a fresh Python sandbox using the documented default machine profile; verify returned configuration against 2 vCPU / 1.5 GB and reject unexpected profiles. Upload the immutable C-02-derived manifest via file bytes, execute the generated code, retrieve candidate output bytes, and destroy the sandbox in a finally/cleanup path. A successful execute result is not publication permission.
 

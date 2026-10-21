@@ -1,4 +1,5 @@
-import { NOTE_AUTOSAVE_DEBOUNCE_MS, type PatchNoteInput } from "@everlast/contracts";
+import type { PatchNoteInput } from "@everlast/contracts";
+import { NOTE_AUTOSAVE_DEBOUNCE_MS } from "../lib/v2-contracts.ts";
 
 export type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -24,18 +25,36 @@ export interface NoteEditorSessionOptions {
   api: NoteEditorApi;
   drafts: DraftStore;
   debounceMs?: number;
+  /** Called on every save-status change (the editor shows it, FR-NM-01 FR-005). */
+  onStatus?: (status: SaveStatus) => void;
 }
 
 /** Auto-saving note editor session (FR-NM-01): 500 ms debounce, flush on close, recoverable draft. */
 export class NoteEditorSession {
-  status: SaveStatus = "idle";
+  private current: SaveStatus = "idle";
   revision: number;
   private draft: NoteDraft = {};
   private timer: ReturnType<typeof setTimeout> | undefined;
   private inflight: Promise<void> | undefined;
 
-  constructor(private readonly opts: NoteEditorSessionOptions) {
+  private readonly opts: NoteEditorSessionOptions;
+  constructor(opts: NoteEditorSessionOptions) {
+    this.opts = opts;
     this.revision = opts.revision;
+  }
+
+  get status(): SaveStatus {
+    return this.current;
+  }
+
+  set status(next: SaveStatus) {
+    this.current = next;
+    this.opts.onStatus?.(next);
+  }
+
+  /** Recovered or edited content that has not been acknowledged by the service yet. */
+  get pendingDraft(): NoteDraft {
+    return { ...this.draft };
   }
 
   edit(change: NoteDraft): void {

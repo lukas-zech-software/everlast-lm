@@ -3,7 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Provide automatic per-source summaries and topic chips (Source Guide), a notebook-wide overview with starter prompts, dynamic follow-up suggestion chips, configurable chat personas/response styles, and response actions (copy, save to note, feedback).
 - **FRs:** FR-SI-02, FR-GC-04, FR-GC-05, FR-GC-07, FR-GC-09
-- **Gate criteria (SRS §5.4):** Gate v2.0 #1 — Jeder Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$); Gate v2.0 #2 — Rundreise-Test (*Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*).
+- **Gate criteria (SRS §5.4):** Gate v2.0 #1 — every successfully ingested upload triggers `FR-SI-02` asynchronously (Source Guide $< 10\text{ s}$ P95 from `Ready`; failures never block reading the source); Gate v2.0 #2 — round trip passes (*chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*).
+- **v2.0 proof of concept (D16, SRS §5.5 DEV-04):** v2 data lives in API process memory until v3. "Persisted" in this package means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. Access control, sources and chat stay in PostgreSQL.
 - **Out of scope:** Multi-step autonomous web research (`v6.0` — `FR-SI-07`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -16,14 +17,14 @@
 | :- | :- |
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor, Viewer |
+| Actors | Owner; Editor, Viewer (from v6.0) |
 | Depends on | FR-SI-01, FR-SI-04, C-01, C-02 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
 - *Event:* When a source transitions to state `Ready` after ingestion, the background `Source Guide Worker` shall automatically generate a concise document summary ($100\text{–}250$ words) and extract $5\text{–}10$ key topic chips (`Key Topics`) strictly from that source's chunks obtained through C-02 with an explicit singleton scope `[source_id]`; persist supporting chunk IDs with the summary and topics. This background scope is independent of a user's checkbox selection and must not populate chat context for deselected sources. The persisted guide DTO records the source word count as validation metadata for the existing `<50`-word exception; it is not additional generated content.
 - *State:* While the Source Inspector (`FR-SI-04`) is open for a `Ready` source, the system shall render the collapsible `Source Guide` card at the top of the inspector above the full document text.
-- *Event:* When the user clicks a key topic chip inside the Source Guide, the system shall submit a grounded chat query focused on that topic to the Center Chat Panel.
+- *Event:* When the user clicks a key topic chip inside the Source Guide, the system shall submit a grounded chat query focused on that topic to the Center Chat Panel, scoped to the user's current source selection. If the inspected source is not selected, the system shows a select-sources prompt instead of sending (binding scope rule).
 
 **User story:** As a researcher opening an unfamiliar document, I want an automatic summary and clickable key topics at the top of the Source Viewer, so that I can grasp the document's core message in seconds and jump straight into deeper questions.
 
@@ -39,12 +40,12 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.2 FR
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Source chunks | Array of `UnifiedDocumentChunk` | All chunks belonging to `source_id` | — |
-| Summary length | Markdown text | Target 100–250 words; shorter when evidence is insufficient, including the short-source exception below | — |
-| Key topic chips | Array of strings | Target 5–10 topics (1–3 for very short sources), each at most 40 characters; no unsupported padding | — |
+| Summary length | Markdown text | Target 100–250 words; shorter when evidence is insufficient, including the short-source exception below. 250 words is a hard limit (rejected, never truncated) | — |
+| Key topic chips | Array of strings | Target 5–10 topics (1–3 for very short sources), each at most 40 characters; no unsupported padding. Hard limits: 1–10 topics (≤ 3 below 50 words); fewer than 5 is valid | — |
 
 **Outputs & state**
 - Visible: Collapsible `Source Guide` box inside the Source Inspector containing `Summary` and clickable `Key topics` pills.
-- Persisted: `summary_md` and `key_topics` JSON array stored on the `Source` entity.
+- Persisted: `summary_md`, `key_topics`, supporting chunk IDs and the source word count, stored per (`source_id`, revision, output language; FR-UI-02).
 - States: `GuidePending` $\rightarrow$ `GuideReady` (or `GuideFailed` without blocking full-text viewing).
 
 **Acceptance criteria (Gherkin)**
@@ -67,7 +68,7 @@ Scenario: Clicking a key topic chip triggers a grounded chat turn
 - Source Guide LLM call fails transiently $\rightarrow$ Retries at most twice (3 total attempts) with 100 ms then 200 ms exponential delays. Permanent errors and invalid structured output are not retried; after exhaustion the guide is `GuideFailed` while full text remains immediately readable.
 
 **Measurable criteria**
-- Asynchronous Source Guide generation completes in $< 10.0\text{ s}$ (P95) after chunking finishes (`Gate v2.0 #1`).
+- Asynchronous Source Guide generation completes in $< 10.0\text{ s}$ (P95) after the source reaches `Ready` (`Gate v2.0 #1`).
 
 **Deviations from reference:** None.
 
@@ -83,12 +84,12 @@ Scenario: Clicking a key topic chip triggers a grounded chat turn
 | :- | :- |
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor, Viewer, Chat-only |
+| Actors | Owner; Editor, Viewer, Chat-only (from v6.0) |
 | Depends on | FR-SI-02, FR-GC-01, C-02 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the first source in a notebook reaches state `Ready` (or when active source IDs, revisions, effective authorization, or output language change), the system shall synthesize a notebook-wide overview summary and $3$ to $5$ context-specific starter questions across the active sources.
+- *Event:* When the user's current selection contains at least one authorized `Ready` source and the notebook is opened, the first source reaches `Ready`, or the selected source IDs, revisions, effective authorization or output language change, the client shall request and the system shall synthesize a notebook-wide overview summary and $3$ to $5$ context-specific starter questions for exactly that selection. Selection is browser-local, so the request carries the selection; the server caches the result by scope key.
 - *State:* While the current selection contains at least one authorized `Ready` source, the system shall display the notebook icon, title, source count, synthesized overview paragraph, and clickable starter question cards at the top of the Center Chat Panel.
 - *Event:* When the user clicks a starter question, the system shall execute that question as a user turn in the Grounded Chat Engine.
 
@@ -149,12 +150,12 @@ Scenario: Overview cache follows current source scope
 | :- | :- |
 | Release / Package | v2.0 / 2.2 |
 | Priority (within package) | P2 |
-| Actors | Owner/Editor, Viewer, Chat-only |
+| Actors | Owner; Editor, Viewer, Chat-only (from v6.0) |
 | Depends on | FR-GC-01, C-02 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
 **Requirement (EARS)**
-- *Event:* When the Grounded Reasoning & Citation Agent completes streaming an assistant response, the system shall generate and display up to $3$ context-relevant follow-up question chips (target 3 when supported) below the response (or above the chat input bar) that can actually be answered from $S_{\text{aktiv}}$.
+- *Event:* When the Grounded Reasoning & Citation Agent completes streaming an assistant response, the system shall generate and display up to $3$ context-relevant follow-up question chips (target 3 when supported) above the chat input bar that can actually be answered from $S_{\text{aktiv}}$. Each chip carries the supporting chunk IDs it can be answered from; chips whose chunk IDs are not in the current C-02 scope are dropped before display.
 - *Event:* When the user clicks a follow-up suggestion chip, the system shall submit that question as the next chat turn.
 
 **User story:** As a user exploring a complex topic, I want the assistant to suggest relevant follow-up questions after each answer, so that I can effortlessly drill deeper into the material.
@@ -238,7 +239,7 @@ Evidence: `https://blog.google/technology/ai/notebooklm-update-october-2024/`, `
 
 **Outputs & state**
 - Visible: Active configuration indicator in chat header; tailored tone/length in subsequent assistant responses.
-- Persisted: `chat_config` JSON (`style`, `custom_prompt`, `length`) in per-user notebook settings; no user changes another user's chat persona.
+- Persisted: `chat_config` JSON (`style`, `custom_instructions`, `response_length`) in per-user notebook settings; no user changes another user's chat persona.
 - States: `DefaultConfig` $\leftrightarrow$ `CustomConfigured`.
 
 **Acceptance criteria (Gherkin)**
@@ -264,7 +265,7 @@ Scenario: Persona character boundary and Analyst preset
 - User selects `Custom` and clicks `Save` with an empty text box $\rightarrow$ Reject the save with a non-empty-instructions validation message; retain the previous saved configuration.
 
 **Measurable criteria**
-- `Shorter` responses average $\le 50\%$ of `Default` token length; `Longer` responses average $\ge 150\%$ of `Default` token length when source material permits.
+- Measured once per release gate on the fixed 50-case sample (Constitution v2.0.0), on cases whose sources support a longer answer: `Shorter` responses average $\le 50\%$ and `Longer` responses $\ge 150\%$ of the `Default` response token count for the same question. A case whose `Default` answer is a refusal is not eligible (excluded and listed); no eligible case left fails closed.
 
 **Deviations from reference:** Everlast LM follows the SRS limit of 5,000 characters and includes its Analyst preset; reference limits are unverified.
 
@@ -274,7 +275,7 @@ Scenario: Persona character boundary and Analyst preset
 
 ---
 
-**Shared save-note contract with FR-NM-02 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. Package 2.3 FR-NM-02 MUST consume this same request/response shape.
+**Shared save-note contract with FR-NM-02 (binding DTO)**: `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` accepts `{ "notebook_id": "<UUID>", "message_id": "<UUID>" }`; user identity comes only from authenticated API context. It returns `{ "note": { "id": "<UUID>", "notebook_id": "<UUID>", "source_message_id": "<UUID>", "title": "<1–200 Unicode code points>", "content_md": "<full response with inline citation markers>", "citations_json": [<Package 1.3 Citation>], "origin_type": "saved_response", "read_only": true, "created_at": "<ISO datetime>" } }`. The operation is idempotent on `(authenticated user_id, source_message_id)` and copies citation metadata so chat deletion does not cascade to the note. `title` is the preceding user question trimmed to 200 code points, or `Saved response` when there is none. Body IDs must equal the path IDs; otherwise the API returns `400`. Package 2.3 FR-NM-02 MUST consume this same request/response shape.
 
 ### FR-GC-09 — Response Actions & Quality Feedback
 
@@ -314,7 +315,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.3 FR
 **Outputs & state**
 - Visible: Highlighted thumb icon after rating; toast on copy; new note card in right panel on `"Save to note"`.
 - Persisted: `MessageFeedback` record (`message_id`, `user_id`, `rating`, `category`, `comment`, `created_at`).
-- States: `Unrated` $\rightarrow$ `RatedUp` / `RatedDown`.
+- States: `Unrated` $\leftrightarrow$ `RatedUp` $\leftrightarrow$ `RatedDown`.
 
 **Acceptance criteria (Gherkin)**
 
@@ -327,6 +328,7 @@ Scenario: Submitting negative feedback logs the error category
 ```
 
 **Edge & error cases**
+- Rating again replaces the user's earlier rating for that message (one `MessageFeedback` record per user and message); clicking the active thumb clears the rating.
 - Clicking `"Save to note"` multiple times on the same message $\rightarrow$ Uses an idempotency key for that user/message; returns the existing saved note and disables the action while the request is pending.
 
 **Measurable criteria**

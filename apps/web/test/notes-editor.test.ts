@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { NoteEditorSession, type DraftStore, type NoteDraft } from "../src/notes/editor-session.js";
-import { orderNotes, conversionState, togglePinboardSelection } from "../src/notes/pinboard.js";
+import { NoteEditorSession, type DraftStore, type NoteDraft } from "../src/notes/editor-session.ts";
+import { orderNotes, conversionState, togglePinboardSelection } from "../src/notes/pinboard.ts";
 
 function memoryDrafts(): DraftStore & { map: Map<string, NoteDraft> } {
   const map = new Map<string, NoteDraft>();

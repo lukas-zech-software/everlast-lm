@@ -1,102 +1,124 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createNote, getOccupiedSourceCount, listNotes, seedSourceSlots, getScopedContext } from "@everlast/db";
-import { newNotebook, resetAll, startApi, stubIngestor, USER } from "./notes-fixtures.js";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 
-const words = (n: number) => Array.from({ length: n }, () => "w").join(" ");
+/**
+ * [007-notes-pinboard-lifecycle] T016 rewritten for the owner decision 2026-10-20, and T042 — convert notes into a
+ * v1 PostgreSQL source (FR-NM-03 FR-010..FR-013, FR-WM-07, FR-SI-01, C-01). Real PostgreSQL and v1 ingestion.
+ */
 
-describe("FR-NM-03, FR-WM-07, FR-SI-01: convert notes to source", () => {
-  let nb: string;
-  let api: Awaited<ReturnType<typeof startApi>>;
-  let stub: ReturnType<typeof stubIngestor>;
+let n: NotesApi;
+const OWNER = "convert-owner";
+const words = (k: number) => Array.from({ length: k }, () => "w").join(" ");
 
-  const start = async (mode: "ok" | "failed" | "throws" = "ok") => {
-    stub = stubIngestor(mode);
-    api = await startApi({ ingestor: stub.ingestor });
-  };
-  const convert = (body: unknown) => api.call("POST", `/api/notebooks/${nb}/notes/convert-to-source`, body);
+beforeAll(async () => {
+  n = await startNotesApi();
+});
+afterAll(async () => {
+  await n?.close();
+});
 
-  beforeEach(async () => {
-    resetAll();
-    nb = await newNotebook();
-  });
-  afterEach(() => api.close());
+const note = async (nb: string, title: string, content: string) =>
+  (await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes`, { title, content_md: content })).json.note;
+const convert = (nb: string, body: unknown) => n.call(OWNER, "POST", `/api/notebooks/${nb}/notes/convert-to-source`, body);
+const sourceText = async (sourceId: string) =>
+  (await n.api.db.pool.query("SELECT string_agg(text, '\n' ORDER BY sequence) AS t FROM chunks WHERE source_id = $1", [sourceId])).rows[0].t as string;
+const pagesText = async (sourceId: string) =>
+  (await n.api.db.pool.query("SELECT string_agg(text, '' ORDER BY page_number) AS t FROM source_pages WHERE source_id = $1", [sourceId])).rows[0].t as string;
 
-  it("converts one note, keeping its title and preserving the note", async () => {
-    await start();
-    const n = await createNote(nb, USER, { title: "Raw Data", content_md: "TITAN-77" });
-    const r = await convert({ note_ids: [n.id] });
+describe("FR-NM-03: convert notes to a v1 source", () => {
+  it("converts one note through the v1 Markdown ingestion, keeping its title and the note", async () => {
+    const nb = await n.notebook(OWNER);
+    const a = await note(nb, "Raw Data", "TITAN-77 is the codename.");
+    const r = await convert(nb, { note_ids: [a.id] });
     expect(r.status).toBe(201);
-    expect(r.json.source).toMatchObject({ title: "Raw Data", status: "Ready", media_type: "note_markdown" });
-    expect(stub.calls[0]!.markdown).toBe("# Raw Data\n\nTITAN-77");
-    expect(await listNotes(nb, USER)).toHaveLength(1);
-    expect((await getScopedContext(nb, [r.json.source.id]))[0]!.text).toContain("TITAN-77");
+    expect(r.json.reused).toBe(false);
+    expect(r.json.source).toMatchObject({ title: "Raw Data", status: "Ready", media_type: "note_markdown", revision_id: 1, origin_notes: [{ note_id: a.id, revision: 1, title: "Raw Data" }], origin_citations: [] });
+    expect(await pagesText(r.json.source.id)).toBe("# Raw Data\n\nTITAN-77 is the codename.");
+    const row = (await n.api.db.pool.query("SELECT media_type, status, active_revision FROM sources WHERE id = $1", [r.json.source.id])).rows[0];
+    expect(row).toEqual({ media_type: "note_markdown", status: "Ready", active_revision: 1 });
+    const embedded = (await n.api.db.pool.query("SELECT count(*)::int AS c FROM chunks WHERE source_id = $1 AND embedding IS NOT NULL", [r.json.source.id])).rows[0].c;
+    expect(embedded).toBeGreaterThan(0);
+    expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.notes).toHaveLength(1);
   });
 
-  it("combines selected and all notes in display order under their titles", async () => {
-    await start();
-    const a = await createNote(nb, USER, { title: "A", content_md: "one" });
-    const b = await createNote(nb, USER, { title: "B", content_md: "two" });
-    const c = await createNote(nb, USER, { title: "C", content_md: "three" });
-    const sel = await convert({ note_ids: [c.id, a.id] });
+  it("combines selected and all notes in display order under their titles; later edits do not change the source", async () => {
+    const nb = await n.notebook(OWNER);
+    const a = await note(nb, "A", "one");
+    const b = await note(nb, "B", "two");
+    const c = await note(nb, "C", "three");
+    const sel = await convert(nb, { note_ids: [c.id, a.id] });
     expect(sel.json.source.title).toBe("Combined notes");
-    expect(stub.calls[0]!.markdown).toBe("# A\n\none\n\n# C\n\nthree");
-    const all = await convert({ all: true });
+    expect(await pagesText(sel.json.source.id)).toBe("# A\n\none\n\n# C\n\nthree");
+    const all = await convert(nb, { all: true });
     expect(all.json.source.origin_notes.map((o: any) => o.note_id)).toEqual([a.id, b.id, c.id]);
+    await n.call(OWNER, "PATCH", `/api/notebooks/${nb}/notes/${a.id}`, { content_md: "changed" });
+    expect(await pagesText(sel.json.source.id)).toBe("# A\n\none\n\n# C\n\nthree");
+    expect(await sourceText(all.json.source.id)).not.toContain("changed");
   });
 
-  it("clamps long note titles to 100 code points for the source title", async () => {
-    await start();
-    const n = await createNote(nb, USER, { title: "😀".repeat(150), content_md: "x" });
-    const r = await convert({ note_ids: [n.id] });
+  it("clamps long note titles to 100 code points for the source title and keeps the full heading", async () => {
+    const nb = await n.notebook(OWNER);
+    const a = await note(nb, "😀".repeat(150), "x");
+    const r = await convert(nb, { note_ids: [a.id] });
     expect(Array.from(r.json.source.title)).toHaveLength(100);
-    expect(stub.calls[0]!.markdown.startsWith("# " + "😀".repeat(150))).toBe(true);
-  });
-
-  it("rejects at 50/50 with 'Source limit reached' and never ingests", async () => {
-    await start();
-    await seedSourceSlots(nb, 50);
-    const n = await createNote(nb, USER, { title: "A", content_md: "x" });
-    const r = await convert({ note_ids: [n.id] });
-    expect(r.status).toBe(409);
-    expect(r.json.error).toEqual({ code: "SourceLimitReached", message: "Source limit reached" });
-    expect(stub.calls).toHaveLength(0);
+    expect((await pagesText(r.json.source.id)).startsWith(`# ${"😀".repeat(150)}`)).toBe(true);
   });
 
   it("accepts exactly 500,000 words and rejects 500,001 without using a slot", async () => {
-    await start();
-    // each note adds 2 title words ("# T")
+    const nb = await n.notebook(OWNER);
+    // each note adds 2 heading words ("# T")
     const ids: string[] = [];
-    for (let i = 0; i < 5; i++) {
-      ids.push((await createNote(nb, USER, { title: "T", content_md: words(99_998) })).id);
-    }
-    const ok = await convert({ note_ids: ids });
+    for (let i = 0; i < 5; i++) ids.push((await note(nb, "T", words(99_998))).id);
+    const ok = await convert(nb, { note_ids: ids });
     expect(ok.status).toBe(201);
     expect(ok.json.source.word_count).toBe(500_000);
-    const over = await createNote(nb, USER, { title: "T", content_md: words(99_998 + 1) });
-    const before = await getOccupiedSourceCount(nb);
-    const r = await convert({ note_ids: [...ids.slice(0, 4), over.id] });
+    const over = await note(nb, "T", words(99_999));
+    const before = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.source_slots.used;
+    const r = await convert(nb, { note_ids: [...ids.slice(0, 4), over.id] });
     expect(r.status).toBe(422);
     expect(r.json.error.code).toBe("SourceOversizedWords");
-    expect(await getOccupiedSourceCount(nb)).toBe(before);
-  });
+    expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.source_slots.used).toBe(before);
+  }, 120_000);
 
-  it("rejects whitespace-only and unknown or cross-notebook notes", async () => {
-    await start();
-    const blank = await createNote(nb, USER, { title: "Blank", content_md: "  \n " });
-    expect((await convert({ note_ids: [blank.id] })).json.error.code).toBe("NoteSourceEmpty");
-    const other = await newNotebook();
-    const foreign = await createNote(other, USER, { title: "F", content_md: "x" });
-    expect((await convert({ note_ids: [foreign.id] })).status).toBe(404);
-    expect((await convert({ all: true })).status).toBe(422);
-    expect(stub.calls).toHaveLength(0);
+  it("rejects whitespace-only, unknown and cross-notebook notes without creating a source", async () => {
+    const nb = await n.notebook(OWNER);
+    const blank = await note(nb, "Blank", "  \n ");
+    expect((await convert(nb, { note_ids: [blank.id] })).json.error.code).toBe("NoteSourceEmpty");
+    const other = await n.notebook(OWNER);
+    const foreign = await note(other, "F", "x");
+    expect((await convert(nb, { note_ids: [foreign.id] })).status).toBe(404);
+    expect((await convert(nb, { all: true })).status).toBe(422);
+    expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources`)).json.sources).toHaveLength(0);
   });
+});
 
-  it.each(["failed", "throws"] as const)("releases the slot when ingestion %s", async (mode) => {
-    await start(mode);
-    const n = await createNote(nb, USER, { title: "A", content_md: "x" });
-    const r = await convert({ note_ids: [n.id] });
-    expect(r.status).toBe(502);
-    expect(await getOccupiedSourceCount(nb)).toBe(0);
-    expect(await listNotes(nb, USER)).toHaveLength(1);
+describe("FR-NM-03 FR-013: saved-response citation markers are provenance only (T042)", () => {
+  it("removes verified inline markers from the source text, keeps unverified brackets and stores the copied citations", async () => {
+    const nb = await n.notebook(OWNER);
+    const spec = await n.addText(OWNER, nb, "Spec sheet. Port 8080 requires mTLS.");
+    const turn = await n.turn(OWNER, nb, "Which port requires mTLS?", [spec]);
+    const answer = turn.messages.find((m: any) => m.role === "assistant");
+    const saved = (await n.saveNote(OWNER, nb, answer.id)).json.note;
+    expect(saved.content_md).toContain("[[1]]");
+    // A manual note with an unverified bracket that must stay.
+    const manual = await note(nb, "Manual", "See appendix [7] and [draft].");
+
+    const r = await convert(nb, { note_ids: [saved.id, manual.id] });
+    expect(r.status).toBe(201);
+    const text = `${await pagesText(r.json.source.id)}\n${await sourceText(r.json.source.id)}`;
+    expect(text).not.toContain("[[1]]");
+    expect(text).not.toMatch(/mTLS\.\s*\[1\]/);
+    expect(text).toContain("Port 8080 requires mTLS.");
+    expect(text).toContain("See appendix [7] and [draft].");
+    expect(r.json.source.origin_citations).toHaveLength(1);
+    expect(r.json.source.origin_citations[0]).toMatchObject({ badge_number: 1, source_id: spec, source_title: "Pasted text" });
+    const stored = await n.api.db.pool.query("SELECT origin_citations, origin_notes FROM note_source_provenance WHERE source_id = $1", [r.json.source.id]);
+    expect(stored.rows[0].origin_citations[0].source_id).toBe(spec);
+    expect(stored.rows[0].origin_notes.map((o: any) => o.note_id)).toEqual([saved.id, manual.id]);
+
+    // New answers cite the note-source's own chunks, never the copied citation.
+    const next = await n.turn(OWNER, nb, "Which port requires mTLS?", [r.json.source.id]);
+    const cited = next.messages.find((m: any) => m.role === "assistant");
+    expect(cited.citations.every((c: any) => c.source_id === r.json.source.id)).toBe(true);
   });
 });

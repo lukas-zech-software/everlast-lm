@@ -44,7 +44,10 @@ export class VertexTopicEmojiClient implements TopicEmojiClient {
 }
 
 export class VertexTopicEmojiSelector implements TopicEmojiSelector {
-  constructor(private readonly client: TopicEmojiClient = new VertexTopicEmojiClient()) {}
+  private readonly client: TopicEmojiClient;
+  constructor(client: TopicEmojiClient = new VertexTopicEmojiClient()) {
+    this.client = client;
+  }
 
   suggest(input: TopicEmojiInput): Promise<string | null> {
     return selectTopicEmoji(input, this.client);

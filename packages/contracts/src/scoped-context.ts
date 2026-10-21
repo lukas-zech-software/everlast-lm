@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createHash } from "node:crypto";
-import type { UnifiedDocumentChunk } from "./document-chunk.js";
+import type { UnifiedDocumentChunk } from "./document-chunk.ts";
+import { AppError } from "./errors.ts";
 
 /**
  * C-02: Scoped Context Provider Interface & Request Envelope (C-02, FR-WM-04, NFR-EVAL-04).
@@ -8,23 +9,30 @@ import type { UnifiedDocumentChunk } from "./document-chunk.js";
  * submission snapshots, and provenance eligibility validation.
  */
 
-export class EmptyScopeError extends Error {
+export class EmptyScopeError extends AppError {
   constructor(message: string = "active_source_ids must contain at least one Ready source ID") {
-    super(message);
+    super("EmptyScope", 400, message);
     this.name = "EmptyScopeError";
   }
 }
 
-export class InvalidScopeError extends Error {
+export class InvalidScopeError extends AppError {
   constructor(message: string = "Invalid scope: cross-notebook or unauthorized source ID") {
-    super(message);
+    super("InvalidScope", 403, message);
     this.name = "InvalidScopeError";
   }
 }
 
-export class SourceSnapshotInvalidError extends Error {
+export class SourceNotReadyError extends AppError {
+  constructor(message: string = "Selected source is not Ready") {
+    super("SourceNotReady", 409, message);
+    this.name = "SourceNotReadyError";
+  }
+}
+
+export class SourceSnapshotInvalidError extends AppError {
   constructor(message: string = "Source snapshot invalid: source revision has changed or was deleted") {
-    super(message);
+    super("SourceSnapshotInvalid", 409, message);
     this.name = "SourceSnapshotInvalidError";
   }
 }
@@ -245,33 +253,38 @@ export function validateSourceStatusReady(
 }
 
 /**
- * Filters chunks to ensure strict scoping to activeSourceIds, throwing InvalidScopeError on violation.
+ * Defense-in-depth result check (C-02, NFR-EVAL-04): every returned chunk must belong to the captured
+ * (source_id, revision) snapshot. A single foreign or stale chunk rejects the entire result.
  */
 export function filterScopedChunks(
-  notebookId: string,
-  activeSourceIds: string[],
+  snapshot: SourceRevisionPair[],
   chunks: UnifiedDocumentChunk[]
 ): UnifiedDocumentChunk[] {
-  const activeSet = new Set(activeSourceIds);
-  // Rejection check: if any source id is foreign, reject entire request
-  for (const sid of activeSourceIds) {
-    if (sid.startsWith("b2") && notebookId.startsWith("a1")) {
-      throw new InvalidScopeError("Cross-notebook source detected in active selection");
+  if (snapshot.length === 0) {
+    throw new EmptyScopeError();
+  }
+  const allowed = new Map(snapshot.map((pair) => [pair.source_id, pair.revision]));
+  for (const chunk of chunks) {
+    if (allowed.get(chunk.source_id) !== chunk.revision) {
+      throw new InvalidScopeError(
+        `Scoped result contained chunk ${chunk.chunk_id} outside the captured snapshot`
+      );
     }
   }
-  return chunks.filter((c) => activeSet.has(c.source_id));
+  return chunks;
 }
 
 /**
- * Verifies that inspection read scope does not mutate the active generation selection set.
+ * Inspection reads are pure (FR-SI-04, C-02): returns a frozen copy of the generation selection so callers
+ * can prove an inspector read left it untouched.
  */
 export function assertInspectionIsolation(
-  activeGenerationSet: Set<string>,
+  activeGenerationSet: ReadonlySet<string>,
   inspectedSourceId: string
-): void {
-  // Reading an inspected source must be a pure read operation; active generation set is untouched
-  const beforeCount = activeGenerationSet.size;
-  if (activeGenerationSet.size !== beforeCount) {
-    throw new InvalidScopeError("Inspection mutated active generation selection");
+): ReadonlySet<string> {
+  const snapshot = new Set(activeGenerationSet);
+  if (!inspectedSourceId) {
+    throw new InvalidScopeError("Inspection requires an explicit source ID");
   }
+  return snapshot;
 }

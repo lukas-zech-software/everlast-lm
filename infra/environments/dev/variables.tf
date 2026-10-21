@@ -100,9 +100,9 @@ variable "api_min_instances" {
 }
 
 variable "api_max_instances" {
-  description = "Maximum instances for everlast-api."
+  description = "Maximum instances for everlast-api. 1 while release v2 data lives in API memory (D16 proof of concept)."
   type        = number
-  default     = 5
+  default     = 1
 }
 
 variable "worker_max_instances" {
@@ -133,4 +133,10 @@ variable "deletion_protection" {
   description = "Whether to enable deletion protection on Cloud SQL, Cloud Run, and GCS."
   type        = bool
   default     = false
+}
+
+variable "enable_email_password_sign_in" {
+  description = "Dev PoC: Identity Platform email/password sign-in for stakeholders (owner decision 2026-10-20)."
+  type        = bool
+  default     = true
 }

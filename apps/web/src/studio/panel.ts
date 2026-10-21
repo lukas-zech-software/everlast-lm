@@ -1,0 +1,505 @@
+import type { ReportCitation } from "@everlast/contracts";
+import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
+import { createStudioApi, StudioApiError, type ArtifactDto } from "./api.ts";
+import { StudioArtifactListController, type ArtifactView, type StudioRow } from "./artifact-list.ts";
+import { renderMarkdownNodes } from "./markdown.ts";
+import { CUSTOM_PROMPT_MAX, promptCodePoints, REPORT_TEMPLATES, ReportsModalController } from "./reports-modal.ts";
+
+/**
+ * Studio in the Right Panel (FR-ST-10, FR-ST-11; FR-001, FR-006, FR-008..FR-012, FR-018). A Reports tile opens the
+ * `Create report` modal (Create Your Own, the four standard templates and 3–4 Suggested Format cards); the artifact
+ * list shows background jobs until they are terminal; the viewer renders the section model with citation badges
+ * and offers Copy, Delete (with confirmation) and Convert to source. Every request carries the current explicit
+ * selection (C-02: no all-sources fallback). v2 has no cancel action (card FR-ST-10); v2.0 is Owner-only and the
+ * server authorizes every call.
+ */
+
+export interface StudioPanelOptions {
+  notebookId: string;
+  /** `authFetch`: adds the caller's bearer token. */
+  fetcher: typeof fetch;
+  /** Current Left Panel selection, read at request time. */
+  selectedSourceIds(): string[];
+  /** Opens the Source Inspector on a cited chunk. */
+  openCitation(sourceId: string, chunkId: string): void;
+  /** Convert to source created a source: add it to this browser's selection and refresh the Left Panel. */
+  onSourceCreated(sourceId: string): Promise<void> | void;
+  confirm?: (options: { title: string; body: string; confirm: string; danger?: boolean }) => Promise<boolean>;
+  notify?: (message: string, kind?: "error" | "info") => void;
+  clipboard?: { writeText(text: string): Promise<void> };
+  /** List refresh interval while a job is Queued or Running. */
+  pollMs?: number;
+  /** Suggestions re-read interval while Source Guides are pending. */
+  suggestionPollMs?: number;
+  /** Pending reads before suggestions are shown as unavailable (never endless loading). */
+  maxSuggestionPolls?: number;
+}
+
+export interface StudioPanel {
+  element: HTMLElement;
+  refresh(): Promise<void>;
+  /** Re-evaluates the actions that depend on the Left Panel selection. */
+  updateSourceSelection(): void;
+  destroy(): void;
+}
+
+const SCOPE_HINT = "Select at least one source to create a report.";
+const SUGGESTIONS_LOADING = "Finding report formats for your sources…";
+const SUGGESTIONS_UNAVAILABLE = "Suggested formats are unavailable right now. You can still use a standard format or Create Your Own.";
+const SUGGESTIONS_NEED_SCOPE = "Suggested formats are unavailable until you select at least one source.";
+const PROMPT_PLACEHOLDER =
+  "Describe the report you want: its structure, style, tone and audience. Example: a one-page brief for new engineers in a friendly tone.";
+
+const messageOf = (error: unknown): string =>
+  error instanceof StudioApiError || error instanceof Error ? error.message : "The request failed. Please try again.";
+
+export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
+  const api = createStudioApi({ notebookId: options.notebookId, fetch: options.fetcher });
+  const confirm = options.confirm ?? confirmDialog;
+  const notify = options.notify ?? ((message: string, kind: "error" | "info" = "info") => toast(message, kind));
+  const clipboard = options.clipboard ?? { writeText: (text: string) => navigator.clipboard.writeText(text) };
+  const pollMs = options.pollMs ?? 2000;
+  const suggestionPollMs = options.suggestionPollMs ?? 1500;
+  const list = new StudioArtifactListController({ api, clipboard });
+  const hasScope = () => options.selectedSourceIds().length > 0;
+
+  let destroyed = false;
+  let listTimer: ReturnType<typeof setTimeout> | null = null;
+  let viewing: string | null = null;
+
+  // ---- Static frame --------------------------------------------------------------------------------------------
+  const tile = h(
+    "button",
+    { class: "studio-tile", type: "button", "data-testid": "studio-reports-tile", "aria-haspopup": "dialog" },
+    h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📄" }),
+    h("span", { class: "studio-tile-label", text: "Reports" })
+  );
+  tile.addEventListener("click", () => openModal());
+  const status = h("p", { class: "studio-status muted", "data-testid": "studio-status", role: "status", "aria-live": "polite" });
+  const listEl = h("ul", { class: "studio-artifacts", "data-testid": "studio-artifacts" });
+  const empty = h("p", { class: "studio-empty muted", "data-testid": "studio-empty", text: "Generated reports will appear here." });
+  const viewerHost = h("div", { class: "studio-viewer-host" });
+  const element = h(
+    "section",
+    { class: "studio-panel", "data-testid": "studio-panel", "aria-label": "Studio" },
+    h("div", { class: "studio-header" }, h("h2", { text: "Studio" })),
+    h("div", { class: "studio-tiles" }, tile),
+    status,
+    empty,
+    listEl,
+    viewerHost
+  );
+
+  // ---- Artifact list (FR-006) ----------------------------------------------------------------------------------
+  function renderRow(row: StudioRow): HTMLElement {
+    const label = h("span", { class: "studio-artifact-label", "data-testid": "studio-artifact-label", text: row.generating ? `Generating ${row.title}...` : row.title });
+    const item = h("li", { class: "studio-artifact-row", "data-testid": "studio-artifact-row", "data-status": row.status, "data-artifact-id": row.id });
+    if (row.status === "Completed") {
+      const open = h("button", { class: "studio-artifact-open", type: "button", "data-testid": "studio-artifact-open", "aria-label": `Open ${row.title}` }, label);
+      open.addEventListener("click", () => void openViewer(row.id, row.title));
+      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: "📄" }), open);
+    } else {
+      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: row.generating ? "" : "⚠" }), label);
+    }
+    if (row.generating) {
+      item.append(h("span", { class: "studio-generating", "data-testid": "studio-generating", role: "progressbar", "aria-label": `Generating ${row.title}` }));
+    }
+    if (row.failure !== null) {
+      const retry = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-retry", text: "Retry" }) as HTMLButtonElement;
+      retry.disabled = !hasScope();
+      retry.title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
+      retry.addEventListener("click", () => void retryRow(row.id));
+      item.append(
+        h("span", { class: "studio-artifact-status", text: row.status === "Failed" ? "Failed" : row.status }),
+        h("p", { class: "studio-artifact-failure", "data-testid": "studio-artifact-failure", text: row.failure }),
+        retry
+      );
+    }
+    return item;
+  }
+
+  function renderList(): void {
+    clear(listEl);
+    const rows = list.rows();
+    for (const row of rows) listEl.append(renderRow(row));
+    empty.hidden = rows.length > 0;
+    listEl.hidden = viewing !== null;
+    if (viewing !== null) empty.hidden = true;
+  }
+
+  function schedulePoll(): void {
+    if (destroyed || listTimer || !list.hasActiveJobs()) return;
+    listTimer = setTimeout(() => {
+      listTimer = null;
+      void refresh();
+    }, pollMs);
+  }
+
+  async function refresh(): Promise<void> {
+    try {
+      await list.refresh();
+    } catch (error) {
+      status.textContent = messageOf(error);
+    }
+    if (destroyed) return;
+    renderList();
+    schedulePoll();
+  }
+
+  function jobCreated(artifact: ArtifactDto): void {
+    list.upsert(artifact);
+    status.textContent = "";
+    renderList();
+    schedulePoll();
+  }
+
+  async function retryRow(id: string): Promise<void> {
+    try {
+      jobCreated(await list.retry(id, options.selectedSourceIds()));
+    } catch (error) {
+      status.textContent = messageOf(error);
+    }
+  }
+
+  // ---- Viewer (FR-008) -----------------------------------------------------------------------------------------
+  function closeViewer(): void {
+    viewing = null;
+    clear(viewerHost);
+    renderList();
+  }
+
+  function badgeFor(citations: ReportCitation[]) {
+    return (n: number): Node | null => {
+      const citation = citations.find((c) => c.badge_number === n);
+      if (!citation) return null;
+      const badge = h("button", {
+        class: "citation-badge",
+        type: "button",
+        "data-testid": "report-citation",
+        "data-badge": n,
+        "data-chunk-id": citation.chunk_id,
+        "aria-label": `Citation ${n}`,
+        title: citation.snippet,
+        text: String(n),
+      });
+      badge.addEventListener("click", () => options.openCitation(citation.source_id, citation.chunk_id));
+      return badge;
+    };
+  }
+
+  function sectionKeys(view: ArtifactView): (heading: string) => string | undefined {
+    const unused = [...(view.artifact.payload_json?.sections ?? [])];
+    return (heading) => {
+      const index = unused.findIndex((s) => s.heading === heading.trim());
+      return index >= 0 ? unused.splice(index, 1)[0]!.key : undefined;
+    };
+  }
+
+  async function openViewer(id: string, title: string): Promise<void> {
+    viewing = id;
+    renderList();
+    clear(viewerHost);
+    const close = h("button", { class: "icon-btn", type: "button", "data-testid": "studio-viewer-close", "aria-label": "Close report", text: "←" });
+    close.addEventListener("click", closeViewer);
+    const article = h(
+      "article",
+      { class: "studio-report-viewer", "data-testid": "studio-report-viewer", "data-artifact-id": id },
+      h("div", { class: "studio-viewer-head" }, close, h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: title }))
+    );
+    viewerHost.append(article);
+    let view: ArtifactView;
+    try {
+      view = await list.view(id);
+    } catch (error) {
+      article.append(h("p", { class: "studio-report-unavailable muted", "data-testid": "studio-report-unavailable", text: messageOf(error) }));
+      return;
+    }
+    if (viewing !== id) return;
+    const payload = view.artifact.payload_json;
+    if (!payload) {
+      article.append(
+        h("p", {
+          class: "studio-report-unavailable muted",
+          "data-testid": "studio-report-unavailable",
+          text: view.unavailable?.message ?? "This report is not available.",
+        }),
+        h("div", { class: "studio-viewer-actions" }, deleteButton(id, title))
+      );
+      return;
+    }
+    const content = h("div", { class: "studio-report-content", "data-testid": "studio-report-content" });
+    for (const node of renderMarkdownNodes(payload.content_md, { badge: badgeFor(payload.citations), sectionKey: sectionKeys(view) })) content.append(node);
+    const copy = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-copy", text: "Copy" });
+    copy.addEventListener("click", async () => {
+      try {
+        await clipboard.writeText(payload.content_md);
+        status.textContent = "Report copied";
+      } catch {
+        notify("Could not copy the report.", "error");
+      }
+    });
+    const convert = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-convert", text: "Convert to source" }) as HTMLButtonElement;
+    convert.addEventListener("click", async () => {
+      convert.disabled = true;
+      status.textContent = "Converting to source…";
+      try {
+        const { source_id } = await list.convert(id);
+        status.textContent = `Source created: ${title}`;
+        await options.onSourceCreated(source_id);
+      } catch (error) {
+        status.textContent = messageOf(error);
+      } finally {
+        convert.disabled = false;
+      }
+    });
+    article.append(content, h("div", { class: "studio-viewer-actions" }, copy, convert, deleteButton(id, title)));
+  }
+
+  function deleteButton(id: string, title: string): HTMLElement {
+    const button = h("button", { class: "btn btn-sm btn-danger", type: "button", "data-testid": "studio-delete", text: "Delete" });
+    button.addEventListener("click", async () => {
+      const ok = await confirm({ title: "Delete report?", body: `“${title}” will be permanently deleted.`, confirm: "Delete", danger: true });
+      if (!ok) return;
+      try {
+        await list.remove(id);
+        status.textContent = `Deleted: ${title}`;
+        if (viewing === id) closeViewer();
+        else renderList();
+      } catch (error) {
+        status.textContent = messageOf(error);
+      }
+    });
+    return button;
+  }
+
+  // ---- Create report modal (FR-001, FR-009..FR-012, FR-018) -----------------------------------------------------
+  let modal: { root: HTMLElement; sync(): void; rescope(): void; close(): void } | null = null;
+
+  function openModal(): void {
+    if (modal) return;
+    const controller = new ReportsModalController({
+      api,
+      notebookId: options.notebookId,
+      getActiveSourceIds: () => options.selectedSourceIds(),
+      ...(options.maxSuggestionPolls !== undefined ? { maxLoadingPolls: options.maxSuggestionPolls } : {}),
+    });
+    let suggestionTimer: ReturnType<typeof setTimeout> | null = null;
+    let open = true;
+    let busy = false;
+
+    const error = h("p", { class: "chat-error report-modal-error", "data-testid": "report-modal-error", role: "alert", hidden: true });
+    const showError = (message: string | null) => {
+      error.hidden = message === null;
+      error.textContent = message ?? "";
+    };
+    const closeButton = h("button", { class: "icon-btn", type: "button", "data-testid": "reports-modal-close", "aria-label": "Close", text: "✕" });
+    const scopeHint = h("p", { class: "muted report-scope-hint", "data-testid": "report-scope-hint", text: SCOPE_HINT });
+
+    const createOwn = h(
+      "button",
+      { class: "report-card report-create-own", type: "button", "data-testid": "report-create-own" },
+      h("strong", { text: "Create Your Own" }),
+      h("span", { class: "muted", text: "Craft reports your way by specifying structure, style, tone, and more" })
+    ) as HTMLButtonElement;
+    const templateButtons = REPORT_TEMPLATES.map((t) => {
+      const button = h("button", { class: "report-card report-template", type: "button", "data-testid": "report-template", "data-subtype": t.subtype, title: t.description, text: t.label }) as HTMLButtonElement;
+      button.addEventListener("click", () => void submit(() => controller.generateTemplate(t.subtype)));
+      return button;
+    });
+    const suggestionsEl = h("div", { class: "report-suggestions", "data-testid": "report-suggestions", "aria-live": "polite" });
+
+    // Prompt editor: Create Your Own (custom) or an edited suggestion (dynamic).
+    const promptHeading = h("h3", { class: "report-prompt-heading" });
+    const prompt = h("textarea", {
+      class: "report-prompt",
+      "data-testid": "report-prompt",
+      rows: 8,
+      "aria-label": "Report prompt",
+      placeholder: PROMPT_PLACEHOLDER,
+    }) as HTMLTextAreaElement;
+    const count = h("span", { class: "muted report-prompt-count", "data-testid": "report-prompt-count" });
+    const generate = h("button", { class: "btn btn-primary", type: "button", "data-testid": "report-generate", text: "Generate" }) as HTMLButtonElement;
+    const back = h("button", { class: "btn", type: "button", "data-testid": "report-prompt-back", text: "Back" });
+    const promptForm = h(
+      "div",
+      { class: "report-prompt-form", "data-testid": "report-prompt-form", hidden: true },
+      promptHeading,
+      h("p", { class: "muted", text: "Reports are written only from your selected sources and always cite them." }),
+      prompt,
+      h("div", { class: "report-prompt-meta" }, count, h("div", { class: "grow" }), back, generate)
+    );
+    const choices = h(
+      "div",
+      { class: "report-choices" },
+      scopeHint,
+      h("h3", { text: "Create Your Own" }),
+      createOwn,
+      h("h3", { text: "Format" }),
+      h("div", { class: "report-templates" }, ...templateButtons),
+      h("h3", { text: "Suggested Format" }),
+      suggestionsEl
+    );
+    const dialog = h(
+      "div",
+      { class: "modal reports-modal", "data-testid": "reports-modal", role: "dialog", "aria-modal": "true", "aria-label": "Create report" },
+      h("div", { class: "modal-head" }, h("h2", { text: "Create report" }), closeButton),
+      choices,
+      promptForm,
+      error
+    );
+    const root = h("div", { class: "modal-backdrop" }, dialog);
+
+    const syncPrompt = () => {
+      const n = promptCodePoints(controller.prompt);
+      count.textContent = `${n.toLocaleString("en-US")} / ${CUSTOM_PROMPT_MAX.toLocaleString("en-US")}`;
+      count.classList.toggle("over-limit", n > CUSTOM_PROMPT_MAX);
+      generate.disabled = busy || !controller.canGenerate;
+    };
+    const sync = () => {
+      const enabled = controller.templatesEnabled && !busy;
+      for (const b of templateButtons) b.disabled = !enabled;
+      createOwn.disabled = !enabled;
+      scopeHint.hidden = controller.templatesEnabled;
+      for (const b of suggestionsEl.querySelectorAll("button")) (b as HTMLButtonElement).disabled = !enabled;
+      syncPrompt();
+    };
+    const showPrompt = (heading: string) => {
+      promptHeading.textContent = heading;
+      prompt.value = controller.prompt;
+      choices.hidden = true;
+      promptForm.hidden = false;
+      showError(null);
+      sync();
+      prompt.focus();
+    };
+
+    function renderSuggestions(): void {
+      clear(suggestionsEl);
+      suggestionsEl.setAttribute("data-state", controller.suggestionState);
+      if (controller.suggestionState === "SuggestionsLoading") {
+        suggestionsEl.append(h("p", { class: "muted report-suggestions-loading", "data-testid": "report-suggestions-loading", role: "status", text: SUGGESTIONS_LOADING }));
+      } else if (controller.suggestionState === "SuggestionsUnavailable") {
+        suggestionsEl.append(
+          h("p", {
+            class: "muted report-suggestions-unavailable",
+            "data-testid": "report-suggestions-unavailable",
+            text: controller.unavailableReason === "scope" ? SUGGESTIONS_NEED_SCOPE : SUGGESTIONS_UNAVAILABLE,
+          })
+        );
+      } else {
+        controller.suggestions.forEach((s, index) => {
+          const use = h(
+            "button",
+            { class: "report-suggestion-use", type: "button", "data-testid": "report-suggestion-use", "aria-label": `Generate ${s.title}` },
+            h("strong", { class: "report-suggestion-title", "data-testid": "report-suggestion-title", text: s.title }),
+            h("span", { class: "muted report-suggestion-description", "data-testid": "report-suggestion-description", text: s.description })
+          );
+          use.addEventListener("click", () => void submit(() => controller.generateSuggestion(index)));
+          const edit = h("button", { class: "icon-btn report-suggestion-edit", type: "button", "data-testid": "report-suggestion-edit", "aria-label": `Edit prompt: ${s.title}`, title: "Edit prompt", text: "✎" });
+          edit.addEventListener("click", () => {
+            controller.editSuggestion(index);
+            showPrompt(s.title);
+          });
+          suggestionsEl.append(h("div", { class: "report-card report-suggestion", "data-testid": "report-suggestion" }, use, edit));
+        });
+      }
+      sync();
+    }
+
+    // Suggestions belong to one explicit scope (C-02): a selection change starts a new cycle and drops older answers.
+    let cycle = 0;
+    async function loadSuggestions(): Promise<void> {
+      suggestionTimer = null;
+      const mine = cycle;
+      const state = await controller.loadSuggestions();
+      if (!open || mine !== cycle) return;
+      renderSuggestions();
+      if (state === "SuggestionsLoading") suggestionTimer = setTimeout(() => void loadSuggestions(), suggestionPollMs);
+    }
+
+    async function submit(start: () => Promise<ArtifactDto>): Promise<void> {
+      if (busy || !controller.templatesEnabled) return;
+      busy = true;
+      showError(null);
+      sync();
+      try {
+        const artifact = await start();
+        close();
+        jobCreated(artifact);
+      } catch (e) {
+        showError(messageOf(e));
+      } finally {
+        busy = false;
+        if (open) sync();
+      }
+    }
+
+    function close(): void {
+      if (!open) return;
+      open = false;
+      if (suggestionTimer) clearTimeout(suggestionTimer);
+      root.remove();
+      modal = null;
+      tile.focus();
+    }
+
+    createOwn.addEventListener("click", () => {
+      if (!controller.templatesEnabled) return;
+      controller.startCustom();
+      showPrompt("Create Your Own");
+    });
+    prompt.addEventListener("input", () => {
+      controller.setPrompt(prompt.value);
+      syncPrompt();
+    });
+    generate.addEventListener("click", () => {
+      if (!controller.canGenerate) return;
+      void submit(() => controller.generate());
+    });
+    back.addEventListener("click", () => {
+      promptForm.hidden = true;
+      choices.hidden = false;
+      showError(null);
+      sync();
+    });
+    closeButton.addEventListener("click", close);
+    root.addEventListener("click", (event: Event) => {
+      if (event.target === root) close();
+    });
+    root.addEventListener("keydown", (event: Event) => {
+      if ((event as KeyboardEvent).key === "Escape") close();
+    });
+
+    const rescope = () => {
+      cycle += 1;
+      if (suggestionTimer) clearTimeout(suggestionTimer);
+      controller.resetSuggestions();
+      renderSuggestions();
+      void loadSuggestions();
+    };
+
+    modal = { root, sync, rescope, close };
+    controller.resetSuggestions();
+    renderSuggestions();
+    document.body.append(root);
+    void loadSuggestions();
+  }
+
+  return {
+    element,
+    refresh,
+    updateSourceSelection() {
+      modal?.sync();
+      modal?.rescope();
+      for (const button of listEl.querySelectorAll("[data-testid=studio-retry]")) {
+        (button as HTMLButtonElement).disabled = !hasScope();
+        (button as HTMLButtonElement).title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
+      }
+    },
+    destroy() {
+      destroyed = true;
+      if (listTimer) clearTimeout(listTimer);
+      modal?.close();
+    },
+  };
+}

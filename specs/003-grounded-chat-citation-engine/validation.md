@@ -7,6 +7,35 @@
 
 ---
 
+## Convergence correction and verified evidence (2026-10-18/19)
+
+> **Correction:** earlier entries in this log were produced with a default model adapter that fabricated answers citing every chunk, a verifier that only ran when the draft contained `<cite`, routes that skipped authorization and placeholder message IDs. Those results are superseded. The evidence below uses the ADK `LlmAgent` adapter boundary, a verifier that runs on every draft and real PostgreSQL persistence.
+
+- **Environment**: macOS 27 (darwin arm64), Node.js 26.3.0 (repo engine `>=24`), pnpm 10.31.0, PostgreSQL 16.15 + pgvector 0.8.7 (`pgvector/pgvector:pg16` Docker, `pnpm db:test:up`), Chromium via Playwright 1.64.1, OpenTofu 1.13.1.
+- **Base**: `main` @ `8ca81ca`, branch `feat/v1-gate-convergence` (worktree `everlast-lm-worktrees/v1-gate`), uncommitted at time of recording.
+- **Commands**: `TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast pnpm test` (Vitest projects `unit` + `integration`: **318/318 passed, 30 files**), `pnpm test:e2e` (**30/30 Playwright journeys passed**), `pnpm eval:deterministic`, `pnpm typecheck` (clean), `tofu test` in `infra/modules/storage_secrets` (4/4).
+- **Test doubles (labelled in code)**: `HashingTestEmbedder` (lexical vectors, refused in production), `FixtureOcr` (stands in for Document AI in worker tests), scripted/fixture chat models in API tests and the E2E server. They prove pipeline guarantees only; model quality is measured by the judged suite.
+- **UNAVAILABLE in this environment**: Vertex AI (chat, embeddings, judge), Document AI OCR and Identity Platform live checks — no Application Default Credentials on this machine (`gcloud auth application-default print-access-token` fails). Nothing below claims those passed.
+
+### Green results (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, C-02, D13, NFR-EVAL-04)
+
+| Task(s) | Suite | Result | Notes |
+| :-- | :-- | :-- | :-- |
+| T039 | `apps/api/test/chat-verifier.test.ts` VER-01..09 | 9/9 | First-appearance badge numbering with reuse; `chk_99999` or a non-retrieved chunk withholds the whole draft (refusal, no stripping); uncited claim refuses; explicit not-in-sources message; partial answer with meta sentence; 8 citations; marker forgery neutralised; guardrails in the instruction. |
+| T040/T041/T042 | `apps/api/test/chat.test.ts` CHAT-01..16 | 16/16 | Real API + PostgreSQL + C-02 retrieval with a scripted model double: refusal for world knowledge, two-source synthesis citing both, uncited history from a deselected source excluded (both halves), 400/403/409/422 incl. 1/10,000/10,001 code points, status-only stream, model failure exact message with nothing persisted, revision change and stale epoch fence publication, request replay, persistence with hydrated citations, clear/abort, search, "Source deleted", deselection keeps history viewable, Vertex/ADC client even with a developer key in the environment. |
+| T038 | `AdkGroundedModel` (`apps/api/src/chat/model.ts`) | wiring verified (CHAT-16) | ADK `LlmAgent` + `InMemoryRunner`, Gemini via Vertex AI `europe-west4`, structured output, temperature 0. **Live model behaviour UNAVAILABLE** (no ADC). |
+| DB | `packages/db/test/chat-schema.integration.test.ts` | 5/5 | One thread per user/notebook, provenance stored per message, role/kind constraints, clear epoch fence, notebook cascade. |
+| T043 | `apps/web/test/chat.spec.ts` GC-E01..07 (Playwright) | 7/7 | Badges, hover popover ≤ 300 ms with title + verbatim snippet, focus parity, click → inspector on the cited page with `chunk-highlight` in viewport, switching sources, refusal without badges, explicit selection payload, persistence across reload, clear (cancel + confirm), search with exact single hit and "No messages found", deselected Aurora fact never re-enters. |
+| Gate v1.0 #3 | `apps/web/test/gate-v1.spec.ts` GATE-3 | 20/20 | Deterministic scroll + highlight of the exact `[data-chunk-id]` element on the full open path. |
+
+### Still open
+
+- **Judged quality (NFR-EVAL-01/03, semantic support) UNAVAILABLE**: requires `pnpm eval:judged` on Vertex AI.
+- TTFT ≤ 2.5 s is non-gating in v1 and not measured against a real model here (UNAVAILABLE).
+
+---
+
+
 ## Task T003: Package Contracts and State Validation (RED Phase)
 
 **Test Command**:

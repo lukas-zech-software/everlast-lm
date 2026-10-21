@@ -3,7 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Introduce the `StudioPluginRegistry` (`Contract C-03`) in the Right Panel and provide 1-click and custom text report generators (Briefing Doc, Study Guide, FAQ, Timeline, dynamic source-driven report suggestions, and custom-prompted reports).
 - **FRs:** FR-ST-10, FR-ST-11
-- **Gate criteria (SRS §5.4):** Gate v2.0 #3 — Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente.
+- **Gate criteria (SRS §5.4):** Gate v2.0 #3 — all 4 standard report templates (`FR-ST-10`) generate valid, source-cited documents.
+- **v2.0 proof of concept (D16, SRS §5.5 DEV-04):** v2 data lives in API process memory until v3. "Persisted" in this package means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. Access control, sources and chat stay in PostgreSQL.
 - **Out of scope:** Interactive Learning Overviews (`v4.0` — `FR-ST-12`), Mindmaps & Data Tables (`v3.0`), Flashcards, Quizzes, Slides, Infographics (`v4.0`), Audio & Video Overviews (`v5.0`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -16,7 +17,7 @@
 | :- | :- |
 | Release / Package | v2.0 / 2.4 |
 | Priority (within package) | P1 |
-| Actors | Owner/Editor |
+| Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-SI-03, FR-UI-01, C-02, C-03 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
@@ -27,6 +28,8 @@
   3. **FAQ:** Frequently Asked Questions and detailed source-grounded answers derived from $S_{\text{aktiv}}$.
   4. **Timeline (`Zeitleiste`):** Chronological list of all dated events in $S_{\text{aktiv}}$ followed by a `"Cast of Characters"` (`Hauptakteure`) section.
 - *Event:* When the Owner/Editor clicks one of the four template buttons, the system shall trigger an asynchronous `StudioArtifact` job via `Contract C-03` scoped strictly to $S_{\text{aktiv}}$ (`Contract C-02`), display a generating indicator in the Studio artifact list, and persist the completed Markdown report.
+- *Ubiquitous:* Each template has required sections, identified by a stable section key in `payload_json` (heading text follows the output language): Briefing Doc — `executive_summary`, `core_themes`, `key_takeaways`, `quotes`; Study Guide — `topic_review`, `short_answer_questions`, `answer_key`, `essay_questions`, `glossary`; FAQ — at least one question with its answer; Timeline — `events`, `cast_of_characters`. A report missing a required section is `Failed`, never `Completed`, except the Timeline case under Edge & error cases. A report is valid for Gate v2.0 #3 when every required section is present and every factual sentence cites a chunk in its captured scope.
+- *Event:* When the Owner opens a completed report, the viewer shall offer `Copy`, `Delete` (with confirmation) and `Convert to source`; `Convert to source` saves the report as a note and converts that note through `FR-NM-03`.
 
 **User story:** As a professional or student, I want 1-click buttons to generate a Briefing Doc, Study Guide, FAQ, or Timeline from my selected sources, so that I can produce polished reference documents without writing complex prompts.
 
@@ -43,12 +46,12 @@ Evidence: `https://support.google.com/notebooklm/answer/16164461`, `SRS §3.5.4 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | `template_type` | Enum | `briefing_doc` \| `study_guide` \| `faq` \| `timeline` | — |
-| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$ | All `Ready` sources |
+| `active_source_ids` ($S_{\text{aktiv}}$) | Array of UUIDs | $\lvert S_{\text{aktiv}}\rvert \ge 1$; required | — (the UI preselects all `Ready` sources; the API never falls back) |
 
 **Outputs & state**
 - Visible: Asynchronous job row in the Right Panel Studio list; full formatted Markdown viewer on click.
-- Persisted: `StudioArtifact` record (`id`, `notebook_id`, `plugin_type: 'report'`, `subtype`, `status`, `title`, `payload_json: { content_md, citations }`, `active_source_ids_snapshot`, `created_at`).
-- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed` (or `Failed`).
+- Persisted: `StudioArtifact` record (`id`, `notebook_id`, `plugin_type: 'report'`, `subtype`, `status`, `title`, `payload_json: { content_md, citations, sections }`, `source_revisions_snapshot` (source IDs with revisions), `created_at`).
+- States: `Queued` $\rightarrow$ `Running` $\rightarrow$ `Completed` (or `Failed`). `Cancelled` exists in C-03, but v2 has no cancel action.
 
 **Acceptance criteria (Gherkin)**
 
@@ -61,22 +64,24 @@ Scenario: Generate all 4 standard report templates grounded in active sources
   And "Timeline" contains chronological events and a "Cast of Characters" section
   And no report contains facts from unselected sources (Leakage = 0)
 
-Scenario: A queued report cannot publish from a replaced source revision
+Scenario: A queued report cannot publish after a captured source is deleted
   Given a report job captured Source A revision 1 at submission
-  When A is replaced by revision 2 before the job publishes
+  When A is deleted before the job publishes
   Then the job fails with a source-changed explanation
   And no stale or silently regenerated report is published
   And Retry requires a fresh explicitly scoped request
 ```
 
+The same applies when a source is replaced by a new revision once re-sync exists (`FR-SI-05`, from v3.0).
+
 **Edge & error cases**
-- User triggers `"Timeline"` on sources that contain zero dates or chronological events $\rightarrow$ Report states clearly which entities/actors exist and notes that no explicit chronological dates are present in the selected sources (never invents dates).
+- User triggers `"Timeline"` on sources that contain zero dates or chronological events $\rightarrow$ Report completes with an explicit section stating that the selected sources contain no dated events, plus the `cast_of_characters` section; it never invents dates. This is the only case where a required section (`events`) may complete without entries.
 - $\lvert S_{\text{aktiv}}\rvert = 0$ $\rightarrow$ Report template buttons are disabled.
 
 **Measurable criteria**
 - $100\%$ of the $4$ standard templates generate valid, grounded Markdown documents (`Gate v2.0 #3`) within $\le 25.0\text{ s}$ (P95).
 
-**Deviations from reference:** All generated reports are stored as `StudioArtifact` records via `Contract C-03` and can also be converted to a source just like notes (`FR-NM-03`).
+**Deviations from reference:** All generated reports are stored as `StudioArtifact` records via `Contract C-03` and can be converted to a source by saving them as a note and converting that note through `FR-NM-03`.
 
 **Out of scope:** Direct PDF/DOCX layout export of reports (Markdown/Rich-text copy is supported in `v2.0`; slide PDF/PPTX export is in `v4.0`).
 
@@ -90,7 +95,7 @@ Scenario: A queued report cannot publish from a replaced source revision
 | :- | :- |
 | Release / Package | v2.0 / 2.4 |
 | Priority (within package) | P2 |
-| Actors | Owner/Editor |
+| Actors | Owner; Editor (from v6.0) |
 | Depends on | FR-ST-10, FR-SI-02, C-02, C-03 |
 | Reference provenance (unverified) | 2026-10-15, Gemini Notebook web |
 
@@ -98,6 +103,7 @@ Scenario: A queued report cannot publish from a replaced source revision
 - *Event:* When the Owner/Editor opens the `Reports` (`Create report`) modal in the Studio panel, the system shall analyze the `Source Guide` metadata of $S_{\text{aktiv}}$ and display $3\text{–}4$ **Dynamic Suggested Report Formats** tailored to the domain of the sources (e.g., `"Market Analysis"`, `"Methodology Comparison"`, `"Contradiction Report"`, `"Blog Post"`, `"Clinical Trial Summary"`).
 - *Ubiquitous:* The `Create report` modal shall also provide a `"Create Your Own"` (`"Eigenen Bericht erstellen"`) option where the user can specify a custom report structure, tone, and target audience via free-text prompt.
 - *Event:* When the user clicks a suggested dynamic format (optionally clicking the edit pencil to tweak its pre-filled prompt) or submits a `"Create Your Own"` prompt, the system shall execute the report generation job via `Contract C-03`.
+- *Ubiquitous:* Custom and edited suggestion prompts change only the report's structure, tone and audience; `FR-GC-01` grounding and `FR-GC-02` citations stay non-overridable, as for `FR-GC-07` Custom.
 
 **User story:** As a domain expert, I want the Studio to suggest report formats that fit my uploaded documents (like a contradiction analysis or methodology comparison) and let me define my own custom report prompt, so that I can generate domain-specific deliverables.
 
@@ -139,7 +145,7 @@ Scenario: Studio suggests domain-relevant report formats based on active sources
 - The custom report prompt limit counts Unicode code points after trimming outer whitespace; over-limit prompts are rejected, never truncated.
 
 **Measurable criteria**
-- Dynamic report format suggestions load in $\le 3.0\text{ s}$ (cached per source-set hash).
+- Dynamic report format suggestions load in $\le 3.0\text{ s}$ (cached per scope key: notebook, source revisions, effective authorization, output language).
 
 **Deviations from reference:** None.
 

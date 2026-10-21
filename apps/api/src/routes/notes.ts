@@ -6,23 +6,17 @@ import {
   NOTE_ERROR_MESSAGES,
   NoteAssistantInputSchema,
   PatchNoteInputSchema,
-  SAVED_TO_NOTES_MESSAGE,
-  SaveNoteFromMessageInputSchema,
 } from "@everlast/contracts";
 import {
-  createNote,
-  deleteNote,
   getNote,
-  getOccupiedSourceCount,
   listNotes,
   NoteNotFoundError,
   NoteReadOnlyError,
   NotSavedResponseError,
   RevisionConflictError,
-  updateNote,
 } from "@everlast/db";
-import { parseJsonBody, sendJson } from "../http.js";
-import { NotesService, NotesServiceError } from "../notes/service.js";
+import { parseJsonBody, sendJson } from "../http.ts";
+import { NotesService, NotesServiceError } from "../notes/service.ts";
 
 export interface NotesRouteDependencies {
   service: NotesService;
@@ -33,7 +27,8 @@ const fail = (res: ServerResponse, status: number, code: string, message: string
   sendJson(res, status, { error: { code, message } });
 
 /**
- * Notes & Pinboard HTTP routes (FR-NM-01..04, FR-GC-09). Owner-only: ownership is checked on every request.
+ * Notes & Pinboard HTTP routes (FR-NM-01..04). Owner-only: ownership is checked on every request. Save to note uses
+ * the one shared route `POST /api/notebooks/{id}/chat/messages/{message_id}/note` (routes/package-v2-2.ts).
  */
 export async function handleNotesRoute(
   req: IncomingMessage,
@@ -68,30 +63,25 @@ export async function handleNotesRoute(
     if (seg === undefined) {
       if (method === "GET") {
         const notes = await listNotes(notebookId, userId);
-        const used = await getOccupiedSourceCount(notebookId);
-        sendJson(res, 200, { notes, source_slots: { used, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK } });
+        // FR-WM-07: one occupancy count for uploads and note-sources (owner decision 2026-10-20).
+        const source_slots = (await deps.service.sourceSlots(notebookId)) ?? { used: 0, limit: DEFAULT_MAX_SOURCES_PER_NOTEBOOK };
+        sendJson(res, 200, { notes, source_slots });
         return true;
       }
       if (method === "POST") {
         const p = CreateNoteInputSchema.safeParse(await body());
         if (!p.success) throw invalid(p.error.issues);
-        sendJson(res, 201, { note: await createNote(notebookId, userId, p.data) });
+        sendJson(res, 201, { note: await deps.service.create(notebookId, userId, p.data) });
         return true;
       }
       return false;
     }
 
-    if (seg === "from-message" && method === "POST" && !action) {
-      const p = SaveNoteFromMessageInputSchema.safeParse(await body());
-      if (!p.success) throw invalid(p.error.issues);
-      const { note, created } = await deps.service.saveFromMessage(notebookId, userId, p.data.message_id);
-      sendJson(res, created ? 201 : 200, { note, created, ...(created ? { toast: SAVED_TO_NOTES_MESSAGE } : {}) });
-      return true;
-    }
     if (seg === "convert-to-source" && method === "POST" && !action) {
       const p = ConvertToSourceInputSchema.safeParse(await body());
       if (!p.success) throw invalid(p.error.issues);
-      sendJson(res, 201, { source: await deps.service.convertToSource(notebookId, userId, p.data) });
+      const { source, reused } = await deps.service.convertToSource(notebookId, userId, p.data);
+      sendJson(res, reused ? 200 : 201, { source, reused });
       return true;
     }
     if (seg === "assistant" && method === "POST" && !action) {
@@ -116,14 +106,14 @@ export async function handleNotesRoute(
     if (method === "PATCH") {
       const p = PatchNoteInputSchema.safeParse(await body());
       if (!p.success) throw invalid(p.error.issues);
-      sendJson(res, 200, { note: await updateNote(notebookId, userId, seg, p.data) });
+      sendJson(res, 200, { note: await deps.service.update(notebookId, userId, seg, p.data) });
       return true;
     }
     if (method === "DELETE") {
       if (url.searchParams.get("confirm") !== "true") {
         throw new NotesServiceError("ConfirmationRequired", 400, NOTE_ERROR_MESSAGES.ConfirmationRequired);
       }
-      if (!(await deleteNote(notebookId, userId, seg))) throw new NoteNotFoundError();
+      if (!(await deps.service.remove(notebookId, userId, seg))) throw new NoteNotFoundError();
       sendJson(res, 200, { deleted: true });
       return true;
     }

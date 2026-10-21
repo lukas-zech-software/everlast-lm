@@ -11,7 +11,7 @@ import {
   type OwnerWorkspacePreferences,
   type OutputLanguageResolutionInput,
 } from "@everlast/contracts";
-import { getNotebookRaw } from "./notebooks.js";
+import { getNotebookRaw, getReadySourceCount, onNotebookForgotten } from "./poc-bridge.ts";
 
 export interface NotebookOverviewItem extends Notebook {
   icon_emoji: string;
@@ -79,7 +79,6 @@ export async function getNotebookMetadata(notebookId: string): Promise<NotebookM
 }
 
 export async function buildNotebookOverview(ownerId: string, notebooks: Notebook[]): Promise<NotebookOverviewItem[]> {
-  const { getReadySourceCount } = await import("./quota.js");
   const items = await Promise.all(notebooks.map(async (notebook) => {
     const metadata = getMetadataRecord(notebook.id);
     const preferences = await getOwnerNotebookPreferences(ownerId, notebook.id);
@@ -98,19 +97,22 @@ export async function buildNotebookOverview(ownerId: string, notebooks: Notebook
   return items;
 }
 
-export function sortNotebookOverview<T extends NotebookOverviewItem>(items: T[], order: NotebookSortOrder): T[] {
+/**
+ * Pinned first, then the requested order (FR-WM-03). Title order is case-insensitive through an `Intl.Collator`
+ * for the UI locale; equal titles (and every other tie) fall back to `created_at` descending, then `id`.
+ */
+export function sortNotebookOverview<T extends NotebookOverviewItem>(items: T[], order: NotebookSortOrder, locale?: string): T[] {
   const timestamp = (value: string | null, fallback: string) => Date.parse(value ?? fallback) || 0;
+  const collator = new Intl.Collator(locale, { sensitivity: "base" });
   return [...items].sort((a, b) => {
     if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
     let comparison = 0;
     if (order === "title_asc") {
-      comparison = a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
-    } else if (order === "created_desc") {
-      comparison = timestamp(b.created_at, "") - timestamp(a.created_at, "");
-    } else {
+      comparison = collator.compare(a.title, b.title);
+    } else if (order === "recent") {
       comparison = timestamp(b.last_opened_at, b.created_at) - timestamp(a.last_opened_at, a.created_at);
     }
-    return comparison || a.id.localeCompare(b.id);
+    return comparison || timestamp(b.created_at, "") - timestamp(a.created_at, "") || a.id.localeCompare(b.id);
   });
 }
 
@@ -208,3 +210,10 @@ export async function recordNotebookOpened(ownerId: string, notebookId: string, 
 export function resolveEffectiveOutputLanguage(input: OutputLanguageResolutionInput): string {
   return resolveOutputLanguage(input);
 }
+
+onNotebookForgotten((notebookId) => {
+  metadataStore.delete(notebookId);
+  for (const [key, value] of notebookPreferencesStore) {
+    if (value.notebook_id === notebookId) notebookPreferencesStore.delete(key);
+  }
+});

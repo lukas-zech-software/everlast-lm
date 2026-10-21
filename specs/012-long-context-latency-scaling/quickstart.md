@@ -13,7 +13,7 @@ Expected: traceability/checklist checks and whitespace pass. These validate arti
 
 ## Implementation prerequisites (`CC-02/06/07`, NFR-PERF-01)
 
-Before implementation, documented Gate v2.0 pass; before integrated v3 acceptance, implemented3.1–3.3, shared contract compatibility, production SQL-backed C-02, enterprise EU model/cache adapters, and R6 qualified sandbox controls. D16 accepts2vCPU/1.5GB only; scratch64MB/no-network/read-only-input/15.0s actual termination/cleanup requirements remain. No cloud API enablement, IAM change or deployment is authorized by this guide.
+Before implementation, documented Gate v2.0 pass; before integrated v3 acceptance, implemented3.1–3.3, shared contract compatibility, production SQL-backed C-02, enterprise EU model/cache adapters, and R6 qualified sandbox controls. D18 accepts2vCPU/1.5GB only; scratch64MB/no-network/read-only-input/15.0s actual termination/cleanup requirements remain. No cloud API enablement, IAM change or deployment is authorized by this guide.
 
 After spec-derived Red tests exist, implement and pass contract/DB/worker/chat instrumentation coverage in [plan.md](plan.md). Freeze manifest and envelope/index parameters using calibration data distinct from acceptance data. Read [contracts/interfaces.md](contracts/interfaces.md) and [data-model.md](data-model.md) for timing, scope and report fields.
 

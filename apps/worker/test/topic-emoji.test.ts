@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createNotebook, getNotebookRaw, getNotebookMetadata, resetNotebookStore, resetQuotaStore, resetWorkspacePreferenceStore } from "@everlast/db";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
-import { selectTopicEmoji, type TopicEmojiClient } from "../src/ingestion/topic-emoji.js";
+import { createPocNotebook, getNotebookRaw, getNotebookMetadata, resetPocBridge, resetWorkspacePreferenceStore } from "@everlast/db";
+import { applyTopicIcon } from "../src/ready-hooks.ts";
+import { selectTopicEmoji, type TopicEmojiClient } from "../src/ingestion/topic-emoji.ts";
 
 beforeEach(() => {
-  resetNotebookStore();
-  resetQuotaStore();
+  resetPocBridge();
   resetWorkspacePreferenceStore();
 });
 
@@ -23,36 +22,19 @@ describe("Solution Architecture §2.1 Flash-Lite topic emoji enrichment (FR-WM-0
   });
 
   it("applies a first-Ready topic icon without allowing enrichment failure to fail ingestion", async () => {
-    const notebook = await createNotebook(undefined, "owner", { title: "Biology" });
+    const notebook = createPocNotebook("owner", "Biology");
     const initialUpdatedAt = notebook.updated_at;
-    const pipeline = new IngestionPipeline({ topicEmojiSelector: { suggest: async () => "🧬" } });
-    const result = await pipeline.process({
-      attempt_id: "attempt-1",
-      notebook_id: notebook.id,
-      source_id: "source-1",
-      revision_id: 1,
-      title: "Cell Biology.pdf",
-      media_type: "application/pdf",
-      content: Buffer.from("%PDF-1.4 cell biology"),
-    });
-    expect(result.status).toBe("Ready");
+    await new Promise((r) => setTimeout(r, 2));
+    const selector = { suggest: async () => "🧬" };
+    await applyTopicIcon({ notebook_id: notebook.id, source_id: "source-1", revision_id: 1, title: "Cell Biology.pdf", media_type: "application/pdf" }, selector);
     expect(await getNotebookMetadata(notebook.id)).toMatchObject({ icon_emoji: "🧬", icon_source: "topic" });
     expect(getNotebookRaw(notebook.id)?.updated_at).not.toBe(initialUpdatedAt);
   });
 
   it("keeps ingestion Ready and the default icon when topic selection fails", async () => {
-    const notebook = await createNotebook(undefined, "owner", { title: "Biology" });
-    const pipeline = new IngestionPipeline({ topicEmojiSelector: { suggest: async () => { throw new Error("model unavailable"); } } });
-    const result = await pipeline.process({
-      attempt_id: "attempt-2",
-      notebook_id: notebook.id,
-      source_id: "source-2",
-      revision_id: 1,
-      title: "Cell Biology.pdf",
-      media_type: "application/pdf",
-      content: Buffer.from("%PDF-1.4 cell biology"),
-    });
-    expect(result.status).toBe("Ready");
+    const notebook = createPocNotebook("owner", "Biology");
+    const selector = { suggest: async () => { throw new Error("model unavailable"); } };
+    await applyTopicIcon({ notebook_id: notebook.id, source_id: "source-2", revision_id: 1, title: "Cell Biology.pdf", media_type: "application/pdf" }, selector);
     expect(await getNotebookMetadata(notebook.id)).toMatchObject({ icon_emoji: "📓", icon_source: "default" });
   });
 });

@@ -118,6 +118,48 @@ export function parseHTMLToElements(html: string): MockElement[] {
   return root.children;
 }
 
+/** One simple selector (`.a.b`, `#id`, `[attr]`, `[attr=value]`, `tag`) against one element. */
+function matchesSimple(el: MockElement, sel: string): boolean {
+  if (sel.startsWith(".") && sel.indexOf(".", 1) !== -1) {
+    const classes = sel.split(".").filter(Boolean);
+    return classes.every((c) => el.classList.contains(c));
+  }
+  if (sel.startsWith("#")) {
+    return el.id === sel.slice(1);
+  }
+  if (sel.startsWith(".")) {
+    return el.classList.contains(sel.slice(1));
+  }
+  if (sel.startsWith("[") && sel.endsWith("]")) {
+    const inner = sel.slice(1, -1);
+    if (inner.includes("=")) {
+      const [attr, rawVal] = inner.split("=");
+      const val = (rawVal ?? "").replace(/['"]/g, "");
+      if (attr) {
+        return el.getAttribute(attr) === val;
+      }
+    }
+    return el.getAttribute(inner) !== null;
+  }
+  return el.tagName.toLowerCase() === sel.toLowerCase();
+}
+
+/** Selector list with optional descendant parts (`.card-head button, .menu`), as used by `closest()`. */
+function matchesSelectorList(el: MockElement, selector: string): boolean {
+  return selector.split(",").some((part) => {
+    const steps = part.trim().split(/\s+/).filter(Boolean);
+    const last = steps.pop();
+    if (!last || !matchesSimple(el, last)) return false;
+    let ancestor = el.parentElement;
+    for (let i = steps.length - 1; i >= 0; i--) {
+      while (ancestor && !matchesSimple(ancestor, steps[i]!)) ancestor = ancestor.parentElement;
+      if (!ancestor) return false;
+      ancestor = ancestor.parentElement;
+    }
+    return true;
+  });
+}
+
 export class MockElement {
   tagName: string;
   id = "";
@@ -214,7 +256,81 @@ export class MockElement {
     }
   }
 
+  get firstChild(): MockElement | null {
+    return this.children[0] ?? null;
+  }
+
+  get hidden(): boolean {
+    return this.attributes.has("hidden");
+  }
+
+  /** Reflects the `disabled` attribute like the real DOM property. */
+  get disabled(): boolean {
+    return this.attributes.has("disabled");
+  }
+
+  set disabled(value: boolean) {
+    if (value) this.setAttribute("disabled", "");
+    else this.removeAttribute("disabled");
+  }
+
+  private _checked: boolean | undefined;
+
+  /** Current checkedness; starts from the `checked` attribute like the real DOM. */
+  get checked(): boolean {
+    return this._checked ?? this.attributes.has("checked");
+  }
+
+  set checked(value: boolean) {
+    this._checked = value;
+  }
+
+  get title(): string {
+    return this.attributes.get("title") ?? "";
+  }
+
+  set title(value: string) {
+    this.setAttribute("title", value);
+  }
+
+  /** Records focus on the mock document (`document.activeElement`). */
+  focus() {
+    const doc = (globalThis as any).document;
+    if (doc) doc.activeElement = this;
+  }
+
+  set hidden(value: boolean) {
+    if (value) this.setAttribute("hidden", "");
+    else this.removeAttribute("hidden");
+  }
+
+  append(...nodes: (MockElement | string)[]) {
+    for (const node of nodes) {
+      if (typeof node === "string") {
+        const text = new MockElement("#text");
+        text.textContent = node;
+        this.appendChild(text);
+      } else {
+        this.appendChild(node);
+      }
+    }
+  }
+
+  remove() {
+    this.parentElement?.removeChild(this);
+  }
+
+  closest(selector: string): MockElement | null {
+    let el: MockElement | null = this;
+    while (el) {
+      if (matchesSelectorList(el, selector)) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
   appendChild(child: MockElement): MockElement {
+    if (child.parentElement && child.parentElement !== this) child.parentElement.removeChild(child);
     child.parentElement = this;
     this.children.push(child);
     return child;
@@ -279,30 +395,7 @@ export class MockElement {
   querySelectorAll(selector: string): MockElement[] {
     const results: MockElement[] = [];
 
-    const matchesSingle = (el: MockElement, sel: string): boolean => {
-      if (sel.startsWith(".") && sel.indexOf(".", 1) !== -1) {
-        const classes = sel.split(".").filter(Boolean);
-        return classes.every((c) => el.classList.contains(c));
-      }
-      if (sel.startsWith("#")) {
-        return el.id === sel.slice(1);
-      }
-      if (sel.startsWith(".")) {
-        return el.classList.contains(sel.slice(1));
-      }
-      if (sel.startsWith("[") && sel.endsWith("]")) {
-        const inner = sel.slice(1, -1);
-        if (inner.includes("=")) {
-          const [attr, rawVal] = inner.split("=");
-          const val = (rawVal ?? "").replace(/['"]/g, "");
-          if (attr) {
-            return el.getAttribute(attr) === val;
-          }
-        }
-        return el.getAttribute(inner) !== null;
-      }
-      return el.tagName.toLowerCase() === sel.toLowerCase();
-    };
+    const matchesSingle = matchesSimple;
 
     const traverse = (el: MockElement) => {
       for (const child of el.children) {
@@ -343,6 +436,11 @@ export function setupMockDOM(initialWidth = 1440) {
 
   const documentMock = {
     createElement: (tag: string) => new MockElement(tag),
+    createTextNode: (text: string) => {
+      const node = new MockElement("#text");
+      node.textContent = text;
+      return node;
+    },
     getElementById: (id: string) => elementsById.get(id) || null,
     documentElement: new MockElement("html"),
     body: new MockElement("body"),

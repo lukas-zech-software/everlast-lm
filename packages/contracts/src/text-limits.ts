@@ -70,3 +70,11 @@ export function validateNotebookTitle(title: string): TitleValidationResult {
 export function validateTitleLength(title: string): TitleValidationResult {
   return validateNotebookTitle(title);
 }
+
+/**
+ * Extracted-word convention shared by API pre-checks and the ingestion worker (FR-WM-07, FR-SI-01):
+ * runs of non-whitespace separated by Unicode whitespace.
+ */
+export function countWords(text: string): number {
+  return text.split(/\s+/u).filter(Boolean).length;
+}

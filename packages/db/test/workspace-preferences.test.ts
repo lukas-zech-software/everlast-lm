@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createNotebook, getNotebookRaw, resetNotebookStore } from "../src/notebooks.js";
-import { resetQuotaStore, reserveSourceSlot, transitionSourceStatus } from "../src/quota.js";
+import { createPocNotebook, getNotebookRaw, resetPocBridge, setReadySourceCount } from "../src/poc-bridge.ts";
 import {
   buildNotebookOverview,
   getOwnerNotebookPreferences,
@@ -11,18 +10,17 @@ import {
   setTopicIconIfDefault,
   sortNotebookOverview,
   touchNotebookModified,
-} from "../src/workspace-preferences.js";
+} from "../src/workspace-preferences.ts";
 
 const OWNER_A = "owner-a";
 const OWNER_B = "owner-b";
 
 async function makeNotebook(owner = OWNER_A, title = "Notebook") {
-  return createNotebook(undefined, owner, { title });
+  return createPocNotebook(owner, title);
 }
 
 beforeEach(() => {
-  resetNotebookStore();
-  resetQuotaStore();
+  resetPocBridge();
   resetWorkspacePreferenceStore();
 });
 
@@ -63,14 +61,9 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
     expect(sortNotebookOverview(tied, "created_desc").map(({ id }) => id)).toEqual([...tied.map(({ id }) => id).sort()]);
   });
 
-  it("derives Ready-only source count and leaves failed/in-flight records out", async () => {
+  it("shows the Ready-only source count mirrored from PostgreSQL (countReadySources)", async () => {
     const notebook = await makeNotebook();
-    await reserveSourceSlot(undefined, { attempt_id: "ready", notebook_id: notebook.id, declared_byte_size: 1, file_name: "ready.pdf", mime_type: "application/pdf" });
-    await reserveSourceSlot(undefined, { attempt_id: "processing", notebook_id: notebook.id, declared_byte_size: 1, file_name: "processing.pdf", mime_type: "application/pdf" });
-    await reserveSourceSlot(undefined, { attempt_id: "failed", notebook_id: notebook.id, declared_byte_size: 1, file_name: "failed.pdf", mime_type: "application/pdf" });
-    await transitionSourceStatus(undefined, notebook.id, "ready", "Ready");
-    await transitionSourceStatus(undefined, notebook.id, "processing", "Processing");
-    await transitionSourceStatus(undefined, notebook.id, "failed", "Failed");
+    setReadySourceCount(notebook.id, 1);
     const [item] = await buildNotebookOverview(OWNER_A, [notebook]);
     expect(item?.ready_source_count).toBe(1);
   });
@@ -85,16 +78,32 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
     expect(item?.icon_source).toBe("custom");
   });
 
-  it("updates last-modified time for shared source/note/artifact writes but not an open event", async () => {
+  it("updates last-modified time for content writes but not for an open event", async () => {
     const notebook = await makeNotebook();
     const initial = getNotebookRaw(notebook.id)!.updated_at;
-    const added = await reserveSourceSlot(undefined, { attempt_id: "new-source", notebook_id: notebook.id, declared_byte_size: 1, file_name: "new.pdf", mime_type: "application/pdf" });
-    expect(added.admitted).toBe(true);
+    await touchNotebookModified(notebook.id);
     const afterSource = getNotebookRaw(notebook.id)!.updated_at;
     expect(Date.parse(afterSource)).toBeGreaterThan(Date.parse(initial));
     await recordNotebookOpened(OWNER_A, notebook.id, "2026-10-19T12:00:00.000Z");
     expect(getNotebookRaw(notebook.id)!.updated_at).toBe(afterSource);
     await touchNotebookModified(notebook.id);
     expect(Date.parse(getNotebookRaw(notebook.id)!.updated_at)).toBeGreaterThan(Date.parse(afterSource));
+  });
+
+  it("sorts titles case-insensitively with Intl.Collator and breaks equal titles by created_at descending (FR-WM-03, FR-005)", async () => {
+    const make = (id: string, title: string, created_at: string, is_pinned = false) => ({
+      id, owner_id: OWNER_A, title, created_at, updated_at: created_at, archived_at: null,
+      icon_emoji: "📓", icon_source: "default" as const, ready_source_count: 0, is_pinned, last_opened_at: null, owner_role: "Owner" as const,
+    });
+    const items = [
+      make("a-early", "Alpha", "2026-01-01T00:00:00.000Z"),
+      make("z-late", "alpha", "2026-01-03T00:00:00.000Z"),
+      make("m-beta", "beta", "2026-01-02T00:00:00.000Z"),
+      make("p-zeta", "Zeta", "2026-01-02T00:00:00.000Z", true),
+    ];
+    expect(sortNotebookOverview(items, "title_asc").map(({ id }) => id)).toEqual(["p-zeta", "z-late", "a-early", "m-beta"]);
+    const umlaut = [make("1", "Äpfel", "2026-01-01T00:00:00.000Z"), make("2", "Zebra", "2026-01-01T00:00:00.000Z")];
+    expect(sortNotebookOverview(umlaut, "title_asc", "de-DE").map(({ title }) => title)).toEqual(["Äpfel", "Zebra"]);
+    expect(sortNotebookOverview(umlaut, "title_asc", "sv-SE").map(({ title }) => title)).toEqual(["Zebra", "Äpfel"]);
   });
 });

@@ -9,23 +9,23 @@
 
 Extend grounded chat with a bounded Python execution tool over immutable scoped inputs, exact Computed values, validated chart/citation publication and inspectable ordered retry traces. Consume package 3.1's C-01-compatible inputs without changing ingestion or Studio. The ADK agent decides when to compute; a deterministic controller enforces execution/security/retry rules. Accepted clarifications require a focused follow-up before ambiguous statistical calculations and preservation/display of both retry attempts.
 
-**Planning status: complete through Phase 1 design.** D16 records the owner's superseding acceptance of the managed default 2 vCPU / 1.5 GB profile. The primary path is Agent Platform Code Execution over REST from TypeScript. R6 is a mandatory implementation/deployment qualification gate for all retained controls; no runtime acceptance is claimed. No implementation or tasks are generated.
+**Planning status: complete through Phase 1 design.** D18 records the owner's superseding acceptance of the managed default 2 vCPU / 1.5 GB profile. The primary path is Agent Platform Code Execution over REST from TypeScript. R6 is a mandatory implementation/deployment qualification gate for all retained controls; no runtime acceptance is claimed. No implementation or tasks are generated.
 
 ## Technical Context (FR-GC-08, C-01/C-02, NFR-SEC-01/02)
 
 - Language/version: TypeScript 5.x strict ESM, Node 24, pnpm workspace; generated Python only inside the sandbox.
 - Dependencies: shared Zod; ADK TypeScript for grounded chat/tool selection; enterprise Gemini model tier selected by quality/latency checks. No new agent framework/datastore.
-- Runtime: Agent Platform Code Execution, Python, default 2 vCPU / 1.5 GB RAM; one fresh sandbox per attempt under an IaC-managed parent runtime without deployed agent code (D16). Research is resolved; R6 measurements/admission tests are specified in r6-feasibility.md.
+- Runtime: Agent Platform Code Execution, Python, default 2 vCPU / 1.5 GB RAM; one fresh sandbox per attempt under an IaC-managed parent runtime without deployed agent code (D18). Research is resolved; R6 measurements/admission tests are specified in r6-feasibility.md.
 - Storage: existing single Cloud SQL Postgres for ChatMessage trace and private Cloud Storage chart objects. No provider memory/session store for user conversation state.
 - Authentication/region map: API, database, chart storage and intended execution service in europe-west4; enterprise no-training endpoints and keyless service identity. Region exceptions: none approved; if a runtime is unavailable there, stop rather than select a different region.
-- Performance: submission-to-real-running-code ≤2.5 s; cold/warm sandbox boot plus standard-tabular execution ≤4.0 s P95; per-attempt execution ≤15.0 s. Code progress never counts as validated answer TTFT. D15 warm-only chat acceptance does not relax these code-execution criteria.
+- Performance: submission-to-real-running-code ≤2.5 s; cold/warm sandbox boot plus standard-tabular execution ≤4.0 s P95; per-attempt execution ≤15.0 s. Code progress never counts as validated answer TTFT. D17 warm-only chat acceptance does not relax these code-execution criteria.
 - Constraints: ≤2 vCPU, ≤1.5 GB RAM, ≤64 MB /tmp; zero inbound/outbound network; read-only scoped inputs; required Python numerical libraries preinstalled; one exception retry and zero timeout/OOM retries.
 - Testing: existing Vitest and Playwright runners; new package scenarios and R6 environment are UNAVAILABLE until implemented. Existing scripts named dev/db:migrate currently print readiness messages and are not runtime setup proof.
 - Prerequisites: Gate v2 evidence before v3 implementation; package 3.1 plan/contract precedes this work; existing C-01/C-02, auth, history, cancellation and validated publication. Package 3.4 consumes these declared timing populations; 3.3 remains separate.
 
 ## Constitution Check (CC-01..CC-08)
 
-Statuses refer to design review, not deployed acceptance. D16 resolves the former CPU/RAM mismatch; R6 runtime qualification is still UNAVAILABLE and required before implementation/admission.
+Statuses refer to design review, not deployed acceptance. D18 resolves the former CPU/RAM mismatch; R6 runtime qualification is still UNAVAILABLE and required before implementation/admission.
 
 | Gate | Principle | Pre-research | Post-design | Evidence |
 | --- | --- | --- | --- | --- |
@@ -36,7 +36,7 @@ Statuses refer to design review, not deployed acceptance. D16 resolves the forme
 | CC-05 | Contracts/pipelines | PASS | PASS | Shared DTOs, unchanged C-01/C-02; ADK reasoning with deterministic controller |
 | CC-06 | Release/package order | PASS | PASS | Planning may precede Gate v2; implementation may not; predecessor 3.1 inherited |
 | CC-07 | Security/residency | PASS | PASS | Managed isolation path, Owner checks and EU map; retained controls fail closed at R6 admission, not claimed validated |
-| CC-08 | Platform/cost | PASS | PASS | D16 accepted managed default; existing TS/Cloud Run/Postgres stack, no new framework or idle application deployment |
+| CC-08 | Platform/cost | PASS | PASS | D18 accepted managed default; existing TS/Cloud Run/Postgres stack, no new framework or idle application deployment |
 
 ## Project Structure (FR-GC-08, FR-GC-06)
 
@@ -60,18 +60,18 @@ Shared schema exports, migration numbering, chat transport and cleanup changes a
 
 ## Phase 0 Research (FR-GC-08)
 
-research.md records source-backed runtime mismatch and resolved decisions for manifests, retries, schema evolution, chart authorization and repo reuse. Parent/package rule limits active package agents to one; research was performed within this package agent. The owner superseded Option A with the managed-default envelope (D16). All planning decisions are resolved. R6 qualification remains a separate prerequisite to implementation/runtime admission; its evidence is not fabricated.
+research.md records source-backed runtime mismatch and resolved decisions for manifests, retries, schema evolution, chart authorization and repo reuse. Parent/package rule limits active package agents to one; research was performed within this package agent. The owner superseded Option A with the managed-default envelope (D18). All planning decisions are resolved. R6 qualification remains a separate prerequisite to implementation/runtime admission; its evidence is not fabricated.
 
 ## Phase 1 Design (FR-GC-08, NFR-EVAL-01..04)
 
 The controller snapshots authorized C-02 inputs, asks for missing statistical intent, creates each isolated attempt, captures outputs and destroys the execution environment. Only first-attempt Python exceptions receive one correction. Publication rechecks revisions, access and citations; saves ordered trace and exact results atomically; emits code and charts only after validation. All terminal/security errors produce safe refusal/error without invented numbers. Clearing chat or source invalidation fences late callbacks and invalidates chart delivery.
 
-Data-model and contracts specify message migration compatibility, artifact provenance, internal errors, status semantics and cleanup. Quickstart binds acceptance scenarios to future failing tests and records the current UNAVAILABLE evidence boundary. The selected runtime lifecycle is specified in contracts/interfaces.md. One or two simultaneous users is the declared workload context; D16 increases only CPU/RAM. Before implementation, R6 proves the remaining controls in the selected environment. A failed control returns for explicit architectural resolution, never an automatic relaxation.
+Data-model and contracts specify message migration compatibility, artifact provenance, internal errors, status semantics and cleanup. Quickstart binds acceptance scenarios to future failing tests and records the current UNAVAILABLE evidence boundary. The selected runtime lifecycle is specified in contracts/interfaces.md. One or two simultaneous users is the declared workload context; D18 increases only CPU/RAM. Before implementation, R6 proves the remaining controls in the selected environment. A failed control returns for explicit architectural resolution, never an automatic relaxation.
 
 ## Complexity Tracking (FR-GC-08, R6)
 
 | Gate / decision | Why needed | Simpler alternative rejected because |
 | --- | --- | --- |
-| D16 / FR-GC-08 | Owner-approved 2 vCPU / 1.5 GB managed default | Retaining former caps required an unqualified fallback; the owner chose the managed profile instead. 4 vCPU / 4 GB remains excluded. |
+| D18 / FR-GC-08 | Owner-approved 2 vCPU / 1.5 GB managed default | Retaining former caps required an unqualified fallback; the owner chose the managed profile instead. 4 vCPU / 4 GB remains excluded. |
 
-D16 and the SRS amendment approve the CPU/RAM change only. This changes project acceptance limits, not a verified reference-product deviation, so no DEV entry is inferred. Existing D15/DEV-04 remains restricted to NFR-PERF-01 warm-service chat timing.
+D18 and the SRS amendment approve the CPU/RAM change only. This changes project acceptance limits, not a verified reference-product deviation, so no DEV entry is inferred. Existing D17/DEV-05 remains restricted to NFR-PERF-01 warm-service chat timing.

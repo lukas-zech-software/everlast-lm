@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { ReportsModalController } from "../src/studio/reports-modal.js";
-import type { StudioApi } from "../src/studio/api.js";
+import { ReportsModalController } from "../src/studio/reports-modal.ts";
+import type { StudioApi } from "../src/studio/api.ts";
 
 const api = (suggestions: StudioApi["suggestions"]): StudioApi => ({
   list: async () => [], get: async () => { throw new Error("x"); }, create: async (b) => ({ id: JSON.stringify(b) } as never),
-  cancel: async () => { throw new Error("x"); }, retry: async () => { throw new Error("x"); },
+  retry: async () => { throw new Error("x"); },
   convert: async () => ({ source_id: "s" }), remove: async () => undefined, suggestions,
 });
 const ready = { state: "SuggestionsReady", suggestions: [1, 2, 3].map((i) => ({ title: `T${i}`, description: `D${i}`, prompt_template: `Prompt ${i}` })) } as const;

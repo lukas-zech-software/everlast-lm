@@ -1,23 +1,24 @@
+import type { NotebookSortOrder, NotebookTheme, NotebookViewMode } from "@everlast/contracts";
 import {
   InputLanguageSchema,
   NotebookSortOrderSchema,
   NotebookThemeSchema,
   NotebookViewModeSchema,
   NullableOutputLanguageSchema,
-  OutputLanguageSchema,
+  resolveOutputLanguage,
   SUPPORTED_OUTPUT_LANGUAGES,
-  type NotebookSortOrder,
-  type NotebookTheme,
-  type NotebookViewMode,
-} from "@everlast/contracts";
+} from "./lib/v2-contracts.ts";
 
+/** Kept in this browser's localStorage (FR-WM-03 view/sort only here; FR-UI-02 theme also on the server). */
 export interface LocalWorkspacePreferences {
   view_mode: NotebookViewMode;
   sort_order: NotebookSortOrder;
   theme: NotebookTheme;
 }
 
-export interface WorkspaceSettingsState extends LocalWorkspacePreferences {
+/** Settings panel state: the server-side owner preferences (FR-UI-02). View mode and sort order are not part of it. */
+export interface WorkspaceSettingsState {
+  theme: NotebookTheme;
   input_language: string;
   output_language: string | null;
   notebook_input_language?: string | null;
@@ -32,16 +33,15 @@ export interface KeyValueStorage {
 
 export async function hydrateWorkspaceSettings(
   initial: WorkspaceSettingsState,
-  options?: { apiBase?: string; headers?: HeadersInit; notebookId?: string },
+  options?: { apiBase?: string; headers?: HeadersInit; notebookId?: string; fetcher?: typeof fetch },
 ): Promise<WorkspaceSettingsState> {
   let settings = { ...initial };
   const api = options?.apiBase ?? "";
+  const request = options?.fetcher ?? globalThis.fetch;
   try {
-    const response = await fetch(`${api}/api/preferences`, { headers: options?.headers ?? {} });
+    const response = await request(`${api}/api/preferences`, { headers: options?.headers ?? {} });
     if (response.ok) {
       const saved = await response.json() as Record<string, unknown>;
-      if (NotebookViewModeSchema.safeParse(saved.view_mode).success) settings.view_mode = saved.view_mode as NotebookViewMode;
-      if (NotebookSortOrderSchema.safeParse(saved.sort_order).success) settings.sort_order = saved.sort_order as NotebookSortOrder;
       if (NotebookThemeSchema.safeParse(saved.theme).success) settings.theme = saved.theme as NotebookTheme;
       if (InputLanguageSchema.safeParse(saved.input_language).success) settings.input_language = saved.input_language as string;
       if (NullableOutputLanguageSchema.safeParse(saved.output_language).success) settings.output_language = saved.output_language as string | null;
@@ -51,7 +51,7 @@ export async function hydrateWorkspaceSettings(
   }
   if (options?.notebookId) {
     try {
-      const response = await fetch(`${api}/api/notebooks/${encodeURIComponent(options.notebookId)}/preferences`, { headers: options.headers ?? {} });
+      const response = await request(`${api}/api/notebooks/${encodeURIComponent(options.notebookId)}/preferences`, { headers: options.headers ?? {} });
       if (response.ok) {
         const saved = await response.json() as Record<string, unknown>;
         if (InputLanguageSchema.nullable().safeParse(saved.notebook_input_language).success) {
@@ -96,6 +96,36 @@ export function loadWorkspacePreferences(storage?: KeyValueStorage): LocalWorksp
   } catch {
     return { ...DEFAULT_LOCAL_WORKSPACE_PREFERENCES };
   }
+}
+
+/** Saves the theme to localStorage and keeps this browser's view mode and sort order (FR-WM-03, FR-UI-02). */
+export function saveThemePreference(theme: NotebookTheme, storage?: KeyValueStorage): void {
+  saveWorkspacePreferences({ ...loadWorkspacePreferences(storage), theme }, storage);
+}
+
+/**
+ * The server theme arrives after first paint: it replaces the local one and is written to localStorage, so the
+ * next load's pre-paint script paints it (FR-UI-02, FR-010).
+ */
+export function adoptServerTheme(theme: NotebookTheme, root: HTMLElement, storage?: KeyValueStorage, prefersDark?: boolean): void {
+  applyTheme(theme, root, systemPrefersDark(prefersDark));
+  saveThemePreference(theme, storage);
+}
+
+function browserLanguage(): string | undefined {
+  return typeof navigator !== "undefined" && typeof navigator.language === "string" ? navigator.language : undefined;
+}
+
+/** Effective output language in the browser: notebook language > user default > supported browser locale > en-US. */
+export function effectiveOutputLanguage(
+  settings: Pick<WorkspaceSettingsState, "output_language" | "notebook_output_language">,
+  browserLocale: string | undefined = browserLanguage(),
+): string {
+  return resolveOutputLanguage({
+    notebookDefault: settings.notebook_output_language ?? null,
+    userDefault: settings.output_language,
+    browserLocale: browserLocale ?? null,
+  });
 }
 
 export function saveWorkspacePreferences(preferences: LocalWorkspacePreferences, storage?: KeyValueStorage): void {
@@ -152,25 +182,42 @@ function registerSystemThemeListener(root: HTMLElement): void {
   systemThemeListeners.set(root, { media, listener });
 }
 
+/** UI locale for collation: the document language, else the browser language. */
+function uiLocale(): string | undefined {
+  const lang = typeof document !== "undefined" ? document.documentElement?.getAttribute?.("lang") : null;
+  return lang || browserLanguage();
+}
+
+function titleCollator(locale: string | undefined): Intl.Collator {
+  try {
+    return new Intl.Collator(locale, { sensitivity: "base" });
+  } catch {
+    return new Intl.Collator(undefined, { sensitivity: "base" });
+  }
+}
+
+/**
+ * Pinned first, then the selected order (FR-WM-03). Title order is case-insensitive through `Intl.Collator` for
+ * the UI locale; equal titles (and every other tie) fall back to `created_at` descending, then `id`.
+ */
 export function sortNotebookRows<T extends {
   id: string;
   title: string;
   created_at: string;
   is_pinned: boolean;
   last_opened_at: string | null;
-}>(items: T[], sort: NotebookSortOrder): T[] {
+}>(items: T[], sort: NotebookSortOrder, locale: string | undefined = uiLocale()): T[] {
   const instant = (value: string) => Date.parse(value) || 0;
+  const collator = titleCollator(locale);
   return [...items].sort((a, b) => {
     if (a.is_pinned !== b.is_pinned) return a.is_pinned ? -1 : 1;
     let order = 0;
     if (sort === "title_asc") {
-      order = a.title.localeCompare(b.title, undefined, { sensitivity: "base" });
-    } else if (sort === "created_desc") {
-      order = instant(b.created_at) - instant(a.created_at);
-    } else {
+      order = collator.compare(a.title, b.title);
+    } else if (sort === "recent") {
       order = instant(b.last_opened_at ?? b.created_at) - instant(a.last_opened_at ?? a.created_at);
     }
-    return order || a.id.localeCompare(b.id);
+    return order || instant(b.created_at) - instant(a.created_at) || a.id.localeCompare(b.id);
   });
 }
 
@@ -190,6 +237,8 @@ export function renderWorkspaceSettings(
     prefersDark?: boolean;
     onUpdate?: (preferences: WorkspaceSettingsState, changedKey: keyof WorkspaceSettingsState) => void | Promise<void>;
     notebookId?: string;
+    /** Browser locale for the default output language (defaults to `navigator.language`). */
+    browserLocale?: string;
   },
 ): void {
   container.innerHTML = "";
@@ -200,10 +249,10 @@ export function renderWorkspaceSettings(
   title.textContent = "Workspace settings";
   section.appendChild(title);
 
-  let current: WorkspaceSettingsState = {
-    ...preferences,
-    output_language: preferences.output_language ?? "en-US",
-  };
+  let current: WorkspaceSettingsState = { ...preferences };
+  // With no saved user language the select shows the default the server would use: supported browser locale,
+  // else en-US (FR-UI-02, FR-012).
+  const defaultOutput = resolveOutputLanguage({ browserLocale: options?.browserLocale ?? browserLanguage() ?? null });
   const root = options?.root ?? document.documentElement;
 
   const createSelect = (id: string, labelText: string, value: string, key: keyof WorkspaceSettingsState, choices: { value: string; label: string }[]) => {
@@ -219,10 +268,10 @@ export function renderWorkspaceSettings(
     select.addEventListener("change", () => {
       const next = { ...current, [key]: select.value } as WorkspaceSettingsState;
       current = next;
-      if (key === "theme" || key === "view_mode" || key === "sort_order") {
-        saveWorkspacePreferences(next, options?.storage);
+      if (key === "theme") {
+        saveThemePreference(next.theme, options?.storage);
+        applyTheme(next.theme, root, systemPrefersDark(options?.prefersDark));
       }
-      if (key === "theme") applyTheme(next.theme, root, systemPrefersDark(options?.prefersDark));
       void options?.onUpdate?.({ ...next }, key);
     });
     section.appendChild(label);
@@ -238,7 +287,7 @@ export function renderWorkspaceSettings(
     { value: "auto", label: "Detect automatically" },
     ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
   ]);
-  createSelect("output-language-select", "Output language", current.output_language ?? "en-US", "output_language", [
+  createSelect("output-language-select", "Output language", current.output_language ?? defaultOutput, "output_language", [
     ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
   ]);
   if (options?.notebookId) {

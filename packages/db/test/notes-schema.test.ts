@@ -17,7 +17,7 @@ function toSqlite(sql: string): string {
     .replace(/\bBIGINT\b/gi, "INTEGER");
 }
 
-describe("FR-NM-01, FR-NM-02, FR-GC-09: 0007_notes.sql", () => {
+describe("FR-NM-01, FR-NM-02, FR-GC-09: draft v3 notes tables (D16)", () => {
   let db: DatabaseSync;
   const u = "u1";
   const n1 = "n1";
@@ -25,8 +25,10 @@ describe("FR-NM-01, FR-NM-02, FR-GC-09: 0007_notes.sql", () => {
   beforeEach(() => {
     db = new DatabaseSync(":memory:");
     db.exec("PRAGMA foreign_keys = ON;");
-    db.exec(toSqlite(read("0001_workspace.sql")));
-    db.exec(toSqlite(read("0007_notes.sql")));
+    // Minimal users/notebooks base: the v1 PostgreSQL schema uses functions SQLite lacks.
+    db.exec("CREATE TABLE users (id TEXT PRIMARY KEY, subject TEXT NOT NULL)");
+    db.exec("CREATE TABLE notebooks (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL REFERENCES users(id), title TEXT NOT NULL)");
+    db.exec(toSqlite(read("v3-draft/notes.sql")));
     db.exec(`INSERT INTO users (id, subject) VALUES ('${u}', 's')`);
     db.exec(`INSERT INTO notebooks (id, owner_id, title) VALUES ('${n1}', '${u}', 'NB')`);
   });

@@ -1,10 +1,15 @@
-import type { ArtifactDto, StudioApi } from "./api.js";
-import { renderMarkdown } from "./markdown.js";
+import type { ArtifactDto, StudioApi } from "./api.ts";
+import { renderMarkdown } from "./markdown.ts";
 
 export interface StudioRow {
   id: string;
   status: ArtifactDto["status"];
+  title: string;
   label: string;
+  /** Queued or Running: the row shows a generating indicator (FR-ST-10 FR-006). */
+  generating: boolean;
+  /** Failed (or C-03 Cancelled) explanation. */
+  failure: string | null;
 }
 
 export interface StudioArtifactListOptions {
@@ -12,10 +17,21 @@ export interface StudioArtifactListOptions {
   clipboard: { writeText(text: string): Promise<void> };
 }
 
+export interface ArtifactView {
+  artifact: ArtifactDto;
+  unavailable?: { code: string; message: string } | undefined;
+}
+
+const isActive = (status: ArtifactDto["status"]): boolean => status === "Queued" || status === "Running";
+
+/** Studio artifact list and actions (FR-ST-10, FR-008). v2 has no cancel action (card FR-ST-10). */
 export class StudioArtifactListController {
   private artifacts: ArtifactDto[] = [];
 
-  constructor(private readonly options: StudioArtifactListOptions) {}
+  private readonly options: StudioArtifactListOptions;
+  constructor(options: StudioArtifactListOptions) {
+    this.options = options;
+  }
 
   /** Template buttons require at least one active source (FR-ST-10). */
   templatesEnabled(activeSourceCount: number): boolean {
@@ -26,17 +42,36 @@ export class StudioArtifactListController {
     this.artifacts = await this.options.api.list();
   }
 
+  /** Shows a just-created job at once (newest first) before the next list read. */
+  upsert(artifact: ArtifactDto): void {
+    this.artifacts = [artifact, ...this.artifacts.filter((a) => a.id !== artifact.id)];
+  }
+
+  hasActiveJobs(): boolean {
+    return this.artifacts.some((a) => isActive(a.status));
+  }
+
   rows(): StudioRow[] {
     return this.artifacts.map((a) => ({
       id: a.id,
       status: a.status,
-      label:
-        a.status === "Queued" || a.status === "Running"
-          ? `Generating ${a.title}...`
-          : a.failure
-            ? `${a.title} — ${a.failure.message}`
-            : a.title,
+      title: a.title,
+      generating: isActive(a.status),
+      failure: a.failure?.message ?? null,
+      label: isActive(a.status) ? `Generating ${a.title}...` : a.failure ? `${a.title} — ${a.failure.message}` : a.title,
     }));
+  }
+
+  /** Retry is a new attempt with the caller's current explicit scope (C-03, FR-013). */
+  async retry(id: string, activeSourceIds: string[]): Promise<ArtifactDto> {
+    if (activeSourceIds.length === 0) throw new Error("Select at least one source.");
+    const artifact = await this.options.api.retry(id, activeSourceIds);
+    this.upsert(artifact);
+    return artifact;
+  }
+
+  view(id: string): Promise<ArtifactView> {
+    return this.options.api.get(id);
   }
 
   async open(id: string): Promise<string> {

@@ -1,212 +1,111 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
-import { parseJsonBody, sendJson } from "../http.js";
-import { GroundedChatAgent, ChatGroundingError } from "../chat/agent.js";
-import { filterEligibleHistory, createSubmissionSnapshot } from "../chat/context.js";
-import { getChatConfiguration } from "@everlast/db";
-import {
-  UserMessageInputSchema,
-  type ChatMessage,
-  type UnifiedDocumentChunk,
-  OutputLanguageSchema,
-} from "@everlast/contracts";
-
-export interface ChatServiceDependencies {
-  agent?: GroundedChatAgent;
-  resolveLanguagePreferences?: (notebookId: string, userId: string, browserLocale?: string) => Promise<{ input_language: string; output_language: string }>;
-  getChunksForSources?: (notebookId: string, sourceIds: string[]) => Promise<UnifiedDocumentChunk[]>;
-  getThreadMessages?: (notebookId: string, userId: string) => Promise<ChatMessage[]>;
-  persistTurn?: (params: {
-    notebookId: string;
-    userId: string;
-    userMessage: string;
-    assistantMessage: string;
-    activeSourceRevisionsSnapshot: { source_id: string; revision: number }[];
-    citations: any[];
-  }) => Promise<{ userMessageId: string; assistantMessageId: string }>;
-  clearChat?: (notebookId: string, userId: string) => Promise<{ generationEpoch: number }>;
-  searchThread?: (notebookId: string, userId: string, query: string) => Promise<any[]>;
-}
+import { z } from "zod";
+import { AppError, OutputLanguageSchema, isAppError } from "@everlast/contracts";
+import { clearThread, getOrCreateThread, loadVisibleThread, searchThread } from "@everlast/db";
+import { readJson, sendJson, validationError } from "../http.ts";
+import type { Router } from "../router.ts";
+import type { AppDeps } from "../app.ts";
 
 /**
- * Chat HTTP API Route Dispatcher (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06).
+ * Chat routes (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06). The turn endpoint streams Server-Sent Events: only
+ * status events while the draft is buffered and verified, then exactly one final event (validated answer or
+ * refusal) or an error event. Validation errors are returned as JSON before the stream starts.
  */
-export async function handleChatRoute(
-  req: IncomingMessage,
-  res: ServerResponse,
-  deps: ChatServiceDependencies,
-  userId: string
-): Promise<boolean> {
-  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-  const pathname = url.pathname;
-  const method = req.method?.toUpperCase();
 
-  // Route 1: POST /api/notebooks/:id/chat/turns
-  const turnsMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/chat\/turns$/);
-  if (method === "POST" && turnsMatch) {
-    const notebookId = turnsMatch[1]!;
+const TurnBody = z
+  .object({
+    message: z.string(),
+    active_source_ids: z.array(z.string()),
+    request_id: z.string().uuid(),
+  })
+  .strict();
 
-    let body: any;
+/** First Accept-Language entry that is a supported output language (FR-UI-02 browser fallback). */
+export function browserLocaleOf(header: string | string[] | undefined): string | undefined {
+  if (typeof header !== "string") return undefined;
+  for (const entry of header.split(",")) {
+    const tag = entry.split(";")[0]?.trim();
+    if (!tag || tag === "*") continue;
     try {
-      body = await parseJsonBody<any>(req);
+      const locale = Intl.getCanonicalLocales(tag)[0];
+      if (locale && OutputLanguageSchema.safeParse(locale).success) return locale;
     } catch {
-      sendJson(res, 400, { error: { code: "InvalidJson", message: "Malformed JSON body." } });
-      return true;
+      // ignore malformed tags
     }
+  }
+  return undefined;
+}
 
-    if (!body || !body.active_source_ids || body.active_source_ids.length === 0) {
-      sendJson(res, 400, {
-        error: {
-          code: "EmptyScopeError",
-          message: "active_source_ids must contain at least one source UUID.",
-        },
-      });
-      return true;
+function sse(res: import("node:http").ServerResponse, event: string, data: unknown): void {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+export function registerChatRoutes(router: Router, deps: AppDeps): void {
+  const chat = () => {
+    if (!deps.chat) throw new AppError("RetryableFailure", 503, "Chat model is not configured");
+    return deps.chat;
+  };
+
+  router.add("POST", "/api/notebooks/:id/chat/turns", async ({ req, res, user, params, requestId }) => {
+    const parsed = TurnBody.safeParse(await readJson(req, 200_000));
+    if (!parsed.success) {
+      const raw = parsed.error.issues[0];
+      if (raw?.path[0] === "active_source_ids") throw new AppError("EmptyScope", 400, "active_source_ids must list at least one Ready source");
+      throw validationError("Body must be {message, active_source_ids, request_id}");
     }
-
-    const validationResult = UserMessageInputSchema.safeParse({
-      notebook_id: notebookId,
-      message: body.message,
-      active_source_ids: body.active_source_ids,
+    const abort = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) abort.abort(new AppError("GenerationCancelled", 409, "Client disconnected"));
     });
+    const turn = chat().runTurn(
+      {
+        ownerId: user.userId,
+        notebookId: params.id!,
+        message: parsed.data.message,
+        activeSourceIds: parsed.data.active_source_ids,
+        requestId: parsed.data.request_id,
+        browserLocale: browserLocaleOf(req.headers["accept-language"]),
+      },
+      abort.signal
+    );
 
-    if (!validationResult.success) {
-      sendJson(res, 422, {
-        error: {
-          code: "ValidationError",
-          message: validationResult.error.errors.map((e) => e.message).join("; "),
-        },
-      });
-      return true;
-    }
-    if (!deps.agent || !deps.getChunksForSources) {
-      sendJson(res, 503, { error: { code: "Unavailable", message: "Grounded chat runtime is not configured" } });
-      return true;
-    }
-
+    // Pull the first event before committing to a stream so scope/validation errors keep their HTTP status.
+    const first = await turn.next();
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-store",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
     try {
-      const activeSourceIds: string[] = validationResult.data.active_source_ids;
-      const chunks = deps.getChunksForSources
-        ? await deps.getChunksForSources(notebookId, activeSourceIds)
-        : [];
-
-      const rawHistory = deps.getThreadMessages
-        ? await deps.getThreadMessages(notebookId, userId)
-        : [];
-
-      const activeSourceRevisions = new Map<string, number>();
-      for (const ch of chunks) {
-        activeSourceRevisions.set(ch.source_id, ch.revision);
+      for (let step = first; !step.done; step = await turn.next()) {
+        const event = step.value;
+        if (event.type === "status") sse(res, "status", { phase: event.phase });
+        else sse(res, "final", { messages: event.messages, replayed: event.replayed });
       }
-      for (const sId of activeSourceIds) {
-        if (!activeSourceRevisions.has(sId)) {
-          activeSourceRevisions.set(sId, 1);
-        }
-      }
-
-      const eligibleHistory = filterEligibleHistory(
-        rawHistory,
-        activeSourceIds,
-        activeSourceRevisions
-      );
-
-      const browserLocale = typeof req.headers["accept-language"] === "string"
-        ? req.headers["accept-language"]
-            .split(",")
-            .map((entry) => entry.split(";")[0]?.trim())
-            .map((locale) => {
-              try {
-                return locale ? Intl.getCanonicalLocales(locale)[0] : undefined;
-              } catch {
-                return undefined;
-              }
-            })
-            .find((locale) => locale && OutputLanguageSchema.safeParse(locale).success)
-        : undefined;
-      const languagePreferences = deps.resolveLanguagePreferences
-        ? await deps.resolveLanguagePreferences(notebookId, userId, browserLocale)
-        : { input_language: "auto", output_language: "en-US" };
-      const agent = deps.agent ?? new GroundedChatAgent();
-      const configuration = await getChatConfiguration(notebookId, userId);
-      const turnResult = await agent.generateTurn({
-        notebookId,
-        threadId: notebookId, // 1 thread per notebook in v1.0
-        userId,
-        message: validationResult.data.message,
-        activeSourceIds,
-        chunks,
-        history: eligibleHistory,
-        configuration,
-        inputLanguage: languagePreferences.input_language,
-        outputLanguage: languagePreferences.output_language,
-      });
-
-      let persistedIds = { userMessageId: "generated-user-id", assistantMessageId: "generated-asst-id" };
-      if (deps.persistTurn) {
-        persistedIds = await deps.persistTurn({
-          notebookId,
-          userId,
-          userMessage: validationResult.data.message,
-          assistantMessage: turnResult.content,
-          activeSourceRevisionsSnapshot: turnResult.activeSourceRevisionsSnapshot ?? [],
-          citations: turnResult.citations ?? [],
-        });
-      }
-
-      sendJson(res, 200, {
-        grounded: turnResult.grounded,
-        refusal: turnResult.refusal,
-        turn: {
-          id: persistedIds.assistantMessageId,
-          role: "assistant",
-          content: turnResult.content,
-          citations: turnResult.citations ?? [],
-          active_source_revisions_snapshot: turnResult.activeSourceRevisionsSnapshot,
-          created_at: new Date().toISOString(),
-        },
-      });
-      return true;
-    } catch (err: any) {
-      if (err instanceof ChatGroundingError) {
-        sendJson(res, 422, { error: { code: "GroundingError", message: err.message } });
-        return true;
-      }
-      sendJson(res, 500, { error: { code: "InternalError", message: err.message } });
-      return true;
+    } catch (err) {
+      const error = isAppError(err)
+        ? { code: err.code, message: err.message }
+        : { code: "InternalError", message: "An error occurred while generating the response. Please try again." };
+      if (!isAppError(err)) console.error(JSON.stringify({ severity: "ERROR", request_id: requestId, message: (err as Error).message }));
+      sse(res, "error", { error, request_id: requestId });
     }
-  }
+    res.end();
+  });
 
-  // Route 2: GET /api/notebooks/:id/chat
-  const chatMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/chat$/);
-  if (method === "GET" && chatMatch) {
-    const notebookId = chatMatch[1]!;
-    const messages = deps.getThreadMessages
-      ? await deps.getThreadMessages(notebookId, userId)
-      : [];
-    sendJson(res, 200, { messages });
-    return true;
-  }
+  router.add("GET", "/api/notebooks/:id/chat", async ({ res, user, params }) => {
+    sendJson(res, 200, { messages: await loadVisibleThread(deps.pool, user.userId, params.id!) });
+  });
 
-  // Route 3: DELETE /api/notebooks/:id/chat (Clear chat)
-  if (method === "DELETE" && chatMatch) {
-    const notebookId = chatMatch[1]!;
-    const clearResult = deps.clearChat
-      ? await deps.clearChat(notebookId, userId)
-      : { generationEpoch: 1 };
-    sendJson(res, 200, { cleared: true, generation_epoch: clearResult.generationEpoch });
-    return true;
-  }
+  router.add("DELETE", "/api/notebooks/:id/chat", async ({ res, user, params }) => {
+    const thread = await getOrCreateThread(deps.pool, user.userId, params.id!);
+    deps.chat?.abortThread(thread.id);
+    const result = await clearThread(deps.pool, user.userId, params.id!);
+    sendJson(res, 200, { cleared: true, generation_epoch: result.generation_epoch });
+  });
 
-  // Route 4: GET /api/notebooks/:id/chat/search?q=...
-  const searchMatch = pathname.match(/^\/api\/notebooks\/([^/]+)\/chat\/search$/);
-  if (method === "GET" && searchMatch) {
-    const notebookId = searchMatch[1]!;
-    const query = url.searchParams.get("q") || "";
-    const results = deps.searchThread
-      ? await deps.searchThread(notebookId, userId, query)
-      : [];
-    sendJson(res, 200, { results });
-    return true;
-  }
-
-  return false;
+  router.add("GET", "/api/notebooks/:id/chat/search", async ({ res, url, user, params }) => {
+    const q = url.searchParams.get("q") ?? "";
+    if (Array.from(q.trim()).length > 1000) throw validationError("Search term is too long");
+    sendJson(res, 200, { results: await searchThread(deps.pool, user.userId, params.id!, q) });
+  });
 }

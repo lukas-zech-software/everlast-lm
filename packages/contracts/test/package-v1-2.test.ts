@@ -10,7 +10,7 @@ import {
   type CopiedTextInput,
   type ActiveSourceSelection,
   type SourceInspectorQuery,
-} from "../src/package-v1-2.js";
+} from "../src/package-v1-2.ts";
 
 describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
   const validSourceId = "11111111-1111-4111-8111-111111111111";

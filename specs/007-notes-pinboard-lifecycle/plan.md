@@ -12,18 +12,19 @@ Package 2.3 adds a persistent notes pinboard: manual notes with debounced auto-s
 Technical approach (all choices stay inside the fixed stack `D1`–`D4`, `D6`, `D14`; no new framework, datastore, or idle-cost resource):
 
 1. **Contracts** (`C-01`/`C-02` reused, never redefined): a new, self-contained `packages/contracts/src/package-v2-3.ts` holds the note/pinboard Zod schemas, limits, sanitizer, and helper functions; `index.ts` gets exactly one export line.
-2. **Persistence**: `packages/db/src/notes.ts` (in-memory repository for tests/harness, same pattern as `chat-history.ts`) plus `packages/db/src/source-registry.ts` (Ready-source/chunk registry that implements the `C-02` read path for the harness) plus Postgres DDL `packages/db/migrations/0007_notes.sql` (`D1`).
-3. **API**: `apps/api/src/notes/service.ts` orchestrates note CRUD, save-from-message, convert-to-editable, convert-to-source (atomic slot reservation via the existing `reserveSourceSlot`, ingestion through an injected `NoteSourceIngestor` port), and the Note Assistant (`GroundedChatAgent` + `C-02` reads + pre-publication citation validation). `apps/api/src/routes/notes.ts` exposes the HTTP routes.
-4. **Worker**: `apps/worker/src/ingestion/note-markdown.ts` adapts the existing `IngestionPipeline` (Markdown parser, 300–600-token chunker, `C-01` chunks, byte/word limits) to the `NoteSourceIngestor` port, so conversion reuses the FR-SI-01 path instead of a parallel chunker.
-5. **Web**: framework-free modules under `apps/web/src/notes/` (editor session with debounced save + draft recovery, pinboard state with selection/action bar/conversion gating, saved-response citation badges that open the Source Inspector).
+2. **Persistence (`D16`, owner decision 2026-10-20)**: notes stay in the in-memory repository `packages/db/src/notes.ts` of the single API instance until v3 (designed tables in `packages/db/migrations/v3-draft/notes.sql`). Note-sources are normal v1 PostgreSQL `sources` rows (`media_type: note_markdown`) with `chunks`/embeddings; their provenance (origin notes with revisions, reuse key, copied citations) lives in `note_source_provenance` (migration `packages/db/migrations/0004_note_sources.sql`, repository `packages/db/src/note-sources.ts`). The former in-memory note-source registry is removed.
+3. **API**: `apps/api/src/notes/service.ts` orchestrates note CRUD, the shared save-note action, convert-to-editable, convert-to-source and the Note Assistant through two ports: `NoteSourceStore` (implemented by `apps/api/src/notes/note-sources.ts` over the v1 reservation and ingestion) and `NoteAssistantContext` (C-02 capture, bounded chunk read, revision recheck and publication to the v1 PostgreSQL chat thread, implemented in `apps/api/src/v2/runtime.ts`). `apps/api/src/routes/notes.ts` exposes the notes routes; the shared save-note route lives in `apps/api/src/routes/package-v2-2.ts`. Both are mounted by the v2 runtime behind the v1 ownership check (`apps/api/src/app.ts`).
+4. **Worker**: `apps/worker/src/ingestion/note-markdown.ts` runs the v1 ingest job (`processIngestJob`: Markdown sections, 300–600-token chunker, `C-01` chunks, embeddings, atomic Ready publication) for one note-source at once, so conversion is synchronous and reuses the FR-SI-01 path instead of a parallel chunker. `media_type: note_markdown` is parsed as Markdown.
+5. **Web**: the Right Panel notes pinboard `apps/web/src/notes/panel.ts` over the framework-free modules under `apps/web/src/notes/` (editor session with debounced save + draft recovery, pinboard state with selection/action bar/conversion gating, saved-response citation badges that open the Source Inspector, Note Assistant bar), mounted from `apps/web/src/workspace/index.ts`.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x (strict, ESM) on Node.js 24 (`pnpm` workspaces)
 **Primary Dependencies**: Zod (`packages/contracts`); existing `GroundedChatAgent` (ADK-backed model adapter port) for the Note Assistant; no new runtime dependencies
-**Storage**: Cloud SQL for PostgreSQL (`D1`/`D4`) via `0007_notes.sql`; in-memory repositories for unit/integration tests (same pattern as `chat-history.ts`, `quota.ts`)
+**Storage**: Notes in process memory of the single API instance (`D16`, SRS `DEV-04`); note-sources, their chunks, provenance (`0004_note_sources.sql`) and Note Assistant chat turns in Cloud SQL for PostgreSQL (`D1`/`D4`), owner decision 2026-10-20
 **Authentication & Residency**: Identity Platform (`D6`); EU residency `europe-west4` (`D3`) — **no region exception**
-**Testing**: Vitest (contract, db, api, worker, web, deterministic evals `NFR-EVAL-02/04`); Playwright UNAVAILABLE for this package (no new runnable page is added; web logic is covered by DOM-free Vitest modules)
+**Testing**: Vitest (contract, db, api and worker integration on real PostgreSQL via `TEST_DATABASE_URL`, web DOM tests, deterministic evals `NFR-EVAL-02/04`); Playwright `apps/web/test/notes-roundtrip.spec.ts` runs the Gate v2.0 #2 round trip in the browser against `apps/web/test/e2e-server.ts` (fixture model); live TTFT and LLM-judged evals stay `UNAVAILABLE` until a deployed run exists
+**Model routing**: the Note Assistant uses the v1 grounded model (`createGroundedModelFromEnv`: ADK `Gemini`, `vertexai: true`, `europe-west4`, `gemini-2.5-flash`, keyless ADC) and the v1 citation verifier; never `GEMINI_API_KEY`/`GOOGLE_API_KEY`; without Vertex configuration the route answers `503`
 **Execution Model**: Notes CRUD, save, convert, and ingestion are **deterministic pipelines**; only the Note Assistant synthesis step is an agentic/model call (constitution IV: "interactive note assistant"), invoked after the deterministic conversion succeeds
 **Performance Goals**: Save to note ≤ 300 ms (`FR-NM-02`); ≤ 5,000-word note → `Ready` source ≤ 2.0 s (`FR-NM-03`, Gate v2.0 #2); validated TTFT ≤ 2.5 s after snapshot `Ready` (`FR-NM-04`, `D13`); auto-save ≤ 1.0 s after typing pause (`FR-NM-01`)
 **Constraints**: Title 1–200 code points; body ≤ 100,000 words; 1–50 notes per assistant action; 200,000,000 bytes and 500,000 words per source (inclusive); Owner-only in v2 (`FR-WM-04/05`, `NFR-SEC-02`)
@@ -42,7 +43,7 @@ Technical approach (all choices stay inside the fixed stack `D1`–`D4`, `D6`, `
 | `CC-05` | **IV. Contracts & Pipelines** | PASS | PASS | `C-01` chunks and `C-02` reads reused unchanged; new DTOs live in one contracts file; conversion/ingestion is deterministic, only synthesis is model-driven. |
 | `CC-06` | **V. Release & Package Order** | PASS | PASS | Targets `v2.0`/Package 2.3 after Gate v1.0; no deferred items (`D5`, `D8`, `D10`) touched; 2.2/2.3 shared contract honored. |
 | `CC-07` | **VI. Security, RBAC & Residency** | PASS | PASS | Server-side notebook ownership check on every route; Owner-only; one source slot reserved atomically before ingestion (`FR-WM-07`); failed conversion releases the slot; model calls go only through the enterprise adapter port (`NFR-SEC-01`); `europe-west4`. |
-| `CC-08` | **Platform & Cost** | PASS | PASS | One new SQL migration on the existing Cloud SQL instance; no new service, datastore, or fixed-idle-cost resource. |
+| `CC-08` | **Platform & Cost** | PASS | PASS | One backward-compatible SQL migration (`0004_note_sources.sql`) on the existing Cloud SQL instance; notes stay in memory (`D16`); no new service, datastore, or fixed-idle-cost resource. |
 
 ## Project Structure
 
@@ -68,42 +69,59 @@ specs/007-notes-pinboard-lifecycle/
 
 ```text
 packages/contracts/
-├── src/package-v2-3.ts          # NEW — all Package 2.3 schemas, limits, sanitizer, helpers
-├── src/index.ts                 # +1 export line only (shared file)
-└── test/package-v2-3.test.ts    # NEW
+├── src/package-v2-3.ts          # Package 2.3 schemas, limits, sanitizer, marker stripping, shared save-note DTO
+├── src/package-v2-2.ts          # re-exports the shared save-note schemas
+├── src/package-v1-2.ts          # SourceMediaTypeSchema + "note_markdown"
+└── test/package-v2-3.test.ts
 
 packages/db/
-├── migrations/0007_notes.sql    # NEW — notes, note_source_origins tables
-├── src/notes.ts                 # NEW — note repository (in-memory + SQL-shaped API)
-├── src/source-registry.ts       # NEW — Ready source/chunk registry; C-02-style scoped read
-├── src/index.ts                 # +2 export lines (shared file)
-├── src/notebooks.ts             # +cleanup hook calls on notebook deletion (shared file, 2 lines)
-└── test/notes.test.ts, notes-schema.test.ts   # NEW
+├── migrations/0004_note_sources.sql   # sources.media_type + note_markdown; note_source_provenance (owner decision 2026-10-20)
+├── migrations/v3-draft/notes.sql      # notes table for v3 (not applied, D16)
+├── src/notes.ts                 # in-memory note repository (D16); sanitizes every write
+├── src/note-sources.ts          # note-source provenance and reuse lookup (PostgreSQL)
+├── src/chat-history.ts          # history citations carry source_media_type (Note label)
+└── test/notes.test.ts, notes-schema.test.ts, note-sources.integration.test.ts
 
 apps/api/
-├── src/notes/service.ts         # NEW — NotesService (CRUD, save, convert, assistant)
-├── src/notes/assistant.ts       # NEW — Note Assistant action orchestration
-├── src/routes/notes.ts          # NEW — HTTP route dispatcher
-└── test/notes*.test.ts          # NEW
+├── src/notes/service.ts         # NotesService (CRUD, save, convert, reuse, assistant)
+├── src/notes/note-sources.ts    # NoteSourceStore over v1 reserveSources + ingestion
+├── src/notes/assistant-model.ts # grounded model + v1 verifier for the Note Assistant
+├── src/routes/notes.ts          # notes HTTP routes
+├── src/routes/package-v2-2.ts   # shared save-note route
+├── src/v2/runtime.ts            # mounts the routes; NoteAssistantContext over C-02 and the PostgreSQL chat
+└── test/notes*.test.ts          # PostgreSQL integration tests (quota, round trip, assistant, convert)
 
 apps/worker/
-├── src/ingestion/note-markdown.ts   # NEW — NoteSourceIngestor adapter over IngestionPipeline
-└── test/note-markdown.test.ts       # NEW
+├── src/ingestion/note-markdown.ts   # runs the v1 ingest job for one note-source at once
+├── src/ingestion/extract.ts         # note_markdown parsed as Markdown
+└── test/note-markdown.test.ts
 
 apps/web/
-├── src/notes/editor-session.ts  # NEW — debounced auto-save, flush on close, local draft
-├── src/notes/pinboard.ts        # NEW — list/selection/action bar/convert gating state
-├── src/notes/saved-response.ts  # NEW — citation badge rendering + inspector navigation
-└── test/notes-*.test.ts         # NEW
+├── src/notes/panel.ts           # Right Panel notes pinboard (list, editor, viewer, convert, assistant bar)
+├── src/notes/editor-session.ts  # debounced auto-save, flush on close, local draft
+├── src/notes/pinboard.ts        # ordering, selection, convert gating
+├── src/notes/saved-response.ts  # citation badge segments + inspector navigation
+├── src/notes/assistant.ts       # action availability and disclosure
+├── src/chat/panel.ts            # append messages; Note label on note-source citations
+└── test/notes-*.test.ts, notes-roundtrip.spec.ts
 
-packages/evals/test/notes-roundtrip.eval.test.ts   # NEW — NFR-EVAL-02/04 leakage + citation validity for the round trip
+packages/evals/test/notes-roundtrip.eval.test.ts   # NFR-EVAL-02/04 leakage + citation validity for note-sources on PostgreSQL
 ```
 
-**Structure & File Ownership Decision**: This feature owns every file above except the three shared files (`packages/contracts/src/index.ts`, `packages/db/src/index.ts`, `packages/db/src/notebooks.ts`), which receive only additive one-to-two-line edits so concurrent branches (005/006/008) merge trivially. The server entrypoint (`apps/api/src/server.ts`) is intentionally **not** edited: like `routes/chat.ts` and `routes/chat-history.ts`, `handleNotesRoute` is an exported dispatcher that the later integration step mounts.
+**Structure & File Ownership Decision**: This feature owns the notes files above. The v2 runtime (`apps/api/src/v2/runtime.ts`) mounts `handleNotesRoute` and the shared save-note route behind the v1 ownership check; `apps/api/src/server.ts` and `apps/web/test/e2e-server.ts` pass storage, embedder and job notifier to it so note-sources use the v1 ingestion. Shared v1 files receive additive edits only: `SourceMediaTypeSchema` (+`note_markdown`), the history projection (`source_media_type` on citations for the `Note` label), `extractPlainText` (`note_markdown` as Markdown) and the chat panel (append messages, `Note` label).
+
+### Note-sources are v1 sources (owner decision 2026-10-20, `D16` amendment)
+
+- **Admission (`FR-WM-07`, Constitution VI)**: conversion calls the v1 `reserveSources` with `media_type: note_markdown` under the notebook row lock, so uploads, copied text and note-sources count against one limit and concurrent conversions cannot exceed it. The in-flight `Uploading`/`Processing` row holds the slot until `Ready` or `Failed`; `GET /notes` reports `source_slots.used` from the same occupancy count.
+- **Ingestion (`FR-SI-01`, `C-01`)**: the combined Markdown (inline citation markers removed) is written as the raw object, received (`acceptReceivedSource`, durable ingest job) and ingested at once in the API process (`processIngestJob`, the same function the worker runs). Any failure marks the source `Failed`, which releases the slot, and returns `502` with a fixed message; the queued job then finds the source settled and does nothing.
+- **Reads (`C-02`)**: the Left Panel list (`GET /api/notebooks/:id/sources`), the v1 chat retrieval, the history projection and the Source Inspector read note-sources like any upload. No second read path exists.
+- **Provenance and reuse (`FR-NM-03/04`, SRS §5.6)**: `note_source_provenance` stores `origin_notes [{note_id, revision, title}]`, the reuse key (sorted `note_id:revision` set) and `origin_citations` (Package 1.3 `Citation[]`). An assistant action looks up a `Ready` note-source with the same key and reuses it without a slot; deleting the source removes its provenance (cascade), so it is not reused.
+- **`Note` label (`FR-NM-04`)**: history and turn citations carry `source_media_type`; the chat shows a `Note` label for `note_markdown` sources, and the Note Assistant result also returns `citation_kinds`.
+- **Client selection (`FR-NM-03`)**: the requesting browser calls `SelectionModel.markImported(source.id)` and refreshes the Left Panel; other clients are not changed.
 
 ### Shared save-note contract (Package 2.2 ↔ 2.3)
 
-`spec/requirements/README.md` (v2 row) requires Packages 2.2 and 2.3 to share one save-note contract. Package 2.2 (branch `006`) defines its variant in `packages/contracts/src/package-v2-2.ts`; this package defines `SaveNoteFromMessageInputSchema` / `SaveNoteResultSchema` in `package-v2-3.ts` following the FR-NM-02 card (`message_id` UUID; idempotent on `(user_id, message_id)`; `origin_type: 'saved_response'`; copied `content_md` + `citations_json`). **Reconcile at merge time**: keep the field names above as the canonical shape, re-export one from the other, and delete the duplicate; the HTTP route `POST /api/notebooks/:id/notes/from-message` is the single server entry point for both packages' "Save to note" buttons.
+`spec/requirements/README.md` (v2 row) requires Packages 2.2 and 2.3 to share one save-note contract. The single server entry point is `POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note` (`apps/api/src/routes/package-v2-2.ts`), which writes through `NotesService.saveFromMessage`. The request schema `SaveResponseNoteRequestSchema` (`{notebook_id, message_id}`) and the response schemas `SavedResponseNoteSchema` / `SaveResponseNoteResponseSchema` are defined once in `packages/contracts/src/package-v2-3.ts` and re-exported by `package-v2-2.ts`. The former `POST /notes/from-message` route and `SaveNoteFromMessageInputSchema` are removed. Title = preceding user question trimmed to 200 code points, else `Saved response`; body IDs different from the path IDs → `400`; idempotent on `(user_id, message_id)`.
 
 ## Phase 0 / Phase 1 Outputs
 
@@ -114,4 +132,4 @@ packages/evals/test/notes-roundtrip.eval.test.ts   # NEW — NFR-EVAL-02/04 leak
 
 ## Complexity Tracking
 
-No constitution violations; no `Dn` / `DEV-xx` entry is required. Two cross-tier refinements (display order of notes; converted-source title clamp to the existing 1–100 source-title limit) are recorded as flow-back items in [research.md](research.md) and applied to `spec.md` and the FR card during `/speckit-analyze`.
+No constitution violations. Storage follows `D16` / `DEV-04`, amended on 2026-10-20 by the project owner for note-sources (v1 PostgreSQL sources; notes stay in memory). Two cross-tier refinements (display order of notes; converted-source title clamp to the existing 1–100 source-title limit) are recorded as flow-back items in [research.md](research.md) and applied to `spec.md` and the FR card during `/speckit-analyze`.

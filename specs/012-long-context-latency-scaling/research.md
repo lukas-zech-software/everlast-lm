@@ -26,7 +26,7 @@ Date:2026-10-20. Repository investigation and one primary pgvector reference; re
 **Rationale:** `computeContextCacheKey` currently includes subject and scope but not mutable ACL identity/model. Chat history can currently allow empty provenance and default unknown revisions; production must derive actual revisions and reject unknown eligibility. Scope safety takes precedence over cache hit rate.
 **Alternatives considered:** User ID alone is insufficient after ACL changes; caching raw scope-independent prompts or using stale guides can reintroduce deselected sources.
 
-## Timing, statistics and expected load (`NFR-PERF-01`, D13/D15)
+## Timing, statistics and expected load (`NFR-PERF-01`, D13/D17)
 
 **Decision:** Client-monotonic submission-to-first-validated-answer time,20warm sequential observations, nearest-rank P95=19thsorted. Predeclare readiness/instance classification from boot readiness evidence; no latency-based reclassification. Report all attempts and separate wake cohort. Add concurrency2 diagnostic profile using distinct Owner notebooks to respect single-active-turn admission.
 **Rationale:** The card specifies20runs/P95, not estimator or concurrency. Nearest rank makes the result reproducible. Existing full-answer citation validation belongs inside TTFT; progress is not an answer. A slow warm request stays warm. Load choice fits the owner's expected1–2simultaneous users without weakening required thresholds.
@@ -34,6 +34,6 @@ Date:2026-10-20. Repository investigation and one primary pgvector reference; re
 
 ## Qualification boundaries (`NFR-PERF-01`, `FR-GC-08`, NFR-EVAL-01..04)
 
-**Decision:** Design is complete; package acceptance remains UNAVAILABLE until implemented/deployed. Preserve D16 managed2vCPU/1.5GB and all retained sandbox controls; require R6 evidence independently from chat latency. Gate v2.0 still precedes v3 implementation.
+**Decision:** Design is complete; package acceptance remains UNAVAILABLE until implemented/deployed. Preserve D18 managed2vCPU/1.5GB and all retained sandbox controls; require R6 evidence independently from chat latency. Gate v2.0 still precedes v3 implementation.
 **Rationale:** Runtime performance, EU model/cache capacity, SQL sizing and R6 controls cannot be proven by Markdown or local fake endpoints.
 **Alternatives considered:** Treating pending runtime measurements as a product question needlessly blocks planning; declaring them passed fabricates evidence. Neither is used.

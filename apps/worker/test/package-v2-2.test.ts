@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetPackageV22Store } from "@everlast/db";
-import { generateFollowUps, generateNotebookOverview, generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient, readSourceGuide } from "../src/package-v2-2.js";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
+import { generateFollowUps, generateNotebookOverview, generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient, readSourceGuide } from "../src/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";
@@ -12,7 +12,7 @@ const reader: PackageV22SourceReader = { readReadySources: async ({ source_revis
 const model: StructuredGenerationClient = {
   generateSourceGuide: async () => ({ summary_md: "A supported summary of the provided source.", key_topics: ["Topic one", "Topic two", "Topic three", "Topic four", "Topic five"], supporting_chunk_ids: [chunk] }),
   generateOverview: async () => ({ overview_md: "Overview grounded in the current notebook sources.", starter_prompts: ["Prompt one", "Prompt two", "Prompt three"], supporting_chunk_ids: [chunk] }),
-  generateFollowUps: async () => ({ suggested_followups: ["What evidence supports this?"], supporting_chunk_ids: [chunk] }),
+  generateFollowUps: async () => ({ suggested_followups: [{ text: "What evidence supports this?", supporting_chunk_ids: [chunk] }] }),
 };
 beforeEach(() => resetPackageV22Store());
 
@@ -81,6 +81,22 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateSourceGuide({ notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language: "en", reader: shortReader, model: invalidModel })).rejects.toThrow(/one sentence/i);
   });
 
+  it("counts one sentence across Markdown line breaks and abbreviations, still rejecting two (FR-SI-02, live Gate v2.0 #1)", async () => {
+    const shortSource = { ...material, word_count: 45 };
+    const shortReader: PackageV22SourceReader = { readReadySources: async () => [shortSource] };
+    const guideWith = (summary_md: string, output_language: string) => generateSourceGuide({
+      notebook_id: notebook, user_id: "owner", source_id: source, revision: 3, output_language, reader: shortReader,
+      model: { ...model, generateSourceGuide: async () => ({ summary_md, key_topics: ["Office rules"], supporting_chunk_ids: [chunk] }) },
+    });
+    await expect(guideWith("**Office Handbook:**\nVisitors are escorted, badges are worn and the canteen closes at 15:30 on Fridays.", "en-US")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("Das Handbuch regelt z. B. Besuche, u. a. Ausweise und die Kantine (Fr. 15:30 Uhr).", "de-DE")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("The handbook covers visitors, e.g. escorts, and the canteen (closes 15:30 Fri.).", "en-US")).resolves.toMatchObject({ status: "GuideReady" });
+    await expect(guideWith("Visitors are escorted. Badges are worn.", "en-US")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("Besucher werden begleitet. Die Kantine schließt um 15:30 Uhr.", "de-DE")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("Visitors are escorted! Badges are worn?", "en-US")).rejects.toThrow(/one sentence/i);
+    await expect(guideWith("- Visitors are escorted.\n- Badges are worn.", "en-US")).rejects.toThrow(/one sentence/i);
+  });
+
   it("offers follow-ups only after completion and binds them to the authorized snapshot", async () => {
     await expect(generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model, streaming: true })).rejects.toThrow(/after answer completion/);
     const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model });
@@ -106,15 +122,27 @@ describe("Package 2.2 worker pipelines (FR-SI-02, FR-GC-04/05, C-02)", () => {
     await expect(generateNotebookOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader: revocableReader, model })).rejects.toThrow(/revoked/);
   });
 
-  it("schedules the guide callback only after ingestion reaches Ready", async () => {
-    let resolveReady!: () => void;
-    const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
-    const callback = vi.fn(() => resolveReady());
-    const pipeline = new IngestionPipeline({ onReady: callback });
-    const result = await pipeline.process({ attempt_id: "attempt-1", notebook_id: notebook, source_id: source, revision_id: 1, media_type: "copied_text", content: "A short source with grounded facts." });
-    expect(result.status).toBe("Ready");
-    await ready;
-    expect(callback).toHaveBeenCalledWith(result);
+  it("runs the guide hook once per Ready source revision", async () => {
+    const callback = vi.fn(async () => undefined);
+    const dispatch = createReadySourceDispatcher([callback]);
+    const event = { notebook_id: notebook, source_id: source, revision_id: 1, title: "Short source", media_type: "copied_text" };
+    await dispatch(event);
+    await dispatch(event);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(event);
   });
 
+
+  it("drops only follow-up chips whose support falls outside the current C-02 scope (FR-GC-05, FR-008, C-02)", async () => {
+    const outside = "018f6b40-0009-7000-8000-000000000009";
+    const mixed = { ...model, generateFollowUps: async () => ({ suggested_followups: [
+      { text: "What evidence supports this?", supporting_chunk_ids: [chunk] },
+      { text: "What does the other notebook say?", supporting_chunk_ids: [outside] },
+      { text: "Which claim is strongest?", supporting_chunk_ids: [chunk, outside] },
+    ] }) };
+    const result = await generateFollowUps({ answer: "answer", notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 3 }], output_language: "en", reader, model: mixed });
+    expect(result.suggested_followups.map((c) => c.text)).toEqual(["What evidence supports this?"]);
+    expect(result.suggested_followups[0]!.supporting_chunk_ids).toEqual([chunk]);
+    expect(result.output_language).toBe("en");
+  });
 });

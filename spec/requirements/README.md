@@ -124,15 +124,16 @@ the cited SRS requirements; they do not introduce new release packages.
   notes, research and re-sync paths. Uploading/Processing/Ready sources consume a slot;
   Failed uploads release it and retain only a dismissible error row. Re-sync uses the same
   slot and leaves the old revision intact if validation fails. Each source obeys both limits.
-- **Quantitative sandbox envelope (FR-GC-08, D16):** Use the owner-approved managed default of 2 vCPU / 1.5 GB RAM. This replaces the former CPU/RAM caps only; zero network, read-only scoped input, 64 MB temporary storage, 15.0 s execution and retry rules remain. R6 qualification precedes implementation/runtime admission; planning completion is not runtime evidence.
+- **Quantitative sandbox envelope (FR-GC-08, D18):** Use the owner-approved managed default of 2 vCPU / 1.5 GB RAM. This replaces the former CPU/RAM caps only; zero network, read-only scoped input, 64 MB temporary storage, 15.0 s execution and retry rules remain. R6 qualification precedes implementation/runtime admission; planning completion is not runtime evidence.
 - **Validation cadence (NFR-EVAL-01..04, all release gates):** Deterministic citation-ID and
   leakage checks run on every PR. LLM-judged faithfulness/rejection and semantic citation
-  support checks run on retrieval/prompt/chat PRs and before every release gate. All other
+  support checks run once per release gate on a fixed stratified 50-case sample of the
+  golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). All other
   constitution checks still apply. Passing one package's tests is not passing the full gate.
   Package timing criteria are measured on declared fixtures/environments; standard chat TTFT
   starts at submission and ends at the first validated answer token, excluding progress UI.
   For NFR-PERF-01, the 2.5-second P95 acceptance population contains only requests submitted
-  after the service is awake (D15/DEV-04). Requests waiting for wake-up and their wake-up delays
+  after the service is awake (D17/DEV-05). Requests waiting for wake-up and their wake-up delays
   are measured/reported separately without a release-blocking latency threshold. Declare the
   warm-state classification before testing; do not restart the clock after submission.
 
@@ -145,7 +146,7 @@ impossible requirement that each side be fully implemented first.
 | Release | Within-release ordering / shared prerequisite |
 | :- | :- |
 | v1 | Define C-01/C-02 once; 1.1 supplies identity, notebooks and quotas; 1.2 supplies ingestion/inspector; 1.3 supplies chat/citations; 1.4 supplies UI integration and full gate tests. Test harness/UI shells may be built before their consumers. |
-| v2 | 2.1 language preferences precede language-sensitive generators; 2.2 response actions and 2.3 saved notes share one save-note contract. 2.4 defines C-03. Source Guide is asynchronous; overview generation can read chunks without waiting for it. |
+| v2 | 2.1 language preferences precede language-sensitive generators; 2.2 response actions and 2.3 saved notes share one save-note contract (`POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note`). 2.4 defines C-03. Source Guide is asynchronous; overview generation can read chunks without waiting for it. |
 | v3 | 3.1 extends C-01 adapters without changing the locator union; 3.2 and 3.3 consume existing contracts; 3.4 benchmarks the integrated v3 result. |
 | v4 | 4.1 flashcards/quizzes and 4.2 infographics precede the composite FR-ST-12 Learning Overview. Each generator remains an independent C-03 plugin. |
 | v5 | 5.1 TTS and v4 slide rendering precede 5.2 narrated video. Join-In also depends on the player in FR-ST-04. |

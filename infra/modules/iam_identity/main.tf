@@ -42,6 +42,7 @@ locals {
     "roles/logging.logWriter",     # Structured JSON logs (§5.3)
     "roles/cloudtrace.agent",      # OpenTelemetry trace export (§5.3)
     "roles/monitoring.metricWriter",
+    "roles/firebaseauth.viewer", # Identity Platform token revocation check (accounts:lookup; FR-WM-04, D6)
   ], var.enable_model_armor ? ["roles/modelarmor.user"] : []))
 
   worker_project_roles = toset(concat([
@@ -99,9 +100,11 @@ resource "google_identity_platform_config" "auth" {
       enabled = false
     }
 
+    # Dev PoC (owner decision 2026-10-20): Identity Platform email/password lets stakeholders sign in without
+    # an external OIDC/SAML IdP. Off by default; staging/prod keep corporate OIDC/SAML (D6).
     email {
-      enabled           = false
-      password_required = false
+      enabled           = var.enable_email_password_sign_in
+      password_required = var.enable_email_password_sign_in
     }
   }
 

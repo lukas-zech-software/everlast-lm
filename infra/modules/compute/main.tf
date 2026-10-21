@@ -11,6 +11,8 @@ locals {
     POSTGRES_DB                    = var.database_name
     GCS_WORKSPACE_BUCKET           = var.workspace_bucket_name
     DOCUMENT_AI_PROCESSOR_NAME     = var.document_ai_layout_processor_name
+    DOCUMENT_AI_PROCESSOR_ID       = var.document_ai_layout_processor_name
+    DOCUMENT_AI_LOCATION           = "eu"
     QUOTA_MAX_SOURCES_PER_NOTEBOOK = tostring(var.max_sources_per_notebook)
     QUOTA_MAX_NOTEBOOKS_PER_USER   = tostring(var.max_notebooks_per_user)
     QUOTA_MAX_SOURCE_BYTES         = "200000000" # FR-WM-07: 200 MB = 200,000,000 bytes inclusive
@@ -18,12 +20,16 @@ locals {
   }
 
   api_env_vars = merge(local.common_env_vars, {
-    SERVICE_ROLE                 = "api"
-    POSTGRES_USER                = var.api_db_iam_username
-    CLOUD_TASKS_INGESTION_QUEUE  = var.ingestion_queue_name
-    CLOUD_TASKS_STUDIO_QUEUE     = var.studio_queue_name
-    CLOUD_TASKS_INVOKER_SA_EMAIL = var.tasks_invoker_service_account_email
-    WORKER_INTERNAL_URL          = google_cloud_run_v2_service.worker.uri
+    SERVICE_ROLE                  = "api"
+    AUTH_MODE                     = "identity-platform"
+    IDENTITY_PLATFORM_API_KEY     = var.identity_platform_api_key
+    IDENTITY_PLATFORM_PROVIDER_ID = var.identity_platform_provider_id
+    POSTGRES_USER                 = var.api_db_iam_username
+    CLOUD_TASKS_INGESTION_QUEUE   = var.ingestion_queue_name
+    CLOUD_TASKS_STUDIO_QUEUE      = var.studio_queue_name
+    CLOUD_TASKS_INVOKER_SA_EMAIL  = var.tasks_invoker_service_account_email
+    CLOUD_TASKS_LOCATION          = var.tasks_location # queues live outside europe-west4 (no Cloud Tasks there)
+    WORKER_INTERNAL_URL           = google_cloud_run_v2_service.worker.uri
   })
 
   worker_env_vars = merge(local.common_env_vars, {

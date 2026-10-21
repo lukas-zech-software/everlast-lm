@@ -170,7 +170,7 @@ export class InMemoryStudioArtifactRepository implements StudioArtifactRepositor
       title: input.title,
       params_json: structuredClone(input.params_json),
       payload_json: null,
-      active_source_ids_snapshot: structuredClone(input.snapshot),
+      source_revisions_snapshot: structuredClone(input.snapshot),
       output_language: input.output_language ?? null,
       progress: null,
       failure: null,

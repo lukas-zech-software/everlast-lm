@@ -149,3 +149,15 @@ variable "deletion_protection" {
   type        = bool
   default     = false
 }
+
+variable "enable_email_password_sign_in" {
+  description = "Enable Identity Platform email/password sign-in and use it as the web sign-in method (dev PoC only)."
+  type        = bool
+  default     = false
+}
+
+variable "identity_platform_provider_id" {
+  description = "Identity Platform OIDC/SAML provider ID for corporate sign-in when email/password is off (D6)."
+  type        = string
+  default     = "oidc.corporate"
+}

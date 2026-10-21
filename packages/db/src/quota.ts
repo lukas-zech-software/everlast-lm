@@ -1,353 +1,361 @@
-import type { PoolClient, Pool } from "pg";
+import { randomUUID } from "node:crypto";
+import type { Pool } from "pg";
 import {
-  type SourceAdmissionAttempt,
-  SourceQuotaExceededError,
-  SourceOversizedBytesError,
-  SourceOversizedWordsError,
+  AppError,
+  DEFAULT_MAX_SOURCES_PER_NOTEBOOK,
+  MAX_NOTEBOOKS_PER_USER,
   MAX_SOURCE_BYTES,
   MAX_SOURCE_WORDS,
-  DEFAULT_MAX_SOURCES_PER_NOTEBOOK,
-  InvalidScopeError,
+  SourceQuotaExceededError,
+  SourceOversizedBytesError,
+  SourceMediaTypeSchema,
+  type QuotaSummary,
+  type SourceMediaType,
 } from "@everlast/contracts";
-import { getNotebookRaw } from "./notebooks.js";
-import { touchNotebookModified } from "./workspace-preferences.js";
+import { toIso, withTransaction, type Queryable } from "./transaction.ts";
+import { isUuid, requireOwnedNotebook } from "./notebooks.ts";
+import { enqueueJob } from "./jobs.ts";
 
-export { SourceQuotaExceededError, SourceOversizedBytesError, SourceOversizedWordsError, InvalidScopeError };
+export { SourceQuotaExceededError, SourceOversizedBytesError };
 
-export interface AdmissionResult {
-  admitted: boolean;
-  reason?: string | undefined;
-  attempt_id?: string | undefined;
-  notebook_id?: string | undefined;
+/**
+ * Atomic source admission ledger (FR-WM-07, FR-SI-01).
+ * Occupancy = rows in Uploading/Processing/Ready counted under the notebook row lock. Failed releases its
+ * slot exactly once via a conditional transition; dismissing a Failed row never changes occupancy.
+ */
+
+export type SourceStatus = "Uploading" | "Processing" | "Ready" | "Failed";
+
+export const OCCUPYING_STATUSES: readonly SourceStatus[] = ["Uploading", "Processing", "Ready"];
+
+export class SourceNotFoundError extends AppError {
+  constructor(message = "Source not found in this notebook") {
+    super("SourceNotFound", 404, message);
+    this.name = "SourceNotFoundError";
+  }
 }
 
-export interface SourceSlotRecord {
-  attempt_id: string;
+export interface SourceRecord {
+  id: string;
   notebook_id: string;
-  status: "Uploading" | "Processing" | "Ready" | "Failed";
-  declared_byte_size: number;
-  actual_byte_size?: number | undefined;
-  word_count?: number | undefined;
-  file_name: string;
-  mime_type?: string | undefined;
-  error_message?: string | undefined;
+  attempt_id: string;
+  title: string;
+  media_type: SourceMediaType;
+  status: SourceStatus;
+  declared_bytes: number;
+  actual_bytes: number | null;
+  word_count: number | null;
+  active_revision: number | null;
+  object_name: string | null;
+  object_generation: string | null;
+  upload_expires_at: string | null;
+  failure_code: string | null;
+  failure_message: string | null;
   created_at: string;
   updated_at: string;
 }
 
-// In-memory ledger of source slots per notebook
-const notebookSources = new Map<string, Map<string, SourceSlotRecord>>();
+const SOURCE_COLUMNS = `id, notebook_id, attempt_id, title, media_type, status, declared_bytes, actual_bytes,
+  word_count, active_revision, object_name, object_generation, upload_expires_at, failure_code,
+  failure_message, created_at, updated_at`;
 
-function getOrCreateNotebookMap(notebookId: string): Map<string, SourceSlotRecord> {
-  let m = notebookSources.get(notebookId);
-  if (!m) {
-    m = new Map<string, SourceSlotRecord>();
-    notebookSources.set(notebookId, m);
+interface SourceRow extends Omit<SourceRecord, "created_at" | "updated_at" | "upload_expires_at"> {
+  created_at: Date;
+  updated_at: Date;
+  upload_expires_at: Date | null;
+}
+
+function toSourceRecord(row: SourceRow): SourceRecord {
+  return {
+    ...row,
+    upload_expires_at: row.upload_expires_at ? toIso(row.upload_expires_at) : null,
+    created_at: toIso(row.created_at),
+    updated_at: toIso(row.updated_at),
+  };
+}
+
+export interface AdmissionEntry {
+  attempt_id: string;
+  title: string;
+  media_type: string;
+  declared_bytes: number;
+}
+
+export interface AdmissionResult {
+  attempt_id: string;
+  admitted: boolean;
+  source?: SourceRecord;
+  error?: { code: string; message: string };
+}
+
+export interface ReserveOptions {
+  sourceLimit?: number;
+  /** Lifetime of the upload capability issued for an admitted file (null for server-side copied text). */
+  uploadTtlSeconds?: number | null;
+}
+
+async function countOccupied(db: Queryable, notebookId: string): Promise<number> {
+  const result = await db.query<{ count: number }>(
+    "SELECT count(*)::int AS count FROM sources WHERE notebook_id = $1 AND status = ANY($2::text[])",
+    [notebookId, OCCUPYING_STATUSES]
+  );
+  return result.rows[0]!.count;
+}
+
+function validateEntry(entry: AdmissionEntry): { code: string; message: string } | null {
+  if (!isUuid(entry.attempt_id)) return { code: "ValidationFailed", message: "attempt_id must be a UUID" };
+  if (!SourceMediaTypeSchema.safeParse(entry.media_type).success) {
+    return { code: "UnsupportedMediaType", message: "Only PDF, .txt, Markdown and copied text are supported" };
   }
-  return m;
-}
-
-/**
- * Resets or clears in-memory quota ledger (for tests).
- */
-export function resetQuotaStore(): void {
-  notebookSources.clear();
-}
-
-/**
- * Deletes all source slots for a notebook (e.g. upon notebook deletion).
- */
-export function deleteSourceSlotsForNotebook(notebookId: string): void {
-  notebookSources.delete(notebookId);
-}
-
-/**
- * Seeds pre-existing source slots in a notebook (for tests).
- */
-export async function seedSourceSlots(
-  notebookId: string,
-  count: number,
-  status: "Uploading" | "Processing" | "Ready" | "Failed" = "Ready"
-): Promise<void> {
-  const m = getOrCreateNotebookMap(notebookId);
-  m.clear();
-  for (let i = 0; i < count; i++) {
-    const attemptId = `seed-${notebookId.slice(0, 8)}-${String(i + 1).padStart(6, "0")}`;
-    m.set(attemptId, {
-      attempt_id: attemptId,
-      notebook_id: notebookId,
-      status,
-      declared_byte_size: 1024,
-      file_name: `seeded_${i + 1}.pdf`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+  if (!Number.isSafeInteger(entry.declared_bytes) || entry.declared_bytes < 0) {
+    return { code: "ValidationFailed", message: "declared_bytes must be a non-negative integer" };
   }
-}
-
-/**
- * Counts occupied source slots in a notebook.
- * States Uploading, Processing, and Ready consume slots. Failed does not.
- */
-export async function getOccupiedSourceCount(notebookId: string): Promise<number> {
-  const m = notebookSources.get(notebookId);
-  if (!m) return 0;
-  let occupied = 0;
-  for (const record of m.values()) {
-    if (record.status === "Uploading" || record.status === "Processing" || record.status === "Ready") {
-      occupied++;
-    }
+  if (entry.declared_bytes > MAX_SOURCE_BYTES) {
+    return { code: "SourceOversized", message: "Source exceeds 200,000,000 bytes limit" };
   }
-  return occupied;
-}
-
-export interface ReserveSlotOptions {
-  maxSources?: number;
-}
-
-const notebookLocks = new Map<string, Promise<void>>();
-
-async function withNotebookLock<T>(notebookId: string, fn: () => Promise<T>): Promise<T> {
-  const prevLock = notebookLocks.get(notebookId) ?? Promise.resolve();
-  let release: () => void;
-  const currentLock = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  notebookLocks.set(notebookId, currentLock);
-
-  try {
-    await prevLock;
-    return await fn();
-  } finally {
-    release!();
-    if (notebookLocks.get(notebookId) === currentLock) {
-      notebookLocks.delete(notebookId);
-    }
+  const titleLength = Array.from(entry.title.trim()).length;
+  if (titleLength < 1 || titleLength > 100) {
+    return { code: "InvalidTitle", message: "Source title must be 1–100 Unicode code points" };
   }
+  return null;
 }
 
 /**
- * Atomically reserves a source slot for a single upload attempt.
- */
-export async function reserveSourceSlot(
-  client: PoolClient | Pool | undefined,
-  attempt: SourceAdmissionAttempt,
-  options?: ReserveSlotOptions
-): Promise<AdmissionResult> {
-  return withNotebookLock(attempt.notebook_id, async () => {
-    const { notebook_id, attempt_id, declared_byte_size, file_name, mime_type } = attempt;
-
-    // 1. Verify notebook existence
-    const rawNb = getNotebookRaw(notebook_id);
-    if (!rawNb || rawNb.archived_at) {
-      throw new InvalidScopeError(`Notebook ${notebook_id} not found or deleted`);
-    }
-
-    // 2. Validate declared size limit
-    if (declared_byte_size > MAX_SOURCE_BYTES) {
-      throw new SourceOversizedBytesError(`Source exceeds ${MAX_SOURCE_BYTES} bytes limit`);
-    }
-
-    const m = getOrCreateNotebookMap(notebook_id);
-
-    // 3. Idempotency replay check
-    const existing = m.get(attempt_id);
-    if (existing) {
-      return {
-        admitted: existing.status !== "Failed",
-        attempt_id,
-        notebook_id,
-        reason: existing.status === "Failed" ? existing.error_message : undefined,
-      };
-    }
-
-    // 4. Authoritative occupancy check under notebook lock
-    const maxSources = options?.maxSources ?? DEFAULT_MAX_SOURCES_PER_NOTEBOOK;
-    const currentCount = await getOccupiedSourceCount(notebook_id);
-
-    if (currentCount >= maxSources) {
-      throw new SourceQuotaExceededError(
-        `Notebook has reached maximum limit of ${maxSources} sources`
-      );
-    }
-
-    // 5. Admit attempt in Uploading state
-    m.set(attempt_id, {
-      attempt_id,
-      notebook_id,
-      status: "Uploading",
-      declared_byte_size,
-      file_name,
-      mime_type,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
-    await touchNotebookModified(notebook_id);
-
-    return {
-      admitted: true,
-      attempt_id,
-      notebook_id,
-    };
-  });
-}
-
-/**
- * Atomically reserves source slots for a batch of upload attempts.
- * Returns results in exact entry order; first fitting entries admitted, overflow rejected.
+ * Ordered batch admission in one notebook-locked transaction: the first entries that fit receive
+ * Uploading rows, the rest get a per-entry quota rejection. Replaying an attempt returns its existing row.
  */
 export async function reserveSources(
-  client: PoolClient | Pool | undefined,
+  pool: Pool,
+  ownerId: string,
   notebookId: string,
-  entries: {
-    attempt_id: string;
-    declared_byte_size: number;
-    file_name: string;
-    mime_type?: string;
-  }[],
-  options?: ReserveSlotOptions
+  entries: AdmissionEntry[],
+  options: ReserveOptions = {}
 ): Promise<AdmissionResult[]> {
-  const rawNb = getNotebookRaw(notebookId);
-  if (!rawNb || rawNb.archived_at) {
-    throw new InvalidScopeError(`Notebook ${notebookId} not found or deleted`);
-  }
+  const sourceLimit = options.sourceLimit ?? DEFAULT_MAX_SOURCES_PER_NOTEBOOK;
+  const ttl = options.uploadTtlSeconds === undefined ? 3600 : options.uploadTtlSeconds;
 
-  const m = getOrCreateNotebookMap(notebookId);
-  const maxSources = options?.maxSources ?? DEFAULT_MAX_SOURCES_PER_NOTEBOOK;
-  let currentCount = await getOccupiedSourceCount(notebookId);
+  return withTransaction(pool, async (tx) => {
+    await requireOwnedNotebook(tx, ownerId, notebookId, "update");
+    let occupied = await countOccupied(tx, notebookId);
+    const results: AdmissionResult[] = [];
 
-  const results: AdmissionResult[] = [];
+    for (const entry of entries) {
+      const invalid = validateEntry(entry);
+      if (invalid) {
+        results.push({ attempt_id: entry.attempt_id, admitted: false, error: invalid });
+        continue;
+      }
 
-  let addedSource = false;
-  for (const entry of entries) {
-    if (entry.declared_byte_size > MAX_SOURCE_BYTES) {
-      results.push({
-        admitted: false,
-        attempt_id: entry.attempt_id,
-        notebook_id: notebookId,
-        reason: `Source exceeds ${MAX_SOURCE_BYTES} bytes limit`,
-      });
-      continue;
+      const prior = await tx.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE attempt_id = $1`, [
+        entry.attempt_id,
+      ]);
+      if (prior.rows[0]) {
+        const record = toSourceRecord(prior.rows[0]);
+        if (record.notebook_id !== notebookId) {
+          results.push({
+            attempt_id: entry.attempt_id,
+            admitted: false,
+            error: { code: "InvalidScope", message: "attempt_id belongs to another notebook" },
+          });
+        } else {
+          results.push({ attempt_id: entry.attempt_id, admitted: record.status !== "Failed", source: record });
+        }
+        continue;
+      }
+
+      if (occupied >= sourceLimit) {
+        results.push({
+          attempt_id: entry.attempt_id,
+          admitted: false,
+          error: { code: "SourceQuotaExceeded", message: `Source limit of ${sourceLimit} reached` },
+        });
+        continue;
+      }
+
+      const inserted = await tx.query<SourceRow>(
+        `INSERT INTO sources (id, notebook_id, attempt_id, title, media_type, status, declared_bytes, upload_expires_at)
+         VALUES ($1, $2, $3, $4, $5, 'Uploading', $6,
+                 CASE WHEN $7::int IS NULL THEN NULL ELSE now() + make_interval(secs => $7::int) END)
+         RETURNING ${SOURCE_COLUMNS}`,
+        [randomUUID(), notebookId, entry.attempt_id, entry.title.trim(), entry.media_type, entry.declared_bytes, ttl]
+      );
+      occupied++;
+      results.push({ attempt_id: entry.attempt_id, admitted: true, source: toSourceRecord(inserted.rows[0]!) });
+    }
+    return results;
+  });
+}
+
+/** Locks notebook (share) then source (update) for a trusted worker transition; returns null when fenced. */
+export async function lockSourceForTransition(db: Queryable, sourceId: string): Promise<SourceRecord | null> {
+  const parent = await db.query<{ notebook_id: string }>("SELECT notebook_id FROM sources WHERE id = $1", [sourceId]);
+  if (!parent.rows[0]) return null;
+  const nb = await db.query("SELECT id FROM notebooks WHERE id = $1 FOR SHARE", [parent.rows[0].notebook_id]);
+  if ((nb.rowCount ?? 0) === 0) return null;
+  const row = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1 FOR UPDATE`, [sourceId]);
+  return row.rows[0] ? toSourceRecord(row.rows[0]) : null;
+}
+
+export interface ReceiveInput {
+  sourceId: string;
+  attemptId: string;
+  actualBytes: number;
+  objectName: string;
+  objectGeneration: string;
+}
+
+export type ReceiveOutcome =
+  | { outcome: "processing"; source: SourceRecord; jobId: string }
+  | { outcome: "failed"; source: SourceRecord }
+  | { outcome: "rejected"; reason: "fenced" | "attempt_mismatch" | "not_uploading" };
+
+/**
+ * Trusted receipt (FR-WM-07): verifies the actual object size against the inclusive byte limit and moves
+ * Uploading → Processing on the same slot, enqueuing ingestion atomically. Oversize fails and releases the slot.
+ */
+export async function acceptReceivedSource(pool: Pool, input: ReceiveInput): Promise<ReceiveOutcome> {
+  return withTransaction(pool, async (tx) => {
+    const source = await lockSourceForTransition(tx, input.sourceId);
+    if (!source) return { outcome: "rejected", reason: "fenced" };
+    if (source.attempt_id !== input.attemptId) return { outcome: "rejected", reason: "attempt_mismatch" };
+    if (source.status !== "Uploading") return { outcome: "rejected", reason: "not_uploading" };
+
+    if (!Number.isSafeInteger(input.actualBytes) || input.actualBytes < 0 || input.actualBytes > MAX_SOURCE_BYTES) {
+      const failed = await tx.query<SourceRow>(
+        `UPDATE sources SET status = 'Failed', actual_bytes = $2, object_name = $3, object_generation = $4,
+                failure_code = 'SourceOversized', failure_message = 'Exceeds 200,000,000 bytes limit',
+                updated_at = now()
+         WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
+        [input.sourceId, Math.max(0, Math.trunc(input.actualBytes)), input.objectName, input.objectGeneration]
+      );
+      return { outcome: "failed", source: toSourceRecord(failed.rows[0]!) };
     }
 
-    // Existing idempotent record check
-    const existing = m.get(entry.attempt_id);
-    if (existing) {
-      results.push({
-        admitted: existing.status !== "Failed",
-        attempt_id: entry.attempt_id,
-        notebook_id: notebookId,
-        reason: existing.status === "Failed" ? existing.error_message : undefined,
-      });
-      continue;
+    if (input.actualBytes === 0) {
+      const failed = await tx.query<SourceRow>(
+        `UPDATE sources SET status = 'Failed', actual_bytes = 0, object_name = $2, object_generation = $3,
+                failure_code = 'EmptyFile', failure_message = 'File is empty', updated_at = now()
+         WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
+        [input.sourceId, input.objectName, input.objectGeneration]
+      );
+      return { outcome: "failed", source: toSourceRecord(failed.rows[0]!) };
     }
 
-    if (currentCount < maxSources) {
-      m.set(entry.attempt_id, {
-        attempt_id: entry.attempt_id,
-        notebook_id: notebookId,
-        status: "Uploading",
-        declared_byte_size: entry.declared_byte_size,
-        file_name: entry.file_name,
-        mime_type: entry.mime_type,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-      addedSource = true;
-      currentCount++;
-      results.push({
-        admitted: true,
-        attempt_id: entry.attempt_id,
-        notebook_id: notebookId,
-      });
-    } else {
-      results.push({
-        admitted: false,
-        attempt_id: entry.attempt_id,
-        notebook_id: notebookId,
-        reason: `SourceQuotaExceeded: notebook limit of ${maxSources} sources reached`,
-      });
-    }
-  }
-
-  if (addedSource) await touchNotebookModified(notebookId);
-  return results;
+    const updated = await tx.query<SourceRow>(
+      `UPDATE sources SET status = 'Processing', actual_bytes = $2, object_name = $3, object_generation = $4,
+              updated_at = now()
+       WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
+      [input.sourceId, input.actualBytes, input.objectName, input.objectGeneration]
+    );
+    const jobId = await enqueueJob(tx, "ingest", { source_id: input.sourceId, attempt_id: input.attemptId });
+    return { outcome: "processing", source: toSourceRecord(updated.rows[0]!), jobId };
+  });
 }
 
 /**
- * Transitions a source attempt to Failed status, releasing its quota slot immediately.
- * Retains error metadata row. Replaying failure on already failed record does not double-release.
+ * Conditional failure transition: releases the slot once. A duplicate failure or a failure for a deleted,
+ * Ready or already Failed attempt is a no-op and returns false.
  */
 export async function failSource(
-  client: PoolClient | Pool | undefined,
-  notebookId: string,
-  attemptId: string,
-  reason: string = "Processing error"
-): Promise<void> {
-  const m = notebookSources.get(notebookId);
-  if (!m) return;
-  const existing = m.get(attemptId);
-  if (existing) {
-    existing.status = "Failed";
-    existing.error_message = reason;
-    existing.updated_at = new Date().toISOString();
-  }
+  db: Queryable,
+  input: { sourceId: string; attemptId: string; code: string; message: string }
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE sources SET status = 'Failed', failure_code = $3, failure_message = $4, updated_at = now()
+     WHERE id = $1 AND attempt_id = $2 AND status IN ('Uploading', 'Processing')`,
+    [input.sourceId, input.attemptId, input.code, input.message]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
-/**
- * Dismisses a source error record from the notebook.
- * Removes error row without decrementing occupancy.
- */
+/** Removes a Failed error row. Occupancy is unchanged because Failed never occupied a slot. */
 export async function dismissSourceError(
-  client: PoolClient | Pool | undefined,
+  pool: Pool,
+  ownerId: string,
   notebookId: string,
-  attemptId: string
+  sourceId: string
 ): Promise<void> {
-  const m = notebookSources.get(notebookId);
-  if (m) {
-    m.delete(attemptId);
-  }
+  await withTransaction(pool, async (tx) => {
+    await requireOwnedNotebook(tx, ownerId, notebookId, "update");
+    if (!isUuid(sourceId)) throw new SourceNotFoundError();
+    const deleted = await tx.query("DELETE FROM sources WHERE notebook_id = $1 AND id = $2 AND status = 'Failed'", [
+      notebookId,
+      sourceId,
+    ]);
+    if ((deleted.rowCount ?? 0) > 0) return;
+    const exists = await tx.query("SELECT status FROM sources WHERE notebook_id = $1 AND id = $2", [
+      notebookId,
+      sourceId,
+    ]);
+    if ((exists.rowCount ?? 0) === 0) throw new SourceNotFoundError();
+    throw new AppError("ValidationFailed", 409, "Only failed sources can be dismissed");
+  });
 }
 
-/**
- * Transitions source status between states.
- */
-export async function transitionSourceStatus(
-  client: PoolClient | Pool | undefined,
-  notebookId: string,
-  attemptId: string,
-  toStatus: "Uploading" | "Processing" | "Ready" | "Failed"
-): Promise<void> {
-  const m = notebookSources.get(notebookId);
-  if (!m) return;
-  const existing = m.get(attemptId);
-  if (existing) {
-    const wasReady = existing.status === "Ready";
-    existing.status = toStatus;
-    existing.updated_at = new Date().toISOString();
-    if (toStatus === "Ready" && !wasReady) await touchNotebookModified(notebookId);
-  }
+export async function listSources(db: Queryable, ownerId: string, notebookId: string): Promise<SourceRecord[]> {
+  await requireOwnedNotebook(db, ownerId, notebookId);
+  const result = await db.query<SourceRow>(
+    `SELECT ${SOURCE_COLUMNS} FROM sources WHERE notebook_id = $1 ORDER BY created_at, id`,
+    [notebookId]
+  );
+  return result.rows.map(toSourceRecord);
 }
 
-/**
- * Releases source slot unconditionally.
- */
-export async function releaseSourceSlot(
-  client: PoolClient | Pool | undefined,
+export async function getSource(
+  db: Queryable,
+  ownerId: string,
   notebookId: string,
-  attemptId: string
-): Promise<void> {
-  await failSource(client, notebookId, attemptId, "Slot released");
+  sourceId: string
+): Promise<SourceRecord> {
+  await requireOwnedNotebook(db, ownerId, notebookId);
+  if (!isUuid(sourceId)) throw new SourceNotFoundError();
+  const result = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE notebook_id = $1 AND id = $2`, [
+    notebookId,
+    sourceId,
+  ]);
+  if (!result.rows[0]) throw new SourceNotFoundError();
+  return toSourceRecord(result.rows[0]);
 }
 
+/** Trusted (worker) read without owner context; callers must re-verify the fence before publishing. */
+export async function getSourceById(db: Queryable, sourceId: string): Promise<SourceRecord | null> {
+  if (!isUuid(sourceId)) return null;
+  const result = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1`, [sourceId]);
+  return result.rows[0] ? toSourceRecord(result.rows[0]) : null;
+}
 
-/** Counts only sources whose lifecycle has reached Ready. */
-export async function getReadySourceCount(notebookId: string): Promise<number> {
-  const records = notebookSources.get(notebookId);
-  if (!records) return 0;
-  let count = 0;
-  for (const record of records.values()) {
-    if (record.status === "Ready") count++;
-  }
-  return count;
+export async function getQuotaSummary(
+  db: Queryable,
+  ownerId: string,
+  notebookId: string,
+  sourceLimit: number = DEFAULT_MAX_SOURCES_PER_NOTEBOOK
+): Promise<QuotaSummary> {
+  await requireOwnedNotebook(db, ownerId, notebookId);
+  const notebooks = await db.query<{ count: number }>(
+    "SELECT count(*)::int AS count FROM notebooks WHERE owner_id = $1",
+    [ownerId]
+  );
+  return {
+    notebooks_used: notebooks.rows[0]!.count,
+    notebook_limit: MAX_NOTEBOOKS_PER_USER,
+    sources_used: await countOccupied(db, notebookId),
+    source_limit: sourceLimit,
+    max_source_bytes: MAX_SOURCE_BYTES,
+    max_source_words: MAX_SOURCE_WORDS,
+  };
+}
+
+/** Ready-source count per notebook of one owner (notebook overview cards, FR-WM-03). */
+export async function countReadySources(db: Queryable, ownerId: string): Promise<Map<string, number>> {
+  const result = await db.query<{ notebook_id: string; ready: string }>(
+    `SELECT s.notebook_id, count(*) AS ready FROM sources s JOIN notebooks n ON n.id = s.notebook_id
+     WHERE n.owner_id = $1 AND s.status = 'Ready' GROUP BY s.notebook_id`,
+    [ownerId]
+  );
+  return new Map(result.rows.map((r) => [r.notebook_id, Number(r.ready)]));
+}
+
+/** Sources occupying a slot (Uploading, Processing, Ready) in one notebook. */
+export function countOccupiedSources(db: Queryable, notebookId: string): Promise<number> {
+  return countOccupied(db, notebookId);
 }

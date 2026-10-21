@@ -32,6 +32,8 @@ module "iam_identity" {
   authorized_domains       = var.authorized_domains
   enable_model_armor       = var.enable_model_armor
 
+  enable_email_password_sign_in = var.enable_email_password_sign_in
+
   depends_on = [module.project_services]
 }
 
@@ -96,9 +98,12 @@ module "compute" {
   worker_db_iam_username              = module.database.worker_db_iam_username
   workspace_bucket_name               = module.storage_secrets.workspace_bucket_name
   ingestion_queue_name                = module.async_tasks.ingestion_queue_name
+  tasks_location                      = var.tasks_location
   studio_queue_name                   = module.async_tasks.studio_queue_name
   document_ai_layout_processor_name   = module.storage_secrets.document_ai_layout_processor_name
   secret_ids                          = module.storage_secrets.secret_ids
+  identity_platform_api_key           = module.iam_identity.identity_platform_api_key
+  identity_platform_provider_id       = var.enable_email_password_sign_in ? "password" : var.identity_platform_provider_id
   mount_secrets                       = var.mount_secrets
   api_min_instances                   = var.api_min_instances
   api_max_instances                   = var.api_max_instances

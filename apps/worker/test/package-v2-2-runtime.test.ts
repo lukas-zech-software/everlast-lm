@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPackageV22Runtime } from "../src/package-v2-2-runtime.js";
-import type { StructuredGenerationClient } from "../src/package-v2-2.js";
-import { IngestionPipeline } from "../src/ingestion/pipeline.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
+import { createPackageV22Runtime } from "../src/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../src/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
 import { type ScopedContextProvider } from "@everlast/contracts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
@@ -13,7 +14,7 @@ const getSourceMetadata = async () => [{ source_id: source, revision: 1, title: 
 const model: StructuredGenerationClient = {
   generateSourceGuide: async () => ({ summary_md: "Summary", key_topics: ["one", "two", "three", "four", "five"], supporting_chunk_ids: [chunk] }),
   generateOverview: async () => ({ overview_md: "Overview", starter_prompts: ["one", "two", "three"], supporting_chunk_ids: [chunk] }),
-  generateFollowUps: async () => ({ suggested_followups: ["What evidence?"], supporting_chunk_ids: [chunk] }),
+  generateFollowUps: async () => ({ suggested_followups: [{ text: "What evidence?", supporting_chunk_ids: [chunk] }] }),
 };
 
 describe("Package 2.2 runtime composition (FR-SI-02, FR-GC-04/05, C-02)", () => {
@@ -21,12 +22,33 @@ describe("Package 2.2 runtime composition (FR-SI-02, FR-GC-04/05, C-02)", () => 
     const unconfigured = createPackageV22Runtime({ resolveOwner: async () => "owner" });
     expect(() => unconfigured.generateOverview({ notebook_id: notebook, user_id: "owner", source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US" })).toThrow(/not configured/);
     const configured = createPackageV22Runtime({ provider, validateScope, getSourceMetadata, model, resolveOwner: async () => "owner" });
-    await expect(configured.generateFollowUps({ notebook_id: notebook, user_id: "owner", answer: "Answer", source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US" })).resolves.toMatchObject({ suggested_followups: ["What evidence?"] });
+    await expect(configured.generateFollowUps({ notebook_id: notebook, user_id: "owner", answer: "Answer", source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US" })).resolves.toMatchObject({ suggested_followups: [{ text: "What evidence?" }] });
     await expect(configured.onSourceReady({ notebook_id: notebook, source_id: source, revision_id: 1 })).resolves.toMatchObject({ status: "GuideReady" });
     const guideStarted = new Promise<void>((resolve) => { provider.getScopedContext = vi.fn(async () => { resolve(); return [{ chunk_id: chunk, text: "Evidence", source_id: source, revision: 1, token_count: 2, locator: { page_number: 1, start_offset: 0, end_offset: 8 } }]; }); });
-    const pipeline = new IngestionPipeline({ onReady: async (ready) => { await configured.onSourceReady({ notebook_id: ready.notebook_id, source_id: ready.source_id, revision_id: ready.revision_id }); } });
-    const result = await pipeline.process({ attempt_id: "ready-runtime", notebook_id: notebook, source_id: source, revision_id: 1, media_type: "copied_text", content: "Evidence source text." });
-    expect(result.status).toBe("Ready");
+    const dispatch = createReadySourceDispatcher([(ready) => configured.onSourceReady(ready)]);
+    await dispatch({ notebook_id: notebook, source_id: source, revision_id: 1, title: "Evidence", media_type: "copied_text" });
     await guideStarted;
+  });
+});
+
+describe("Package 2.2 runtime output language (FR-SI-02, FR-GC-05, FR-UI-02)", () => {
+  beforeEach(() => resetPackageV22Store());
+  it("generates Ready-source guides and follow-ups in the notebook's effective output language, not en-US", async () => {
+    const seen: string[] = [];
+    const languageModel: StructuredGenerationClient = {
+      ...model,
+      generateSourceGuide: async (input) => { seen.push(`guide:${input.output_language}`); return model.generateSourceGuide(input); },
+      generateFollowUps: async (input) => { seen.push(`followups:${input.output_language}`); return model.generateFollowUps(input); },
+    };
+    const resolveOutputLanguage = vi.fn(async () => "de-DE");
+    const runtime = createPackageV22Runtime({ provider, validateScope, getSourceMetadata, model: languageModel, resolveOwner: async () => "owner", resolveOutputLanguage });
+    const guide = await runtime.onSourceReady({ notebook_id: notebook, source_id: source, revision_id: 1 });
+    expect(guide.output_language).toBe("de-DE");
+    expect(resolveOutputLanguage).toHaveBeenCalledWith(notebook, "owner");
+    expect(await getSourceGuide(notebook, source, 1, "de-DE")).toMatchObject({ status: "GuideReady" });
+    expect(await getSourceGuide(notebook, source, 1, "en-US")).toBeNull();
+    const followups = await runtime.generateFollowUps({ notebook_id: notebook, user_id: "owner", answer: "Answer", source_revisions: [{ source_id: source, revision: 1 }] });
+    expect(followups.output_language).toBe("de-DE");
+    expect(seen).toEqual(["guide:de-DE", "followups:de-DE"]);
   });
 });

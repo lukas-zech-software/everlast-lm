@@ -1,73 +1,91 @@
-import { describe, it, expect } from "vitest";
-import path from "path";
-import {
-  runEvaluationSuite,
-  generateReleaseReport,
-  formatMarkdownReport,
-} from "../src/index.js";
-import { ReleaseGateReportSchema } from "@everlast/contracts";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createTestDatabase, type TestDatabase } from "@everlast/db/testing";
+import { HashingTestEmbedder, NoOcrEngine } from "@everlast/cloud";
+import { createNotebook } from "@everlast/db";
+import type { TurnObservation } from "@everlast/api/chat/service";
+import { buildGoldenDataset } from "../src/dataset.ts";
+import { AdversarialCitingModel, LexicalCitingModel } from "../src/deterministic-models.ts";
+import { runCase, runEvaluation, type NotebookContext } from "../src/runner.ts";
 
-describe("T014 [US2] Integration: Evaluation Runner & Reporting (Gate v1.0)", () => {
-  const goldenBenchmarkPath = path.resolve(
-    process.cwd(),
-    "packages/evals/fixtures/v1/golden.jsonl"
-  );
-  const commitHash = "cc430e4202dfe37b6f4724d90f05172d19f5c5b7";
+/** T014/T022 — the runner measures real pipeline behavior and its detectors are sensitive (NFR-EVAL-02/04). */
 
-  it("produces schema-valid ReleaseGateReport and markdown audit when gate passes", async () => {
-    const result = await runEvaluationSuite({
-      goldenBenchmarkPath,
-      commitHash,
-      dryRun: false,
-    });
+let db: TestDatabase;
+const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 
-    const report = generateReleaseReport(result, commitHash);
+beforeAll(async () => {
+  db = await createTestDatabase();
+});
 
-    // Validate against shared strict Zod contract
-    const parsed = ReleaseGateReportSchema.parse(report);
-    expect(parsed.commit_hash).toBe(commitHash);
-    expect(parsed.status).toBe("GatePassed");
-    expect(parsed.failures).toHaveLength(0);
+afterAll(async () => {
+  await db?.drop();
+});
 
-    // Markdown summary
-    const md = formatMarkdownReport(report);
-    expect(md).toContain("# Gate v1.0 Evaluation Report");
-    expect(md).toContain("GatePassed");
-    expect(md).toContain("NFR-EVAL-01");
-    expect(md).toContain("NFR-EVAL-02");
-    expect(md).toContain("NFR-EVAL-03");
-    expect(md).toContain("NFR-EVAL-04");
-  });
+function stratified(n: number) {
+  const all = buildGoldenDataset();
+  const byCat = new Map<string, typeof all>();
+  for (const c of all) byCat.set(c.category, [...(byCat.get(c.category) ?? []), c]);
+  return [...byCat.values()].flatMap((list) => list.slice(0, n));
+}
 
-  it("produces schema-valid GateFailed report with exact failure reasons when metrics miss thresholds", () => {
-    const failingResult = {
-      metrics: {
-        hallucination_rate: 0.08, // Fails < 0.05
-        citation_precision: 0.99, // Fails = 1.00
-        negative_rejection_rate: 0.95, // Fails >= 0.99
-        scoping_leakage_count: 2, // Fails = 0
+describe("deterministic evaluation over the production pipeline", () => {
+  it("EVI-01: a stratified subset yields Precision_ID = 1 and leakage = 0 with valid C-01 corpus chunks", async () => {
+    const result = await runEvaluation({ pool: db.pool, embedder, model: new LexicalCitingModel(), ocr: new NoOcrEngine(), judge: null, concurrency: 2 }, stratified(8));
+    expect(result.upload.passed).toBe(true);
+    expect(result.upload.documents.every((d) => d.status === "Ready" && d.valid_chunks === d.chunks)).toBe(true);
+    expect(result.errored).toEqual([]);
+    const precision = result.metrics.find((m) => m.name === "citation_precision")!;
+    expect(precision).toMatchObject({ value: 1, status: "pass" });
+    expect(precision.denominator).toBeGreaterThan(0);
+    expect(result.metrics.find((m) => m.name === "scoping_leakage_count")).toMatchObject({ value: 0, status: "pass" });
+    expect(result.metrics.filter((m) => m.status === "unavailable").map((m) => m.name).sort()).toEqual(["hallucination_rate", "negative_rejection_rate", "semantic_support_rate"]);
+    // History carry-over: the earlier budget turn never reaches the prompt after deselection.
+    const his = result.cases.find((c) => c.category === "history_carryover")!;
+    expect(his.turns).toHaveLength(2);
+    expect(his.turns[1]!.modelInput?.history ?? []).toEqual([]);
+  }, 120_000);
+
+  it("EVI-02: an adversarial model citing out-of-prompt chunks never gets an answer published", async () => {
+    const foreign = (await db.pool.query<{ chunk_id: string }>("SELECT chunk_id FROM chunks")).rows.map((r) => r.chunk_id);
+    const model = new AdversarialCitingModel(() => foreign);
+    const result = await runEvaluation({ pool: db.pool, embedder, model, ocr: new NoOcrEngine(), judge: null, concurrency: 1 }, stratified(3).filter((c) => c.category !== "unanswerable"));
+    expect(model.attempts).toBeGreaterThan(0);
+    expect(result.cases.filter((c) => c.kind === "answer")).toEqual([]);
+  }, 120_000);
+
+  it("EVI-03: the leakage detector counts inactive chunks in retrieval and prompt plus deselected facts in the response", async () => {
+    const owner = (await db.pool.query<{ id: string }>("INSERT INTO users (id, issuer, subject) VALUES ($1, 'i', $2) RETURNING id", [randomUUID(), randomUUID()])).rows[0]!.id;
+    const { notebook } = await createNotebook(db.pool, owner, {});
+    const activeId = randomUUID();
+    const inactiveId = randomUUID();
+    const observations: TurnObservation[] = [];
+    const leakyChunk = { chunk_id: randomUUID(), source_id: inactiveId, revision: 1, text: "budget is €9.99M", locator: { page_number: 1, start_offset: 0, end_offset: 5 }, token_count: 3 };
+    const fakeChat = {
+      async *runTurn() {
+        observations.push({
+          requestId: randomUUID(),
+          snapshot: [{ source_id: activeId, revision: 1 }],
+          retrieved: [leakyChunk],
+          modelInput: { question: "q", chunks: [leakyChunk], history: [] },
+          draft: null,
+          result: { kind: "refusal", content: "x", reason: "not_in_sources" },
+        });
+        yield { type: "final" as const, replayed: false, messages: [{ id: randomUUID(), turn_id: randomUUID(), role: "assistant" as const, kind: "refusal" as const, content: "The budget is €9.99M.", unavailable_reason: null, citations: [], created_at: new Date().toISOString() }] };
       },
-      totalCases: 200,
-      unanswerableCount: 100,
-      deselectionCount: 50,
-      synthesisCount: 50,
-      passed: false,
-      failures: [
-        "hallucination_rate 0.08 exceeds threshold < 0.05 (NFR-EVAL-01)",
-        "citation_precision 0.99 does not meet required 1.00 (NFR-EVAL-02)",
-      ],
-      failingCaseIds: ["case-syn-003", "case-desel-012"],
     };
-
-    const report = generateReleaseReport(failingResult, commitHash);
-    const parsed = ReleaseGateReportSchema.parse(report);
-
-    expect(parsed.status).toBe("GateFailed");
-    expect(parsed.failures.length).toBeGreaterThan(0);
-    expect(parsed.failures.some((f) => f.includes("hallucination_rate"))).toBe(true);
-
-    const md = formatMarkdownReport(report);
-    expect(md).toContain("GateFailed");
-    expect(md).toContain("hallucination_rate");
+    const ctx: NotebookContext = { pool: db.pool, notebookId: notebook.id, ownerId: owner, sources: new Map([["travel", activeId]]), chat: fakeChat as never, observations };
+    const result = await runCase(ctx, {
+      id: "DES-999",
+      category: "deselected_source",
+      active: ["travel"],
+      deselected: ["budget"],
+      history: [],
+      question: "What is the budget?",
+      answerable: false,
+      expected_facts: [],
+      forbidden: ["€9.99M"],
+      supporting: [],
+    });
+    expect(result.leakage).toMatchObject({ retrieved: 1, prompt: 2, response: 1 });
   });
 });

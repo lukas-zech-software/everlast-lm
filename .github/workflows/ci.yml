@@ -12,6 +12,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      release_gate:
+        description: "Run the full Gate v1.0 release evaluation (judged suites)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -20,12 +25,29 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
+
 jobs:
   ci:
-    name: Build, Lint, Test & Quality Gates
+    name: Build, Lint, Test & Deterministic Gates
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Same major version as Cloud SQL (D4) with pgvector (D1).
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: everlast
+          POSTGRES_PASSWORD: everlast
+          POSTGRES_DB: everlast
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U everlast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -41,23 +63,110 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint and spec integrity
         run: pnpm lint
-
-      - name: Check spec integrity
-        run: pnpm check:specs
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
+      - name: Unit and contract tests
         run: pnpm test:unit
 
-      - name: Contract tests
-        run: pnpm test:contract
-
-      - name: Integration tests
+      - name: Integration tests (PostgreSQL + pgvector)
         run: pnpm test:integration
 
-      - name: Release Gate v1.0 automated evaluation suite
-        run: node scripts/eval-v1.mjs
+      - name: Deterministic eval suite (NFR-EVAL-02 Precision_ID, NFR-EVAL-04 leakage)
+        run: pnpm eval:deterministic
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E journeys and Gate v1.0 #1/#3 (Playwright)
+        run: pnpm test:e2e
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-v1-reports
+          path: |
+            reports/
+            test-results/
+          if-no-files-found: ignore
+
+  judged:
+    name: Judged release evaluation (NFR-EVAL-01/02/03, 50-case sample) on Vertex AI
+    needs: [ci]
+    # Constitution v2.0.0: judged suites run once per release gate, not per pull request.
+    if: github.event_name == 'workflow_dispatch' && inputs.release_gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      id-token: write
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: everlast
+          POSTGRES_PASSWORD: everlast
+          POSTGRES_DB: everlast
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U everlast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Enable pnpm (Corepack, version from package.json)
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Require Workload Identity Federation configuration
+        run: |
+          if [ -z "${{ vars.GCP_WIF_PROVIDER }}" ] || [ -z "${{ vars.GCP_EVAL_SERVICE_ACCOUNT }}" ] || [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
+            echo "::error title=UNAVAILABLE::Judged suites require GCP_WIF_PROVIDER, GCP_EVAL_SERVICE_ACCOUNT and GCP_PROJECT_ID (keyless). A requested release-gate run is never skipped as passing."
+            exit 2
+          fi
+
+      - name: Authenticate to Google Cloud via Workload Identity Federation
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_EVAL_SERVICE_ACCOUNT }}
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Gate v1.0 UI evidence (#1 upload/schema, #3 citation navigation)
+        run: pnpm exec playwright test apps/web/test/gate-v1.spec.ts --project=chromium
+
+      - name: Judged release evaluation (Gate v1.0 #2)
+        env:
+          VERTEX_PROJECT: ${{ vars.GCP_PROJECT_ID }}
+          VERTEX_LOCATION: europe-west4
+          DOCUMENT_AI_PROCESSOR_ID: ${{ vars.DOCUMENT_AI_PROCESSOR_ID }}
+          DOCUMENT_AI_LOCATION: ${{ vars.DOCUMENT_AI_LOCATION }}
+          REGION_EXCEPTION_DOCUMENT_AI: ${{ vars.REGION_EXCEPTION_DOCUMENT_AI }}
+        run: pnpm eval:judged
+
+      - name: Upload gate report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gate-v1-release-report
+          path: reports/
+          if-no-files-found: ignore

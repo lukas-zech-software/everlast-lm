@@ -4,7 +4,7 @@
 
 ## Entities
 
-### StudioArtifact (`studio_artifacts`, FR-ST-10/11, C-03)
+### StudioArtifact (in-memory store of the running API, D16; FR-ST-10/11, C-03)
 
 | Field | Type | Constraint |
 | :- | :- | :- |
@@ -16,11 +16,11 @@
 | `status` | enum | `Queued`, `Running`, `Completed`, `Failed`, `Cancelled` |
 | `title` | string | non-empty |
 | `params_json` | `{ custom_prompt?: string }` | `custom_prompt` required for `dynamic`/`custom`; 1–5,000 code points after trim |
-| `payload_json` | `{ content_md, citations[] } \| null` | non-null **iff** `status = Completed`; `content_md` non-empty, ≥ 1 citation |
-| `active_source_ids_snapshot` | `{source_id, revision}[]` | ≥ 1, unique `source_id`, immutable |
-| `output_language` | string \| null | cache/generation parameter |
+| `payload_json` | `{ content_md, citations[], sections[] } \| null` | non-null **iff** `status = Completed`; `content_md` non-empty, ≥ 1 citation; `sections` = `{ key, heading }[]`, a template subtype carries every required key |
+| `source_revisions_snapshot` | `{source_id, revision}[]` | ≥ 1, unique `source_id`, immutable (card name; renamed from `active_source_ids_snapshot`, T059) |
+| `output_language` | string | effective output language (`FR-UI-02`), resolved server-side when the request omits it; generation and cache parameter |
 | `progress` | `{ stage, percent 0–100 } \| null` | substate of `Running` |
-| `failure` | `{ code, message } \| null` | non-null iff `Failed` or `Cancelled`(code `Cancelled`) |
+| `failure` | `{ code, message } \| null` | non-null iff `Failed` or `Cancelled`(code `Cancelled`, reserved in C-03; v2 has no cancel action) |
 | `attempt` / `retry_of` | int ≥ 1 / UUID \| null | retry creates a new row |
 | `created_at` / `updated_at` | ISO timestamp | |
 
@@ -50,15 +50,17 @@ Queued ──► Running ──► Completed
 
 Terminal states are immutable. `Running` carries `progress.stage` ∈ `reading`, `extracting`, `composing`, `validating`, `publishing`.
 
-## Templates: required and core blocks (FR-002..005, FR-015)
+## Templates: required sections (FR-002..005, FR-015, card revision 2026-10-20)
 
-| Subtype | Required blocks (heading ids) | Core (must have ≥ 1 item or Fail) |
+Rule: **every required section non-empty, Timeline exception only.** A missing or empty required section → `Failed` / `InsufficientEvidence`. Section keys are stable; headings follow the output language.
+
+| Subtype | Required section keys (`payload_json.sections[].key`) | Exception |
 | :- | :- | :- |
-| `briefing_doc` | `executive_summary`, `core_themes`, `key_takeaways`, `verbatim_quotes` | `executive_summary` |
-| `study_guide` | `topic_review`, `short_answer_questions` (with answer key), `essay_questions`, `glossary` | `topic_review` |
-| `faq` | `faq` | `faq` |
-| `timeline` | `events`, `cast_of_characters` | `events` ∪ `cast_of_characters` (≥ 1 item in either) |
-| `dynamic` / `custom` | `summary` + model-defined sections | ≥ 1 cited item overall |
+| `briefing_doc` | `executive_summary`, `core_themes`, `key_takeaways`, `quotes` (verbatim, cited) | – |
+| `study_guide` | `topic_review`, `short_answer_questions`, `answer_key`, `essay_questions`, `glossary` | – |
+| `faq` | `faq` (≥ 1 question with its answer) | – |
+| `timeline` | `events`, `cast_of_characters` | no dated events → `events` carries the no-dated-events notice; `cast_of_characters` must still be non-empty |
+| `dynamic` / `custom` | `report` (≥ 1 cited item) | – |
 
 ## Validation rules
 

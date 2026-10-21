@@ -62,3 +62,10 @@ infra/**/*.tfvars
 infra/**/*.tfvars.json
 infra/**/backend.hcl
 infra/**/tfplan*
+
+# Local runtime data, build output and evaluation reports (anchored, so source folders named reports/ stay tracked)
+.local/
+.tsbuild/
+/reports/
+/apps/*/reports/
+/packages/*/reports/

@@ -88,7 +88,7 @@ Das Herzstück der Interaktion: Ein streng auf die ausgewählten Quellen beschr�
   * *Antwortlänge:* Standard, Länger, Kürzer.
   * *Stil / Rolle:* Standard, Lern-Tutor (*Learning Guide* – stellt Rückfragen statt nur Lösungen zu präsentieren), Analytiker oder **Benutzerdefinierter System-Prompt** (bis zu $5.000$ Zeichen für spezifische Instruktionen, Tonalität und Rollenvorgaben).
 * **FR-GC-08 (Sichere Code-Ausführungs-Sandbox / Cloud Computer):** Für quantitative Analysen, Datenbereinigungen oder komplexe Berechnungen auf hochgeladenen Datenquellen muss der Chat-Agent in einer isolierten Sandbox Programmcode (z. B. Python) schreiben, ausführen und die Ergebnisse (Werte, Diagramme, Dateien) in die Antwort einbetten können. → FR-Karte: [FR-GC-08](requirements/v3/package_3_2_code_execution_sandbox.md#fr-gc-08--secure-code-execution-sandbox-cloud-computer)
-  * **Abnahmeprofil (2026-10-20, D16):** Der projektseitige CPU/RAM-Rahmen wird auf das verwaltete Standardprofil **2 vCPU / 1,5 GB RAM** angehoben (ersetzt 1 vCPU / 512 MB). Null ein-/ausgehender Netzwerkzugriff, ausschließlich lesender Zugriff auf aktive Quelldaten, höchstens 64 MB temporärer Speicher, 15,0 s Ausführungszeit je Versuch und die bestehenden Wiederholungsregeln bleiben unverändert. R6 muss die tatsächlichen Kontrollen vor Implementierungsfreigabe qualifizieren; die abgeschlossene Planung ist kein Laufzeitnachweis.
+  * **Abnahmeprofil (2026-10-20, D18):** Der projektseitige CPU/RAM-Rahmen wird auf das verwaltete Standardprofil **2 vCPU / 1,5 GB RAM** angehoben (ersetzt 1 vCPU / 512 MB). Null ein-/ausgehender Netzwerkzugriff, ausschließlich lesender Zugriff auf aktive Quelldaten, höchstens 64 MB temporärer Speicher, 15,0 s Ausführungszeit je Versuch und die bestehenden Wiederholungsregeln bleiben unverändert. R6 muss die tatsächlichen Kontrollen vor Implementierungsfreigabe qualifizieren; die abgeschlossene Planung ist kein Laufzeitnachweis.
 
 * **FR-GC-09 (Antwort-Aktionen & Feedback):** Jede Antwort bietet Aktionen zum Kopieren (inkl. oder exkl. Quellenverweise), zum Speichern als Notiz (*Save to Note*) sowie zur Qualitätsbewertung (Daumen hoch/runter mit Fehlerkategorisierung wie „Halluzination“, „Falsches Zitat“, „Unvollständig“). → FR-Karte: [FR-GC-09](requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md#fr-gc-09--response-actions--quality-feedback)
 
@@ -198,7 +198,7 @@ Für eine saubere Aufgabentrennung im Backend soll die Plattform als orchestrier
 ### 4.3 Enterprise Security, Datenschutz & Performance
 * **NFR-SEC-01 (Zero Data Training & Isolation):** Hochgeladene Unternehmensdaten, Prompts und generierte Artefakte dürfen unter keinen Umständen zum Training von Basismodellen verwendet werden. → FR-Karte: [NFR-SEC-01](requirements/v1/package_1_4_ui_skeleton_quality_gates.md#nfr-eval-0104--nfr-sec-01--automated-evaluation--security-gate-suite)
 * **NFR-SEC-02 (Rollenspezifische Zugriffskontrolle / ACLs):** Die Plattform muss an das zentrale Identity & Access Management (SSO / OIDC / SAML) angebunden sein. Bei angebundenen Unternehmensquellen (z. B. Intranet-Suche im *Discover Sources*-Modus) müssen bestehende Dokumenten-Berechtigungen (ACLs) des jeweiligen Nutzers strikt respektiert werden. → FR-Karte: [NFR-SEC-02](requirements/v6/package_6_1_enterprise_governance_sharing_analytics.md#nfr-sec-02--enterprise-sso-oidcsaml--document-level-acl-enforcement)
-* **NFR-PERF-01 (Kontextfenster & Retrieval-Latenz):** Das System muss ein effektives Kontextfenster von mindestens $1 \times 10^6$ Tokens (oder eine äquivalente verlustfreie Kombination aus Long-Context-LLM und hochpräzisem Hybrid-RAG) unterstützen. Die Time-to-First-Token (TTFT) im Chat sollte bei Standardabfragen, die nach dem Aufwachen des Dienstes abgeschickt werden (D15/DEV-04), $\le 2{,}5\text{ s}$ betragen. → FR-Karte: [NFR-PERF-01](requirements/v3/package_3_4_long_context_latency_scaling.md)
+* **NFR-PERF-01 (Kontextfenster & Retrieval-Latenz):** Das System muss ein effektives Kontextfenster von mindestens $1 \times 10^6$ Tokens (oder eine äquivalente verlustfreie Kombination aus Long-Context-LLM und hochpräzisem Hybrid-RAG) unterstützen. Die Time-to-First-Token (TTFT) im Chat sollte bei Standardabfragen, die nach dem Aufwachen des Dienstes abgeschickt werden (D17/DEV-05), $\le 2{,}5\text{ s}$ betragen. → FR-Karte: [NFR-PERF-01](requirements/v3/package_3_4_long_context_latency_scaling.md)
 
 ---
 
@@ -304,7 +304,7 @@ Ein Entwicklungs-Agent darf erst dann mit der Implementierung von Version $V_{k+
 | :--- | :--- |
 | **Gate v1.0** | **1.** End-to-End-Upload (PDF/MD) erzeugt valide `UnifiedDocumentChunk`-Einträge.<br>**2.** `NFR-EVAL-01` bis `04` bestanden ($\epsilon_{\text{hallucination}} < 0{,}05$, $\text{Precision}_{\text{ID}} = 1{,}0$, $\text{Rejection} \ge 99\,\%$, $\text{Leakage} = 0$).<br>**3.** Klick auf Zitat `[n]` scrollt im UI-Test deterministisch zum richtigen DOM-Element im Source-Viewer. |
 | **Gate v2.0** | **1.** Jeder erfolgreich ingestierte Upload triggert asynchron `FR-SI-02` (Source Guide $< 10\text{ s}$ P95 ab `Ready`; Fehler dürfen das Quellenlesen nicht blockieren).<br>**2.** Rundreise-Test bestanden: *Chat-Antwort $\rightarrow$ Als Notiz speichern $\rightarrow$ In Quelle umwandeln $\rightarrow$ Neue Quelle ist im nächsten Chat-Turn zitierbar*.<br>**3.** Alle 4 Standard-Berichtsvorlagen (`FR-ST-10`) generieren valide, quellenbelegte Dokumente. |
-| **Gate v3.0** | **1.** Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).<br>**2.** Python-Sandbox (`FR-GC-08`) ist netzwerkisoliert und gibt korrekte Rechenergebnisse/Plots zurück.<br>**3.** Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX; Kontextfenster skaliert bis $10^6$ Tokens (`NFR-PERF-01`); Chat-TTFT ≤ 2,5 s P95 für Anfragen nach dem Aufwachen des Dienstes, Aufwachverzögerungen separat ohne abnahmeblockierenden Grenzwert (D15/DEV-04). |
+| **Gate v3.0** | **1.** Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).<br>**2.** Python-Sandbox (`FR-GC-08`) ist netzwerkisoliert und gibt korrekte Rechenergebnisse/Plots zurück.<br>**3.** Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX; Kontextfenster skaliert bis $10^6$ Tokens (`NFR-PERF-01`); Chat-TTFT ≤ 2,5 s P95 für Anfragen nach dem Aufwachen des Dienstes, Aufwachverzögerungen separat ohne abnahmeblockierenden Grenzwert (D17/DEV-05). |
 | **Gate v4.0** | **1.** Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab.<br>**2.** Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.<br>**3.** Slide-Deck-Export liefert fehlerfrei öffnende PPTX-/PDF-Dateien. |
 | **Gate v5.0** | **1.** Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte.<br>**2.** Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.<br>**3.** Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`). |
 | **Gate v6.0** | **1.** Penetration-/RBAC-Test: Ein *Chat-Only*-Nutzer kann weder über UI noch via direktem API-Call Rohquellen oder Studio-Endpunkte abrufen.<br>**2.** ACL-Test (`NFR-SEC-02`): *Discover Sources* findet niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.<br>**3.** *(Zurückgestellt, DEV-03 / D5)* `@Notebook`-Aufruf im externen Enterprise-Chat liefert identisch fundierte Antworten wie der interne Notebook-Chat. Kein Bestandteil der v6.0-Abnahme, bis D5 neu bewertet wird. |
@@ -320,13 +320,39 @@ Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwi
 | **DEV-01** | `FR-ST-03` (Join-In), `Gate v5.0` #2 | Beide KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Zwischenfragen und setzen anschließend die Diskussion fort. | Playback pausiert. **Ein designierter Host** beantwortet die Live-Frage in seiner Host-Podcast-Stimme über Gemini Live (grounded über `C-02`). Playback wird anschließend an der Unterbrechungsstelle fortgesetzt. Der zweite Host nimmt nicht an der Live-Antwort teil. | 2026-10-16, Project Owner ([D7](../docs/solution-architecture.md#decisions)) |
 | **DEV-02** | `FR-ST-16` (Slide Decks) | Export als PPTX / PDF / Google Slides. | Export ausschließlich als `.pptx` und `.pdf`. Der Google-Slides-Export ist zurückgestellt, da er eine OAuth-Autorisierung pro Nutzer erfordert. | 2026-10-16, Project Owner ([D8](../docs/solution-architecture.md#decisions)) |
 | **DEV-03** | `FR-INT-01` (`@Notebook`), Paket 6.3, `Gate v6.0` #3 | `@Notebook`-Mention im zentralen Enterprise-Chat und Export von Chat-Threads als Notebook oder Quelle in v6.0. | Zurückgestellt. Paket 6.3 wird nicht spezifiziert; Gate v6.0 #3 ist nicht Teil der v6.0-Abnahme. Der Chat-Agent bleibt zustandslos hinter `C-02` und A2A-fähig. | 2026-10-16, Project Owner ([D5](../docs/solution-architecture.md#decisions)) |
-| **DEV-04** | `NFR-PERF-01`, Paket 3.4, `Gate v3.0` #3 | 2,5 s P95 für Standard-Chat ohne ausdrückliche Ausnahme für das Aufwachen nach Inaktivität. | Der 2,5-s-P95-Abnahmewert gilt nur für nach dem Aufwachen abgeschickte Anfragen. Aufwachverzögerungen werden separat gemessen und berichtet, ohne abnahmeblockierenden Latenzgrenzwert. Beide Gruppen messen weiterhin vom Absenden bis zum ersten validierten Antworttoken; kein Zurücksetzen der Uhr nach dem Absenden. | 2026-10-19, Project Owner ([D15](../docs/solution-architecture.md#decisions)) |
+| **DEV-04** | v2.0-Pakete 2.1–2.4 (`FR-WM-02/03`, `FR-UI-02`, `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-01..04`, `FR-ST-10/11`), `Gate v2.0` | Persistente Speicherung aller v2-Daten (Präferenzen, Icons, Pins, Source Guides, Übersichten, Chat-Konfiguration, Feedback, Notizen, Studio-Artefakte). | **Proof of Concept:** v2-Daten liegen bis v3 im Prozessspeicher einer einzelnen API-Instanz und gehen bei Neustart oder Redeploy verloren. Zugriffskontrolle, Quellen und Chat bleiben unverändert in PostgreSQL (v1). Ausnahme: Aus Notizen erzeugte Quellen (Notiz-Quellen, `FR-NM-03/04`) sind normale v1-Quellen in PostgreSQL (`media_type: note_markdown`) mit gemeinsamem Quellen-Limit; die Notizen selbst bleiben im Prozessspeicher. Die Umstellung auf PostgreSQL ist bewusst nach v3 verschoben. | 2026-10-19, Project Owner; Ausnahme Notiz-Quellen 2026-10-20 ([D16](../docs/solution-architecture.md#decisions)) |
+| **DEV-05** | `NFR-PERF-01`, Paket 3.4, `Gate v3.0` #3 | 2,5 s P95 für Standard-Chat ohne ausdrückliche Ausnahme für das Aufwachen nach Inaktivität. | Der 2,5-s-P95-Abnahmewert gilt nur für nach dem Aufwachen abgeschickte Anfragen. Aufwachverzögerungen werden separat gemessen und berichtet, ohne abnahmeblockierenden Latenzgrenzwert. Beide Gruppen messen weiterhin vom Absenden bis zum ersten validierten Antworttoken; kein Zurücksetzen der Uhr nach dem Absenden. | 2026-10-19, Project Owner ([D17](../docs/solution-architecture.md#decisions)) |
 
 ### 5.6 Konsistenzklärungen der FR-Karten (2026-10-16)
 
 Diese Klarstellungen lösen Widersprüche innerhalb der bestehenden IDs auf; sie ändern keine
 Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-APIs.
 
+- **v2.0 Proof of Concept (Beschluss Project Owner 2026-10-19, DEV-04/D16):** Die v2-Pakete
+  laufen vorerst mit Prozessspeicher statt PostgreSQL, damit früher ein lauffähiger Proof of
+  Concept bereitsteht. Datenpersistenz ist kein Ziel des PoC. Die Anbindung der v2-Daten an
+  PostgreSQL ist eine v3-Voraussetzung und wird vor Gate v3.0 umgesetzt; keine v2-Arbeit geht
+  dabei verloren.
+- **v2.0-Kartenreview (Beschluss Project Owner 2026-10-20):** Notiz-KI-Aktionen (`FR-NM-04`)
+  verwenden eine bereits konvertierte Notiz-Quelle wieder, wenn dieselben Notizen in derselben
+  Revision vorliegen; nur neue oder geänderte Inhalte belegen einen Quellen-Slot. Eine Zeitleiste
+  (`FR-ST-10`) ohne datierte Ereignisse wird mit einem ausdrücklichen Hinweis und den Hauptakteuren
+  abgeschlossen, nie mit erfundenen Daten. Source Guides (`FR-SI-02`) entstehen bei `Ready` in der
+  effektiven Ausgabesprache des Notebooks und werden je Quelle, Revision und Sprache gespeichert;
+  eine andere Sprache wird beim Öffnen nachgeneriert. In v1–v5 legt der Owner die Notebook-Sprache
+  fest; persönliche notebookbezogene Überschreibungen gelten ab v6.0 (`FR-UI-02`).
+  Notiz-Quellen (`FR-NM-03/04`, Beschluss Project Owner 2026-10-20) werden als normale v1-Quellen in
+  PostgreSQL gespeichert: Die Umwandlung reserviert den Slot über die atomare v1-Reservierung (Uploads
+  und Notiz-Quellen teilen ein Limit von standardmäßig 50 Quellen), das kombinierte Markdown durchläuft
+  die v1-Markdown-Ingestion bis `Ready`, und Ursprungsnotizen, deren Revisionen sowie kopierte Zitate
+  werden als Provenienz gespeichert. Inline-Zitatmarker wie `[1]` werden aus dem Quelltext entfernt.
+  Die Notizen selbst bleiben bis v3 im Prozessspeicher (DEV-04/D16).
+- **NFR-EVAL-01..04, alle Release-Gates (Beschluss Project Owner 2026-10-19):** Deterministische
+  Prüfungen (`NFR-EVAL-02` ID-Präzision, `NFR-EVAL-04` Leakage) laufen auf jedem PR. Die
+  LLM-bewerteten Prüfungen (`NFR-EVAL-01`, `NFR-EVAL-03`, semantische Zitatstützung) laufen einmal
+  je Release-Gate auf einer festen, deterministisch geschichteten Stichprobe von 50 Fällen aus dem
+  versionierten Golden-Datensatz; ein bestandener Lauf genügt als Gate-Nachweis. Schwellenwerte
+  bleiben unverändert (Constitution v2.0.0).
 - **FR-WM-07:** 200 MB = 200.000.000 Bytes und 500.000 Wörter sind unabhängige inklusive
   Obergrenzen. Quellen-Slots werden atomar reserviert und bei fehlgeschlagener Ingestion
   freigegeben. v1: 100 Notebooks je Nutzer und standardmäßig 50 Quellen je Notebook
@@ -364,7 +390,7 @@ Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-API
   Tokens, nicht inklusive abgewählter Decoys. Große Studio-Jobs verarbeiten Original-Chunks
   vollständig in Batches; verlustbehaftete Source Guides allein genügen nicht (D12).
   Die Latenzabnahme gilt nur für Anfragen nach dem Aufwachen des Dienstes; Aufwachverzögerungen
-  werden separat ohne abnahmeblockierenden Grenzwert berichtet (D15/DEV-04).
+  werden separat ohne abnahmeblockierenden Grenzwert berichtet (D17/DEV-05).
 
 Die [paketübergreifenden Regeln](requirements/README.md#binding-cross-package-rules) und
 [Abhängigkeiten](requirements/README.md#package-prerequisites) präzisieren diese bestehenden

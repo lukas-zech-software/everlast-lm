@@ -25,4 +25,6 @@ module "v1_foundation" {
   max_sources_per_notebook = var.max_sources_per_notebook
   max_notebooks_per_user   = var.max_notebooks_per_user
   deletion_protection      = var.deletion_protection
+
+  enable_email_password_sign_in = var.enable_email_password_sign_in
 }

@@ -6,7 +6,7 @@
 
 ## Summary (`NFR-PERF-01`, `C-01..C-03`)
 
-Scale the existing C-02 path with PostgreSQL hybrid retrieval and source-guide routing; preserve full original-chunk processing for asynchronous Studio. Establish reproducible million-token correctness and validated-answer latency evidence. This is package3.4 only; ingestion, code execution, maps and tables remain prerequisite packages. The inherited 3.2 plan accepts the default 2vCPU/1.5GB sandbox under D16; R6 qualification remains pending. Planning completes without claiming runtime acceptance.
+Scale the existing C-02 path with PostgreSQL hybrid retrieval and source-guide routing; preserve full original-chunk processing for asynchronous Studio. Establish reproducible million-token correctness and validated-answer latency evidence. This is package3.4 only; ingestion, code execution, maps and tables remain prerequisite packages. The inherited 3.2 plan accepts the default 2vCPU/1.5GB sandbox under D18; R6 qualification remains pending. Planning completes without claiming runtime acceptance.
 
 ## Technical Context (`NFR-PERF-01`, `C-01..C-03`, `NFR-SEC-01/02`)
 
@@ -16,7 +16,7 @@ Scale the existing C-02 path with PostgreSQL hybrid retrieval and source-guide r
 **Authentication & Residency**: Generic OIDC/SAML Identity Platform, Owner-only v3, notebook/document ACL rechecks, `europe-west4` enterprise no-training endpoints. Region exceptions: None. A benchmark runs only on approved deployed resources; no API enablement/deployment is performed here.
 **Testing**: Existing Vitest, Playwright and deterministic eval runners; judged runner is guarded. New scaled fixture, production hybrid provider, cache adapter and integrated benchmark runner are planned and currently UNAVAILABLE. Local deterministic adapters cannot establish runtime latency or model quality.
 **Execution Model**: Existing ADK chat loop receives C-02-owned evidence. Query classification, retrieval/ranking, token budgeting, cache eligibility, Studio batching and benchmark aggregation are deterministic TypeScript. Model calls extract/compose structured evidence inside deterministic Studio pipelines.
-**Performance Goals**: 20 warm standard-chat runs; nearest-rank P95≤2,500ms (19th sorted value), submission→first validated answer token. Every run must answer142.8bar with the needle citation and zero decoy leakage. Wake-up measurements are separate without blocking latency threshold (D15/DEV-04). Code turns and Studio have their own package constraints.
+**Performance Goals**: 20 warm standard-chat runs; nearest-rank P95≤2,500ms (19th sorted value), submission→first validated answer token. Every run must answer142.8bar with the needle citation and zero decoy leakage. Wake-up measurements are separate without blocking latency threshold (D17/DEV-05). Code turns and Studio have their own package constraints.
 **Constraints**: At least1,000,000 active tokens; needle fixture selected sources1–40≥1,050,000 tokens excluding source41. Million tokens is not a notebook quota cap: up to300 sources, each≤200,000,000bytes and≤500,000extracted words. All original chunks participate in Studio above capacity (D12). No silent token truncation or scope widening.
 **Within-Release Prerequisites**: Inherit completed3.1,3.2,3.3 plans/contracts in that order; integrate existing v1 chat/C-02 and v2 Source Guides/C-03. Gate v2.0 evidence is mandatory before implementation. Full Gate v3.0 depends on every v3 package, including R6 qualification.
 
@@ -77,6 +77,6 @@ Create spec-derived failing tests before implementation for all FR001–010 and 
 
 Deterministic citation/leakage suites each PR; judged faithfulness/rejection/semantic support on retrieval/prompt/chat PRs and release. Independent deployed timing and model results are UNAVAILABLE today. Gate v3.0 cannot pass until all package gates, R6 and these integrated evaluations pass. No plan gate is waived by documenting runtime work.
 
-## Complexity Tracking (`CC-05/08`, D12/D15/D16)
+## Complexity Tracking (`CC-05/08`, D12/D17/D18)
 
-No constitution violation or new deviation. D12 complete evidence, D15/DEV-04 warm acceptance and D16 sandbox envelope are preserved. New datastore/framework, broken C-02 signature, regional exception or weakened quality threshold requires an upstream decision before work proceeds.
+No constitution violation or new deviation. D12 complete evidence, D17/DEV-05 warm acceptance and D18 sandbox envelope are preserved. New datastore/framework, broken C-02 signature, regional exception or weakened quality threshold requires an upstream decision before work proceeds.

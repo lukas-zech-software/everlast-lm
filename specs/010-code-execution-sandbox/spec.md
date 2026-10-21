@@ -12,7 +12,7 @@
 
 | SRS ID | Requirement Title | FR Card Anchor | Architecture Decisions / Deviations |
 | :--- | :--- | :--- | :--- |
-| FR-GC-08 | Secure Code Execution Sandbox (Cloud Computer) | [FR card](../../spec/requirements/v3/package_3_2_code_execution_sandbox.md#fr-gc-08--secure-code-execution-sandbox-cloud-computer) | D2 sandbox-language exception; D3 residency; D16 managed resource envelope; architecture C6 and R6 |
+| FR-GC-08 | Secure Code Execution Sandbox (Cloud Computer) | [FR card](../../spec/requirements/v3/package_3_2_code_execution_sandbox.md#fr-gc-08--secure-code-execution-sandbox-cloud-computer) | D2 sandbox-language exception; D3 residency; D18 managed resource envelope; architecture C6 and R6 |
 | FR-SI-03/05, C-01, C-02, NFR-EVAL-04 | Explicit scoped data and revision lifecycle | [Binding rules](../../spec/requirements/README.md#binding-cross-package-rules) | Shared contracts; no source-read bypass |
 | FR-GC-01/02/03/06, NFR-EVAL-01..04 | Grounding, citations and historical output hygiene | [Binding rules](../../spec/requirements/README.md#binding-cross-package-rules) | D13 pre-publication validation |
 | FR-WM-04/05, NFR-SEC-01/02 | Notebook isolation, role phasing and enterprise data protection | [Binding rules](../../spec/requirements/README.md#binding-cross-package-rules) | D3, D6; Constitution VI |
@@ -21,7 +21,7 @@
 - **Within-Release Prerequisites**: Package 3.1 extends C-01 adapters without changing the locator union; package 3.2 consumes existing contracts. FR-GC-01, FR-SI-03 and C-02 are direct dependencies. Package 3.3 remains separate; package 3.4 benchmarks the integrated v3 result. Gate v2.0 must pass before v3 implementation; specification may proceed beforehand.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only for v3. Editor, Viewer Full and Viewer Chat-Only chat use applies from v6.0, with each role's existing authorization boundaries.
 - **Data Residency (`D3`, `NFR-SEC-01`)**: Default `europe-west4`; no new exception is authorized here. Any exception needs a documented per-feature region map and recorded approval. Enterprise endpoints must contractually exclude training on company data; no unverified zero-retention claim.
-- **Upstream Flow-Back Status (`CC-01`)**: The 2026-10-19 statistical-intent and execution-attempt clarifications are synchronized with the package 3.2 FR card and architecture sandbox wording. The 2026-10-20 managed-default CPU/RAM revision additionally flows to the SRS FR-GC-08 acceptance amendment, shared README and D16. Future refinements must update this spec and the governing FR card, SRS or architecture and affected issues before implementation.
+- **Upstream Flow-Back Status (`CC-01`)**: The 2026-10-19 statistical-intent and execution-attempt clarifications are synchronized with the package 3.2 FR card and architecture sandbox wording. The 2026-10-20 managed-default CPU/RAM revision additionally flows to the SRS FR-GC-08 acceptance amendment, shared README and D18. Future refinements must update this spec and the governing FR card, SRS or architecture and affected issues before implementation.
 
 ## Clarifications
 
@@ -154,15 +154,15 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **Evidence boundary (`CC-01`, CC-02)**: Reference behavior is unverified background, not proof of a deployed service. Runtime sandbox/security/performance/eval validation remains UNAVAILABLE in this specification-only work; later tasks must place spec-derived failing tests before implementation.
 
 
-## Planning decision history (2026-10-20; FR-GC-08, R6, D16)
+## Planning decision history (2026-10-20; FR-GC-08, R6, D18)
 
 The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
 
 **Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. R6 deployment qualification is required before implementation/runtime admission; it is not a condition for completing this design plan.
 
-This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D16 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
+This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D18 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
 
-### Session 2026-10-20 (FR-GC-08, D16)
+### Session 2026-10-20 (FR-GC-08, D18)
 
 - Q: Retain the old CPU/RAM caps or accept the managed default? → A: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This supersedes the initial Option A response recorded above. The managed default is selected; other controls stay unchanged.
 - Planning flow-back: use fresh managed sandboxes per attempt, scoped byte transfer without credentials, ordered traces and private authorized chart delivery. [R6 qualification](r6-feasibility.md) records required deployment evidence separately from completed design.

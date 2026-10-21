@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { StudioPluginRegistry, type ReportSubtype } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { StudioJobRunner } from "../src/studio/runner.js";
-import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.js";
-import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.js";
-import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_HISTORY, SRC_TECH, SRC_UNSELECTED, historyChunks, techChunks, unselectedChunks } from "./studio-fixtures.js";
+import { StudioJobRunner } from "../src/studio/runner.ts";
+import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.ts";
+import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
+import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_HISTORY, SRC_TECH, SRC_UNSELECTED, historyChunks, techChunks, unselectedChunks } from "./studio-fixtures.ts";
 
 // Deterministic eval (NFR-EVAL-02, NFR-EVAL-04, FR-017); LLM-judged evals NFR-EVAL-01/03 are UNAVAILABLE here.
 describe("Studio reports deterministic eval", () => {

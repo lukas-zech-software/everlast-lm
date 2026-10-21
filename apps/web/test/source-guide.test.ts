@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { SourceGuideController } from "../src/source-guide.js";
-import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges, formatChatConfigurationLabel } from "../src/chat-control.js";
-import { setupMockDOM } from "./mock-dom.js";
+import { SourceGuideController } from "../src/source-guide.ts";
+import { ChatControlController, copyResponse, renderResponseActions, scopeSignature, stripCitationBadges, formatChatConfigurationLabel } from "../src/chat-control.ts";
+import { setupMockDOM } from "./mock-dom.ts";
 
 const source = "22222222-2222-4222-8222-222222222222";
 const notebook = "11111111-1111-4111-8111-111111111111";
@@ -22,6 +22,28 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     container.querySelector("[data-topic]")?.click();
     expect(onTopic).toHaveBeenCalledWith("Topic", source);
     expect(fetcher).toHaveBeenCalledWith(`/api/notebooks/${notebook}/sources/${source}/guide?revision=2`);
+  });
+
+  it("sends a topic chip only when the inspected source is in the current selection (FR-SI-02, Constitution III)", async () => {
+    const onTopic = vi.fn();
+    let selected: string[] = [];
+    const fetcher = vi.fn(async () => new Response(JSON.stringify({ status: "GuideReady", summary_md: "Summary", key_topics: ["Topic"] }), { status: 200 }));
+    const guide = new SourceGuideController({ notebookId: notebook, fetcher: fetcher as typeof fetch, onTopic, isSelected: (id) => selected.includes(id) });
+    await guide.load(source, 2);
+    const dom = setupMockDOM(1440);
+    const container = dom.document.createElement("div");
+    guide.render(container as any);
+    container.querySelector(".source-guide-toggle")?.click();
+    container.querySelector("[data-topic]")?.click();
+    expect(onTopic).not.toHaveBeenCalled();
+    const prompt = container.querySelector('[data-testid="source-guide-select-prompt"]');
+    expect(prompt?.getAttribute("hidden")).toBeNull();
+    expect(prompt?.textContent).toMatch(/select this source/i);
+    expect(selected).toEqual([]);
+    selected = [source];
+    container.querySelector("[data-topic]")?.click();
+    expect(onTopic).toHaveBeenCalledWith("Topic", source);
+    expect(container.querySelector('[data-testid="source-guide-select-prompt"]')?.getAttribute("hidden")).not.toBeNull();
   });
 
   it("invalidates overview and follow-up content immediately when the exact scope changes", () => {
@@ -116,7 +138,7 @@ describe("Package 2.2 web controls (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02)", () 
     container.querySelector('[data-action="save-note"]')?.click();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(container.querySelector('[role="status"]')?.textContent).toContain("Saved: Saved answer");
+    expect(container.querySelector('[role="status"]')?.textContent).toBe("Saved to notes");
   });
 
 });

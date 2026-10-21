@@ -100,10 +100,10 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 **Open questions:** `None`
 
 
-## Planning decision history (2026-10-20; FR-GC-08, R6, D16)
+## Planning decision history (2026-10-20; FR-GC-08, R6, D18)
 
 The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
 
 **Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. R6 deployment qualification is required before implementation/runtime admission; it is not a condition for completing this design plan.
 
-This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D16 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
+This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D18 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.

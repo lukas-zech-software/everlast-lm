@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { StudioParamsError, StudioPluginRegistry, type ReportSubtype } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import { StudioJobRunner } from "../src/studio/runner.js";
-import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.js";
-import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.js";
+import { StudioJobRunner } from "../src/studio/runner.ts";
+import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.ts";
+import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
 import {
   FakeAccess, FakeScopedContext, NB, OWNER, SRC_HISTORY, SRC_TECH, SRC_UNSELECTED,
   historyChunks, techChunks, unselectedChunks,
-} from "./studio-fixtures.js";
+} from "./studio-fixtures.ts";
 
 function setup() {
   const repo = new InMemoryStudioArtifactRepository();

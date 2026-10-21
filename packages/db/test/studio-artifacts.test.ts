@@ -4,7 +4,7 @@ import {
   StudioArtifactSchema,
   type StudioReportPayload,
 } from "@everlast/contracts";
-import { InMemoryStudioArtifactRepository, StudioRetryNotAllowedError } from "../src/studio-artifacts.js";
+import { InMemoryStudioArtifactRepository, StudioRetryNotAllowedError } from "../src/studio-artifacts.ts";
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const NB2 = "22222222-2222-4222-8222-222222222222";
@@ -15,6 +15,7 @@ const payload: StudioReportPayload = {
   citations: [
     { badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: SRC, revision: 1, snippet: "s" },
   ],
+  sections: [{ key: "report", heading: "Report" }],
 };
 const input = {
   notebook_id: NB,
@@ -37,7 +38,7 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
     expect(a.attempt).toBe(1);
     const { owner_id: _o, ...dto } = a;
     expect(StudioArtifactSchema.safeParse(dto).success).toBe(true);
-    expect(a.active_source_ids_snapshot).toEqual(input.snapshot);
+    expect(a.source_revisions_snapshot).toEqual(input.snapshot);
   });
 
   it("enforces Queued → Running → Completed and terminal immutability", async () => {
@@ -97,7 +98,7 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
     expect(next.attempt).toBe(2);
     expect(next.retry_of).toBe(a.id);
     expect(next.status).toBe("Queued");
-    expect(next.active_source_ids_snapshot).toEqual([{ source_id: SRC, revision: 2 }]);
+    expect(next.source_revisions_snapshot).toEqual([{ source_id: SRC, revision: 2 }]);
     expect((await repo.getById(a.id))?.status).toBe("Failed");
   });
 

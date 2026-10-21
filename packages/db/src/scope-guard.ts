@@ -1,166 +1,110 @@
-import type { PoolClient, Pool } from "pg";
 import {
+  EmptyScopeError,
   InvalidScopeError,
+  SourceNotReadyError,
   SourceSnapshotInvalidError,
-  type ScopedContextRequest,
   type SourceRevisionPair,
 } from "@everlast/contracts";
-import { getNotebookById, getNotebookRaw } from "./notebooks.js";
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import type { Queryable } from "./transaction.ts";
+import { isUuid, requireOwnedNotebook } from "./notebooks.ts";
 
-export { InvalidScopeError };
+export { EmptyScopeError, InvalidScopeError, SourceNotReadyError, SourceSnapshotInvalidError };
 
-export interface ScopeGuardOptions {
-  mockSourceRevisions?: Record<string, number>;
-  mockSources?: Record<string, { notebook_id: string; status: string; revision: number }>;
-}
+/**
+ * C-02 scope guard (FR-WM-04, FR-SI-03, NFR-EVAL-04).
+ * Capture validates owner + explicit Ready selection and freezes exact (source_id, revision) pairs.
+ * Verify re-checks the same snapshot before reads and under the publication fence; it never recaptures.
+ */
 
-export interface ScopeValidationResult {
-  valid: boolean;
+export interface ScopeSnapshot {
   notebook_id: string;
   owner_id: string;
-  active_source_ids: string[];
-  snapshot: SourceRevisionPair[];
+  sources: SourceRevisionPair[];
 }
 
-// Lazy load fixtures if available
-let fixturesCache: any = null;
-function getFixtures() {
-  if (fixturesCache) return fixturesCache;
-  try {
-    const __dirname = path.dirname(fileURLToPath(import.meta.url));
-    const p = path.resolve(__dirname, "../../evals/fixtures/workspace-isolation.json");
-    if (fs.existsSync(p)) {
-      fixturesCache = JSON.parse(fs.readFileSync(p, "utf8"));
-    }
-  } catch {}
-  return fixturesCache;
+interface SourceScopeRow {
+  id: string;
+  status: string;
+  active_revision: number | null;
 }
 
-export async function validateRequestScope(
-  client: PoolClient | Pool | undefined,
+export function normalizeSourceIds(ids: unknown): string[] {
+  if (!Array.isArray(ids) || ids.length === 0) throw new EmptyScopeError();
+  const unique = Array.from(new Set(ids));
+  for (const id of unique) {
+    if (!isUuid(id)) throw new InvalidScopeError("active_source_ids must contain UUIDs");
+  }
+  return (unique as string[]).sort();
+}
+
+export async function captureScopeSnapshot(
+  db: Queryable,
   ownerId: string,
-  request: ScopedContextRequest,
-  options?: ScopeGuardOptions
-): Promise<ScopeValidationResult> {
-  const { notebook_id, active_source_ids, source_revisions } = request;
-
-  // 1. Verify notebook exists and belongs to caller (FR-WM-04)
-  let nb = await getNotebookById(client, notebook_id, ownerId);
-  if (!nb) {
-    const raw = getNotebookRaw(notebook_id);
-    if (raw && (raw.owner_id !== ownerId || raw.archived_at)) {
-      throw new InvalidScopeError(`Notebook ${notebook_id} does not exist or caller ${ownerId} lacks ownership`);
+  notebookId: string,
+  activeSourceIds: unknown
+): Promise<ScopeSnapshot> {
+  const ids = normalizeSourceIds(activeSourceIds);
+  await requireOwnedNotebook(db, ownerId, notebookId);
+  const rows = await db.query<SourceScopeRow>(
+    "SELECT id, status, active_revision FROM sources WHERE notebook_id = $1 AND id = ANY($2::uuid[])",
+    [notebookId, ids]
+  );
+  if (rows.rows.length !== ids.length) {
+    // Unknown, foreign-notebook or foreign-owner source: reject the entire request, never filter.
+    throw new InvalidScopeError("One or more selected sources do not belong to this notebook");
+  }
+  const pairs: SourceRevisionPair[] = [];
+  for (const row of rows.rows) {
+    if (row.status !== "Ready" || row.active_revision === null) {
+      throw new SourceNotReadyError(`Source ${row.id} is ${row.status}`);
     }
+    pairs.push({ source_id: row.id, revision: row.active_revision });
+  }
+  pairs.sort((a, b) => a.source_id.localeCompare(b.source_id));
+  return { notebook_id: notebookId, owner_id: ownerId, sources: pairs };
+}
 
-    // Check fixtures
-    const fixtures = getFixtures();
-    if (fixtures) {
-      const fixNb = fixtures.notebooks?.find((n: any) => n.id === notebook_id);
-      if (fixNb) {
-        const user = fixtures.users?.find((u: any) => u.id === fixNb.owner_id || u.subject === ownerId);
-        if (user && (user.id === fixNb.owner_id || user.subject === ownerId) && fixNb.owner_id === user.id) {
-          if (ownerId !== user.subject && ownerId !== user.id) {
-            throw new InvalidScopeError(`Caller ${ownerId} does not own notebook ${notebook_id}`);
-          }
-          nb = {
-            id: fixNb.id,
-            owner_id: ownerId,
-            title: fixNb.title,
-            created_at: fixNb.created_at,
-            updated_at: fixNb.updated_at,
-          };
-        } else {
-          throw new InvalidScopeError(`Caller ${ownerId} does not own notebook ${notebook_id}`);
-        }
-      }
+/**
+ * Re-verifies a captured snapshot. With `lock: "share"` (inside a transaction) this is the short publication
+ * fence: notebook deletion (FOR UPDATE) and source mutation serialize against it.
+ */
+export async function verifyScopeSnapshot(
+  db: Queryable,
+  snapshot: ScopeSnapshot,
+  options: { lock?: "none" | "share" } = {}
+): Promise<void> {
+  if (snapshot.sources.length === 0) throw new EmptyScopeError();
+  const lock = options.lock ?? "none";
+  try {
+    await requireOwnedNotebook(db, snapshot.owner_id, snapshot.notebook_id, lock);
+  } catch {
+    throw new SourceSnapshotInvalidError("Notebook was deleted or access was revoked");
+  }
+  const ids = snapshot.sources.map((pair) => pair.source_id);
+  const rows = await db.query<SourceScopeRow>(
+    `SELECT id, status, active_revision FROM sources WHERE notebook_id = $1 AND id = ANY($2::uuid[])${
+      lock === "share" ? " FOR SHARE" : ""
+    }`,
+    [snapshot.notebook_id, ids]
+  );
+  const current = new Map(rows.rows.map((row) => [row.id, row]));
+  for (const pair of snapshot.sources) {
+    const row = current.get(pair.source_id);
+    if (!row || row.status !== "Ready" || row.active_revision !== pair.revision) {
+      throw new SourceSnapshotInvalidError(`Source ${pair.source_id} revision ${pair.revision} is no longer current`);
     }
   }
+}
 
-  if (!nb) {
-    throw new InvalidScopeError(`Notebook ${notebook_id} not found or unauthorized for ${ownerId}`);
-  }
-
-  // 2. Validate all active_source_ids against notebook and Ready status
-  const snapshot: SourceRevisionPair[] = [];
-  const fixtures = getFixtures();
-
-  for (const sourceId of active_source_ids) {
-    // Check mock options first
-    if (options?.mockSources && options.mockSources[sourceId]) {
-      const mockSrc = options.mockSources[sourceId]!;
-      if (mockSrc.notebook_id !== notebook_id) {
-        throw new InvalidScopeError(`Cross-notebook source ${sourceId} does not belong to notebook ${notebook_id}`);
-      }
-      if (mockSrc.status !== "Ready") {
-        throw new InvalidScopeError(`Source ${sourceId} is not Ready`);
-      }
-      snapshot.push({ source_id: sourceId, revision: mockSrc.revision });
-      continue;
-    }
-
-    // Check fixtures
-    if (fixtures) {
-      const fixSrc = fixtures.sources?.find((s: any) => s.id === sourceId);
-      if (fixSrc) {
-        if (fixSrc.notebook_id !== notebook_id) {
-          throw new InvalidScopeError(
-            `Cross-notebook source violation: source ${sourceId} belongs to ${fixSrc.notebook_id}, expected ${notebook_id}`
-          );
-        }
-        if (fixSrc.status !== "Ready") {
-          throw new InvalidScopeError(`Source ${sourceId} is not in Ready status`);
-        }
-        let rev = fixSrc.revision;
-        if (options?.mockSourceRevisions && options.mockSourceRevisions[sourceId] !== undefined) {
-          rev = options.mockSourceRevisions[sourceId]!;
-        }
-        snapshot.push({ source_id: sourceId, revision: rev });
-        continue;
-      }
-    }
-
-    // Unknown source ID or cross-notebook naming convention
-    if (sourceId.startsWith("b2") && notebook_id.startsWith("a1") || sourceId.startsWith("a1") && notebook_id.startsWith("b2")) {
-      throw new InvalidScopeError(`Cross-notebook source ${sourceId} does not belong to notebook ${notebook_id}`);
-    }
-
-    if (sourceId === "00000000-0000-4000-8000-000000000000") {
-      throw new InvalidScopeError(`Unknown source ID ${sourceId}`);
-    }
-
-    // Default dynamic source
-    let rev = 1;
-    if (options?.mockSourceRevisions && options.mockSourceRevisions[sourceId] !== undefined) {
-      rev = options.mockSourceRevisions[sourceId]!;
-    }
-    snapshot.push({ source_id: sourceId, revision: rev });
-  }
-
-  // 3. Snapshot verification
-  if (source_revisions && source_revisions.length > 0) {
-    const activeMap = new Map<string, number>();
-    for (const snap of snapshot) {
-      activeMap.set(snap.source_id, snap.revision);
-    }
-
-    for (const reqPair of source_revisions) {
-      const activeRev = activeMap.get(reqPair.source_id);
-      if (activeRev === undefined || activeRev !== reqPair.revision) {
-        throw new SourceSnapshotInvalidError(
-          `Snapshot invalid: source ${reqPair.source_id} captured at revision ${reqPair.revision}, but current revision is ${activeRev}`
-        );
-      }
-    }
-  }
-
-  return {
-    valid: true,
-    notebook_id,
-    owner_id: ownerId,
-    active_source_ids,
-    snapshot,
-  };
+/**
+ * Authorized singleton inspector scope (FR-SI-04): one Ready source of an owned notebook. It never touches
+ * the generation selection.
+ */
+export async function captureInspectionScope(
+  db: Queryable,
+  ownerId: string,
+  notebookId: string,
+  sourceId: string
+): Promise<ScopeSnapshot> {
+  return captureScopeSnapshot(db, ownerId, notebookId, [sourceId]);
 }

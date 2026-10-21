@@ -1,166 +1,75 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { validateMigrationDdl } from "../src/migrate.js";
-import {
-  createNotebook,
-  deleteNotebook,
-  getNotebookById,
-  resetNotebookStore,
-} from "../src/notebooks.js";
-import {
-  seedSourceSlots,
-  getOccupiedSourceCount,
-  deleteSourceSlotsForNotebook,
-  resetQuotaStore,
-} from "../src/quota.js";
-import {
-  getOrCreateChatThread,
-  persistChatMessage,
-  getChatMessages,
-  deleteChatThreadsForNotebook,
-  resetChatStore,
-} from "../src/chat-history.js";
-import { getLatestCleanupOperationForNotebook } from "../src/cleanup.js";
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Pool } from "pg";
+import { HashingTestEmbedder } from "@everlast/cloud";
+import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import { createNotebook, deleteNotebook } from "../src/notebooks.ts";
+import { captureScopeSnapshot } from "../src/scope-guard.ts";
+import { getOrCreateThread, publishTurn } from "../src/chat-history.ts";
 
-/**
- * T044 Cross-Package Integration Assertions: Cascade & Isolation
- * (FR-WM-01, FR-WM-04, FR-WM-07, FR-GC-01, NFR-EVAL-02, NFR-EVAL-04)
- *
- * Verifies:
- * 1. DDL foreign keys enforce ON DELETE CASCADE across notebooks -> sources -> chunks -> threads -> messages.
- * 2. Deleting a notebook cascades to purge its sources (2 sources), chunks (15 chunks), and chat thread (1 thread).
- * 3. Identical-file independence: deleting Notebook A does not impact Notebook B having an identical file.
- * 4. Cleanup outbox enqueue records deletion operation without data leakage.
- */
+/** T044/T048 — real 2-source / 15-chunk / 1-thread cascade and deletion timing (FR-WM-01, FR-WM-04). */
 
-describe("T044: Cross-Package Cascade & Deletion Integration", () => {
-  beforeEach(() => {
-    resetNotebookStore();
-    resetQuotaStore();
-    resetChatStore();
+let db: TestDatabase;
+let pool: Pool;
+const embed = (t: string[]) => new HashingTestEmbedder({ NODE_ENV: "test" }).embed(t);
+
+beforeAll(async () => {
+  db = await createTestDatabase();
+  pool = db.pool;
+});
+
+afterAll(async () => {
+  await db?.drop();
+});
+
+const paragraphs = (n: number, tag: string) => Array.from({ length: n }, (_, i) => `${tag} paragraph ${i + 1} content.`).join("\n\n");
+
+async function counts(notebookId: string) {
+  const q = async (table: string) => (await pool.query(`SELECT count(*)::int AS c FROM ${table} WHERE notebook_id = $1`, [notebookId])).rows[0].c;
+  return { sources: await q("sources"), revisions: await q("source_revisions"), pages: await q("source_pages"), chunks: await q("chunks"), threads: await q("chat_threads"), messages: await q("chat_messages") };
+}
+
+describe("FR-WM-01 notebook deletion cascade", () => {
+  it("CASCADE-02: deleting a notebook with 2 sources, 15 chunks and 1 thread removes every row immediately", async () => {
+    const owner = await createTestUser(pool);
+    const { notebook } = await createNotebook(pool, owner, {});
+    const a = await seedReadySource(pool, owner, notebook.id, { pages: [paragraphs(8, "A")], embed });
+    const b = await seedReadySource(pool, owner, notebook.id, { pages: [paragraphs(7, "B")], embed });
+    const thread = await getOrCreateThread(pool, owner, notebook.id);
+    const snapshot = await captureScopeSnapshot(pool, owner, notebook.id, [a.sourceId, b.sourceId]);
+    await publishTurn(pool, { thread, snapshot, requestId: randomUUID(), question: "Q", answer: { kind: "refusal", content: "R", citations: [] } });
+    expect(await counts(notebook.id)).toEqual({ sources: 2, revisions: 2, pages: 2, chunks: 15, threads: 1, messages: 2 });
+
+    const started = performance.now();
+    await deleteNotebook(pool, owner, notebook.id);
+    const elapsed = performance.now() - started;
+    expect(await counts(notebook.id)).toEqual({ sources: 0, revisions: 0, pages: 0, chunks: 0, threads: 0, messages: 0 });
+    expect(elapsed).toBeLessThanOrEqual(2000);
   });
 
-  describe("1. DDL Cascade Constraints Across Migrations", () => {
-    const migration01 = join(process.cwd(), "packages/db/migrations/0001_workspace.sql");
-    const migration02 = join(process.cwd(), "packages/db/migrations/0002_ingestion.sql");
-    const migration03 = join(process.cwd(), "packages/db/migrations/0003_chat.sql");
-
-    it("CASCADE-01: migrations enforce ON DELETE CASCADE across the relational graph", () => {
-      expect(existsSync(migration01)).toBe(true);
-      expect(existsSync(migration02)).toBe(true);
-      expect(existsSync(migration03)).toBe(true);
-
-      const ddl01 = readFileSync(migration01, "utf8");
-      const v01 = validateMigrationDdl(ddl01);
-      expect(v01.getTable("sources").hasForeignKey("notebook_id", "notebooks", "id", "CASCADE")).toBe(true);
-
-      const ddl02 = readFileSync(migration02, "utf8");
-      expect(ddl02).toMatch(/REFERENCES\s+sources\s*\(\s*notebook_id\s*,\s*id\s*\)\s*ON\s+DELETE\s+CASCADE/i);
-      expect(ddl02).toMatch(/REFERENCES\s+sources\s*\(\s*notebook_id\s*,\s*id\s*\)\s*ON\s+DELETE\s+CASCADE/i);
-
-      const ddl03 = readFileSync(migration03, "utf8");
-      expect(ddl03).toMatch(/REFERENCES\s+notebooks\s*\(\s*id\s*\)\s*ON\s+DELETE\s+CASCADE/i);
-      expect(ddl03).toMatch(/REFERENCES\s+chat_threads\s*\(\s*id\s*\)\s*ON\s+DELETE\s+CASCADE/i);
-    });
+  it("CASCADE-03: identical uploads in another notebook keep their sources and chunks", async () => {
+    const owner = await createTestUser(pool);
+    const { notebook: nbA } = await createNotebook(pool, owner, {});
+    const { notebook: nbB } = await createNotebook(pool, owner, {});
+    await seedReadySource(pool, owner, nbA.id, { pages: [paragraphs(5, "Same")], embed });
+    await seedReadySource(pool, owner, nbB.id, { pages: [paragraphs(5, "Same")], embed });
+    await deleteNotebook(pool, owner, nbA.id);
+    expect((await counts(nbB.id)).chunks).toBe(5);
   });
 
-  describe("2. Real 2-Source / 15-Chunk / 1-Thread Notebook Cascade", () => {
-    it("CASCADE-02: deleting notebook cascades to purge 2 sources, 15 chunks, and 1 thread", async () => {
-      const ownerId = "usr_cascade_owner_1";
-      const nbA = await createNotebook(undefined, ownerId, { title: "Cascade Notebook A" });
-
-      // Seed 2 sources in Notebook A:
-      // Source 1: 8 chunks
-      // Source 2: 7 chunks (total = 15 chunks)
-      await seedSourceSlots(nbA.id, 2, "Ready");
-      const countBefore = await getOccupiedSourceCount(nbA.id);
-      expect(countBefore).toBe(2);
-
-      // Create 1 chat thread with user and assistant messages in Notebook A
-      const threadA = await getOrCreateChatThread(undefined, nbA.id, ownerId);
-      expect(threadA.notebook_id).toBe(nbA.id);
-
-      await persistChatMessage(undefined, {
-        thread_id: threadA.id,
-        notebook_id: nbA.id,
-        user_id: ownerId,
-        role: "user",
-        content: "What are the key findings in document 1?",
-      });
-      await persistChatMessage(undefined, {
-        thread_id: threadA.id,
-        notebook_id: nbA.id,
-        user_id: ownerId,
-        role: "assistant",
-        content: "Document 1 outlines the foundation architecture.",
-      });
-
-      const messagesBefore = await getChatMessages(undefined, nbA.id, ownerId);
-      expect(messagesBefore.length).toBe(2);
-
-      // Execute Notebook Deletion
-      const deleted = await deleteNotebook(undefined, nbA.id, ownerId);
-      expect(deleted).toBe(true);
-
-      // Verify Notebook A is no longer accessible
-      const nbAfter = await getNotebookById(undefined, nbA.id, ownerId);
-      expect(nbAfter).toBeNull();
-
-      // Verify sources are purged from quota ledger
-      const countAfter = await getOccupiedSourceCount(nbA.id);
-      expect(countAfter).toBe(0);
-
-      // Verify chat messages for Notebook A are purged
-      const messagesAfter = await getChatMessages(undefined, nbA.id, ownerId);
-      expect(messagesAfter.length).toBe(0);
-
-      // Verify cleanup outbox record exists
-      const cleanupOp = getLatestCleanupOperationForNotebook(nbA.id);
-      expect(cleanupOp).not.toBeNull();
-      expect(cleanupOp?.status).toBe("Pending");
-      expect(cleanupOp?.notebook_id).toBe(nbA.id);
-      expect(cleanupOp?.owner_id).toBe(ownerId);
-    });
-  });
-
-  describe("3. Identical-File Independence Across Separate Notebooks", () => {
-    it("CASCADE-03: deleting Notebook A preserves identical-file sources and chunks in Notebook B", async () => {
-      const ownerId = "usr_cascade_owner_2";
-      const nbA = await createNotebook(undefined, ownerId, { title: "Notebook A Shared Hash" });
-      const nbB = await createNotebook(undefined, ownerId, { title: "Notebook B Shared Hash" });
-
-      // Both notebooks ingest the identical file (e.g. SHA-256 matching research paper)
-      await seedSourceSlots(nbA.id, 1, "Ready");
-      await seedSourceSlots(nbB.id, 1, "Ready");
-
-      const threadB = await getOrCreateChatThread(undefined, nbB.id, ownerId);
-      await persistChatMessage(undefined, {
-        thread_id: threadB.id,
-        notebook_id: nbB.id,
-        user_id: ownerId,
-        role: "user",
-        content: "Question on Notebook B identical document",
-      });
-
-      // Delete Notebook A
-      const deletedA = await deleteNotebook(undefined, nbA.id, ownerId);
-      expect(deletedA).toBe(true);
-
-      // Notebook A is deleted
-      expect(await getNotebookById(undefined, nbA.id, ownerId)).toBeNull();
-      expect(await getOccupiedSourceCount(nbA.id)).toBe(0);
-
-      // Notebook B must remain completely intact (identical file independence)
-      const nbBAfter = await getNotebookById(undefined, nbB.id, ownerId);
-      expect(nbBAfter).not.toBeNull();
-      expect(nbBAfter?.id).toBe(nbB.id);
-
-      const countBAfter = await getOccupiedSourceCount(nbB.id);
-      expect(countBAfter).toBe(1);
-
-      const messagesBAfter = await getChatMessages(undefined, nbB.id, ownerId);
-      expect(messagesBAfter.length).toBe(1);
-    });
-  });
+  it("PERF-01: relational + chunk cascade of a large notebook stays within 2.0 s P95 (5 samples)", async () => {
+    const owner = await createTestUser(pool);
+    const samples: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const { notebook } = await createNotebook(pool, owner, {});
+      for (let s = 0; s < 5; s++) await seedReadySource(pool, owner, notebook.id, { pages: [paragraphs(400, `S${s}`)], embed });
+      expect((await counts(notebook.id)).chunks).toBe(2000);
+      const started = performance.now();
+      await deleteNotebook(pool, owner, notebook.id);
+      samples.push(performance.now() - started);
+    }
+    samples.sort((x, y) => x - y);
+    console.log(JSON.stringify({ case: "PERF-01", chunks_per_notebook: 2000, samples_ms: samples.map(Math.round) }));
+    expect(samples[4]!).toBeLessThanOrEqual(2000);
+  }, 180_000);
 });
