@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS chat_configurations (
 );
 
 -- Feedback per assistant message; record = MessageFeedbackSchema. message_id has no foreign key: the route
--- validates the message against the caller's visible chat history before every write.
+-- validates the message against the caller's visible chat history before every write; clearing the chat deletes
+-- the thread's feedback and follow-ups in the same transaction (clearThread).
 CREATE TABLE IF NOT EXISTS message_feedback (
     notebook_id UUID NOT NULL REFERENCES notebooks (id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,

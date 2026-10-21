@@ -31,7 +31,7 @@ Absent row = defaults (`NotebookMetadataSchema` defaults). `ready_source_count` 
 | message_feedback | PK (notebook_id → notebooks, user_id → users, message_id) | updated_at | `MessageFeedbackSchema` |
 | message_followups | PK (notebook_id, user_id, message_id, output_language) | updated_at | `PersistedMessageFollowUpsSchema` |
 
-Cascades: deleting a source removes its guides; deleting a notebook removes everything (`FR-008`, `CC-04`). `message_id` has no foreign key (implementation finding, 2026-10-21): the routes validate the message against the caller's visible chat history before every write, and the existing Package 2.2 suites write test messages outside `chat_messages`.
+Cascades: deleting a source removes its guides; deleting a notebook removes everything (`FR-008`, `CC-04`). `message_id` has no foreign key (implementation finding, 2026-10-21): the routes validate the message against the caller's visible chat history before every write, and the existing Package 2.2 suites write test messages outside `chat_messages`. Instead, clearing the chat (`clearThread`) deletes the thread's feedback and follow-ups in the same transaction (one thread per owner and notebook), so no feedback comment outlives its messages (`CC-04`, security review 2026-10-21).
 
 ## 0007_notes.sql (Package 2.3: `FR-NM-01..04`)
 

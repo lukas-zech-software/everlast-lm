@@ -257,6 +257,16 @@ describe("US3: Source Guides, overviews, chat settings and feedback survive a re
     expect(stored).toMatchObject({ rating: "down", category: "incomplete", comment: "More detail" });
   });
 
+  it("CC-04: clearing the chat deletes the thread's feedback and follow-ups with its messages", async () => {
+    const owner = await n.userId(OWNER);
+    const count = async (table: string) => (await db.pool.query(`SELECT count(*)::int AS c FROM ${table} WHERE notebook_id = $1 AND user_id = $2`, [nb, owner])).rows[0].c as number;
+    expect(await count("message_feedback")).toBe(1);
+    expect(await count("message_followups")).toBe(1);
+    expect((await n.call(OWNER, "DELETE", `/api/notebooks/${nb}/chat`)).status).toBeLessThan(300);
+    expect(await count("message_feedback")).toBe(0);
+    expect(await count("message_followups")).toBe(0);
+  });
+
   it("US3-5 (FR-GC-04): a cached overview is served after a restart without regeneration", async () => {
     const first = await n.call(OWNER, "POST", `/api/notebooks/${nb}/overview`, { ...scope(), output_language: "en-US" });
     expect(first.status).toBe(200);
