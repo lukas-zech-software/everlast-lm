@@ -31,7 +31,7 @@ This feature adds no new user-facing behaviour. It removes the v2.0 proof-of-con
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only (v1.0–v5.0). Stored records keep their owner so v6.0 roles can be added without reshaping them.
 - **Data Residency (`D3`)**: `europe-west4` default; v2 data lives in the same managed database as v1 data. No exception.
 - **Clarifications**: 2026-10-21 (owner): durability only; the single-API-instance constraint stays (FR-012).
-- **Upstream Flow-Back Status (`CC-01`)**: On completion, `DEV-04` (SRS §5.5) is marked closed, the SRS §5.6 PoC note, `D16` in `docs/solution-architecture.md`, and the "v2.0 proof of concept" notes in the four v2 FR cards are amended to say v2 data is persisted (owner approval for these amendments: 2026-10-21).
+- **Upstream Flow-Back Status (`CC-01`)**: Done 2026-10-21 (SRS §5.5/§5.6, D16, v2 FR cards). Implementation findings flowed back: app-scoped store selection (plan R1), no foreign key from feedback/follow-ups to chat messages (data-model). On completion, `DEV-04` (SRS §5.5) is marked closed, the SRS §5.6 PoC note, `D16` in `docs/solution-architecture.md`, and the "v2.0 proof of concept" notes in the four v2 FR cards are amended to say v2 data is persisted (owner approval for these amendments: 2026-10-21).
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -135,7 +135,7 @@ If the service stops while a Studio report or a Source Guide is being generated,
 - **FR-004 (`FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`)**: *(Ubiquitous)* The system MUST persist Source Guides keyed by notebook, source, revision and output language; notebook overviews keyed by their cache identity; chat configuration per notebook and user; message feedback and message follow-ups per notebook, user and message.
 - **FR-005 (`FR-NM-01..04`)**: *(Ubiquitous)* The system MUST persist notes with title, Markdown content, origin type, source message, citations, origin note, revision, display order and timestamps.
 - **FR-006 (`FR-ST-10`, `FR-ST-11`, `C-03`)**: *(Ubiquitous)* The system MUST persist Studio artifacts with their full lifecycle (`Queued`, `Running`, `Completed`, `Failed`, `Cancelled`), parameters, payload, source revision snapshot, output language, progress, failure, attempt and retry link.
-- **FR-007 (`FR-WM-04`)**: *(Ubiquitous)* Notebook ownership, archive state and ready-source counts used by v2 features MUST be read from the v1 records; the in-process notebook mirror MUST be removed.
+- **FR-007 (`FR-WM-04`)**: *(Ubiquitous)* Notebook ownership, existence and ready-source counts used by v2 features MUST be read from the v1 records (a deleted notebook is simply absent; v1 has no archive state); the in-process notebook mirror MUST be removed.
 - **FR-008 (`FR-WM-01`)**: *(Event-driven)* When a notebook is deleted, the system MUST delete all of its v2 records together with it.
 - **FR-009 (`FR-NM-01`, `FR-NM-02`, `FR-WM-02`)**: *(Unwanted)* If two requests change the same note revision, save the same answer as a note, or claim the topic icon of the same notebook at the same time, then the system MUST let exactly one succeed and answer the other with the existing conflict or reuse behaviour.
 - **FR-010 (`FR-ST-10`, `FR-ST-11`, `C-03`)**: *(Event-driven)* When the API starts and finds Studio artifacts `Queued` or `Running` that no live process is working on, the system MUST mark them `Failed` with an interrupted explanation within 2 minutes, publishing no payload, and allow Retry as for any failed report.

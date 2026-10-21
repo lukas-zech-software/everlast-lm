@@ -36,7 +36,7 @@ export interface AppDeps {
   chat?: ChatService | undefined;
   /** Feature route registrations added by later packages (sources, chat). */
   extraRoutes?: ((router: Router, deps: AppDeps) => void)[];
-  /** Release v2 proof-of-concept features (D16); their handlers run after notebook ownership is checked. */
+  /** Release v2 features (D16, PostgreSQL since specs/013); their handlers run after notebook ownership is checked. */
   v2?: V2Runtime | undefined;
 }
 

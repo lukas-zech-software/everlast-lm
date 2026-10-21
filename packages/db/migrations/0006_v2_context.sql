@@ -1,6 +1,6 @@
 -- Migration 0006: Package 2.2 data in PostgreSQL (FR-SI-02, FR-GC-04, FR-GC-05, FR-GC-07, FR-GC-09).
 -- specs/013-v2-persistence-postgres (DEV-04 closed, D16). Each `record` holds the contract object and is parsed
--- with its Zod schema on write and read. Cascades keep no v2 record beyond its notebook, source or message (CC-04).
+-- with its Zod schema on write and read. Cascades keep no v2 record beyond its notebook or source (CC-04).
 
 -- Source Guides per (source, revision, output language); record = SourceGuideSchema.
 CREATE TABLE IF NOT EXISTS source_guides (
@@ -35,11 +35,12 @@ CREATE TABLE IF NOT EXISTS chat_configurations (
     PRIMARY KEY (notebook_id, user_id)
 );
 
--- Feedback per assistant message; record = MessageFeedbackSchema. Clearing the chat removes it.
+-- Feedback per assistant message; record = MessageFeedbackSchema. message_id has no foreign key: the route
+-- validates the message against the caller's visible chat history before every write.
 CREATE TABLE IF NOT EXISTS message_feedback (
     notebook_id UUID NOT NULL REFERENCES notebooks (id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    message_id UUID NOT NULL REFERENCES chat_messages (id) ON DELETE CASCADE,
+    message_id UUID NOT NULL,
     record JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (notebook_id, user_id, message_id)
@@ -49,7 +50,7 @@ CREATE TABLE IF NOT EXISTS message_feedback (
 CREATE TABLE IF NOT EXISTS message_followups (
     notebook_id UUID NOT NULL REFERENCES notebooks (id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    message_id UUID NOT NULL REFERENCES chat_messages (id) ON DELETE CASCADE,
+    message_id UUID NOT NULL,
     output_language TEXT NOT NULL,
     record JSONB NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

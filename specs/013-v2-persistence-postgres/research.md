@@ -4,10 +4,10 @@ All decisions trace to `DEV-04` / `D16` and spec 013. No open `NEEDS CLARIFICATI
 
 ## R1 — How stores reach PostgreSQL
 
-- **Decision**: A module `packages/db/src/v2-persistence.ts` holds the configured pool (`configureV2Persistence(pool | null)`, `v2Pool()`). Every exported v2 store function keeps its signature and takes the PostgreSQL path when a pool is configured, else its current in-memory path. `createV2Runtime` (the only production entry) always configures the pool it receives. Studio uses a new `PostgresStudioArtifactRepository` implementing the existing `StudioArtifactRepository` interface.
+- **Decision**: A module `packages/db/src/v2-persistence.ts` resolves the pool for the current async context: `runWithV2Persistence(pool, fn)` (`AsyncLocalStorage`) used by the API for every request and by `createV2Runtime` for its own entry points and timers, then the process default `configureV2Persistence(pool | null)` (store-level tests). Every exported v2 store function keeps its signature and takes the PostgreSQL path when a pool is resolved, else its current in-memory path. *(Revised during implementation 2026-10-21: a plain process-wide default leaked between several test APIs in one process.)* Studio uses a new `PostgresStudioArtifactRepository` implementing the existing `StudioArtifactRepository` interface.
 - **Rationale**: `D16` says v3 moves the stores "behind the existing repository functions". Keeping signatures leaves routes, services, workers and contracts untouched (`FR-002`). About 20 DB-less suites (worker, evals, store unit tests) keep working on the in-memory path.
 - **Alternatives**: (a) add a `pool` parameter to every store function — touches every caller and test, no behavioural gain; (b) delete the in-memory paths — forces all unit suites onto PostgreSQL. Both rejected.
-- **Safety**: a test asserts that a runtime created by `createV2Runtime` persists across a second runtime on the same database, so production can never silently run on memory.
+- **Safety**: the restart suite (`apps/api/test/v2-restart.integration.test.ts`) clears every in-memory store between two APIs on the same database, so a request that fell back to memory would fail it.
 
 ## R2 — Schema shape
 
@@ -28,7 +28,7 @@ All decisions trace to `DEV-04` / `D16` and spec 013. No open `NEEDS CLARIFICATI
 
 ## R5 — Background work after a restart
 
-- **Decision**: At runtime start (single instance, `FR-012`): `UPDATE studio_artifacts SET status = 'Failed', failure_json = {code: 'GenerationError', message: 'Report generation was interrupted by a service restart. Retry to generate it again.'}, progress_json = NULL WHERE status IN ('Queued','Running') AND updated_at < now()`; and `DELETE FROM source_guides WHERE status = 'GuidePending' AND updated_at < now()`. The Package 2.2 Ready hook first checks for an existing guide of that source revision in the effective language and skips generation if one exists.
+- **Decision**: At runtime start (single instance, `FR-012`): `UPDATE studio_artifacts SET status = 'Failed', failure_json = {code: 'GenerationError', message: 'Report generation was interrupted by a service restart. Retry to generate it again.'}, progress_json = NULL WHERE status IN ('Queued','Running') AND updated_at < now()`; and `DELETE FROM source_guides WHERE status = 'GuidePending' AND updated_at < now()`. The API runtime's Ready hook first checks for an existing guide of that source revision in the effective language and skips generation if one exists (the worker's `onSourceReady` itself still always generates, as its tests expect). v2 requests, Ready dispatch and the watcher wait for the sweep, so nothing the new process starts is swept.
 - **Rationale**: `FR-010`, `FR-011`, US3-1. Reports have Retry; guides are created automatically, so deleting an orphaned pending guide lets the existing on-open (`202 GuidePending` + start) and listing-time paths regenerate it. No new failure code: `GenerationError` exists in `StudioFailureCodeSchema` (`FR-002`). `updated_at < now()` (transaction start) keeps jobs created after start safe.
 - **Alternatives**: resume interrupted reports — needs a durable job queue for Studio, out of scope for a single-instance PoC; add an `Interrupted` failure code — contract change. Rejected.
 

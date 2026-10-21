@@ -11,8 +11,8 @@ Release v2 keeps its records in module-level `Map`s inside `packages/db/src/{wor
 
 Approach (details in [research.md](research.md)):
 
-- **R1 Store selection**: `configureV2Persistence(pool)` in a new `packages/db/src/v2-persistence.ts`; `createV2Runtime` always calls it. Each store function takes the PostgreSQL path when a pool is configured, otherwise its existing in-memory path, which stays as the labelled test double for DB-less unit tests and evals.
-- **R2 Schema**: typed tables for notes and Studio artifacts (from the drafts); typed key columns plus a Zod-validated `record JSONB` for preferences, guides, overviews, configuration, feedback and follow-ups. Every table references `notebooks` (and `users`, `sources`, `chat_messages` where applicable) `ON DELETE CASCADE` (`FR-008`).
+- **R1 Store selection**: `packages/db/src/v2-persistence.ts`: the API runs every request (and the runtime its own entry points and timers) in `runWithV2Persistence(pool, …)` (`AsyncLocalStorage`); `configureV2Persistence(pool)` sets a process default for store-level tests. Each store function takes the PostgreSQL path when a pool is in scope, otherwise its existing in-memory path, which stays as the labelled test double for DB-less unit tests and evals. *(Implementation finding 2026-10-21: a process-wide default leaked between several test APIs in one process; the app scope fixes it.)*
+- **R2 Schema**: typed tables for notes and Studio artifacts (from the drafts); typed key columns plus a Zod-validated `record JSONB` for preferences, guides, overviews, configuration, feedback and follow-ups. Every table references `notebooks` (and `users`, `sources` where applicable) `ON DELETE CASCADE` (`FR-008`).
 - **R3 Mirror removal**: owner and archive checks read `notebooks`; ready counts are counted from `sources`; `touchNotebookModified` bumps `notebooks.updated_at` monotonically.
 - **R4 Concurrency**: row locks or conditional `UPDATE … RETURNING` for note revisions, `ON CONFLICT` for saved responses, a conditional upsert for the topic-icon claim, and a per-notebook counter for note display order (`FR-009`).
 - **R5 Restart sweeps**: at runtime start, Studio artifacts `Queued`/`Running` from before the start become `Failed` (`GenerationError`, interrupted message); orphaned `GuidePending` guides are deleted, so the next listing or open regenerates them. The Ready hook skips a source revision whose guide already exists in the effective language, so a restart never regenerates guides (`FR-011`, US3-1).
@@ -36,7 +36,7 @@ Approach (details in [research.md](research.md)):
 | `CC-01` | **I. Traceability** | PASS | PASS | Every requirement cites SRS IDs; tasks and tests will cite `DEV-04` plus the package FR IDs. Flow-back planned: SRS §5.5 `DEV-04` closed, §5.6 PoC note, `D16`, and the PoC notes in the four v2 FR cards (owner approval 2026-10-21). |
 | `CC-02` | **II. Test-First** | PASS | PASS | Restart, cascade, concurrency and sweep tests are written first and observed failing (they fail today because data is lost on a new runtime); existing v2 suites act as regression. |
 | `CC-03` | **III. Scope & Snapshot** | PASS | PASS | No change to source reads: v2 still reads sources only through `C-02`; Studio snapshots and the source-changed failure are unchanged. |
-| `CC-04` | **III. Citations & Leakage** | PASS | PASS | Citation validation untouched. Cascades remove guides of deleted sources and feedback/follow-ups of deleted messages, so no stale v2 record outlives its source or message. |
+| `CC-04` | **III. Citations & Leakage** | PASS | PASS | Citation validation untouched. Cascades remove guides of deleted sources; feedback and follow-ups are only reachable through a visible message of the caller's history. |
 | `CC-05` | **IV. Contracts & Pipelines** | PASS | PASS | Contracts unchanged; every stored JSONB record is parsed with its existing Zod schema on write and read. Studio lifecycle per `C-03`; the restart sweep is documented as the only system transition `Queued → Failed` (see data-model). |
 | `CC-06` | **V. Release & Package Order** | PASS | PASS | v3 prerequisite before Gate v3.0; no deferred items touched. |
 | `CC-07` | **VI. Security, RBAC & Residency** | PASS | PASS | Access is still decided by v1 ownership before any v2 handler; v2 queries are additionally scoped by notebook and owner. Owner-only (v1–v5). No region change. |
@@ -70,7 +70,7 @@ packages/db/
 │   ├── 0008_studio_artifacts.sql    # from v3-draft/studio_artifacts.sql
 │   └── v3-draft/                    # removed
 ├── src/
-│   ├── v2-persistence.ts            # NEW: configureV2Persistence / v2Pool
+│   ├── v2-persistence.ts            # NEW: runWithV2Persistence / configureV2Persistence / v2Pool
 │   ├── workspace-preferences.ts     # PG path + memory test double
 │   ├── package-v2-2.ts              # PG path + memory test double
 │   ├── notes.ts                     # PG path + memory test double

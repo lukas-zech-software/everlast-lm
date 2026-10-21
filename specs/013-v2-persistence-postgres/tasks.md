@@ -31,7 +31,7 @@ description: "Tasks for 013 v2 data persistence in PostgreSQL"
 
 - [X] T002 Write failing migration tests: `0005`–`0008` apply in order after `0004`; tables `notebook_v2_metadata`, `user_preferences`, `notebook_user_preferences`, `source_guides`, `notebook_overviews`, `chat_configurations`, `message_feedback`, `message_followups`, `notes`, `studio_artifacts` exist; deleting a notebook cascades to every one of them (`DEV-04`, `FR-WM-01`, `FR-008`) in `packages/db/test/v2-schema.integration.test.ts`
 - [X] T003 Create `0005_v2_workspace.sql` per data-model: `notebook_v2_metadata(notebook_id UUID PK → notebooks ON DELETE CASCADE, icon_emoji TEXT NOT NULL DEFAULT '📓' (= DEFAULT_NOTEBOOK_ICON), icon_source TEXT NOT NULL DEFAULT 'default' CHECK IN ('default','topic','custom'), topic_selection_attempted BOOLEAN NOT NULL DEFAULT false, note_order_counter INTEGER NOT NULL DEFAULT 0)`, `user_preferences(user_id UUID PK → users, record JSONB NOT NULL, updated_at)`, `notebook_user_preferences((user_id → users, notebook_id → notebooks) PK, record JSONB NOT NULL, updated_at)` (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`) in `packages/db/migrations/0005_v2_workspace.sql`
-- [X] T004 [P] Create `0006_v2_context.sql` per data-model: `source_guides` PK `(source_id → sources, revision, output_language)` + `notebook_id → notebooks`, `status CHECK IN ('GuidePending','GuideReady','GuideFailed')`; `notebook_overviews` PK `cache_key` + `notebook_id`, `authorization_key`; `chat_configurations` PK `(notebook_id, user_id)`; `message_feedback` PK `(notebook_id, user_id, message_id → chat_messages)`; `message_followups` PK `(notebook_id, user_id, message_id → chat_messages, output_language)`; each with `record JSONB NOT NULL`, `updated_at`, all FKs `ON DELETE CASCADE` (`FR-SI-02`, `FR-GC-04/05/07/09`) in `packages/db/migrations/0006_v2_context.sql`
+- [X] T004 [P] Create `0006_v2_context.sql` per data-model: `source_guides` PK `(source_id → sources, revision, output_language)` + `notebook_id → notebooks`, `status CHECK IN ('GuidePending','GuideReady','GuideFailed')`; `notebook_overviews` PK `cache_key` + `notebook_id`, `authorization_key`; `chat_configurations` PK `(notebook_id, user_id)`; `message_feedback` PK `(notebook_id, user_id, message_id)`; `message_followups` PK `(notebook_id, user_id, message_id, output_language)` (no FK on `message_id`, see data-model); each with `record JSONB NOT NULL`, `updated_at`, all FKs `ON DELETE CASCADE` (`FR-SI-02`, `FR-GC-04/05/07/09`) in `packages/db/migrations/0006_v2_context.sql`
 - [X] T005 [P] Create `0007_notes.sql` from `v3-draft/notes.sql` with `owner_id UUID → users ON DELETE CASCADE`, `UNIQUE (notebook_id, owner_id, source_message_id)`, index `(notebook_id, owner_id, display_order)`, no FK on `source_message_id` or `origin_note_id` (`FR-NM-01..04`) in `packages/db/migrations/0007_notes.sql`
 - [X] T006 [P] Create `0008_studio_artifacts.sql` from `v3-draft/studio_artifacts.sql` with `owner_id UUID → users ON DELETE CASCADE`, `seq BIGINT GENERATED ALWAYS AS IDENTITY`, `retry_of → studio_artifacts ON DELETE SET NULL`, checks "payload iff Completed" and "snapshot non-empty" kept, index `(notebook_id, owner_id, seq)` (`FR-ST-10/11`, `C-03`) in `packages/db/migrations/0008_studio_artifacts.sql`
 - [X] T007 Delete `packages/db/migrations/v3-draft/` and repoint `packages/db/test/notes-schema.test.ts` and `packages/db/test/studio-artifacts-schema.test.ts` to the real migrations (`DEV-04`, `FR-013`) in `packages/db/test/notes-schema.test.ts`
@@ -70,7 +70,7 @@ description: "Tasks for 013 v2 data persistence in PostgreSQL"
 
 ### Tests (write first)
 
-- [ ] T016 [P] [US2] Restart scenarios US2-1..US2-4 (custom/topic icon kept and not replaced; pin + last opened order kept, opening does not change `updated_at`; theme/languages and effective output language kept; content modified time kept) (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`) in `apps/api/test/v2-restart.integration.test.ts`
+- [X] T016 [P] [US2] Restart scenarios US2-1..US2-4 (custom/topic icon kept and not replaced; pin + last opened order kept, opening does not change `updated_at`; theme/languages and effective output language kept; content modified time kept) (`FR-WM-02`, `FR-WM-03`, `FR-UI-02`) in `apps/api/test/v2-restart.integration.test.ts`
 - [X] T017 [P] [US2] Workspace store PG suite: defaults for absent rows, preference round trips, owner scoping (`NotebookPreferenceScopeError` for another owner's or a missing notebook), topic-icon claim with 2 concurrent claims (exactly one true) and never over a custom icon (`FR-WM-02`, `FR-WM-04`, `FR-009`) in `packages/db/test/workspace-preferences.pg.integration.test.ts`
 
 ### Implementation
@@ -86,13 +86,13 @@ description: "Tasks for 013 v2 data persistence in PostgreSQL"
 
 ### Tests (write first)
 
-- [ ] T019 [P] [US3] Restart scenarios US3-1..US3-5 (Ready guide returned, no generation started even when sources are listed again; rev-1 guide not shown for rev 2; chat configuration used by next turn; feedback and follow-ups unchanged; cached overview served) (`FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`) in `apps/api/test/v2-restart.integration.test.ts`
-- [ ] T020 [P] [US3] Package 2.2 store PG suite: guide key `(source, revision, language)` and any-language lookup preferring Ready; overview per-user authorization key; feedback set/clear; follow-up snapshot check; source deletion removes its guides; chat clear removes feedback/follow-ups (`FR-SI-02`, `FR-GC-04/05/07/09`, `CC-04`) in `packages/db/test/package-v2-2.pg.integration.test.ts`
+- [X] T019 [P] [US3] Restart scenarios US3-1..US3-5 (Ready guide returned, no generation started even when sources are listed again; rev-1 guide not shown for rev 2; chat configuration used by next turn; feedback and follow-ups unchanged; cached overview served) (`FR-SI-02`, `FR-GC-04`, `FR-GC-05`, `FR-GC-07`, `FR-GC-09`) in `apps/api/test/v2-restart.integration.test.ts`
+- [X] T020 [P] [US3] Package 2.2 store PG suite: guide key `(source, revision, language)` and any-language lookup preferring Ready; overview per-user authorization key; feedback set/clear; follow-up snapshot check; source deletion removes its guides (`FR-SI-02`, `FR-GC-04/05/07/09`, `CC-04`) in `packages/db/test/package-v2-2.pg.integration.test.ts`
 
 ### Implementation
 
-- [ ] T021 [US3] Implement the PostgreSQL path of `package-v2-2.ts` (JSONB records parsed with their contract schemas) keeping the memory path (`FR-SI-02`, `FR-GC-04/05/07/09`) in `packages/db/src/package-v2-2.ts`
-- [ ] T022 [US3] Skip Source Guide generation in the Ready hook when a guide for `(source, revision, effective language)` already exists (R5) (`FR-SI-02`) in `apps/worker/src/package-v2-2-runtime.ts`
+- [X] T021 [US3] Implement the PostgreSQL path of `package-v2-2.ts` (JSONB records parsed with their contract schemas) keeping the memory path (`FR-SI-02`, `FR-GC-04/05/07/09`) in `packages/db/src/package-v2-2.ts`
+- [X] T022 [US3] Skip Source Guide generation in the Ready hook when a guide for `(source, revision, effective language)` already exists (R5) (`FR-SI-02`) in `apps/worker/src/package-v2-2-runtime.ts`
 
 ---
 
@@ -103,20 +103,27 @@ description: "Tasks for 013 v2 data persistence in PostgreSQL"
 
 ### Tests (write first)
 
-- [ ] T023 [P] [US4] Sweep scenarios US4-1, US4-2: pre-start `Queued`/`Running` reports become `Failed` with `GenerationError` and the interrupted message, no payload, Retry allowed; reports created after start untouched; pre-start `GuidePending` guide is deleted and the next open returns `202 GuidePending` and starts generation (`FR-ST-10`, `FR-SI-02`, `C-03`) in `apps/api/test/v2-restart.integration.test.ts`
+- [X] T023 [P] [US4] Sweep scenarios US4-1, US4-2: pre-start `Queued`/`Running` reports become `Failed` with `GenerationError` and the interrupted message, no payload, Retry allowed; reports created after start untouched; pre-start `GuidePending` guide is deleted and the next open returns `202 GuidePending` and starts generation (`FR-ST-10`, `FR-SI-02`, `C-03`) in `apps/api/test/v2-restart.integration.test.ts`
 
 ### Implementation
 
-- [ ] T024 [US4] Implement `sweepInterruptedStudioArtifacts(pool)` and `sweepOrphanedSourceGuides(pool)` (R5, `updated_at < now()`) and run both at `createV2Runtime` start (`FR-ST-10/11`, `FR-SI-02`) in `apps/api/src/v2/runtime.ts`
+- [X] T024 [US4] Implement `sweepInterruptedStudioArtifacts(pool)` and `sweepOrphanedSourceGuides(pool)` (R5, `updated_at < now()`) and run both at `createV2Runtime` start (`FR-ST-10/11`, `FR-SI-02`) in `apps/api/src/v2/runtime.ts`
 
 ---
 
 ## Phase 7: Polish & Cross-Cutting
 
-- [ ] T025 Flow-back (`CC-01`, `DEV-04`): mark `DEV-04` closed in SRS §5.5 and update the §5.6 v2.0 PoC paragraphs in `spec/System_Requirements_Specification_Gemeni_Notebook.md`; amend `D16` in `docs/solution-architecture.md` (v2 data persisted; one API instance and in-process background work remain; restart sweeps); update the "v2.0 proof of concept" notes in `spec/requirements/v2/package_2_1..2_4_*.md`; update the PoC comments in `packages/db/src/index.ts`, `poc-bridge.ts` and `apps/api/src/v2/runtime.ts`
-- [ ] T026 Regression (`FR-002`, SC-002): run `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm test:integration`, `pnpm test:e2e`, `node scripts/check-spec-integrity.mjs`; record results in `specs/013-v2-persistence-postgres/quickstart.md` (Validation results section)
+- [X] T025 Flow-back (`CC-01`, `DEV-04`): mark `DEV-04` closed in SRS §5.5 and update the §5.6 v2.0 PoC paragraphs in `spec/System_Requirements_Specification_Gemeni_Notebook.md`; amend `D16` in `docs/solution-architecture.md` (v2 data persisted; one API instance and in-process background work remain; restart sweeps); update the "v2.0 proof of concept" notes in `spec/requirements/v2/package_2_1..2_4_*.md`; update the PoC comments in `packages/db/src/index.ts`, `poc-bridge.ts` and `apps/api/src/v2/runtime.ts`
+- [X] T026 Regression (`FR-002`, SC-002): run `pnpm lint`, `pnpm typecheck`, `pnpm test:unit`, `pnpm test:integration`, `pnpm test:e2e`, `node scripts/check-spec-integrity.mjs`; record results in `specs/013-v2-persistence-postgres/quickstart.md` (Validation results section)
 
 ---
+
+## Implementation Notes (2026-10-21)
+
+- T018 was implemented before T016/T017 were complete: once T010 switched the runtime to PostgreSQL, the workspace owner check blocked every API request, so the Package 2.1 store became a de-facto foundational task. T017 was still written and observed failing before T018; T016 (restart scenarios) passed on first run.
+- T022 moved from `apps/worker/src/package-v2-2-runtime.ts` to the API runtime's Ready hook in `apps/api/src/v2/runtime.ts`: an existing worker test expects `onSourceReady` itself to always generate.
+- T001/T010: the store selection became app-scoped (`runWithV2Persistence`, `AsyncLocalStorage`) because a process-wide default leaked between several test APIs in one process (plan R1, research R1).
+- T004: no foreign key from `message_feedback` / `message_followups` to `chat_messages` (data-model).
 
 ## Dependencies & Execution Order
 

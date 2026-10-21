@@ -30,6 +30,8 @@ import {
   getSnapshotChunksByIds,
   getSourceGuide,
   PostgresStudioArtifactRepository,
+  sweepInterruptedStudioArtifacts,
+  sweepOrphanedSourceGuides,
   listAllSnapshotChunks,
   listSnapshotChunks,
   listSources,
@@ -66,16 +68,15 @@ import { WorkspacePreferencesService } from "../services/workspace-preferences.t
 import type { StudioServiceDeps } from "../studio/service.ts";
 
 /**
- * Release v2 proof-of-concept runtime (D16).
+ * Release v2 runtime (D16; persistence since specs/013, DEV-04 closed).
  *
  * The four v2 packages (2.1 workspace comfort, 2.2 Source Guide and chat control, 2.3 notes, 2.4 Studio reports)
- * keep their records in process memory: persistence is not a goal of the proof of concept and moves to
- * PostgreSQL in v3. Everything that decides access still comes from v1: the API authenticates the caller,
- * checks notebook ownership in PostgreSQL before any v2 handler runs, and v2 reads source content only
- * through the PostgreSQL C-02 path. Sources made from notes are normal v1 PostgreSQL sources (owner decision
- * 2026-10-20, D16 amendment): they share the source limit with uploads and are read like any upload.
- * Because the stores are per process, v2 background work (Source Guides, topic icons, Studio reports) runs
- * in this API process, and the PoC deployment runs a single API instance.
+ * store their records in PostgreSQL: requests, runtime entry points and timers run in `runWithV2Persistence`
+ * bound to this runtime's pool. Everything that decides access comes from v1: the API authenticates the caller,
+ * checks notebook ownership in PostgreSQL before any v2 handler runs, and v2 reads source content only through
+ * the PostgreSQL C-02 path. Sources made from notes are normal v1 PostgreSQL sources (owner decision 2026-10-20).
+ * v2 background work (Source Guides, topic icons, Studio reports) runs in this API process and the deployment
+ * runs a single API instance (D16); a start-up sweep resolves work a stopped process left behind.
  */
 
 export type V2Handler = (req: IncomingMessage, res: ServerResponse, userId: string) => Promise<boolean>;
@@ -136,6 +137,17 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // FR-007 / DEV-04 (specs/013): every v2 store reads and writes this pool; ownership comes from `notebooks`.
   // Requests run in this scope through the app; the runtime's own entry points and timers enter it below.
   const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
+  // specs/013 R5 (FR-010, FR-011): resolve background work a stopped process left behind (one API instance, D16).
+  // v2 requests, Ready dispatch and the watcher wait for it, so nothing this process starts is swept.
+  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool)])
+    .then(([reports, guides]) => {
+      if (reports + guides > 0) console.info(JSON.stringify({ severity: "INFO", message: "v2 restart sweep", interrupted_reports: reports, orphaned_guides: guides }));
+    })
+    .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 restart sweep failed: ${(err as Error).message}` })));
+  const afterSweep = <T>(fn: () => Promise<T>): Promise<T> => inScope(async () => {
+    await swept;
+    return fn();
+  });
   const ownerOf = (notebookId: string) => getNotebookOwner(notebookId);
 
   // PostgreSQL chat history as v2 sees it (saved responses, feedback, follow-ups): visible messages only.
@@ -220,7 +232,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
     void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
   };
-  // ---- Package 2.3: notes (in memory, D16) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20) -----
+  // ---- Package 2.3: notes (PostgreSQL, specs/013) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20)
   const noteSourceStore = createPostgresNoteSources({ pool, storage: options.storage, embedder: options.embedder, sourceLimit: options.sourceLimit });
   const noteSources: typeof noteSourceStore = {
     ...noteSourceStore,
@@ -280,7 +292,18 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   // ---- Ready-source hooks: Source Guide (2.2) and topic icon (2.1) --------------------------------------
   const hooks: ReadySourceHook[] = [];
-  if (options.generation) hooks.push((event) => v22.onSourceReady(event));
+  if (options.generation) {
+    hooks.push(async (event) => {
+      // FR-SI-02 / specs/013 R5: a guide of this revision in the effective language survives restarts; a restarted
+      // process lists Ready sources again but never regenerates an existing guide.
+      const owner = await ownerOf(event.notebook_id);
+      if (owner) {
+        const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+        if (await getSourceGuide(event.notebook_id, event.source_id, event.revision_id, language)) return;
+      }
+      await v22.onSourceReady(event);
+    });
+  }
   if (options.topicEmoji) {
     const selector = options.topicEmoji;
     hooks.push((event) => applyTopicIcon(event, selector));
@@ -337,7 +360,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     readyTimer = setInterval(() => inScope(() => {
       if (running) return;
       running = true;
-      pollReadySources()
+      afterSweep(pollReadySources)
         .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 ready watcher: ${(err as Error).message}` })))
         .finally(() => (running = false));
     }), Math.max(10, options.readyWatch.intervalMs));
@@ -346,6 +369,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
   const repo = new PostgresStudioArtifactRepository(pool);
+
   const registry = new StudioPluginRegistry();
   const reportModel = new DeterministicReportModel();
   registry.register(new ReportGeneratorPlugin(options.reportModel ?? reportModel));
@@ -420,10 +444,10 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   return {
     workspace,
     handlers: [
-      (req, res, userId) => inScope(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
-      (req, res, userId) => inScope(() => handlePackageV22Route(req, res, userId, v22Deps)),
-      (req, res, userId) => inScope(() => handleNotesRoute(req, res, { service: notes, verifyOwnership: async (nb, uid) => (await ownerOf(nb)) === uid }, userId)),
-      (req, res, userId) => inScope(() => handleStudioRoute(req, res, studioDeps, userId)),
+      (req, res, userId) => afterSweep(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
+      (req, res, userId) => afterSweep(() => handlePackageV22Route(req, res, userId, v22Deps)),
+      (req, res, userId) => afterSweep(() => handleNotesRoute(req, res, { service: notes, verifyOwnership: async (nb, uid) => (await ownerOf(nb)) === uid }, userId)),
+      (req, res, userId) => afterSweep(() => handleStudioRoute(req, res, studioDeps, userId)),
     ],
     syncNotebook(userId, notebook) {
       return inScope(() => rememberNotebook({ ...notebook, owner_id: userId }));
@@ -446,7 +470,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
           media_type: s.media_type,
           ready_at: s.updated_at,
         };
-        void dispatchReady(event);
+        void afterSweep(() => dispatchReady(event));
       }
     }),
     notebookDeleted: (notebookId) => inScope(async () => {
@@ -466,7 +490,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         output_language: languages.output_language,
       };
     }),
-    pollReadySources: () => inScope(pollReadySources),
+    pollReadySources: () => afterSweep(pollReadySources),
     close() {
       if (readyTimer) clearInterval(readyTimer);
       readyTimer = null;

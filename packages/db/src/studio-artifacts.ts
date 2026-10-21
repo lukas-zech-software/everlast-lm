@@ -407,3 +407,19 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
     }, { retries: 0 });
   }
 }
+
+export const INTERRUPTED_REPORT_MESSAGE = "Report generation was interrupted by a service restart. Retry to generate it again.";
+
+/**
+ * R5 restart sweep (FR-010, C-03; specs/013): with one API instance, every Queued/Running artifact last updated
+ * before this statement belongs to a stopped process. It becomes Failed with no payload, so Retry applies. This is
+ * the only path from Queued to Failed.
+ */
+export async function sweepInterruptedStudioArtifacts(pool: Pool): Promise<number> {
+  const { rowCount } = await pool.query(
+    `UPDATE studio_artifacts SET status = 'Failed', progress_json = NULL, failure_json = $1, updated_at = now()
+     WHERE status IN ('Queued', 'Running') AND updated_at < now()`,
+    [JSON.stringify({ code: "GenerationError", message: INTERRUPTED_REPORT_MESSAGE })]
+  );
+  return rowCount ?? 0;
+}

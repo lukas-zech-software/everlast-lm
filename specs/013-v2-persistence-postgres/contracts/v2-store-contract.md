@@ -14,8 +14,9 @@ External contracts (HTTP routes, `packages/contracts` Zod schemas, error codes) 
 
 | Export | Module | Contract |
 | :- | :- | :- |
-| `configureV2Persistence(pool: Pool \| null): void` | `v2-persistence.ts` | Selects PostgreSQL for all v2 module stores (`null` = memory test double). Called by `createV2Runtime`. |
-| `v2Pool(): Pool \| null` | `v2-persistence.ts` | Current selection. |
+| `runWithV2Persistence(pool, fn)` | `v2-persistence.ts` | Runs `fn` and its async continuations with all v2 module stores bound to `pool` (used by the API per request and by `createV2Runtime`). |
+| `configureV2Persistence(pool: Pool \| null): void` | `v2-persistence.ts` | Process default when no scope is active (store-level tests); `null` = memory test double. |
+| `v2Pool(): Pool \| null` | `v2-persistence.ts` | Scope pool, else the default. |
 | `getNotebookOwner(notebookId): Promise<string \| null>` | `poc-bridge.ts` | Owner of a live notebook (PostgreSQL `notebooks` in PG mode, mirror in memory mode). Replaces sync `getNotebookRaw(...)?.owner_id` in apps. |
 | `getNotebookRecord(notebookId): Promise<Notebook \| null>` | `poc-bridge.ts` | Async notebook lookup with the same shape as `getNotebookRaw`. |
 | `PostgresStudioArtifactRepository` | `studio-artifacts.ts` | `StudioArtifactRepository` over `studio_artifacts`; same errors and transition checks as the memory repository. |

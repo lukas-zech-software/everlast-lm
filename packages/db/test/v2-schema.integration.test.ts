@@ -81,15 +81,12 @@ describe("DEV-04 / FR-013: v2 migrations 0005–0008", () => {
     for (const t of V2_TABLES.filter((t) => t !== "user_preferences")) expect(await count(t, nb)).toBe(0);
   });
 
-  it("CC-04: deleting a source removes its guides; deleting a chat message removes its feedback and follow-ups", async () => {
+  it("CC-04: deleting a source removes its guides", async () => {
     const owner = await createTestUser(db.pool);
     const nb = (await createNotebook(db.pool, owner, {})).notebook.id;
-    const { sourceId, message } = await seedAll(owner, nb);
+    const { sourceId } = await seedAll(owner, nb);
     await db.pool.query("DELETE FROM sources WHERE id = $1", [sourceId]);
     expect(await count("source_guides", nb)).toBe(0);
-    await db.pool.query("DELETE FROM chat_messages WHERE id = $1", [message]);
-    expect(await count("message_feedback", nb)).toBe(0);
-    expect(await count("message_followups", nb)).toBe(0);
   });
 
   it("FR-NM-01/02: note defaults; unknown origin types and duplicate saved responses are rejected", async () => {

@@ -28,10 +28,10 @@ Absent row = defaults (`NotebookMetadataSchema` defaults). `ready_source_count` 
 | source_guides | PK (source_id → sources, revision, output_language) | notebook_id → notebooks, status (`GuidePending`/`GuideReady`/`GuideFailed`), updated_at | `SourceGuideSchema` |
 | notebook_overviews | PK cache_key | notebook_id → notebooks, authorization_key, updated_at | `NotebookOverviewSchema` |
 | chat_configurations | PK (notebook_id → notebooks, user_id → users) | updated_at | `ChatConfigurationSchema` |
-| message_feedback | PK (notebook_id → notebooks, user_id → users, message_id → chat_messages) | updated_at | `MessageFeedbackSchema` |
-| message_followups | PK (notebook_id, user_id, message_id → chat_messages, output_language) | updated_at | `PersistedMessageFollowUpsSchema` |
+| message_feedback | PK (notebook_id → notebooks, user_id → users, message_id) | updated_at | `MessageFeedbackSchema` |
+| message_followups | PK (notebook_id, user_id, message_id, output_language) | updated_at | `PersistedMessageFollowUpsSchema` |
 
-Cascades: deleting a source removes its guides; clearing a chat thread removes feedback and follow-ups of its messages; deleting a notebook removes everything (`FR-008`, `CC-04`).
+Cascades: deleting a source removes its guides; deleting a notebook removes everything (`FR-008`, `CC-04`). `message_id` has no foreign key (implementation finding, 2026-10-21): the routes validate the message against the caller's visible chat history before every write, and the existing Package 2.2 suites write test messages outside `chat_messages`.
 
 ## 0007_notes.sql (Package 2.3: `FR-NM-01..04`)
 
