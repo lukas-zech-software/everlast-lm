@@ -100,7 +100,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
   const storage = extra.storage ?? createObjectStorage(env);
   const notifyJobs = extra.notifyJobs ?? createJobNotifier(env);
-  // Release v2 proof of concept (D16): in-memory stores in this process; set V2_POC=off to serve v1 only.
+  // Release v2 features (D16): stores in PostgreSQL since specs/013; set V2_POC=off to serve v1 only.
   const v2 =
     extra.v2 ??
     (env.V2_POC === "off"

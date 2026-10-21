@@ -3,8 +3,8 @@ import type { TopicEmojiSelector } from "./ingestion/topic-emoji.ts";
 
 /**
  * Release v2 follow-up work after a source reaches Ready (FR-WM-02 topic icon, FR-SI-02 Source Guide).
- * Decorative and derived outputs: a failing hook never changes the ingestion outcome. In the v2 proof of
- * concept the API process runs these hooks (their stores are in memory, D16).
+ * Decorative and derived outputs: a failing hook never changes the ingestion outcome. The API process runs
+ * these hooks (one API instance, D16; stores in PostgreSQL since specs/013).
  */
 
 export interface ReadySourceEvent {

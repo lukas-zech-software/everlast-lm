@@ -8,7 +8,9 @@ import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 
 let n: NotesApi;
 const OWNER = "convert-owner";
-const words = (k: number) => Array.from({ length: k }, () => "w").join(" ");
+// Varied words (as in the worker's US1-B06 boundary fixture): a single repeated word yields ~1,000 chunks with only
+// 2 distinct embeddings, a degenerate HNSW insert pattern no real document produces (CI timeouts on #135/#136).
+const words = (k: number) => Array.from({ length: k }, (_, i) => `w${i % 997}`).join(" ");
 
 beforeAll(async () => {
   n = await startNotesApi();

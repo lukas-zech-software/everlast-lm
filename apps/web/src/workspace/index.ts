@@ -154,6 +154,7 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
 
   features.bind({ ask: (text) => chat.ask(text), studio: shell.right, openCitation, onSavedNote: (note) => notes.showSavedNote(note) });
   await Promise.all([sources.refresh(), chat.load(), notes.refresh(), studio.refresh()]);
+  chat.markReady();
   features.onSelectionChange(sources.sources(), selection.ids());
   if (options.openAddSources) sources.openAddSources();
   return () => {

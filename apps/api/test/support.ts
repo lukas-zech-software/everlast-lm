@@ -17,11 +17,16 @@ export interface TestApi {
   close(): Promise<void>;
 }
 
+/**
+ * `options.db` reuses an existing test database (a restarted API on the same data, specs/013 restart suites);
+ * the borrowed database is not dropped on close.
+ */
 export async function startTestApi(
   overrides: Partial<ApiConfig> = {},
-  extraOrFactory: Partial<AppDeps> | ((db: TestDatabase) => Partial<AppDeps>) = {}
+  extraOrFactory: Partial<AppDeps> | ((db: TestDatabase) => Partial<AppDeps>) = {},
+  options: { db?: TestDatabase } = {}
 ): Promise<TestApi> {
-  const db = await createTestDatabase();
+  const db = options.db ?? (await createTestDatabase());
   const extra = typeof extraOrFactory === "function" ? extraOrFactory(db) : extraOrFactory;
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   const deps: AppDeps = {
@@ -54,7 +59,7 @@ export async function startTestApi(
     },
     async close() {
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      await db.drop();
+      if (!options.db) await db.drop();
     },
   };
 }

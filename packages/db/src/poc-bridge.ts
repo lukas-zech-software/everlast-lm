@@ -1,14 +1,13 @@
 import { randomUUID } from "node:crypto";
 import type { ChatMessage, Notebook } from "@everlast/contracts";
+import { v2Pool } from "./v2-persistence.ts";
 
 /**
- * Release v2 proof-of-concept bridge (D16).
+ * Bridge between the v2 stores and v1 data (FR-007, D16; specs/013-v2-persistence-postgres).
  *
- * The v2 stores (workspace preferences, Source Guide and chat control, notes, Studio artifacts) keep their
- * data in process memory on purpose: persistence is not a goal of the proof of concept and moves to
- * PostgreSQL in v3. This module is the only place where those stores read v1 data. The API keeps it in
- * sync with PostgreSQL after it has authorized a request (notebook ownership, ready-source counts, chat
- * messages), so v2 never decides access on its own.
+ * With PostgreSQL configured (`configureV2Persistence`, always in the API) notebook ownership and Ready counts
+ * are read from the v1 tables, so v2 never keeps its own copy of access data. Without it (TEST-ONLY memory
+ * double) the notebook directory below stands in for those tables: tests mirror notebooks into it.
  */
 
 // ---- Notebook directory -------------------------------------------------------------------------------
@@ -17,19 +16,40 @@ const notebooks = new Map<string, Notebook>();
 const readySourceCounts = new Map<string, number>();
 const forgetListeners: ((notebookId: string) => void)[] = [];
 
-/** Records a notebook the API has just read from PostgreSQL for this owner. */
+/** Memory double: records a notebook as if read from PostgreSQL. No-op mirror in PostgreSQL mode. */
 export function rememberNotebook(notebook: Omit<Notebook, "archived_at"> & { archived_at?: string | null }): Notebook {
   const existing = notebooks.get(notebook.id);
   // Keep a newer in-memory modification time (v2 marks content changes the v1 row does not track).
   const updatedAt =
     existing && Date.parse(existing.updated_at) > Date.parse(notebook.updated_at) ? existing.updated_at : notebook.updated_at;
   const record: Notebook = { ...notebook, updated_at: updatedAt, archived_at: notebook.archived_at ?? null };
-  notebooks.set(notebook.id, record);
+  if (!v2Pool()) notebooks.set(notebook.id, record);
   return record;
 }
 
+/** Memory double only: the mirrored notebook. Production code uses `getNotebookRecord` / `getNotebookOwner`. */
 export function getNotebookRaw(notebookId: string): Notebook | null {
   return notebooks.get(notebookId) ?? null;
+}
+
+/** The live notebook (v1 `notebooks` row in PostgreSQL mode); null when it does not exist (or was deleted). */
+export async function getNotebookRecord(notebookId: string): Promise<Notebook | null> {
+  const pool = v2Pool();
+  if (!pool) return getNotebookRaw(notebookId);
+  const { rows } = await pool.query<{ id: string; owner_id: string; title: string; created_at: Date; updated_at: Date }>(
+    "SELECT id, owner_id, title, created_at, updated_at FROM notebooks WHERE id = $1",
+    [notebookId]
+  );
+  const row = rows[0];
+  return row
+    ? { id: row.id, owner_id: row.owner_id, title: row.title, created_at: row.created_at.toISOString(), updated_at: row.updated_at.toISOString(), archived_at: null }
+    : null;
+}
+
+/** Owner of a live, non-archived notebook, or null (FR-WM-04: access is decided from v1 ownership). */
+export async function getNotebookOwner(notebookId: string): Promise<string | null> {
+  const notebook = await getNotebookRecord(notebookId);
+  return notebook && !notebook.archived_at ? notebook.owner_id : null;
 }
 
 /** Registers cleanup for a v2 store; runs when a notebook is deleted. */
@@ -44,12 +64,30 @@ export function forgetNotebook(notebookId: string): void {
   for (const listener of forgetListeners) listener(notebookId);
 }
 
+/** Memory double only; in PostgreSQL mode Ready counts come from `sources`. */
 export function setReadySourceCount(notebookId: string, count: number): void {
+  if (v2Pool()) return;
   readySourceCounts.set(notebookId, count);
 }
 
 export async function getReadySourceCount(notebookId: string): Promise<number> {
-  return readySourceCounts.get(notebookId) ?? 0;
+  const pool = v2Pool();
+  if (!pool) return readySourceCounts.get(notebookId) ?? 0;
+  const { rows } = await pool.query<{ ready: number }>("SELECT count(*)::int AS ready FROM sources WHERE notebook_id = $1 AND status = 'Ready'", [notebookId]);
+  return rows[0]!.ready;
+}
+
+/** Ready counts for several notebooks in one query (notebook overview). */
+export async function getReadySourceCounts(notebookIds: string[]): Promise<Map<string, number>> {
+  const pool = v2Pool();
+  if (!pool) return new Map(notebookIds.map((id) => [id, readySourceCounts.get(id) ?? 0]));
+  const { rows } = await pool.query<{ notebook_id: string; ready: number }>(
+    "SELECT notebook_id, count(*)::int AS ready FROM sources WHERE notebook_id = ANY($1::uuid[]) AND status = 'Ready' GROUP BY notebook_id",
+    [notebookIds]
+  );
+  const counts = new Map(notebookIds.map((id) => [id, 0]));
+  for (const r of rows) counts.set(r.notebook_id, r.ready);
+  return counts;
 }
 
 /** Test helper: creates an in-memory notebook without PostgreSQL. */

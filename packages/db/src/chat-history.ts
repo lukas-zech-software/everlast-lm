@@ -164,7 +164,7 @@ export async function publishTurn(pool: Pool, input: PublishTurnInput): Promise<
   });
 }
 
-/** Clear chat (FR-GC-06): advances the epoch (fencing late generations) and deletes this thread's messages only. */
+/** Clear chat (FR-GC-06): advances the epoch (fencing late generations) and deletes this thread's messages with their feedback and follow-ups. */
 export async function clearThread(pool: Pool, ownerId: string, notebookId: string): Promise<{ generation_epoch: number }> {
   return withTransaction(pool, async (tx) => {
     const thread = await getOrCreateThread(tx, ownerId, notebookId);
@@ -173,6 +173,9 @@ export async function clearThread(pool: Pool, ownerId: string, notebookId: strin
       [thread.id]
     );
     await tx.query("DELETE FROM chat_messages WHERE thread_id = $1", [thread.id]);
+    // CC-04 / specs/013: feedback and follow-ups belong to the cleared messages; one thread per (owner, notebook).
+    await tx.query("DELETE FROM message_feedback WHERE notebook_id = $1 AND user_id = $2", [notebookId, ownerId]);
+    await tx.query("DELETE FROM message_followups WHERE notebook_id = $1 AND user_id = $2", [notebookId, ownerId]);
     return updated.rows[0]!;
   });
 }

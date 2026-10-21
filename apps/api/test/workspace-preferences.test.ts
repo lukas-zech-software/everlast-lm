@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
-import { createPocNotebook, getNotebookRaw } from "@everlast/db";
+import { createPocNotebook } from "@everlast/db";
 import { createV2Runtime } from "../src/v2/runtime.ts";
 import { WorkspacePreferencesService } from "../src/services/workspace-preferences.ts";
 import { startTestApi, type TestApi } from "./support.ts";
@@ -198,8 +198,9 @@ describe("Effective language preference resolution (FR-UI-02, FR-013, FR-015)", 
     expect(saved.data).toMatchObject({ notebook_input_language: "auto", notebook_output_language: "de-DE" });
     expect(saved.data).not.toHaveProperty("input_language_override");
     expect(saved.data).not.toHaveProperty("output_language_override");
-    // Chat receives the Owner-set notebook language (the API's internal user id is the mirrored owner_id).
-    const languages = await api.deps.v2!.chatPreferences(getNotebookRaw(notebook.id)!.owner_id, notebook.id, "fr-FR");
+    // Chat receives the Owner-set notebook language (the API's internal user id is the notebook's owner_id).
+    const ownerId = (await api.db.pool.query("SELECT owner_id FROM notebooks WHERE id = $1", [notebook.id])).rows[0].owner_id as string;
+    const languages = await api.deps.v2!.chatPreferences(ownerId, notebook.id, "fr-FR");
     expect(languages).toMatchObject({ input_language: "auto", output_language: "de-DE" });
   });
 });
