@@ -281,6 +281,7 @@ tofu -chdir=infra/environments/dev apply tfplan.binary
 ### Step 5: Bootstrap Cloud SQL Extensions (`pgvector`) & Enable Secret Mounting
 
 1. Connect to the `everlast` database on the provisioned Cloud SQL instance (using Cloud SQL Auth Proxy or Cloud SQL Studio) and execute [`sql/001_v1_extensions.sql`](./sql/001_v1_extensions.sql) to enable `vector` (`pgvector`) and `pgcrypto`, and grant schema privileges to the IAM database service accounts (`everlast-api-<env>`, `everlast-worker-<env>`).
+   Application schema migrations (`packages/db/migrations`) are not run by hand: `everlast-api` sets `MIGRATE_ON_START=true` and applies pending migrations at startup, before it accepts traffic. A failed migration keeps the new revision from becoming ready, so traffic stays on the previous one.
 2. Populate the initial Secret Manager secret versions (Section 4.4), then set `mount_secrets = true` in `opentofu.auto.tfvars` and re-run `tofu plan` / `tofu apply` so `everlast-api` mounts `SESSION_SECRET` and `OIDC_CLIENT_CONFIG`.
 
 ---

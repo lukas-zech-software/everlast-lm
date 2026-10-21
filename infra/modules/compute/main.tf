@@ -30,6 +30,8 @@ locals {
     CLOUD_TASKS_INVOKER_SA_EMAIL  = var.tasks_invoker_service_account_email
     CLOUD_TASKS_LOCATION          = var.tasks_location # queues live outside europe-west4 (no Cloud Tasks there)
     WORKER_INTERNAL_URL           = google_cloud_run_v2_service.worker.uri
+    # The API applies pending packages/db migrations at startup (advisory-locked, each file once).
+    MIGRATE_ON_START = "true"
   })
 
   worker_env_vars = merge(local.common_env_vars, {
