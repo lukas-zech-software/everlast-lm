@@ -6,7 +6,7 @@ These are shared design records, defined once in packages/contracts when impleme
 
 Reuse current physical `chunks` UUID primary key, notebook/source/revision foreign key, sequence, token_count, text, C-01 locator, non-null embedding vector(768), generated simple tsvector, cosine HNSW and GIN. `source_revisions.embedding_model` already exists. Canonical viewer text is PostgreSQL `source_pages` (D15). Preserve applied0002; add a future numbered migration only for an evidenced gap, never recreate embeddings/indexes or document_chunks. Benchmark manifest records actual model/dimensions/index generation/configuration compatibility and deployment readiness; metadata is a planned evidence record, not a missing schema requiring speculative migration.
 
-Source Guide durable revision/language/publication provenance belongs to3.1 under D16. Studio durable artifact/attempt/outbox belongs to3.3.3.4 references exact typed IDs and C-02 authorization, without duplicate ownership. Current listAllSnapshotChunks keyset paging accumulates one array: page size500rows bounds individual queries, not total memory. Any internal iterator/staged coverage extension must maintain exact snapshot membership and backpressure without changing public C-02.
+Source Guide revision/language records and report artifacts already persist in0006/0008 under D16/specs/013.3.1 owns remaining Guide re-sync dispatch/publication fences;3.3 owns new-kind admission/outbox, leases and publication fences. Applied0005–0008 must remain unchanged.3.4 references exact typed IDs and C-02 authorization, without duplicate ownership. Current listAllSnapshotChunks keyset paging accumulates one array: page size500rows bounds individual queries, not total memory. Any internal iterator/staged coverage extension must maintain exact snapshot membership and backpressure without changing public C-02.
 
 ## Scoped corpus manifest (`C-02`, NFR-SEC-02, NFR-PERF-01)
 
@@ -37,3 +37,7 @@ A failure/missing answer keeps terminal status and contributes positive infinity
 ## Release quality evidence (`NFR-EVAL-01..04`, CC-06)
 
 Keep benchmark20warm observations distinct from judged release sample50. Release record includes versioned golden dataset hash, fixed deterministic stratified sample IDs/category composition, candidate commit/model/configuration, metric numerators/denominators and result. Deterministic citation/leakage reports run each PR. Preserve prior owner override as approval authority with failures/no post-fix rerun; never encode it as measured green. No private source contents or credentials belong in generic telemetry.
+
+## Persistence baseline metadata (`NFR-PERF-01`, C-02/C-03)
+
+Extend the benchmark manifest with repository_mode=PostgreSQL, applied_migrations/hash, app_pool_configuration (no credentials), restart/sweep completion evidence, Guide/report recovery state and separately declared database-buffer, persisted-record and provider-cache conditions. Observations retain pool-wait/SQL stage timings as diagnostics within the full end-to-end duration, plus recovery errors and readiness uncertainty. These evidence records are planned; they do not require a new business-state datastore.

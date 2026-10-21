@@ -82,3 +82,8 @@
 - `$speckit-implement` reads checklist checkbox state as a gate and must not modify markers.
 - `checklists/requirements.md` has a separate built-in lifecycle maintained by `$speckit-specify` and `$speckit-clarify`.
 - Add findings and relevant document links inline; item IDs are sequential for easy reference.
+
+## Second-main Persistence Refresh
+
+- [ ] CHK037 Are persisted-state recovery requirements distinguished from unattended dispatch and publication guarantees, including retained Ready guides, interrupted-report retry and Pending-guide regeneration? [Coverage, Spec §Planning Refinements; Research §Durable prerequisites and cache; C-02/C-03, NFR-PERF-01, D16]
+- [ ] CHK038 Are repository, restart and separate cache conditions declared before measurements, with database overhead included and UI submission eligibility distinguished from warm-service classification? [Measurability, Plan §Persisted runtime benchmark conditions; Data Model §Persistence baseline metadata; NFR-PERF-01, D17]

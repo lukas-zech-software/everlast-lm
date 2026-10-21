@@ -37,3 +37,5 @@
 - All card numeric constraints and the complete needle fixture are preserved: ≥1,000,000 active tokens, selected ≥1,050,000 tokens, 41 Ready sources with 40 selected, 20 runs, ≤2,500 ms P95, precise 142.8/155.0 bar distinction, and up-to-300-source/500,000-word quotas. Cross-package 200,000,000-byte limit remains inclusive.
 - Specification verification passed: `node scripts/check-spec-integrity.mjs` and `git diff --check`. This is document validation, not runtime proof of latency or eval metrics. Runtime tests/evals were not run for this specification-only change; no performance or release-gate pass is claimed.
 - Ready for `$speckit-plan`; `$speckit-clarify` is unnecessary unless new high-impact ambiguity appears. Planning must declare benchmark fixtures/environment and measurement method without weakening the card thresholds.
+
+- Second-main refresh (2026-10-21): revalidated all16 criteria after specs/013 persistence/DEV-04 closure. Spec retains numeric criteria and technology-neutral recovery obligations; planning details remain in plan/research. No new product ambiguity or checkbox change; custom38 questions remain reviewer-owned and unchecked.

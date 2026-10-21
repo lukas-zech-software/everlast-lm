@@ -1,6 +1,6 @@
 # Research: Latest-main context and latency refresh (`NFR-PERF-01`, `C-02/C-03`)
 
-Date: 2026-10-21. Baseline main `0a94f3fca01395922fa788ea8cbb4286e8500f4a`; inherited refreshed3.1–3.3. Local source inspection performed inline to preserve sequential package-agent execution. No external content was retrieved. Earlier provider research remains provisional pending deployment qualification; no current vendor claim is inferred from it.
+Date: 2026-10-21. Baseline main `dc25c46`; inherited refreshed3.1–3.3. Local source inspection performed inline to preserve sequential package-agent execution. No external content was retrieved. Earlier provider research remains provisional pending deployment qualification; no current vendor claim is inferred from it.
 
 ## Existing production retrieval (`C-01/C-02`, `NFR-PERF-01`, `NFR-EVAL-04`)
 
@@ -22,9 +22,9 @@ Date: 2026-10-21. Baseline main `0a94f3fca01395922fa788ea8cbb4286e8500f4a`; inhe
 
 ## Durable prerequisites and cache (`C-02/C-03`, `FR-SI-02/05`, `NFR-SEC-02`)
 
-**Decision:**3.1 owns D16 revision/language-keyed Guide durability;3.3 owns Studio repository/outbox/recovery.3.4 consumes those ports, adds scoped broad Guide reads and private context-cache/coverage qualification, and records exact content/model/effective-ACL cache identity with read/publication rechecks.
-**Rationale:** main v2 runtime currently composes process-local Guide and Studio stores under D16/DEV-04. v3-draft SQL is not an applied durable schema. Refreshed plans prescribe persistence but are not implementation evidence. Current strict history eligibility must be preserved, not described as an unfixed permissive branch. Cache creation/use must remain enterprise EU and revision/authorization exact; no stale Guide or arbitrary provider handle bypass.
-**Alternatives considered:** A duplicate3.4 Guide migration or Studio job store conflicts with ownership and contract reuse; pretending v2 PoC state is already durable hides restarts and invalidation gaps. Unrelated v2 memory stores remain with their owners.
+**Decision:** Reuse applied0005–0008 and app-scoped PostgreSQL repositories from specs/013; do not recreate v2 persistence.3.1 owns remaining re-sync/Guide dispatch and transaction-aware revision/attempt fences;3.3 owns new-kind Studio admission/outbox, leases and transactional publication.3.4 measures these paths and adds scoped context-cache/coverage qualification.
+**Rationale:** `runWithV2Persistence` uses AsyncLocalStorage to select each app's pool for requests and async work; memory stores are test-only fallback. `PostgresStudioArtifactRepository` persists reports with row-locked lifecycle updates. Startup sweeps turn interrupted Queued/Running reports into Failed/GenerationError for explicit retry and delete orphaned GuidePending rows for later regeneration; Ready guides persist. Single-API and inline jobs remain under D16 despite DEV-04 closure. A durable row is not durable dispatch or complete publication fencing. The30-second Ready watcher/lookback and on-open recovery do not establish unattended re-sync recovery.3.3 must isolate legacy report sweeps before leased new-kind work. The new UI guard waits for sources/history readiness before Send; it neither changes the submission clock nor proves model readiness.
+**Alternatives considered:** Duplicate Guide/report schema or counting test-memory adapters as production performance would invalidate the baseline. Requiring an already-completed migration as future work is stale; assuming persisted records prove distributed execution, latency or private model-cache support is equally unsupported.
 
 ## Timing, readiness and sampling (`NFR-PERF-01`, D13/D17)
 
