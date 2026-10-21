@@ -2,7 +2,7 @@
 
 > **Status:** Accepted baseline (binding for technical choices per Constitution: Platform Constraints); open risks in §6. This covers Phase 1 (requirements and decomposition) and Phase 2 (solution design) of the `google-cloud-solution-build-deploy-agents` workflow.
 > **Source of truth:** [`spec/System_Requirements_Specification_Gemeni_Notebook.md`](../spec/System_Requirements_Specification_Gemeni_Notebook.md)
-> **GCP project:** `PROJECT_ID` (e.g. `everlast-lm-dev`)
+> **GCP project:** `PROJECT_ID` (e.g. `lukas-gcloud-playground`)
 
 ### Decisions
 

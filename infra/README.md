@@ -149,7 +149,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
 - **Step 1: Help & Syntax Discovery**
   Verified via `gcloud help services list`.
 - **Step 2: Parameter Verification & Dry-Run Check**
-  - Target project: `--project=<PROJECT_ID>` (e.g., `everlast-lm-dev`)
+  - Target project: `--project=<PROJECT_ID>` (e.g., `lukas-gcloud-playground`)
   - Data reduction flags: `--enabled`, `--filter`, `--format="table(config.name,config.title)"`, `--limit=50`
   - Dry-run status: Read-only command; no `--dry-run` flag exists or is needed.
 - **Step 3: Dry-Run Execution**
@@ -157,7 +157,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
 - **Step 4: Single-Command Execution**
   ```bash
   gcloud services list \
-    --project=everlast-lm-dev \
+    --project=lukas-gcloud-playground \
     --enabled \
     --filter="config.name:(run.googleapis.com OR sqladmin.googleapis.com OR storage.googleapis.com OR aiplatform.googleapis.com OR documentai.googleapis.com OR cloudtasks.googleapis.com OR secretmanager.googleapis.com OR identitytoolkit.googleapis.com)" \
     --format="table(config.name,config.title)" \
@@ -171,7 +171,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
   Verified via `gcloud help storage buckets create`.
 - **Step 2: Parameter Verification & Dry-Run Check**
   - Bucket URI: `gs://everlast-lm-dev-tfstate` (replace `dev` with `staging` or `prod` per environment)
-  - Project: `--project=everlast-lm-dev`
+  - Project: `--project=lukas-gcloud-playground`
   - Location: `--location=europe-west4` (`D3` EU data residency)
   - Security flags: `--uniform-bucket-level-access` and `--public-access-prevention`
   - Dry-run status: `gcloud storage buckets create` does not support `--dry-run` or `--validate-only`.
@@ -180,7 +180,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
 - **Step 4: Single-Command Execution**
   ```bash
   gcloud storage buckets create gs://everlast-lm-dev-tfstate \
-    --project=everlast-lm-dev \
+    --project=lukas-gcloud-playground \
     --location=europe-west4 \
     --default-storage-class=STANDARD \
     --uniform-bucket-level-access \
@@ -194,7 +194,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
   Verified via `gcloud help storage buckets update`.
 - **Step 2: Parameter Verification & Dry-Run Check**
   - Bucket URI: `gs://everlast-lm-dev-tfstate`
-  - Project: `--project=everlast-lm-dev`
+  - Project: `--project=lukas-gcloud-playground`
   - Versioning flag: `--versioning`
   - Dry-run status: `gcloud storage buckets update` does not support `--dry-run` or `--validate-only`.
 - **Step 3: Dry-Run Execution**
@@ -202,7 +202,7 @@ All `gcloud` commands below have been verified against `gcloud help <leaf_comman
 - **Step 4: Single-Command Execution**
   ```bash
   gcloud storage buckets update gs://everlast-lm-dev-tfstate \
-    --project=everlast-lm-dev \
+    --project=lukas-gcloud-playground \
     --versioning \
     --quiet
   ```
@@ -215,7 +215,7 @@ Because `storage_secrets` creates **regional** secrets (`google_secret_manager_r
   Verified via `gcloud help secrets versions add`.
 - **Step 2: Parameter Verification & Dry-Run Check**
   - Secret IDs: `everlast-dev-app-session-secret` and `everlast-dev-oidc-client-config`
-  - Project: `--project=everlast-lm-dev`
+  - Project: `--project=lukas-gcloud-playground`
   - Location: `--location=europe-west4`
   - Payload input: `--data-file=/path/to/secret.txt`
   - Dry-run status: `gcloud secrets versions add` does not support `--dry-run` or `--validate-only`.
@@ -224,14 +224,14 @@ Because `storage_secrets` creates **regional** secrets (`google_secret_manager_r
 - **Step 4: Single-Command Execution**
   ```bash
   gcloud secrets versions add everlast-dev-app-session-secret \
-    --project=everlast-lm-dev \
+    --project=lukas-gcloud-playground \
     --location=europe-west4 \
     --data-file=/path/to/app-session-secret.txt \
     --quiet
   ```
   ```bash
   gcloud secrets versions add everlast-dev-oidc-client-config \
-    --project=everlast-lm-dev \
+    --project=lukas-gcloud-playground \
     --location=europe-west4 \
     --data-file=/path/to/oidc-client-config.json \
     --quiet
@@ -281,6 +281,7 @@ tofu -chdir=infra/environments/dev apply tfplan.binary
 ### Step 5: Bootstrap Cloud SQL Extensions (`pgvector`) & Enable Secret Mounting
 
 1. Connect to the `everlast` database on the provisioned Cloud SQL instance (using Cloud SQL Auth Proxy or Cloud SQL Studio) and execute [`sql/001_v1_extensions.sql`](./sql/001_v1_extensions.sql) to enable `vector` (`pgvector`) and `pgcrypto`, and grant schema privileges to the IAM database service accounts (`everlast-api-<env>`, `everlast-worker-<env>`).
+   Application schema migrations (`packages/db/migrations`) are not run by hand: `everlast-api` sets `MIGRATE_ON_START=true` and applies pending migrations at startup, before it accepts traffic. A failed migration keeps the new revision from becoming ready, so traffic stays on the previous one.
 2. Populate the initial Secret Manager secret versions (Section 4.4), then set `mount_secrets = true` in `opentofu.auto.tfvars` and re-run `tofu plan` / `tofu apply` so `everlast-api` mounts `SESSION_SECRET` and `OIDC_CLIENT_CONFIG`.
 
 ---
@@ -296,7 +297,7 @@ The GitHub Actions workflow in [`../.github/workflows/opentofu.yml`](../.github/
 
 2. **Job 2 — `plan` (Authenticated via Keyless WIF):**
    - Runs when the target GitHub Environment (`dev`, `staging`, or `prod`) has the following GitHub Environment Variables configured:
-     - `GCP_PROJECT_ID`: Target GCP project ID (e.g., `everlast-lm-dev`)
+     - `GCP_PROJECT_ID`: Target GCP project ID (e.g., `lukas-gcloud-playground`)
      - `GCP_WIF_PROVIDER`: Workload Identity Provider resource name output by `module.iam_identity` (`workload_identity_provider_name`, when `enable_github_wif = true`)
      - `GCP_CI_SERVICE_ACCOUNT`: Email of `everlast-ci-tf-<env>@<project>.iam.gserviceaccount.com`
      - `GCP_TFSTATE_BUCKET`: Name of the GCS state bucket (e.g., `everlast-lm-dev-tfstate`)

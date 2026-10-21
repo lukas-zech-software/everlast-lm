@@ -1,5 +1,5 @@
 # Copy to opentofu.auto.tfvars (gitignored) and adjust values for your dev GCP project.
-project_id               = "everlast-lm-dev"
+project_id               = "lukas-gcloud-playground"
 region                   = "europe-west4"
 enable_project_services  = false # Set to true only after explicit project-owner approval to enable GCP APIs
 enable_model_armor       = false
