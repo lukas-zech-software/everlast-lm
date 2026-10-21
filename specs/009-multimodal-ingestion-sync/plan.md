@@ -1,6 +1,6 @@
 # Implementation Plan: Multimodal Ingestion & Sync
 
-**Branch**: `codex/v3-refresh2-3-1-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-refresh-final-3-1-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md`
 **SRS IDs in Scope**: FR-SI-01 Subset B, FR-SI-05, C-01; supporting FR-SI-02/03/04, FR-GC-02/03/06, FR-WM-04/05/07, C-02/C-03, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #1
 **Input**: `specs/009-multimodal-ingestion-sync/spec.md`
@@ -11,7 +11,7 @@ Extend the existing ingestion pipeline with Office, delegated Drive, guarded HTM
 
 ## Technical Context (FR-SI-01/05, C-01/C-02, NFR-SEC-01/02)
 
-**Language/Version**: TypeScript 5.x strict ESM, Node.js 24, pnpm workspaces; reuse root package versions.
+**Language/Version**: TypeScript 5.x strict ESM, Node.js 26, pnpm workspaces; reuse root package versions.
 **Primary Dependencies**: Existing Zod shared contracts; pdfjs-dist/Document AI PDF path; LibreOffice and ffmpeg in architecture-designated render job; Mozilla Readability; Speech-to-Text V2 Chirp 2 batch word offsets; delegated Drive REST export; Model Armor. No ADK agent loop for ingestion. No unverified SDK signatures or deployment commands prescribed.
 **Storage**: Existing Cloud SQL PostgreSQL 16+ with pgvector/FTS, revision rows and operation/outbox records; canonical viewer text in `source_pages` committed atomically with chunks (D15); private Cloud Storage raw files and binary staged objects. Existing `chunks` already has vector(768), tsv, HNSW and GIN indexes; do not create a duplicate index/table. No new datastore.
 **Authentication & Residency**: Owner-only v3, generic OIDC/SAML; delegated Drive authorization separate from SSO. Cloud Run, SQL, Storage, Speech and Model Armor endpoints configured in europe-west4; no region exception. Model Armor processes within EU jurisdiction, not a claim of Netherlands-only processing. Drive is an external user-selected repository, not an EU model runtime. Use approved enterprise model endpoints and no-training agreements; do not claim zero retention.
@@ -82,3 +82,5 @@ The first-refresh main `0a94f3fca01395922fa788ea8cbb4286e8500f4a` replaces the o
 `SourceTitleSchema` still limits legacy creation/copied-text titles to 100; rename requires its own 1–200 code-point DTO and compatible public source projection. Do not widen the copied-text input limit as a side effect. Existing MIME and SQL checks cover only v1 types plus trusted `note_markdown`; extend both for v3 without permitting clients to upload `note_markdown`. Keep note-source provenance and shared quota behavior intact.
 
 Second-refresh main `dc25c46c35d697f74944efbcc5491d693ffe5f03` closes DEV-04: migrations 0005–0008 and app-scoped PostgreSQL repository selection already persist all v2 data. Reuse migration 0006 `source_guides` and `runWithV2Persistence` for any worker continuation; never fall into test-only memory stores. Source Guide restart recovery drops orphaned Pending rows and regenerates on next open; the watcher still uses process-local high-water/deduplication. Add durable sync publication events and revision/attempt-fenced Guide completion so restart after commit cannot lose a new-revision request, even beyond the watcher lookback with no user reopen. Existing save checks source existence but does not atomically fence active revision, so extend the transaction-aware write boundary. Preserve existing Ready guides and one-API deployment until a separately qualified dispatcher change; durable storage alone does not authorize multi-instance execution. Allocate additive migrations after 0008, rechecking numbering at implementation. All CC gates above were rechecked against Constitution 2.0.0: deterministic evals each PR; judged 50-case stratified release run once per gate with sample IDs/composition/hash. Provider qualification and 45-second ASR runtime evidence remain UNAVAILABLE.
+
+Final baseline `ce3626bae6c302a998cc8206d9705c38d067f76a` uses Node.js 26 in package configuration and CI. API infrastructure now sets `MIGRATE_ON_START=true`: pending schema migrations run before traffic acceptance. Future additive sync migrations must therefore remain compatible with the previous serving revision during rollout; this does not change source publication fences or authorize deployment. (FR-SI-01/05, C-01/C-02, CC-08)
