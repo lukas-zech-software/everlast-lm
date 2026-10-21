@@ -40,8 +40,16 @@ Date: 2026-10-20. Scope: FR-GC-08, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04.
 
 ## Repository integration (FR-GC-08, CC-01/CC-02)
 
-**Decision:** Extend apps/api/src/chat/{agent,publication,transport}.ts, existing chat routes, packages/contracts/src/package-v1-3.ts and packages/db/src/chat-history.ts; place new execution types in package-v3-2.ts. Use current Node 24 / TypeScript 5 / pnpm workspace tooling and existing Vitest/Playwright runners.
+**Decision:** Extend apps/api/src/chat/{service,model,draft,verifier,prompt}.ts, existing chat routes, packages/contracts/src/package-v1-3.ts and packages/db/src/chat-history.ts; place new execution types in package-v3-2.ts. Use current Node 24 / TypeScript 5 / pnpm workspace tooling and existing Vitest/Playwright runners.
 
-**Rationale:** Current code has grounded model adapters and buffered transport but no sandbox controller, trace schema or chart route. Existing dev and db:migrate scripts print readiness text; they do not demonstrate a runnable deployed feature. Preserve existing per-user/thread admission and generation epoch cancellation rather than creating a second admission system.
+**Rationale:** Current code has grounded model adapters and buffered transport but no sandbox controller, trace schema or chart route. Main now implements dev orchestration and database migrations. Reuse `ChatService.runTurn`, `RequestScopedContextProvider`, `verifyDraft`, `publishTurn` and generation-epoch cancellation. The active-controller Map tracks aborts; it does not prove exclusive admission or safe replay before publication. Add a durable scoped admission fence for execution; keep client drafts when overlaps are rejected. The actual endpoint is `POST /api/notebooks/{notebook_id}/chat/turns`, and SSE serialization must evolve with TurnEvent. No existing sandbox is implied.
 
 **Alternatives considered:** A separate public execute-code endpoint broadens scope to arbitrary code; a separate agent framework or database violates the fixed stack.
+
+## Main baseline reconciliation (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
+
+**Decision:** Preserve main's real hybrid-retrieval, PostgreSQL publication and v2 integration instead of planning replacement fixture scaffolding. Extend strict draft/result contracts for clarification and computation; update DB StoredMessage/VisibleMessage, web types and v2 saved-response projection together. Persist trace and cleanup state durably despite D16's narrow v2 PoC exception. Qualify all runtime controls before sandbox admission; historical provider research above is dated evidence and has not been newly revalidated against a deployed service.
+
+**Rationale:** The retrieved default top 12 chunks are not evidence of a complete source table. Request sufficient original inputs only through C-02 bound to the original snapshot, with its exact citation universe, or refuse incomplete quantitative evidence. This avoids numerically correct calculations on misleadingly partial data. Existing epoch fences and publication transactions remain the authority for late results.
+
+**Alternatives considered:** Reusing process-local v2 stores loses execution records after restart; treating the abort Map as a lock admits overlap; broadening a model citation universe beyond supplied C-02 inputs risks leakage; replacing the current chat path loses established authorization/verification behavior. Constitution 2.0.0 requires deterministic PR suites and one fixed stratified 50-case judged release run, rather than judged checks on each prompt/chat PR.

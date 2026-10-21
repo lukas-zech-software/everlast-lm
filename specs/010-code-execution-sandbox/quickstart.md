@@ -11,7 +11,7 @@ node scripts/check-spec-integrity.mjs
 git diff --check
 ```
 
-No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, production startup/migration wiring and R6 evidence are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` and `pnpm db:migrate` currently print placeholder readiness messages; they are not deployment/setup instructions.
+No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, production startup/migration wiring and R6 evidence are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or R6 evidence. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
 
 ## Implementation-time prerequisites (FR-GC-08, NFR-SEC-01/02)
 
@@ -26,7 +26,7 @@ pnpm eval:deterministic
 pnpm eval:judged
 ```
 
-These new test paths are planned, not present. Missing files/harness/environment mean UNAVAILABLE, not success. Follow the actual migration/startup commands delivered by implementation, not the current placeholders.
+These new test paths are planned, not present. Missing files/harness/environment mean UNAVAILABLE, not success. Use `TEST_DATABASE_URL` for evals and an isolated PostgreSQL instance (`pnpm db:test:up`); real judged runs additionally require approved Vertex/ADC. Never substitute a passing baseline test run for sandbox acceptance.
 
 ## Acceptance scenarios (FR-GC-08, NFR-EVAL-01..04)
 
@@ -49,3 +49,9 @@ These new test paths are planned, not present. Missing files/harness/environment
 Record runtime identity/config, versions, region, exact memory units, enforced controls, destruction evidence and packet-observation method. The former managed CPU/RAM mismatch is resolved by D18; exact retained-control enforcement still needs empirical evidence. Verify the default profile, not the larger optional machine. Fallback requires contract-equivalent qualification; disabling a Python import or JavaScript worker separation is insufficient.
 
 Declare standard-tabular fixtures, cold/warm categories, concurrency, measurement window and percentile estimator before testing. Measure from sandbox creation request through execution completion, including cold/warm boot, and require ≤4.0s P95; report both strata. Measure submission-to-real-running-code independently (≤2.5s). Retry end-to-end time is reported separately and never silently removed from trace evidence. Progress is not answer TTFT; package 3.4 owns integrated NFR-PERF-01 measurements. Judged hallucination <5%, rejection ≥99% and semantic citation support supplement deterministic precision/leakage checks; no isolated package result certifies the full release.
+
+## Updated main validation obligations (2026-10-21; FR-GC-08, NFR-EVAL-01..04)
+
+Derive tests at the actual chat `/chat/turns` route and ChatService/AdkGroundedModel boundary. Cover strict clarification output (zero sandbox calls), status field serialization, persisted/reloaded traces through every current response projection, request replay/overlap/crash fences, and missing-table-row evidence refusal or complete scoped retrieval. Include baseline saved-response conversion compatibility without exposing invalidated trace bytes. Main's current dev/migrate scripts are real; sandbox-specific scenarios listed above are planned and UNAVAILABLE.
+
+Run `pnpm eval:deterministic` on every PR once the isolated DB and harness are available. Run `pnpm eval:judged` once on each release candidate's fixed deterministic stratified 50-case sample, recording case IDs, category composition and dataset hash; the single passing run satisfies that gate. Judged suites are not required per PR. These commands exist but were not executed in this documentation refresh; no new runtime/eval result is claimed.

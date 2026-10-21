@@ -45,3 +45,7 @@ These probes do not qualify Agent Platform. No Python numerical stack, managed i
 | Performance | Cold/warm boot+execution ≤4.0 s P95 and submission-to-real-running-code ≤2.5 s under declared one/two-user load, separate from NFR-PERF-01 answer TTFT |
 
 R6 requires a project-owner-authorized EU test deployment and relevant deployment permissions, approved IaC/resources and API enablement approval if new services are needed. Those actions are outside this planning execution and have not occurred. Pyodide remains the recorded architecture fallback candidate only if managed qualification fails and an equivalently conforming design is established. No new product question remains for this plan; runtime results may later require flow-back and an explicit decision.
+
+## Main refresh boundary (2026-10-21; FR-GC-08, NFR-EVAL-01..04)
+
+Latest main includes a runnable local/cloud application path, persistent chat and enterprise ADK model integration. It adds no managed sandbox adapter or R6 admission evidence. Historical provider references above remain dated 2026-10-20 research, not a fresh deployment observation. D18 retains the approved 2 vCPU/1.5 GB default; main's D16/DEV-04 v2 PoC and D17/DEV-05 warm-service chat exception do not relax sandbox isolation, lifecycle, durability or its timing limits. New admission/cleanup state must survive API restart and reconcile unknown execution without replay. All R6 rows above remain UNAVAILABLE until the selected runtime is empirically qualified.

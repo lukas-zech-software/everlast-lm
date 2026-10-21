@@ -1,6 +1,6 @@
 # Implementation Plan: Quantitative Code Execution Sandbox
 
-**Branch**: `plan-v3/010-sandbox-managed-default` | **Date**: 2026-10-20 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-refresh-3-2-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
 **SRS IDs in Scope**: FR-GC-08; FR-GC-01/02/03/06, FR-SI-03/05, FR-WM-04/05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #2
 **Input**: `specs/010-code-execution-sandbox/spec.md`
@@ -20,7 +20,7 @@ Extend grounded chat with a bounded Python execution tool over immutable scoped 
 - Authentication/region map: API, database, chart storage and intended execution service in europe-west4; enterprise no-training endpoints and keyless service identity. Region exceptions: none approved; if a runtime is unavailable there, stop rather than select a different region.
 - Performance: submission-to-real-running-code ≤2.5 s; cold/warm sandbox boot plus standard-tabular execution ≤4.0 s P95; per-attempt execution ≤15.0 s. Code progress never counts as validated answer TTFT. D17 warm-only chat acceptance does not relax these code-execution criteria.
 - Constraints: ≤2 vCPU, ≤1.5 GB RAM, ≤64 MB /tmp; zero inbound/outbound network; read-only scoped inputs; required Python numerical libraries preinstalled; one exception retry and zero timeout/OOM retries.
-- Testing: existing Vitest and Playwright runners; new package scenarios and R6 environment are UNAVAILABLE until implemented. Existing scripts named dev/db:migrate currently print readiness messages and are not runtime setup proof.
+- Testing: existing Vitest and Playwright runners; new package scenarios and R6 environment are UNAVAILABLE until implemented. Main now has real `pnpm dev` orchestration (PostgreSQL, migrations, API/web and worker) and `pnpm db:migrate`. They do not supply a sandbox or R6 evidence. Deterministic NFR-EVAL-02/04 suites run every PR; judged NFR-EVAL-01/03 and semantic support run once per release gate on a fixed stratified 50-case sample, recording IDs/composition/hash (Constitution 2.0.0).
 - Prerequisites: Gate v2 evidence before v3 implementation; package 3.1 plan/contract precedes this work; existing C-01/C-02, auth, history, cancellation and validated publication. Package 3.4 consumes these declared timing populations; 3.3 remains separate.
 
 ## Constitution Check (CC-01..CC-08)
@@ -42,17 +42,20 @@ Statuses refer to design review, not deployed acceptance. D18 resolves the forme
 
 Artifacts: plan.md, research.md, r6-feasibility.md, data-model.md, contracts/interfaces.md, quickstart.md beside existing spec/checklist. No tasks.md created.
 
-Exact intended implementation boundaries:
+Exact intended implementation boundaries (verified against main 0a94f3f):
+
+`ChatService.runTurn` already captures a `RequestScopedContextProvider`, retrieves hybrid scoped chunks, filters history, buffers `GroundedModel.generate`, verifies with `verifyDraft`, and publishes through `publishTurn`. Preserve these controls. `AdkGroundedModel` currently exposes structured generation, not sandbox tools; extend its model boundary/tool integration explicitly rather than assuming an existing execution callback. `TurnEvent` and route SSE currently serialize only phase/final fields; extend both schema and serializer for truthful execution progress. `GroundedDraftSchema` is strict and recognizes answered/not_in_sources only: add typed clarification/computation output and its safe verifier/publication path, preserving existing claim citation requirements. Do not disguise a clarification as an uncited factual answer. Existing request replay occurs after publication; the process-local active AbortController map is cancellation tracking, not durable single-request admission. Implement/reuse a database-backed per-user/notebook active-request fence with crash reconciliation before admitting sandbox execution, rejecting an overlapping request while preserving its draft (FR-GC-01/06, NFR-EVAL-04).
+
 
 | Owner boundary | Change |
 | --- | --- |
 | packages/contracts/src/package-v3-2.ts (new) | Execution trace, result/artifact and adapter DTO schemas |
 | packages/contracts/src/package-v1-3.ts, index.ts | Add nullable trace to strict ChatMessage and export schemas; legacy read compatibility |
-| packages/db/src/chat-history.ts; new numbered migration | Persist/reload trace and artifact references in SQL and test doubles |
+| packages/db/src/chat-history.ts, cleanup.ts; new numbered migration | Persist/reload trace and artifact references in SQL and test doubles |
 | apps/api/src/chat/execution/ (new) | Scoped manifest, controller, runtime adapter, output validation and cleanup |
-| apps/api/src/chat/{agent,publication,transport}.ts; routes/chat.ts | Tool integration, truthful progress, result gate and cancellation |
-| apps/api/src/routes/chat-charts.ts (new); server.ts | Authorized private chart delivery |
-| apps/web/src/chat/{turn,history}.ts; code-execution.ts (new) | Computed result/chart UI and ordered code drawer |
+| apps/api/src/chat/{service,model,draft,verifier,prompt}.ts; routes/chat.ts | Extend actual ChatService/AdkGroundedModel, strict draft and verification, SSE status/final contracts and cancellation |
+| apps/api/src/routes/chat-charts.ts (new); app.ts, server.ts | Authorized private chart delivery |
+| apps/web/src/chat/panel.ts, lib/types.ts; chat/code-execution.ts (new) | Computed result/chart UI and ordered code drawer |
 | packages/evals/test; existing package test directories | Golden arithmetic, citations, leakage and adversarial isolation scenarios |
 | infra/ | Only qualified runtime resources after R6 and owner API approval |
 
@@ -75,3 +78,9 @@ Data-model and contracts specify message migration compatibility, artifact prove
 | D18 / FR-GC-08 | Owner-approved 2 vCPU / 1.5 GB managed default | Retaining former caps required an unqualified fallback; the owner chose the managed profile instead. 4 vCPU / 4 GB remains excluded. |
 
 D18 and the SRS amendment approve the CPU/RAM change only. This changes project acceptance limits, not a verified reference-product deviation, so no DEV entry is inferred. Existing D17/DEV-05 remains restricted to NFR-PERF-01 warm-service chat timing.
+
+## Main reconciliation and validation cadence (FR-GC-08, C-02, NFR-EVAL-01..04)
+
+Use current `chunks` retrieval and snapshot verification, not an obsolete fixture-only baseline. Default retrieval limit is 12; whole-table computations require sufficient original C-02 evidence under the captured snapshot, or an honest insufficiency response. Expand evidence only behind C-02 and update the verified citation universe with exactly those supplied inputs; never read raw storage as a shortcut. Serialize contracts/schema and migrations after 3.1; retain D15 canonical text publication and reject stale source revision inputs. D16/DEV-04's limited v2 PoC does not waive durable sandbox state. Main's `VisibleMessage`, web `ChatMessage` and v2 `configureChatMessageReader` are separate real projections; all trace-aware consumers must be updated together, without leaking hidden traces into save-note/feedback paths. Existing v2 behavior remains compatible.
+
+Static review passes CC-01..08 under Constitution 2.0.0 before research and after the refreshed design. These are design conclusions, not runtime/security/eval passes. Release candidate judged evidence is one fixed stratified 50-case run with dataset hash, IDs and composition; deterministic PR checks remain required. No tasks or implementation are included.

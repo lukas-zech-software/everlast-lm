@@ -1,6 +1,6 @@
 # Feature Specification: Quantitative Code Execution Sandbox
 
-**Feature Branch**: `plan-v3/010-sandbox-managed-default`
+**Feature Branch**: `codex/v3-refresh-3-2-20261021`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
@@ -143,7 +143,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **SC-003 (`FR-GC-08`)**: On declared standard-tabular fixtures/environments, cold/warm boot plus execution latency is ≤4.0 s P95, and submission-to-“Running code…” is ≤2.5 s. This progress measurement is distinct from validated answer TTFT (`NFR-PERF-01`).
 - **SC-004 (`FR-GC-08`)**: Boundary fixtures demonstrate enforcement of 2 vCPU, 1.5 GB RAM, 64 MB temporary disk and 15.0 s per run; exception cases receive exactly one retry opportunity, timeout/memory violations zero, and terminal failures publish no guessed number.
 - **SC-005 (`C-02`, `NFR-EVAL-02/04`)**: Scope/revision/authorization and citation fixtures achieve citation-ID precision 1.0 and leakage 0, including stale in-flight outputs, history, caches and chart downloads.
-- **SC-006 (`NFR-EVAL-01/03`, Gate v3.0)**: Applicable judged grounding checks retain hallucination <5%, out-of-source rejection ≥99% and semantic citation support. Deterministic citation/leakage suites run every PR once available; judged checks run for retrieval/prompt/chat PRs and before release gates. This package alone does not establish the full v3 gate.
+- **SC-006 (`NFR-EVAL-01/03`, Gate v3.0)**: Applicable judged grounding checks retain hallucination <5%, out-of-source rejection ≥99% and semantic citation support. Deterministic citation/leakage suites run every PR once available; judged checks run once per release gate on its release candidate using the fixed deterministic stratified 50-case golden-dataset sample. The gate report records case IDs, category composition and dataset hash; a single passing run suffices and judged checks are not required per PR (Constitution v2.0.0). This package alone does not establish the full v3 gate.
 - **SC-007 (`FR-GC-08`)**: An ambiguous statistical request fixture triggers a focused clarification before any calculation; once its interpretation is resolved, the calculation matches that interpretation. A correction-retry fixture preserves and displays both attempts in order and identifies the final attempt and published outputs without publishing failed-attempt results.
 
 ## Assumptions & Out of Scope
@@ -166,3 +166,7 @@ This changes Everlast's project acceptance envelope, not a verified reference-pr
 
 - Q: Retain the old CPU/RAM caps or accept the managed default? → A: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This supersedes the initial Option A response recorded above. The managed default is selected; other controls stay unchanged.
 - Planning flow-back: use fresh managed sandboxes per attempt, scoped byte transfer without credentials, ordered traces and private authorized chart delivery. [R6 qualification](r6-feasibility.md) records required deployment evidence separately from completed design.
+
+## Main refresh (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
+
+Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; the v2 in-memory PoC exception (D16/DEV-04) does not authorize in-memory execution traces, operational cleanup records or charts. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and all R6 admission controls. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
