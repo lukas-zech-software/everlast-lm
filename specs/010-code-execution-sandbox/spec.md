@@ -1,6 +1,6 @@
 # Feature Specification: Quantitative Code Execution Sandbox
 
-**Feature Branch**: `codex/v3-refresh-3-2-20261021`
+**Feature Branch**: `codex/v3-refresh2-3-2-20261021`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
@@ -169,4 +169,8 @@ This changes Everlast's project acceptance envelope, not a verified reference-pr
 
 ## Main refresh (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
 
-Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; the v2 in-memory PoC exception (D16/DEV-04) does not authorize in-memory execution traces, operational cleanup records or charts. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and all R6 admission controls. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
+Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; v2 persistence is complete under D16/specs/013 (DEV-04 closed), while durable sandbox execution traces, operational cleanup records and charts remain new work. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and all R6 admission controls. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
+
+## Second main refresh integration baseline (2026-10-21; FR-GC-08, FR-GC-06, C-02)
+
+D16/specs/013 has closed DEV-04: v2 records now persist in PostgreSQL. This changes the implementation prerequisite, not FR-001..014 or the accepted D18 sandbox envelope. Existing history visibility, saved-response access rules and sources/history submission readiness remain applicable to computed and clarification turns. Sandbox admission, trace durability and crash cleanup still require their own implementation and R6 qualification; v2 restart recovery and the single-API deployment are not proof of those controls.

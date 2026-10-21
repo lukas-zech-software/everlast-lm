@@ -11,7 +11,7 @@ node scripts/check-spec-integrity.mjs
 git diff --check
 ```
 
-No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, production startup/migration wiring and R6 evidence are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or R6 evidence. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
+No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, sandbox-specific startup/migration wiring and R6 evidence are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or R6 evidence. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
 
 ## Implementation-time prerequisites (FR-GC-08, NFR-SEC-01/02)
 
@@ -55,3 +55,7 @@ Declare standard-tabular fixtures, cold/warm categories, concurrency, measuremen
 Derive tests at the actual chat `/chat/turns` route and ChatService/AdkGroundedModel boundary. Cover strict clarification output (zero sandbox calls), status field serialization, persisted/reloaded traces through every current response projection, request replay/overlap/crash fences, and missing-table-row evidence refusal or complete scoped retrieval. Include baseline saved-response conversion compatibility without exposing invalidated trace bytes. Main's current dev/migrate scripts are real; sandbox-specific scenarios listed above are planned and UNAVAILABLE.
 
 Run `pnpm eval:deterministic` on every PR once the isolated DB and harness are available. Run `pnpm eval:judged` once on each release candidate's fixed deterministic stratified 50-case sample, recording case IDs, category composition and dataset hash; the single passing run satisfies that gate. Judged suites are not required per PR. These commands exist but were not executed in this documentation refresh; no new runtime/eval result is claimed.
+
+## Second refresh validation delta (FR-GC-08, FR-GC-06, C-02, NFR-EVAL-04)
+
+Future package tests must use the applied 0005–0008 baseline plus new ordered sandbox migrations. Cover owning-app database context through asynchronous v2 consumers, visible-message projection after restart/revocation, and clear-chat removal/invalidation of trace/chart dependencies alongside feedback/follow-ups. Preserve disabled Send until sources/history load; a later quantitative/clarification reply must use current explicit scope. Exercise sandbox crash/unknown-outcome reconciliation separately from v2 report/Guide startup recovery. Existing v2 durability does not prove sandbox admission, resource enforcement or provider termination. These are future package assertions, not newly executed runtime checks.

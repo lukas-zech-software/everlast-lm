@@ -86,3 +86,10 @@
 - [ ] CHK033 Are evaluation cadence requirements aligned with Constitution 2.0.0, distinguishing deterministic PR checks from a single fixed stratified 50-case judged release run and its evidence metadata? [Consistency, Spec §SC-006, NFR-EVAL-01..04]
 - [ ] CHK034 Are durable execution admission, unknown-outcome recovery and all chat response projections explicitly covered without extending D16's limited v2 PoC exception to sandbox records? [Completeness, Plan §Main reconciliation and validation cadence, FR-GC-08, FR-GC-06]
 - [ ] CHK035 Do quantitative evidence requirements distinguish a targeted retrieved subset from sufficient original data for a complete table calculation, and define the insufficiency outcome? [Clarity, Spec §Main refresh, C-02, FR-GC-08]
+
+## Second main refresh review (2026-10-21)
+
+CHK034 retains its original review wording; D16's former memory exception is now closed by specs/013. Its admission/recovery/projection questions still apply to new sandbox records.
+
+- [ ] CHK036 Are requirements for owning-application data context and chat-clear hygiene explicit across persisted history and saved-response consumers, including dependencies without automatic deletion cascades? [Completeness, Plan §Second main refresh: persisted v2 baseline; Data Model §Persisted v2 compatibility; FR-GC-06, FR-GC-08, NFR-EVAL-04]
+- [ ] CHK037 Are source/history readiness and quantitative or clarification submission prerequisites distinguished from server admission and the start of progress timing? [Clarity, Contracts §Readiness and app context; Spec §Second main refresh integration baseline; FR-GC-08, C-02]

@@ -1,6 +1,6 @@
 # Implementation Plan: Quantitative Code Execution Sandbox
 
-**Branch**: `codex/v3-refresh-3-2-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-refresh2-3-2-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
 **SRS IDs in Scope**: FR-GC-08; FR-GC-01/02/03/06, FR-SI-03/05, FR-WM-04/05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #2
 **Input**: `specs/010-code-execution-sandbox/spec.md`
@@ -42,7 +42,7 @@ Statuses refer to design review, not deployed acceptance. D18 resolves the forme
 
 Artifacts: plan.md, research.md, r6-feasibility.md, data-model.md, contracts/interfaces.md, quickstart.md beside existing spec/checklist. No tasks.md created.
 
-Exact intended implementation boundaries (verified against main 0a94f3f):
+Exact intended implementation boundaries (verified against main dc25c46):
 
 `ChatService.runTurn` already captures a `RequestScopedContextProvider`, retrieves hybrid scoped chunks, filters history, buffers `GroundedModel.generate`, verifies with `verifyDraft`, and publishes through `publishTurn`. Preserve these controls. `AdkGroundedModel` currently exposes structured generation, not sandbox tools; extend its model boundary/tool integration explicitly rather than assuming an existing execution callback. `TurnEvent` and route SSE currently serialize only phase/final fields; extend both schema and serializer for truthful execution progress. `GroundedDraftSchema` is strict and recognizes answered/not_in_sources only: add typed clarification/computation output and its safe verifier/publication path, preserving existing claim citation requirements. Do not disguise a clarification as an uncited factual answer. Existing request replay occurs after publication; the process-local active AbortController map is cancellation tracking, not durable single-request admission. Implement/reuse a database-backed per-user/notebook active-request fence with crash reconciliation before admitting sandbox execution, rejecting an overlapping request while preserving its draft (FR-GC-01/06, NFR-EVAL-04).
 
@@ -81,6 +81,14 @@ D18 and the SRS amendment approve the CPU/RAM change only. This changes project 
 
 ## Main reconciliation and validation cadence (FR-GC-08, C-02, NFR-EVAL-01..04)
 
-Use current `chunks` retrieval and snapshot verification, not an obsolete fixture-only baseline. Default retrieval limit is 12; whole-table computations require sufficient original C-02 evidence under the captured snapshot, or an honest insufficiency response. Expand evidence only behind C-02 and update the verified citation universe with exactly those supplied inputs; never read raw storage as a shortcut. Serialize contracts/schema and migrations after 3.1; retain D15 canonical text publication and reject stale source revision inputs. D16/DEV-04's limited v2 PoC does not waive durable sandbox state. Main's `VisibleMessage`, web `ChatMessage` and v2 `configureChatMessageReader` are separate real projections; all trace-aware consumers must be updated together, without leaking hidden traces into save-note/feedback paths. Existing v2 behavior remains compatible.
+Use current `chunks` retrieval and snapshot verification, not an obsolete fixture-only baseline. Default retrieval limit is 12; whole-table computations require sufficient original C-02 evidence under the captured snapshot, or an honest insufficiency response. Expand evidence only behind C-02 and update the verified citation universe with exactly those supplied inputs; never read raw storage as a shortcut. Serialize contracts/schema and migrations after 3.1; retain D15 canonical text publication and reject stale source revision inputs. D16/specs/013 now persists v2 records and closes DEV-04; it does not provide durable sandbox admission or provider cleanup. Main's `VisibleMessage`, web `ChatMessage` and v2 `configureChatMessageReader` are separate real projections; all trace-aware consumers must be updated together, without leaking hidden traces into save-note/feedback paths. Existing v2 behavior remains compatible.
 
 Static review passes CC-01..08 under Constitution 2.0.0 before research and after the refreshed design. These are design conclusions, not runtime/security/eval passes. Release candidate judged evidence is one fixed stratified 50-case run with dataset hash, IDs and composition; deterministic PR checks remain required. No tasks or implementation are included.
+
+## Second main refresh: persisted v2 baseline (2026-10-21; FR-GC-08, FR-GC-06, C-02)
+
+Main `dc25c46` applies v2 migrations `0005`–`0008` and closes DEV-04. Reuse those tables and existing repositories; allocate any sandbox migration after all applied migrations and predecessor 3.1 changes, never re-promote removed `v3-draft` schemas. The deployment still runs one API instance with in-process v2 background work. Its startup report/Guide sweeps do not establish safe sandbox restart recovery, exclusive execution admission or actual provider termination. Keep the separately designed durable execution fence, unknown-outcome reconciliation without Python replay, and R6 gate.
+
+V2 stores now resolve the application's pool through `runWithV2Persistence`/AsyncLocalStorage; production request and background continuations that use those stores must retain this scope. Sandbox SQL uses its explicitly injected app pool. Do not rely on the process-default selector or memory fallback outside tests. The v2 chat reader still closes over its configured pool: its projection is an integration boundary to audit, not proof that every callback is isolated by AsyncLocalStorage. Preserve the existing visible-message filtering, saved-response conversion and atomic feedback/follow-up deletion on chat clear. New traces/charts must obey the same invalidation before any consumer receives them.
+
+Preserve web chat's readiness gate: sources and history must be loaded before a quantitative or clarification submission is accepted, preventing missing-scope turns and history replacement of new results. This local gate neither replaces API scope/admission checks nor starts the ≤2.5 s progress clock before actual sufficient-intent submission. All CC-01..CC-08 design conclusions remain PASS; runtime qualification remains UNAVAILABLE.
