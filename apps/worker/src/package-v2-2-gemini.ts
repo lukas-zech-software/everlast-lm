@@ -65,6 +65,11 @@ function logUpstreamFailure(model: string, error: unknown): void {
   }));
 }
 
+/** Logs why a model response was rejected; never the response content (NFR-SEC-01). */
+function logRejectedOutput(model: string, reason: "invalid_json" | "schema_mismatch", length: number): void {
+  console.warn(JSON.stringify({ severity: "WARNING", message: "Vertex AI structured output rejected", model, reason, response_length: length }));
+}
+
 function isTransient(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const { status, name } = error as { status?: unknown; name?: unknown };
@@ -272,10 +277,14 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
     try {
       parsed = JSON.parse(text);
     } catch {
+      logRejectedOutput(this.model, "invalid_json", text.length);
       throw new StructuredGenerationError("invalid_json", false);
     }
     const result = input.schema.safeParse(parsed);
-    if (!result.success) throw new StructuredGenerationError("schema_mismatch", false);
+    if (!result.success) {
+      logRejectedOutput(this.model, "schema_mismatch", text.length);
+      throw new StructuredGenerationError("schema_mismatch", false);
+    }
     return result.data;
   }
 }

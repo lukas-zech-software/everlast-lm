@@ -69,7 +69,7 @@ describe("VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10)
   it("disables Flash thinking and bounds output tokens on every report call", async () => {
     const { VertexReportModel, REPORT_GENERATION_CONFIG } = await load();
     const c = batch[0]!;
-    const fake = fakeVertex([{ findings: [] }, { sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", chunk_id: c.chunk_id }] }] }]);
+    const fake = fakeVertex([{ findings: [] }, { sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", finding: 0 }] }] }]);
     const model = VertexReportModel.fromFactory("p", fake.factory);
     await model.extract({ subtype: "faq", chunks: batch, signal });
     await model.compose({ subtype: "faq", findings: [{ kind: "qa", text: "x", chunk_id: c.chunk_id, source_id: c.source_id }], signal });
@@ -107,19 +107,133 @@ describe("VertexReportModel output validation (FR-ST-10, FR-014)", () => {
     await expect(VertexReportModel.fromFactory("p", garbage.factory).extract({ subtype: "faq", chunks: batch, signal })).rejects.toBeInstanceOf(ReportGenerationError);
   });
 
-  it("compose returns the template's sections and rejects unknown keys or chunks outside the findings", async () => {
+  it("compose returns the template's sections and rejects unknown keys or finding references outside the findings", async () => {
     const { VertexReportModel } = await load();
     const c = batch[0]!;
     const findings = [{ kind: "qa" as const, text: "It ended the Thirty Years War.", chunk_id: c.chunk_id, source_id: c.source_id, question: "What did it end?" }];
-    const ok = fakeVertex([{ sections: [{ key: "faq", heading: "Häufig gestellte Fragen", items: [{ text: "It ended the Thirty Years War.", chunk_id: c.chunk_id, question: "What did it end?" }] }] }]);
+    const ok = fakeVertex([{ sections: [{ key: "faq", heading: "Häufig gestellte Fragen", items: [{ text: "It ended the Thirty Years War.", finding: 0, question: "What did it end?" }] }] }]);
     const blocks = await VertexReportModel.fromFactory("p", ok.factory).compose({ subtype: "faq", findings, output_language: "de-DE", signal });
     expect(blocks).toEqual([{ id: "faq", heading: "Häufig gestellte Fragen", items: [{ text: "It ended the Thirty Years War.", chunk_id: c.chunk_id, question: "What did it end?" }] }]);
     expect(JSON.parse(ok.requests[0]!.contents).output_language).toBe("de-DE");
 
-    const unknownKey = fakeVertex([{ sections: [{ key: "poem", heading: "Poem", items: [{ text: "x", chunk_id: c.chunk_id }] }] }]);
+    const unknownKey = fakeVertex([{ sections: [{ key: "poem", heading: "Poem", items: [{ text: "x", finding: 0 }] }] }]);
     await expect(VertexReportModel.fromFactory("p", unknownKey.factory).compose({ subtype: "faq", findings, signal })).rejects.toBeInstanceOf(ReportGenerationError);
-    const outside = fakeVertex([{ sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", chunk_id: batch[1]!.chunk_id }] }] }]);
+    const outside = fakeVertex([{ sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", finding: 7 }] }] }]);
     await expect(VertexReportModel.fromFactory("p", outside.factory).compose({ subtype: "faq", findings, signal })).rejects.toBeInstanceOf(ReportGenerationError);
+  });
+});
+
+describe("[008-studio-text-reports] T066 literal evidence by construction (FR-014, FR-015, Gate v2.0 #3)", () => {
+  it("compose copies chunk_id, quote and date from the referenced finding, so a reworded quote cannot reach the report", async () => {
+    const { VertexReportModel } = await load();
+    const c = batch[0]!;
+    const quote = c.text.split(". ")[0]!;
+    const findings = [{ kind: "quote" as const, text: "Opening line", chunk_id: c.chunk_id, source_id: c.source_id, quote }];
+    const fake = fakeVertex([{ sections: [{ key: "faq", heading: "FAQ", items: [{ text: "Opening line", finding: 0, quote: "A reworded version of the quote" }] }] }]);
+    const blocks = await VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "faq", findings, signal });
+    expect(blocks[0]!.items).toEqual([{ text: "Opening line", chunk_id: c.chunk_id, quote }]);
+    const sent = JSON.parse(fake.requests[0]!.contents).findings;
+    expect(sent[0]).toMatchObject({ finding: 0, kind: "quote", quote });
+  });
+
+  it("extract drops findings whose quote or date is not literally in their chunk and keeps the rest", async () => {
+    const { VertexReportModel } = await load();
+    const c = batch[0]!;
+    const literal = c.text.split(". ")[0]!;
+    const fake = fakeVertex([{ findings: [
+      { kind: "quote", text: "kept", chunk_id: c.chunk_id, quote: literal },
+      { kind: "quote", text: "paraphrased", chunk_id: c.chunk_id, quote: "Something the chunk never says" },
+      { kind: "event", text: "bad date", chunk_id: c.chunk_id, date: "2999" },
+      { kind: "fact", text: "plain fact", chunk_id: c.chunk_id },
+    ] }]);
+    const findings = await VertexReportModel.fromFactory("p", fake.factory).extract({ subtype: "briefing_doc", chunks: batch, signal });
+    expect(findings.map((f) => f.text)).toEqual(["kept", "plain fact"]);
+  });
+});
+
+describe("[008-studio-text-reports] T067 compose per section group in parallel (Gate v2.0 #3 P95 ≤ 25 s, FR-017)", () => {
+  const c = batch[0]!;
+  const findings = [{ kind: "fact" as const, text: "x", chunk_id: c.chunk_id, source_id: c.source_id }];
+  const section = (key: string) => ({ key, heading: key, items: [{ text: "x", finding: 0 }] });
+
+  function deferredVertex() {
+    const requests: GenerateContentRequest[] = [];
+    const pending: Array<() => void> = [];
+    const factory: GenAiFactory = () => ({
+      models: {
+        generateContent(r) {
+          requests.push(r);
+          const keys: string[] = JSON.parse(r.contents).required_sections;
+          return new Promise((resolve) => pending.push(() => resolve({ text: JSON.stringify({ sections: keys.map(section) }) })));
+        },
+      },
+    });
+    return { factory, requests, release: () => pending.splice(0).forEach((f) => f()) };
+  }
+
+  it.each([
+    ["briefing_doc", [["executive_summary"], ["core_themes"], ["key_takeaways"], ["quotes"]]],
+    ["study_guide", [["topic_review"], ["short_answer_questions", "answer_key"], ["essay_questions"], ["glossary"]]],
+    ["timeline", [["events"], ["cast_of_characters"]]],
+    ["faq", [["faq"]]],
+  ] as const)("%s starts one compose call per section group before any returns, and keeps template order", async (subtype, groups) => {
+    const { VertexReportModel } = await load();
+    const fake = deferredVertex();
+    const done = VertexReportModel.fromFactory("p", fake.factory).compose({ subtype, findings, signal });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fake.requests.map((r) => JSON.parse(r.contents).required_sections)).toEqual(groups);
+    fake.release();
+    expect((await done).map((b) => b.id)).toEqual(groups.flat());
+  });
+
+  it("custom and dynamic reports keep a single compose call without required sections", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([{ sections: [section("anything")] }]);
+    await VertexReportModel.fromFactory("p", fake.factory).compose({ subtype: "custom", findings, signal });
+    expect(fake.requests).toHaveLength(1);
+    expect(JSON.parse(fake.requests[0]!.contents).required_sections).toBeUndefined();
+  });
+});
+
+describe("[008-studio-text-reports] T068 transient upstream errors are retried (Gate v2.0 #3; not a citation retry, FR-014)", () => {
+  const status = (code: number) => Object.assign(new Error(`status ${code}`), { status: code });
+
+  it("retries 429/5xx up to two times, then succeeds", async () => {
+    const { VertexReportModel } = await load();
+    const fake = fakeVertex([status(429), status(504), { findings: [] }]);
+    const model = VertexReportModel.fromFactory("p", fake.factory, { retryDelaysMs: [0, 0] });
+    await expect(model.extract({ subtype: "faq", chunks: batch, signal })).resolves.toEqual([]);
+    expect(fake.requests).toHaveLength(3);
+  });
+
+  it("gives up after two retries, and never retries a non-transient error", async () => {
+    const { VertexReportModel } = await load();
+    const busy = fakeVertex([status(429), status(429), status(429), { findings: [] }]);
+    await expect(VertexReportModel.fromFactory("p", busy.factory, { retryDelaysMs: [0, 0] }).extract({ subtype: "faq", chunks: batch, signal })).rejects.toBeInstanceOf(ReportGenerationError);
+    expect(busy.requests).toHaveLength(3);
+    const rejected = fakeVertex([status(400), { findings: [] }]);
+    await expect(VertexReportModel.fromFactory("p", rejected.factory, { retryDelaysMs: [0, 0] }).extract({ subtype: "faq", chunks: batch, signal })).rejects.toBeInstanceOf(ReportGenerationError);
+    expect(rejected.requests).toHaveLength(1);
+  });
+});
+
+describe("[008-studio-text-reports] T069 rejected model output is logged without content (observability, NFR-SEC-01)", () => {
+  it("invalid JSON and schema mismatches log a warning with the reason only", async () => {
+    const { VertexStructuredGenerationClient } = await import("../src/package-v2-2-gemini.ts");
+    const warnings: string[] = [];
+    const original = console.warn;
+    console.warn = (line: string) => warnings.push(line);
+    try {
+      const schema = { safeParse: (v: unknown) => (v && typeof v === "object" && "ok" in v ? { success: true as const, data: v } : { success: false as const }) };
+      for (const text of ["secret not json", JSON.stringify({ secret: 1 })]) {
+        const client = new VertexStructuredGenerationClient({ project: "p", createClient: () => ({ models: { generateContent: async () => ({ text }) } }) });
+        await expect(client.generateStructured({ contents: {}, responseSchema: {}, schema })).rejects.toThrow();
+      }
+    } finally {
+      console.warn = original;
+    }
+    expect(warnings.map((w) => JSON.parse(w).reason)).toEqual(["invalid_json", "schema_mismatch"]);
+    expect(warnings.join("\n")).not.toContain("secret");
   });
 });
 
