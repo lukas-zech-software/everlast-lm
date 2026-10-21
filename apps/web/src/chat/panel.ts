@@ -34,6 +34,11 @@ export interface ChatPanel {
   element: HTMLElement;
   load(): Promise<void>;
   updateSelection(): void;
+  /**
+   * Enables sending once the workspace has loaded its sources and this chat's history (FR-GC-01). Until then Send
+   * is disabled: an early turn would be dropped (no selection yet) or wiped when the history replaces the list.
+   */
+  markReady(): void;
   /** Sends a prompt as if typed (starter prompts, guide topics, follow-ups). */
   ask(text: string): void;
   /** Appends already-published messages, e.g. a Note Assistant turn (FR-NM-04 FR-017). */
@@ -150,7 +155,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   const errorLine = h("div", { class: "chat-error", "data-testid": "chat-error", hidden: true });
   const input = h("textarea", { class: "chat-input", "data-testid": "chat-input", rows: 2, placeholder: "Ask about your sources", "aria-label": "Chat message" });
   const pill = h("span", { class: "sources-pill", "data-testid": "sources-pill" });
-  const send = h("button", { class: "btn btn-primary send-btn", "data-testid": "send", "aria-label": "Send", text: "➤" });
+  const send = h("button", { class: "btn btn-primary send-btn", "data-testid": "send", "aria-label": "Send", text: "➤", disabled: true });
   const prompt = h("div", { class: "select-prompt", "data-testid": "select-sources-prompt", hidden: true, text: "Select at least one source to ask a question." });
   const element = h(
     "div",
@@ -167,6 +172,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   );
 
   let inflight: AbortController | null = null;
+  let ready = false;
 
   const scrollToEnd = () => {
     messages.scrollTop = messages.scrollHeight;
@@ -195,12 +201,12 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     const count = options.selection.count();
     pill.textContent = sourcesLabel(count);
     const empty = count === 0;
-    send.disabled = empty || inflight !== null;
+    send.disabled = !ready || empty || inflight !== null;
     prompt.hidden = !empty || options.hasSources?.() === false;
   };
 
   const submit = async () => {
-    if (inflight) return;
+    if (!ready || inflight) return;
     const ids = options.selection.ids();
     if (ids.length === 0) return;
     const check = validateMessage(input.value);
@@ -320,6 +326,10 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       updateSelection();
     },
     updateSelection,
+    markReady() {
+      ready = true;
+      updateSelection();
+    },
     ask(text) {
       input.value = text;
       void submit();
