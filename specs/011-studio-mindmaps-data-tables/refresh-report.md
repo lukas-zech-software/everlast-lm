@@ -49,3 +49,7 @@ This section supersedes the current-state statements above about process-memory 
 - Verification: spec integrity and diff whitespace checks recorded below. Existing code tests were inspected as regression requirements, not rerun or reported as new passes. New-plugin runtime/export/timing/eval gates remain UNAVAILABLE until implementation. No tasks, analyze, implementation, database mutation or deployment performed.
 
 - Final checks: PASS — integrity (179 Markdown files,55 SRS IDs,35 feature artifacts), `git diff --check`, exact feature pin, latest-main ancestry, and all38 custom items unchecked with original36 unchanged.
+
+## Final baseline alignment — 2026-10-21 (`C-03`, `CC-08`)
+
+Main `ce3626b` adds Node26, API `MIGRATE_ON_START=true` and dev-project example updates after `dc25c46`. Updated current plan/quickstart to Node26 and additive startup-migration compatibility/readiness ordering; startup migration locking does not implement worker leases or recovery. No package project ID is hardcoded. Accepted decisions and all38 unchecked custom questions remain unchanged. Worktree `/private/tmp/everlast-v3-refresh-final-3-3-20261021`, branch `codex/v3-refresh-final-3-3-20261021`, parent `05329a684fd70a6b4dbe6c824a386c0e0007ed6f`; first created worktree, second persisted the provided feature variable as `specs/011-studio-mindmaps-data-tables` and unset it. Historical refresh sections are preserved. Integrity/diff checks pass; no runtime qualification or deployment was performed.
