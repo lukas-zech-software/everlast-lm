@@ -291,7 +291,11 @@ export const ReportExtractOutputSchema = z.object({
 });
 export type ReportExtractOutput = z.infer<typeof ReportExtractOutputSchema>;
 
-const ReportModelItemSchema = z.object({ text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText });
+/**
+ * Reduce-step item: it references a finding by its index; the adapter copies that finding's chunk_id, quote and
+ * date, so verbatim evidence cannot be reworded by the model (FR-014, Gate v2.0 #3).
+ */
+const ReportModelItemSchema = z.object({ text: ModelText, finding: z.number().int().min(0), question: OptionalModelText });
 
 /** Reduce step: sections keyed by stable section keys with localized headings. */
 export const ReportComposeOutputSchema = z.object({
