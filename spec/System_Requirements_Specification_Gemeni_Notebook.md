@@ -318,7 +318,7 @@ Zur Wahrung des Prinzips der Spezifikation als Single Source of Truth für Entwi
 | **DEV-01** | `FR-ST-03` (Join-In), `Gate v5.0` #2 | Beide KI-Hosts antworten unmittelbar im selben Stimmenprofil auf Zwischenfragen und setzen anschließend die Diskussion fort. | Playback pausiert. **Ein designierter Host** beantwortet die Live-Frage in seiner Host-Podcast-Stimme über Gemini Live (grounded über `C-02`). Playback wird anschließend an der Unterbrechungsstelle fortgesetzt. Der zweite Host nimmt nicht an der Live-Antwort teil. | 2026-10-16, Project Owner ([D7](../docs/solution-architecture.md#decisions)) |
 | **DEV-02** | `FR-ST-16` (Slide Decks) | Export als PPTX / PDF / Google Slides. | Export ausschließlich als `.pptx` und `.pdf`. Der Google-Slides-Export ist zurückgestellt, da er eine OAuth-Autorisierung pro Nutzer erfordert. | 2026-10-16, Project Owner ([D8](../docs/solution-architecture.md#decisions)) |
 | **DEV-03** | `FR-INT-01` (`@Notebook`), Paket 6.3, `Gate v6.0` #3 | `@Notebook`-Mention im zentralen Enterprise-Chat und Export von Chat-Threads als Notebook oder Quelle in v6.0. | Zurückgestellt. Paket 6.3 wird nicht spezifiziert; Gate v6.0 #3 ist nicht Teil der v6.0-Abnahme. Der Chat-Agent bleibt zustandslos hinter `C-02` und A2A-fähig. | 2026-10-16, Project Owner ([D5](../docs/solution-architecture.md#decisions)) |
-| **DEV-04** | v2.0-Pakete 2.1–2.4 (`FR-WM-02/03`, `FR-UI-02`, `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-01..04`, `FR-ST-10/11`), `Gate v2.0` | Persistente Speicherung aller v2-Daten (Präferenzen, Icons, Pins, Source Guides, Übersichten, Chat-Konfiguration, Feedback, Notizen, Studio-Artefakte). | **Proof of Concept:** v2-Daten liegen bis v3 im Prozessspeicher einer einzelnen API-Instanz und gehen bei Neustart oder Redeploy verloren. Zugriffskontrolle, Quellen und Chat bleiben unverändert in PostgreSQL (v1). Ausnahme: Aus Notizen erzeugte Quellen (Notiz-Quellen, `FR-NM-03/04`) sind normale v1-Quellen in PostgreSQL (`media_type: note_markdown`) mit gemeinsamem Quellen-Limit; die Notizen selbst bleiben im Prozessspeicher. Die Umstellung auf PostgreSQL ist bewusst nach v3 verschoben. | 2026-10-19, Project Owner; Ausnahme Notiz-Quellen 2026-10-20 ([D16](../docs/solution-architecture.md#decisions)) |
+| **DEV-04** | v2.0-Pakete 2.1–2.4 (`FR-WM-02/03`, `FR-UI-02`, `FR-SI-02`, `FR-GC-04/05/07/09`, `FR-NM-01..04`, `FR-ST-10/11`), `Gate v2.0` | Persistente Speicherung aller v2-Daten (Präferenzen, Icons, Pins, Source Guides, Übersichten, Chat-Konfiguration, Feedback, Notizen, Studio-Artefakte). | **Proof of Concept:** v2-Daten liegen bis v3 im Prozessspeicher einer einzelnen API-Instanz und gehen bei Neustart oder Redeploy verloren. Zugriffskontrolle, Quellen und Chat bleiben unverändert in PostgreSQL (v1). Ausnahme: Aus Notizen erzeugte Quellen (Notiz-Quellen, `FR-NM-03/04`) sind normale v1-Quellen in PostgreSQL (`media_type: note_markdown`) mit gemeinsamem Quellen-Limit; die Notizen selbst bleiben im Prozessspeicher. Die Umstellung auf PostgreSQL ist bewusst nach v3 verschoben. **Aufgehoben 2026-10-21 (specs/013):** Alle v2-Daten liegen in PostgreSQL (Migrationen `0005`–`0008`) und überstehen Neustart und Redeploy. Weiterhin gilt: eine API-Instanz, v2-Hintergrundarbeit läuft im API-Prozess; beim Start werden unterbrochene Studio-Berichte als fehlgeschlagen markiert (Retry möglich) und unterbrochene Source Guides neu erzeugt ([D16](../docs/solution-architecture.md#decisions)). | 2026-10-19, Project Owner; Ausnahme Notiz-Quellen 2026-10-20 ([D16](../docs/solution-architecture.md#decisions)); aufgehoben 2026-10-21, Project Owner (specs/013) |
 
 ### 5.6 Konsistenzklärungen der FR-Karten (2026-10-16)
 
@@ -326,10 +326,10 @@ Diese Klarstellungen lösen Widersprüche innerhalb der bestehenden IDs auf; sie
 Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-APIs.
 
 - **v2.0 Proof of Concept (Beschluss Project Owner 2026-10-19, DEV-04/D16):** Die v2-Pakete
-  laufen vorerst mit Prozessspeicher statt PostgreSQL, damit früher ein lauffähiger Proof of
-  Concept bereitsteht. Datenpersistenz ist kein Ziel des PoC. Die Anbindung der v2-Daten an
-  PostgreSQL ist eine v3-Voraussetzung und wird vor Gate v3.0 umgesetzt; keine v2-Arbeit geht
-  dabei verloren.
+  liefen zunächst mit Prozessspeicher statt PostgreSQL, damit früher ein lauffähiger Proof of
+  Concept bereitstand. **Umgesetzt 2026-10-21 (specs/013, v3-Voraussetzung):** Die v2-Daten liegen
+  in PostgreSQL und überstehen Neustart und Redeploy; Schnittstellen und Verhalten der v2-Pakete
+  bleiben unverändert. Es bleibt bei einer API-Instanz (D16).
 - **v2.0-Kartenreview (Beschluss Project Owner 2026-10-20):** Notiz-KI-Aktionen (`FR-NM-04`)
   verwenden eine bereits konvertierte Notiz-Quelle wieder, wenn dieselben Notizen in derselben
   Revision vorliegen; nur neue oder geänderte Inhalte belegen einen Quellen-Slot. Eine Zeitleiste
@@ -343,7 +343,7 @@ Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-API
   und Notiz-Quellen teilen ein Limit von standardmäßig 50 Quellen), das kombinierte Markdown durchläuft
   die v1-Markdown-Ingestion bis `Ready`, und Ursprungsnotizen, deren Revisionen sowie kopierte Zitate
   werden als Provenienz gespeichert. Inline-Zitatmarker wie `[1]` werden aus dem Quelltext entfernt.
-  Die Notizen selbst bleiben bis v3 im Prozessspeicher (DEV-04/D16).
+  Seit 2026-10-21 (specs/013) liegen auch die Notizen selbst in PostgreSQL (DEV-04 aufgehoben, D16).
 - **NFR-EVAL-01..04, alle Release-Gates (Beschluss Project Owner 2026-10-19):** Deterministische
   Prüfungen (`NFR-EVAL-02` ID-Präzision, `NFR-EVAL-04` Leakage) laufen auf jedem PR. Die
   LLM-bewerteten Prüfungen (`NFR-EVAL-01`, `NFR-EVAL-03`, semantische Zitatstützung) laufen einmal

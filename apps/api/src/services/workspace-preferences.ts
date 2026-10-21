@@ -9,7 +9,7 @@ import {
 import {
   buildNotebookOverview,
   getNotebookMetadata,
-  getNotebookRaw,
+  getNotebookRecord,
   getOwnerNotebookPreferences,
   getOwnerWorkspacePreferences,
   getReadySourceCount,
@@ -23,13 +23,13 @@ import {
 } from "@everlast/db";
 
 /**
- * Package 2.1 workspace comfort service (FR-WM-02, FR-WM-03, FR-UI-02). Preferences, icons and pins live in the
- * in-memory PoC stores (D16); the notebook rows themselves come from PostgreSQL through the API, which has
- * already authorized the caller and mirrored the notebook into the PoC bridge.
+ * Package 2.1 workspace comfort service (FR-WM-02, FR-WM-03, FR-UI-02). Preferences, icons and pins are stored in
+ * PostgreSQL (specs/013, DEV-04 closed); the API has already authorized the caller from the v1 notebook row.
  */
 export class WorkspacePreferencesService {
-  getNotebookRaw(notebookId: string): Notebook | null {
-    return getNotebookRaw(notebookId);
+  /** The notebook from PostgreSQL (FR-007); null when it does not exist. */
+  getNotebook(notebookId: string): Promise<Notebook | null> {
+    return getNotebookRecord(notebookId);
   }
 
   /**

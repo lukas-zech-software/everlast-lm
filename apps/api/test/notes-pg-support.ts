@@ -99,7 +99,7 @@ export interface NotesApi {
 }
 
 /** `v2` adds runtime options (e.g. a Studio report model test double, [008-studio-text-reports] T040/T043/T047). */
-export async function startNotesApi(options: { sourceLimit?: number; v2?: Partial<V2RuntimeOptions> } = {}): Promise<NotesApi> {
+export async function startNotesApi(options: { sourceLimit?: number; v2?: Partial<V2RuntimeOptions>; db?: TestApi["db"] } = {}): Promise<NotesApi> {
   const sourceLimit = options.sourceLimit ?? 50;
   const dir = await mkdtemp(join(tmpdir(), "everlast-notes-"));
   const embedder = new ControlledEmbedder();
@@ -114,7 +114,7 @@ export async function startNotesApi(options: { sourceLimit?: number; v2?: Partia
   const api = await startTestApi({ sourceLimit }, (db) => {
     v2 = createV2Runtime({ pool: db.pool, sourceLimit, model, storage, embedder, notifyJobs, ...options.v2 });
     return { embedder, storage, notifyJobs, v2, chat: new ChatService({ pool: db.pool, embedder, model }) };
-  });
+  }, options.db ? { db: options.db } : {});
   const worker = createWorkerHandler({ pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
   drain = () => worker.drain();
 

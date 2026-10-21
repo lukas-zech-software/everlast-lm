@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HashingTestEmbedder } from "@everlast/cloud";
-import { getSourceGuide, persistChatMessage, resetPackageV22Store } from "@everlast/db";
+import { getSourceGuide, persistChatMessage, resetPackageV22Store, runWithV2Persistence } from "@everlast/db";
 import { seedReadySource } from "@everlast/db/testing";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { VertexStructuredGenerationClient } from "@everlast/worker/package-v2-2-gemini";
@@ -14,6 +14,9 @@ import { startTestApi, type TestApi } from "./support.ts";
  */
 
 const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
+
+/** specs/013: guides live in the API's PostgreSQL database; read them in that app's store scope. */
+const storedGuide = (target: TestApi, ...args: Parameters<typeof getSourceGuide>) => runWithV2Persistence(target.db.pool, () => getSourceGuide(...args));
 
 /** Deterministic fake model: cites the first chunk of the scope it was given. */
 const fakeGeneration: StructuredGenerationClient = {
@@ -117,8 +120,8 @@ describe("Ready-transition watcher in the API process (Gate v2.0 #1, FR-SI-02, F
 
   it("generates the guide after Ready without any source listing, once per revision, timed from Ready", async () => {
     const { notebookId, sourceId } = await setup(api, "watch-a");
-    await expect.poll(async () => (await getSourceGuide(notebookId, sourceId, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideReady");
-    const guide = (await getSourceGuide(notebookId, sourceId, 1, "en-US"))!;
+    await expect.poll(async () => (await storedGuide(api, notebookId, sourceId, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideReady");
+    const guide = (await storedGuide(api, notebookId, sourceId, 1, "en-US"))!;
     expect(guide.ready_at).toBeDefined();
     const fromReady = Date.parse(guide.generated_at!) - Date.parse(guide.ready_at!);
     expect(fromReady).toBeGreaterThan(-50);
@@ -132,7 +135,7 @@ describe("Ready-transition watcher in the API process (Gate v2.0 #1, FR-SI-02, F
   it("a failed guide never blocks reading the source", async () => {
     fail = true;
     const { notebookId, sourceId } = await setup(api, "watch-b");
-    await expect.poll(async () => (await getSourceGuide(notebookId, sourceId, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideFailed");
+    await expect.poll(async () => (await storedGuide(api, notebookId, sourceId, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideFailed");
     const content = await api.fetch(`/api/notebooks/${notebookId}/sources/${sourceId}/content`, { as: "watch-b" });
     expect(content.status).toBe(200);
   });
@@ -173,7 +176,7 @@ describe("Ready watcher pages past full batches (Gate v2.0 #1, FR-SI-02; securit
     await api.db.pool.query("UPDATE sources SET updated_at = now() WHERE notebook_id = $1", [first.notebookId]);
     expect(await v2.pollReadySources()).toBe(5);
     for (const id of ids) {
-      await expect.poll(async () => (await getSourceGuide(first.notebookId, id, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideReady");
+      await expect.poll(async () => (await storedGuide(api, first.notebookId, id, 1, "en-US"))?.status, { timeout: 5_000 }).toBe("GuideReady");
     }
     expect(await v2.pollReadySources()).toBe(0);
     expect([...guideCalls].sort()).toEqual([...ids].sort());
