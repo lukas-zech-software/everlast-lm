@@ -70,6 +70,15 @@ describe("Follow-up row above the chat input bar (FR-GC-05, US3/AC3)", () => {
       const bar = children.findIndex((c) => c.classList.contains("chat-input-bar"));
       expect(bar).toBeGreaterThan(0);
       expect(children[bar - 1]).toBe(aboveInput);
+      // FR-GC-01 (GC-E08): nothing is sent before the workspace has loaded sources and history.
+      const send = (panel.element as any).querySelector('[data-testid="send"]');
+      expect(send.disabled).toBe(true);
+      panel.ask("Too early?");
+      await flush();
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(onStreamStart).not.toHaveBeenCalled();
+      panel.markReady();
+      expect(send.disabled).toBe(false);
       panel.ask("What is mTLS?");
       await flush();
       expect(onStreamStart).toHaveBeenCalledTimes(1);

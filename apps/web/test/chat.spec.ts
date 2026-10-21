@@ -169,3 +169,39 @@ test("GC-E07: a deselected source's history stays viewable but its content canno
   await expect(second).toContainText("The selected sources do not contain information about");
   await expect(first).toContainText("$4.2M"); // historical answer remains viewable
 });
+
+test("GC-E08: Send stays disabled until sources and chat history have loaded, so an early turn is never lost", async ({ page }) => {
+  const email = uniqueEmail("gc08");
+  await signIn(page, email);
+  const id = await createNotebook(page.request, email);
+  await addTextSource(page.request, email, id, "The backup window opens at 02:00 UTC every night.");
+  await waitReady(page.request, email, id, 1);
+  // Hold the source list and the chat history until the test releases them (the startup window that lost turns).
+  const hold = () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    return { held, release: () => release() };
+  };
+  const sourcesGate = hold();
+  const historyGate = hold();
+  await page.route(`**/api/notebooks/${id}/sources`, async (route) => {
+    if (route.request().method() === "GET") await sourcesGate.held;
+    await route.continue();
+  });
+  await page.route(`**/api/notebooks/${id}/chat`, async (route) => {
+    if (route.request().method() === "GET") await historyGate.held;
+    await route.continue();
+  });
+  await page.goto(`/notebook/${id}`);
+  await page.getByTestId("chat-input").fill("When does the backup window open?");
+  await expect(page.getByTestId("send")).toBeDisabled();
+  // Sources first: the selection is known, but the history would still replace the message list.
+  sourcesGate.release();
+  await expect(page.getByTestId("sources-pill")).toContainText("1");
+  await expect(page.getByTestId("send")).toBeDisabled();
+  historyGate.release();
+  await expect(page.getByTestId("send")).toBeEnabled();
+  await page.getByTestId("send").click();
+  await expect(page.getByTestId("message-assistant")).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.getByTestId("message-assistant").getByTestId("citation-badge").first()).toBeVisible();
+});
