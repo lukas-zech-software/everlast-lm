@@ -2,7 +2,7 @@
 
 ## Current runnable specification check (`CC-01/02`)
 
-From the dedicated feature worktree, run:
+From the dedicated feature worktree using Node.js26, run:
 
 ```sh
 node scripts/check-spec-integrity.mjs
@@ -46,3 +46,7 @@ The planned scripts/eval-v3-scale.mjs runner is absent. No deployed million-toke
 ## Second-main persistence baseline (`NFR-PERF-01`, C-02/C-03)
 
 Use the deployed PostgreSQL app pool and applied0005–0008, preserving stored preferences, Guides, notes and reports. Record pool configuration/acquisition costs, schema hash, startup sweep completion and separately frozen database/persisted-record/provider-cache conditions before collection; memory fallback is not acceptance evidence. Add a separate restart diagnostic: Ready guides/reports survive, interrupted legacy reports require explicit retry, orphaned Pending guides regenerate, and remaining3.1/3.3 dispatch/publication fences are qualified before integrated acceptance. Include all incurred SQL/publication overhead in timing. Sources/history readiness before Send is distinct from serving-instance warm classification; no post-submission reset. Existing repository restart integration tests are baseline coverage, not million-token latency proof.
+
+## Startup migration baseline (`NFR-PERF-01`, D17, CC-06/08)
+
+The current API deployment enables `MIGRATE_ON_START=true`; numbered SQL runs under the migration advisory lock before the API listens. Before collecting the warm cohort, capture Node.js26 runtime, applied schema/hash, migration completion and startup recovery/dependency readiness tied to the serving instance. Pending migration or lock waits cannot establish warm readiness. Keep all submitted attempts and their original clocks, report wake/startup observations separately under D17, and do not subtract migration time from TTFT. Migration completion alone does not prove model readiness; qualify rolling-version schema compatibility before deploying a benchmark revision. This guide does not execute migrations or deploy resources during planning.

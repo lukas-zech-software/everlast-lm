@@ -1,6 +1,6 @@
 # Implementation Plan: Long-Context and Latency Scaling
 
-**Branch**: `codex/v3-refresh2-3-4-20261021` | **Date**: 2026-10-21 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-refresh-final-3-4-20261021` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`
 **SRS IDs in Scope**: `NFR-PERF-01`, supporting `C-01/C-02/C-03`, `FR-SI-01/02/03/05`, `FR-GC-01/02/06/08`, `FR-WM-04/07`, `NFR-SEC-01/02`, `NFR-EVAL-01..04` | **Release Gate**: Gate v3.0 #3 capacity component
 
@@ -10,7 +10,7 @@ Benchmark and tune the existing PostgreSQL C-02 hybrid retrieval path, adding sc
 
 ## Technical Context (`NFR-PERF-01`, `C-01..C-03`, `NFR-SEC-01/02`)
 
-**Language/Version**: Existing TypeScript5.x strict ESM, Node.js24 and pnpm workspaces.
+**Language/Version**: Existing TypeScript5.x strict ESM, Node.js26 and pnpm workspaces.
 **Primary Dependencies**: Shared Zod contracts, existing Google ADK TypeScript grounded-chat integration and `@google/genai` enterprise adapter, Cloud Run/Cloud Tasks. Deterministic context planning and benchmarks use no new framework.
 **Storage**: Single Cloud SQL PostgreSQL with pgvector cosine HNSW, `simple` PostgreSQL FTS/GIN and RRF; existing Cloud Storage for private normalized text and attempt evidence. The existing physical table is `chunks` with non-null vector(768), generated simple FTS, HNSW/GIN indexes and revision metadata; canonical viewer text is `source_pages` (D15). Do not create a second retrieval store or rewrite migration0002.
 **Authentication & Residency**: Generic OIDC/SAML Identity Platform, Owner-only v3, notebook/document ACL rechecks, `europe-west4` enterprise no-training endpoints. Region exceptions: None. A benchmark runs only on approved deployed resources; no API enablement/deployment is performed here.
@@ -92,3 +92,7 @@ D16/specs/013 closes DEV-04: applied migrations0005–0008 persist v2 preference
 Freeze repository mode=PostgreSQL, applied migration version/hash, app pool identity/configuration, connection acquisition/SQL costs, restart/sweep completion and Guide/report recovery state in the benchmark manifest. Include database-backed preferences, history, Guide reads and publication costs actually incurred in submission-to-final timing; stage diagnostics cannot subtract them. Distinguish PostgreSQL buffer/cache state, persisted overview/Guide records and planned provider context caches. Declare each cache condition before runs; a Ready persisted Guide is not proof of a warm provider cache. Production acceptance cannot use no-pool memory fallback.
 
 Keep single-API/in-process jobs as the current topology until separately qualified dispatch changes. Observe interrupted legacy reports as Failed with explicit new-attempt retry and orphaned Pending guides as requiring regeneration; retain Ready guides. Record startup sweep/pool readiness before prospective warm classification. Missing required guides, recovery failures or unknown readiness cannot be silently removed from the attempt record or turned into successful timings. The UI sources/history-ready Send guard is an eligibility control before submission, not a clock reset or model-readiness signal. Additional restart/cache profiles remain separate diagnostics; the20warm core, max40attempts, 19th P95≤2,500ms and two-Owner concurrency2 diagnostic are unchanged.
+
+## Final runtime baseline (`NFR-PERF-01`, D17, CC-08)
+
+Main `ce3626b` sets Node.js26 and enables `MIGRATE_ON_START=true` for the deployed API. The server awaits advisory-locked, once-per-file numbered migrations before listening. Record runtime version, schema version/hash and migration completion in boot/readiness evidence; a migration lock wait is startup work, not proof of warm readiness. Retain prospective serving-instance classification and the original submission clock for every attempt, including requests delayed during rollout. Never subtract migration delay, reclassify an already-warm slow request, or infer model readiness from completed migrations. Qualify schema compatibility with an older serving revision before rollout; full boot/recovery/dependency readiness remains required.

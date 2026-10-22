@@ -1,6 +1,6 @@
 # Research: Latest-main context and latency refresh (`NFR-PERF-01`, `C-02/C-03`)
 
-Date: 2026-10-21. Baseline main `dc25c46`; inherited refreshed3.1–3.3. Local source inspection performed inline to preserve sequential package-agent execution. No external content was retrieved. Earlier provider research remains provisional pending deployment qualification; no current vendor claim is inferred from it.
+Date: 2026-10-22. Baseline main `ce3626b`; inherited refreshed3.1–3.3. Local source inspection performed inline to preserve sequential package-agent execution. No external content was retrieved. Earlier provider research remains provisional pending deployment qualification; no current vendor claim is inferred from it.
 
 ## Existing production retrieval (`C-01/C-02`, `NFR-PERF-01`, `NFR-EVAL-04`)
 
@@ -37,3 +37,9 @@ Date: 2026-10-21. Baseline main `dc25c46`; inherited refreshed3.1–3.3. Local s
 **Decision:** Use Constitution2.0.0: deterministic citation/leakage every PR; judged hallucination/rejection/semantic support once per release candidate against fixed deterministic stratified50golden cases with IDs/category composition/dataset hash. Disclose v2 Gate owner override and no post-fix live re-run from docs/gate-v2-live-evaluation.md.
 **Rationale:** main documents pre-fix Guide/report/response-length failures and owner acceptance for dev stakeholder PoC. That authority permits progression without fabricating measured green. D18 accepts managed2vCPU/1.5GB but R6 no-network/read-only scoped input/64MBscratch/15.0s actual termination/cleanup/EU evidence remains pending.
 **Alternatives considered:** Requiring judged suites on every prompt PR conflicts with amended constitution; silently converting override or planning completion into runtime acceptance invents evidence. No tasks, implementation, provider enablement, IAM change or deployment is performed here.
+
+## Final runtime and startup delta (`NFR-PERF-01`, D17, CC-08)
+
+**Decision:** Use the repository Node.js26 target and treat API startup migrations as boot/readiness evidence.
+**Rationale:** Main `ce3626b` includes the Node26 runtime/workflow upgrade and the API `MIGRATE_ON_START=true` setting. `startApiServer` awaits `runMigrations` before listening; the runner serializes numbered files with an advisory lock and applies each once. Capture schema/runtime and completion evidence, including startup recovery, before prospective warm classification. Requests submitted during startup retain submission-to-validated-answer timing.
+**Alternatives considered:** Starting the clock after migrations, subtracting lock waits or equating SQL/migration readiness with model readiness would weaken D17 and conceal startup latency. No acceptance threshold, model, schema contract or additional benchmark cohort is changed by this baseline alignment.
