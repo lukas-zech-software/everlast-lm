@@ -146,8 +146,8 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
 
     // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
     if (url.pathname === "/oauth/google/callback" && method === "GET") {
-      const { location } = await handleOAuthCallback(deps, url);
-      res.writeHead(302, { Location: location, "Cache-Control": "no-store" }).end();
+      const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
+      res.writeHead(302, { Location: location, "Cache-Control": "no-store", "Set-Cookie": clearCookie }).end();
       return;
     }
     // Provider push notifications for linked-source re-sync (FR-SI-05): authenticated by the channel token.

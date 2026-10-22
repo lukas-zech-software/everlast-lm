@@ -3,10 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "everlast-render Cloud Run Job: LibreOffice DOCX/PPTX→PDF normalization and ffmpeg audio preprocessing (FR-SI-01, specs/009).",
+  "description": "everlast-render Cloud Run Job: LibreOffice DOCX/PPTX\u2192PDF normalization and ffmpeg audio preprocessing (FR-SI-01, specs/009).",
   "main": "./src/main.ts",
   "exports": {
-    ".": { "types": "./src/main.ts", "import": "./src/main.ts", "default": "./src/main.ts" }
+    ".": {
+      "types": "./src/main.ts",
+      "import": "./src/main.ts",
+      "default": "./src/main.ts"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -16,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "@everlast/testkit": "workspace:*"
   }
 }

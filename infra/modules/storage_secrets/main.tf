@@ -65,11 +65,32 @@ resource "google_storage_bucket_iam_member" "worker_object_user" {
   member = "serviceAccount:${var.worker_service_account_email}"
 }
 
-resource "google_storage_bucket_iam_member" "render_object_user" {
+# everlast-render (specs/009, security review 2026-10-23): least privilege. Read source objects only under the
+# notebook namespace; create only normalization outputs (no overwrite/delete, no bucket-wide objectUser).
+resource "google_storage_bucket_iam_member" "render_object_viewer" {
   count  = var.render_service_account_email == "" ? 0 : 1
   bucket = google_storage_bucket.workspace.name
-  role   = "roles/storage.objectUser"
+  role   = "roles/storage.objectViewer"
   member = "serviceAccount:${var.render_service_account_email}"
+
+  condition {
+    title       = "render-read-source-objects"
+    description = "Only objects under notebooks/ (source uploads and Drive exports)"
+    expression  = "resource.name.startsWith(\"projects/_/buckets/${google_storage_bucket.workspace.name}/objects/notebooks/\")"
+  }
+}
+
+resource "google_storage_bucket_iam_member" "render_object_creator" {
+  count  = var.render_service_account_email == "" ? 0 : 1
+  bucket = google_storage_bucket.workspace.name
+  role   = "roles/storage.objectCreator"
+  member = "serviceAccount:${var.render_service_account_email}"
+
+  condition {
+    title       = "render-write-normalized-outputs"
+    description = "Only notebooks/{notebook}/sources/{source}/normalized/* outputs"
+    expression  = "resource.name.matches(\"^projects/_/buckets/${google_storage_bucket.workspace.name}/objects/notebooks/[^/]+/sources/[^/]+/normalized/[^/]+$\")"
+  }
 }
 
 # 2. Artifact Registry for Cloud Run Container Images (europe-west4)

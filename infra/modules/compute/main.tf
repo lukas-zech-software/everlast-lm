@@ -238,6 +238,17 @@ resource "google_cloud_run_v2_job" "render" {
       timeout         = "600s"
       max_retries     = 0
 
+      # Security review 2026-10-23: all egress goes into an isolated VPC without Cloud NAT, so the converters
+      # cannot reach the internet or internal hosts; Google APIs (Cloud Storage) stay reachable via Private
+      # Google Access.
+      vpc_access {
+        egress = "ALL_TRAFFIC"
+        network_interfaces {
+          network    = google_compute_network.render_isolated[0].id
+          subnetwork = google_compute_subnetwork.render_isolated[0].id
+        }
+      }
+
       containers {
         name  = "render"
         image = var.render_image
@@ -260,6 +271,27 @@ resource "google_cloud_run_v2_job" "render" {
       }
     }
   }
+}
+
+# Isolated network for everlast-render: no Cloud NAT and no other hosts, so a converted document cannot reach the
+# internet or internal services; Private Google Access keeps Cloud Storage reachable. A deny-all firewall plus a
+# private googleapis.com DNS zone was rejected: the zone adds fixed idle cost (CC-08) and NAT-less egress already
+# has no internet path.
+resource "google_compute_network" "render_isolated" {
+  count                   = var.render_image == "" ? 0 : 1
+  project                 = var.project_id
+  name                    = "${local.name_prefix}-render-isolated"
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "render_isolated" {
+  count                    = var.render_image == "" ? 0 : 1
+  project                  = var.project_id
+  name                     = "${local.name_prefix}-render-isolated"
+  region                   = var.region
+  network                  = google_compute_network.render_isolated[0].id
+  ip_cidr_range            = "10.250.0.0/26"
+  private_ip_google_access = true
 }
 
 # The worker may start executions with per-run overrides (input/output object references) and nothing else.

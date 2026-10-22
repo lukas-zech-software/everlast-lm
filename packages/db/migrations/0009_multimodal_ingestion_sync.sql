@@ -118,3 +118,15 @@ CREATE TABLE IF NOT EXISTS source_sync_channels (
 -- Outbox kinds: re-sync operations run on the existing jobs outbox (no second queue).
 ALTER TABLE jobs DROP CONSTRAINT IF EXISTS jobs_kind_check;
 ALTER TABLE jobs ADD CONSTRAINT jobs_kind_check CHECK (kind IN ('ingest', 'cleanup', 'sync'));
+
+-- Pending delegated-OAuth authorizations (D11; security review 2026-10-23): single-use, browser-bound (hash of the
+-- HttpOnly nonce cookie), user-bound and expiring; holds the PKCE code verifier server-side.
+CREATE TABLE IF NOT EXISTS oauth_states (
+    nonce_hash TEXT PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    code_verifier TEXT NOT NULL,
+    return_to TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS oauth_states_expiry_idx ON oauth_states (expires_at);

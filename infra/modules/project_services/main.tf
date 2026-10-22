@@ -23,7 +23,7 @@ locals {
 
   # Package 3.1 (FR-SI-01 Subset B, D11, specs/009): Speech-to-Text V2 (Chirp 2) and the delegated Drive/YouTube
   # import APIs. Billable/new APIs need recorded project-owner approval, so they stay off unless explicitly enabled.
-  v3_ingestion_apis = var.enable_v3_ingestion_apis ? ["speech.googleapis.com", "drive.googleapis.com", "youtube.googleapis.com"] : []
+  v3_ingestion_apis = var.enable_v3_ingestion_apis ? ["speech.googleapis.com", "drive.googleapis.com", "youtube.googleapis.com", "compute.googleapis.com"] : []
 
   required_apis = toset(concat(local.baseline_v1_apis, local.optional_v1_apis, local.v3_ingestion_apis))
 }

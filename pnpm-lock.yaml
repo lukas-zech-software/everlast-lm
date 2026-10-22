@@ -190,6 +190,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cloud
     devDependencies:
+      '@everlast/testkit':
+        specifier: workspace:*
+        version: link:../../packages/testkit
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2

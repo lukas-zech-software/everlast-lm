@@ -13,7 +13,7 @@ import { driveSlidesExportFixture, PROMPT_INJECTION_TEXT } from "@everlast/testk
 
 /** Consent "redirect" goes straight back to the real callback with a fixed code (no Google round trip). */
 export const e2eDelegationBroker: DelegationBroker = {
-  authorizationUrl: (state) => `/oauth/google/callback?code=e2e-consent&state=${encodeURIComponent(state)}`,
+  authorizationUrl: (state, _challenge) => `/oauth/google/callback?code=e2e-consent&state=${encodeURIComponent(state)}`,
   exchangeAndStore: async (userId) => ({ secretRef: `e2e-secret-${userId}`, scopes: ["https://www.googleapis.com/auth/drive.readonly"], accountLabel: "e2e-owner@example.test" }),
 };
 

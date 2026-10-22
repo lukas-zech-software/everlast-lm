@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -30,10 +30,13 @@ const drive: DriveApi = {
   downloadLongRunning: async () => driveSlidesExportFixture(),
   downloadContent: async () => driveSlidesExportFixture(),
 };
+let lastVerifier: string | null = null;
 const broker: DelegationBroker = {
-  authorizationUrl: (state) => `https://accounts.example.test/o/oauth2/auth?state=${encodeURIComponent(state)}`,
-  exchangeAndStore: async (_userId, code) => {
+  authorizationUrl: (state, challenge) =>
+    `https://accounts.example.test/o/oauth2/auth?state=${encodeURIComponent(state)}&code_challenge=${challenge}&code_challenge_method=S256`,
+  exchangeAndStore: async (_userId, code, verifier) => {
     if (code !== "good-code") throw new Error("bad code");
+    lastVerifier = verifier;
     return { secretRef: `secret-for-${code}`, scopes: ["https://www.googleapis.com/auth/drive.readonly"], accountLabel: "owner@example.test" };
   },
 };
@@ -184,21 +187,48 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     expect(((await (await api.fetch(`/api/notebooks/${nb}/quota`, { as })).json()) as any).sources_used).toBe(0);
   });
 
-  it("OFFICE-API-07: OAuth connection flow binds the delegation to the signed-in user via a signed state; no secret is exposed", async () => {
+  it("OFFICE-API-07: OAuth connection flow binds the delegation to the browser and user that started it (nonce cookie, single use, PKCE)", async () => {
     const as = "office-7";
     await api.fetch("/api/notebooks", { as });
-    const start = (await (await api.fetch("/api/connections/google/authorize", { method: "POST", as, json: { return_to: "/" } })).json()) as any;
-    const state = new URL(start.authorization_url).searchParams.get("state")!;
-    expect((await api.fetch(`/oauth/google/callback?code=good-code&state=${encodeURIComponent(state + "x")}`, { redirect: "manual" })).status).toBe(400);
-    const cb = await api.fetch(`/oauth/google/callback?code=good-code&state=${encodeURIComponent(state)}`, { redirect: "manual" });
-    expect(cb.status).toBe(302);
+    const startRes = await api.fetch("/api/connections/google/authorize", { method: "POST", as, json: { return_to: "/" } });
+    const start = (await startRes.json()) as any;
+    const setCookie = startRes.headers.get("set-cookie") ?? "";
+    expect(setCookie).toMatch(/^everlast_oauth_nonce=[A-Za-z0-9_-]{32,};/);
+    expect(setCookie).toMatch(/HttpOnly/i);
+    expect(setCookie).toMatch(/SameSite=Lax/i);
+    expect(setCookie).toMatch(/Path=\/oauth\/google/);
+    const cookie = setCookie.split(";")[0]!;
+    const authUrl = new URL(start.authorization_url);
+    const state = authUrl.searchParams.get("state")!;
+    expect(authUrl.searchParams.get("code_challenge_method")).toBe("S256");
+    const challenge = authUrl.searchParams.get("code_challenge")!;
+    const cb = (st: string, headers: Record<string, string> = {}) =>
+      api.fetch(`/oauth/google/callback?code=good-code&state=${encodeURIComponent(st)}`, { redirect: "manual", headers });
+
+    // Tampered state, missing cookie (CSRF / login confusion) and a foreign nonce cookie are all refused.
+    expect((await cb(state + "x", { cookie })).status).toBe(400);
+    expect((await cb(state)).status).toBe(400);
+    expect((await cb(state, { cookie: "everlast_oauth_nonce=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" })).status).toBe(400);
+    // Another user's state presented with this browser's cookie is refused as well.
+    const otherStart = await api.fetch("/api/connections/google/authorize", { method: "POST", as: "office-7-attacker", json: {} });
+    const attackerState = new URL(((await otherStart.json()) as any).authorization_url).searchParams.get("state")!;
+    expect((await cb(attackerState, { cookie })).status).toBe(400);
+
+    const ok = await cb(state, { cookie });
+    expect(ok.status).toBe(302);
+    expect(ok.headers.get("set-cookie") ?? "").toMatch(/everlast_oauth_nonce=;.*Max-Age=0/i);
+    expect(lastVerifier && createHash("sha256").update(lastVerifier).digest("base64url")).toBe(challenge);
+    // Single use: the same state + cookie cannot be replayed.
+    expect((await cb(state, { cookie })).status).toBe(400);
+
     const list = (await (await api.fetch("/api/connections", { as })).json()) as any;
     expect(list.connections).toHaveLength(1);
     expect(list.connections[0]).toMatchObject({ provider: "google", account_label: "owner@example.test" });
     expect(JSON.stringify(list)).not.toContain("secret-for");
-    expect(((await (await api.fetch("/api/connections", { as: "office-7-other" })).json()) as any).connections).toEqual([]);
+    expect(((await (await api.fetch("/api/connections", { as: "office-7-attacker" })).json()) as any).connections).toEqual([]);
     const del = await api.fetch(`/api/connections/${list.connections[0].id}`, { method: "DELETE", as });
     expect(del.status).toBe(204);
     expect(((await (await api.fetch("/api/connections", { as })).json()) as any).connections).toEqual([]);
   });
+
 });

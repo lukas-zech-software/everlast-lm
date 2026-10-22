@@ -678,3 +678,30 @@ export async function resolveSyncChannel(
   if (a.length !== b.length || !a.equals(b)) return null;
   return { notebookId: row.notebook_id, sourceId: row.source_id, ownerId: row.owner_id };
 }
+
+// ---------------------------------------------------------------------------------------------------------
+// Delegated OAuth authorization state (D11; security review 2026-10-23)
+// ---------------------------------------------------------------------------------------------------------
+
+export async function createOAuthState(
+  db: Queryable,
+  input: { nonceHash: string; userId: string; codeVerifier: string; returnTo: string; ttlSeconds: number }
+): Promise<void> {
+  await db.query("DELETE FROM oauth_states WHERE expires_at < now()");
+  await db.query(
+    `INSERT INTO oauth_states (nonce_hash, user_id, code_verifier, return_to, expires_at)
+     VALUES ($1, $2, $3, $4, now() + make_interval(secs => $5))`,
+    [input.nonceHash, input.userId, input.codeVerifier, input.returnTo, input.ttlSeconds]
+  );
+}
+
+/** Atomically consumes a pending authorization: exactly once, for that browser nonce and that user, unexpired. */
+export async function consumeOAuthState(db: Queryable, nonceHash: string, userId: string): Promise<{ codeVerifier: string; returnTo: string } | null> {
+  if (!isUuid(userId)) return null;
+  const result = await db.query<{ code_verifier: string; return_to: string }>(
+    "DELETE FROM oauth_states WHERE nonce_hash = $1 AND user_id = $2 AND expires_at > now() RETURNING code_verifier, return_to",
+    [nonceHash, userId]
+  );
+  const row = result.rows[0];
+  return row ? { codeVerifier: row.code_verifier, returnTo: row.return_to } : null;
+}
