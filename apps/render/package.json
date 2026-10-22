@@ -16,11 +16,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@everlast/cloud": "workspace:*"
+    "@everlast/cloud": "workspace:*",
+    "jsdom": "^26.1.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "^5.8.2",
-    "@everlast/testkit": "workspace:*"
+    "@everlast/testkit": "workspace:*",
+    "@types/jsdom": "^21.1.7"
   }
 }

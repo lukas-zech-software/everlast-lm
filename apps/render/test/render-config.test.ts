@@ -68,12 +68,15 @@ describe("process commands (FR-SI-01, NFR-SEC-02)", () => {
 
   it("RENDER-03b: OOXML is sanitized before conversion: external relationships, OLE/ActiveX/DDE and macro parts are removed", () => {
     const input = buildZip([
-      { name: "[Content_Types].xml", data: "<Types/>" },
+      {
+        name: "[Content_Types].xml",
+        data: '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="bin" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/activeX/activeX1.xml" ContentType="application/vnd.ms-office.activeX+xml"/><Override PartName="/xl/externalLinks/externalLink1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.externalLink+xml"/></Types>',
+      },
       {
         name: "word/_rels/document.xml.rels",
         data: '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://x/image" Target="media/a.png"/><Relationship Id="rId2" Type="http://x/image" Target="file:///etc/passwd" TargetMode="External"/><Relationship Id="rId3" Type="http://x/hyperlink" Target="http://169.254.169.254/" TargetMode="External"/></Relationships>',
       },
-      { name: "word/document.xml", data: '<w:document><w:body><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>DDEAUTO c:\\windows\\cmd.exe "/c calc"</w:instrText></w:r><w:r><w:t>Body</w:t></w:r></w:p><w:fldSimple w:instr="INCLUDETEXT &quot;http://evil/x&quot;"><w:r><w:t>Inc</w:t></w:r></w:fldSimple></w:body></w:document>' },
+      { name: "word/document.xml", data: '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>DDEAUTO c:\\windows\\cmd.exe "/c calc"</w:instrText></w:r><w:r><w:t>Body</w:t></w:r></w:p><w:fldSimple w:instr="INCLUDETEXT &quot;http://evil/x&quot;"><w:r><w:t>Inc</w:t></w:r></w:fldSimple></w:body></w:document>' },
       { name: "word/embeddings/oleObject1.bin", data: "OLE" },
       { name: "word/activeX/activeX1.xml", data: "<ax/>" },
       { name: "word/vbaProject.bin", data: "macro" },

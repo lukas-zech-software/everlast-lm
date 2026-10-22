@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { createObjectStorage, type ObjectStorage } from "@everlast/cloud";
-import { readZipEntries, writeZip } from "./zip.ts";
 
 /**
  * everlast-render (Cloud Run Job; FR-SI-01, NFR-SEC-01/02, D3, specs/009 T013). One execution converts exactly one
@@ -121,39 +120,8 @@ ${item("/org.openoffice.Office.Common/Security/Scripting", "DisableActiveContent
 `;
 }
 
-const BANNED_PART = /(^|\/)(embeddings|activeX|externalLinks)\/|vbaProject\.bin$|vbaData\.xml$|oleObject|\.bin$/i;
-const FIELD_INSTRUCTION = /<w:instrText\b[^>]*>[\s\S]*?<\/w:instrText>|<w:instrText\b[^>]*\/>/g;
-
-/**
- * Removes every OOXML feature that could make LibreOffice fetch or execute something: External-target
- * relationships (and relationships to removed parts), OLE/ActiveX/embedded binaries, macro projects, external
- * workbook links, DDE/field instructions (INCLUDETEXT, INCLUDEPICTURE, LINK, DDEAUTO …) and `ddeLink` elements.
- * Text, tables, notes and images stay; fields keep their cached result text.
- */
-export function sanitizeOoxml(bytes: Buffer): Buffer {
-  const entries = readZipEntries(bytes);
-  const kept = new Map<string, Buffer>();
-  for (const [name, data] of entries) if (!BANNED_PART.test(name)) kept.set(name, data);
-  for (const [name, data] of kept) {
-    if (name.endsWith(".rels")) {
-      const xml = data.toString("utf8").replace(/<Relationship\b[^>]*\/>/g, (rel) => {
-        const target = /Target="([^"]*)"/.exec(rel)?.[1] ?? "";
-        const external = /TargetMode="External"/i.test(rel) || /^[a-z][a-z0-9+.-]*:/i.test(target);
-        return external || BANNED_PART.test(target) ? "" : rel;
-      });
-      kept.set(name, Buffer.from(xml, "utf8"));
-    } else if (name.endsWith(".xml")) {
-      const xml = data
-        .toString("utf8")
-        .replace(FIELD_INSTRUCTION, "")
-        .replace(/\s(w:instr)="[^"]*"/g, ' $1=""')
-        .replace(/<(\w+:)?ddeLink\b[\s\S]*?<\/(\w+:)?ddeLink>/g, "")
-        .replace(/<(\w+:)?oleObj\b[^>]*\/>/g, "");
-      kept.set(name, Buffer.from(xml, "utf8"));
-    }
-  }
-  return writeZip(kept);
-}
+export { sanitizeOoxml } from "./sanitize.ts";
+import { sanitizeOoxml } from "./sanitize.ts";
 
 const run = promisify(execFile);
 

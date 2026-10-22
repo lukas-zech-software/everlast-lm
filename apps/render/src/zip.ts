@@ -25,7 +25,17 @@ function crc32(data: Buffer): number {
   return (crc ^ 0xffffffff) >>> 0;
 }
 
-export function readZipEntries(buf: Buffer): Map<string, Buffer> {
+export interface ZipReadOptions {
+  maxUncompressed?: number;
+}
+
+/**
+ * Strict reader: the budget is checked against each entry's declared size BEFORE inflating (stored entries count
+ * too) and again against the actual output; central and local headers must agree on method and sizes (unless a
+ * data descriptor is used); entry data must lie inside the buffer and entries may not overlap.
+ */
+export function readZipEntries(buf: Buffer, options: ZipReadOptions = {}): Map<string, Buffer> {
+  const budget = options.maxUncompressed ?? MAX_UNCOMPRESSED;
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
     if (buf.readUInt32LE(i) === 0x06054b50) {
@@ -39,25 +49,46 @@ export function readZipEntries(buf: Buffer): Map<string, Buffer> {
   let offset = buf.readUInt32LE(eocd + 16);
   let total = 0;
   const out = new Map<string, Buffer>();
+  const ranges: [number, number][] = [];
   for (let i = 0; i < count; i++) {
-    if (buf.readUInt32LE(offset) !== 0x02014b50) throw new Error("Corrupt ZIP");
+    if (offset + 46 > eocd || buf.readUInt32LE(offset) !== 0x02014b50) throw new Error("Corrupt ZIP central directory");
     const flags = buf.readUInt16LE(offset + 8);
     const method = buf.readUInt16LE(offset + 10);
     const compressed = buf.readUInt32LE(offset + 20);
+    const uncompressed = buf.readUInt32LE(offset + 24);
     const nameLength = buf.readUInt16LE(offset + 28);
     const extra = buf.readUInt16LE(offset + 30);
     const comment = buf.readUInt16LE(offset + 32);
     const local = buf.readUInt32LE(offset + 42);
     const name = buf.toString("utf8", offset + 46, offset + 46 + nameLength);
     if (flags & 1) throw new Error("Encrypted ZIP entry");
+    if (local + 30 > buf.length || buf.readUInt32LE(local) !== 0x04034b50) throw new Error("ZIP local header outside the archive");
+    const localMethod = buf.readUInt16LE(local + 8);
+    const descriptor = (buf.readUInt16LE(local + 6) & 0x08) !== 0;
+    if (localMethod !== method) throw new Error("ZIP header mismatch");
+    if (!descriptor && (buf.readUInt32LE(local + 18) !== compressed || buf.readUInt32LE(local + 22) !== uncompressed)) throw new Error("ZIP header size mismatch");
     const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
-    const raw = buf.subarray(start, start + compressed);
-    const data = method === 0 ? Buffer.from(raw) : method === 8 ? inflateRawSync(raw, { maxOutputLength: Math.max(1, MAX_UNCOMPRESSED - total) }) : null;
-    if (!data) throw new Error("Unsupported ZIP compression");
+    const end = start + compressed;
+    if (end > buf.length || end > eocd) throw new Error("ZIP entry outside the archive");
+    ranges.push([local, end]);
+    if (total + uncompressed > budget) throw new Error("ZIP expands beyond the uncompressed budget");
+    const raw = buf.subarray(start, end);
+    let data: Buffer;
+    if (method === 0) {
+      if (compressed !== uncompressed) throw new Error("ZIP stored size mismatch");
+      data = Buffer.from(raw);
+    } else if (method === 8) {
+      data = inflateRawSync(raw, { maxOutputLength: Math.max(1, uncompressed) });
+    } else throw new Error("Unsupported ZIP compression");
+    if (data.length !== uncompressed) throw new Error("ZIP size mismatch");
     total += data.length;
+    if (total > budget) throw new Error("ZIP expands beyond the uncompressed budget");
+    if (out.has(name)) throw new Error("Duplicate ZIP entry");
     out.set(name, data);
     offset += 46 + nameLength + extra + comment;
   }
+  ranges.sort((a, b) => a[0] - b[0]);
+  for (let i = 1; i < ranges.length; i++) if (ranges[i]![0] < ranges[i - 1]![1]) throw new Error("Overlapping ZIP entries");
   return out;
 }
 
