@@ -3,8 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Provide automatic per-source summaries and topic chips (Source Guide), a notebook-wide overview with starter prompts, dynamic follow-up suggestion chips, configurable chat personas/response styles, and response actions (copy, save to note, feedback).
 - **FRs:** FR-SI-02, FR-GC-04, FR-GC-05, FR-GC-07, FR-GC-09
-- **Gate criteria (SRS §5.4):** Gate v2.0 #1 — every successfully ingested upload triggers `FR-SI-02` asynchronously (Source Guide $< 10\text{ s}$ P95 from `Ready`; failures never block reading the source); Gate v2.0 #2 — round trip passes (*chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*).
-- **Persistence (D16; SRS §5.5 DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
+- **Gate criteria (release gates):** Gate v2.0 #1 — every successfully ingested upload triggers `FR-SI-02` asynchronously (Source Guide $< 10\text{ s}$ P95 from `Ready`; failures never block reading the source); Gate v2.0 #2 — round trip passes (*chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*).
+- **Persistence (D16; deviation log DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
 - **Out of scope:** Multi-step autonomous web research (`v6.0` — `FR-SI-07`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

@@ -77,9 +77,9 @@ Each package file starts with this header, followed by its FR cards.
 # Package <N.M> — <Name>
 
 - **Release:** v<N>.0
-- **Goal:** <one sentence from SRS §5.3>
+- **Goal:** <one sentence describing the package's release goal>
 - **FRs:** FR-…, FR-…
-- **Gate criteria (SRS §5.4):** <copy the relevant gate items>
+- **Gate criteria (release gates):** <copy the relevant gate items>
 - **Out of scope:** …
 ````
 

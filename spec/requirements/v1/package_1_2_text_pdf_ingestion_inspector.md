@@ -3,7 +3,7 @@
 - **Release:** v1.0
 - **Goal:** Ingest PDF (including OCR), TXT, Markdown, and pasted raw text into normalized `UnifiedDocumentChunk` records, allow granular source selection, and provide an in-app Source Inspector with deterministic citation highlighting.
 - **FRs:** FR-SI-01 (Subset A: PDF, TXT, Markdown, Copied Text), FR-SI-03, FR-SI-04
-- **Gate criteria (SRS §5.4):** Gate v1.0 #1 — an end-to-end upload (PDF/MD) produces valid `UnifiedDocumentChunk` records; Gate v1.0 #2, `NFR-EVAL-04` part — $\text{Leakage} = 0$; Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
+- **Gate criteria (release gates):** Gate v1.0 #1 — an end-to-end upload (PDF/MD) produces valid `UnifiedDocumentChunk` records; Gate v1.0 #2, `NFR-EVAL-04` part — $\text{Leakage} = 0$; Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
 - **Out of scope:** DOCX, PPTX, Web URLs, YouTube/Video URLs, Audio ASR, and source re-sync (`v3.0` — `FR-SI-01` Subset B, `FR-SI-05`); automatic Source Guide generation (`v2.0` — `FR-SI-02`); Discover Sources / Deep Research (`v6.0` — `FR-SI-06`, `FR-SI-07`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

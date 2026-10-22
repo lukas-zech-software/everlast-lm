@@ -3,8 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Enrich the notebook home overview and workspace UI with visual metadata (custom emoji/icon, timestamps, source counters), grid/list view switching, sorting, pinning, dark/light theme support, and output language configuration.
 - **FRs:** FR-WM-02, FR-WM-03, FR-UI-02
-- **Gate criteria (SRS §5.4):** No direct Gate v2.0 item; metadata, theme and language acceptance tests support the integrated v2 release, but do not substitute for Gate v2.0 #1–3.
-- **Persistence (D16; SRS §5.5 DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
+- **Gate criteria (release gates):** No direct Gate v2.0 item; metadata, theme and language acceptance tests support the integrated v2 release, but do not substitute for Gate v2.0 #1–3.
+- **Persistence (D16; deviation log DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
 - **Out of scope:** Multi-user sharing badges and analytics (`v6.0` — `FR-WM-05`, `FR-WM-06`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -134,7 +134,7 @@ Scenario: Switching between Grid and List view persists across page reloads
 - `Title` sort is case-insensitive using `Intl.Collator` for the UI locale; equal titles sort by `created_at` descending.
 
 **Measurable criteria**
-- Sorting and view-mode toggling up to $100$ notebooks (the v1–v5 per-user notebook limit, SRS §5.6) completes client-side in $\le 100\text{ ms}$.
+- Sorting and view-mode toggling up to $100$ notebooks (the v1–v5 per-user notebook limit, card clarifications) completes client-side in $\le 100\text{ ms}$.
 
 **Deviations from reference:** Explicit pinning is included as a first-class feature (`FR-WM-03`) in addition to the reference's sort-by-recency/title controls.
 

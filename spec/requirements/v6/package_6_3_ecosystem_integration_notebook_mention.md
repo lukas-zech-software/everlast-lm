@@ -4,7 +4,7 @@
 - **Status:** Deferred (D5). `FR-INT-01` is out of scope per architecture decision D5; do not run `/speckit-specify` for this package until D5 is revisited.
 - **Goal:** Expose an enterprise ecosystem gateway (`FR-INT-01`) allowing users in the central corporate AI chat assistant to query any authorized notebook via `@Notebook` mentions with identical source grounding and citations, and to export general chat threads into a new or existing notebook.
 - **FRs:** FR-INT-01
-- **Gate criteria (SRS §5.4):** Gate v6.0 #3 is deferred by D5/DEV-03 and is not required for the current v6 release. The retained criteria below apply only after an explicit reinstatement decision.
+- **Gate criteria (release gates):** Gate v6.0 #3 is deferred by D5/DEV-03 and is not required for the current v6 release. The retained criteria below apply only after an explicit reinstatement decision.
 - **Out of scope:** Third-party unauthenticated webhook consumers.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -34,7 +34,7 @@
 2. Selecting `@Q4 Security Policy` and asking `"What are our password rotation rules?"` invokes the Gemini Notebook grounding engine and displays the cited answer with a link to open the notebook.
 3. Clicking `"Save to Notebook"` on a general chat thread imports the conversation into a new or existing notebook.
 
-Evidence: `SRS §3.6 FR-INT-01`, `SRS §5.4 Gate v6.0 #3`
+Evidence: `SRS §3.6 FR-INT-01`, `Release gates: Gate v6.0 #3`
 
 **Inputs & limits**
 

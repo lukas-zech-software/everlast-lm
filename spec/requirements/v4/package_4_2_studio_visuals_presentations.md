@@ -3,8 +3,8 @@
 - **Release:** v4.0
 - **Goal:** Provide Studio generators (`Contract C-03`) for structured Slide Decks (with speaker notes and PPTX/PDF export) and visual Infographics (SVG/PNG export) grounded in active sources.
 - **FRs:** FR-ST-16, FR-ST-17
-- **Gate criteria (SRS §5.4):** Gate v4.0 #3 — slide deck export produces PPTX and PDF files that open without errors.
-- **Out of scope:** Narrated video rendering from slides (`v5.0` — `FR-ST-05` builds on this engine); Google Slides export (deferred: SRS §5.5 `DEV-02`, architecture decision D8).
+- **Gate criteria (release gates):** Gate v4.0 #3 — slide deck export produces PPTX and PDF files that open without errors.
+- **Out of scope:** Narrated video rendering from slides (`v5.0` — `FR-ST-05` builds on this engine); Google Slides export (deferred: deviation log `DEV-02`, architecture decision D8).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
@@ -31,7 +31,7 @@
 2. Once generated, opening the artifact in the Right Panel shows a 16:9 slide carousel viewer with slide thumbnails, a toggle for `Speaker Notes` below the active slide, and inline citations `[n]`.
 3. Clicking `Export PPTX` downloads a native `.pptx` file with slides and speaker notes; clicking `Export PDF` downloads a 16:9 `.pdf` deck.
 
-Evidence: `SRS §3.5.6 FR-ST-16`, `SRS §5.4 Gate v4.0 #3`
+Evidence: `SRS §3.5.6 FR-ST-16`, `Release gates: Gate v4.0 #3`
 
 **Inputs & limits**
 
@@ -73,7 +73,7 @@ Scenario: Failed slide deck generation can be retried
 
 **Deviations from reference:** Structured JSON slide intermediate representation is designed so that `Paket 5.2` (`FR-ST-05` Narrated Slideshow Video) can feed it directly into TTS + video muxing without re-architecting.
 
-**Out of scope:** Google Slides export via OAuth push (deferred: SRS §5.5 `DEV-02`, architecture decision D8; file download `.pptx`/`.pdf` works universally across enterprise environments).
+**Out of scope:** Google Slides export via OAuth push (deferred: deviation log `DEV-02`, architecture decision D8; file download `.pptx`/`.pdf` works universally across enterprise environments).
 
 **Open questions:** `None`
 

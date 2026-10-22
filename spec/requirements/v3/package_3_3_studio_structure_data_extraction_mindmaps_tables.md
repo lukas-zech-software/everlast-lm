@@ -3,7 +3,7 @@
 - **Release:** v3.0
 - **Goal:** Add two interactive structural Studio plugins (`Contract C-03`): hierarchical interactive Mindmaps with node-to-chat drilldown and PNG/SVG export, and multi-document Data Tables with CSV/XLSX export.
 - **FRs:** FR-ST-08, FR-ST-09, FR-ST-18
-- **Gate criteria (SRS §5.4):** Gate v3.0 #3 — Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX.
+- **Gate criteria (release gates):** Gate v3.0 #3 — Mindmap-JSON ist azyklisch/hierarchisch; Tabellen-Export liefert valides CSV/XLSX.
 - **Out of scope:** Slide Decks and Infographics (`v4.0` — `FR-ST-16`, `FR-ST-17`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -166,7 +166,7 @@ Scenario: Drilldown does not restore a historical source selection
 2. The Studio generates a structured interactive table inside the Right Panel viewer with sortable columns and inline cell citations `[n]`.
 3. Clicking `Export CSV` or `Export XLSX` downloads the spreadsheet file immediately.
 
-Evidence: `SRS §3.5.6 FR-ST-18`, `SRS §5.4 Gate v3.0 #3`
+Evidence: `SRS §3.5.6 FR-ST-18`, `Release gates: Gate v3.0 #3`
 
 **Inputs & limits**
 

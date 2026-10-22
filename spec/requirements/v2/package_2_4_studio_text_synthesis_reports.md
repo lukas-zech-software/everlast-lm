@@ -3,8 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Introduce the `StudioPluginRegistry` (`Contract C-03`) in the Right Panel and provide 1-click and custom text report generators (Briefing Doc, Study Guide, FAQ, Timeline, dynamic source-driven report suggestions, and custom-prompted reports).
 - **FRs:** FR-ST-10, FR-ST-11
-- **Gate criteria (SRS §5.4):** Gate v2.0 #3 — all 4 standard report templates (`FR-ST-10`) generate valid, source-cited documents.
-- **Persistence (D16; SRS §5.5 DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
+- **Gate criteria (release gates):** Gate v2.0 #3 — all 4 standard report templates (`FR-ST-10`) generate valid, source-cited documents.
+- **Persistence (D16; deviation log DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1).
 - **Out of scope:** Interactive Learning Overviews (`v4.0` — `FR-ST-12`), Mindmaps & Data Tables (`v3.0`), Flashcards, Quizzes, Slides, Infographics (`v4.0`), Audio & Video Overviews (`v5.0`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

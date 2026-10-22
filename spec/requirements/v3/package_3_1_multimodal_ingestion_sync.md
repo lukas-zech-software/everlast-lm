@@ -3,7 +3,7 @@
 - **Release:** v3.0
 - **Goal:** Extend the ingestion pipeline (`Contract C-01`) to natively parse DOCX, PPTX, Web URLs, Video URLs (with timestamp transcripts), and Audio files (via ASR with timestamps), and enable renaming, deleting, and re-synchronizing sources.
 - **FRs:** FR-SI-01 (Subset B: DOCX/Google Docs, PPTX/Slides, Web URLs, Video URLs, Audio ASR), FR-SI-05
-- **Gate criteria (SRS §5.4):** Gate v3.0 #1 — Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).
+- **Gate criteria (release gates):** Gate v3.0 #1 — Audio-/Video-Uploads erzeugen Chunks mit klickbaren Zeitstempel-Locators (`mm:ss`).
 - **Out of scope:** Autonomous intranet/web search discovery (`v6.0` — `FR-SI-06`, `FR-SI-07`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

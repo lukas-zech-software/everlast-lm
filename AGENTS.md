@@ -2,8 +2,8 @@
 
 ## Source of truth (highest first)
 1. `.specify/memory/constitution.md` — supreme authority (Principles I–VI, gates `CC-01`..`CC-08`, stack).
-2. `spec/System_Requirements_Specification_Gemeni_Notebook.md` — SRS (`FR-*`, `NFR-*`, `C-01..C-03`, release gates, `DEV-xx`).
-3. `spec/requirements/v<N>/package_<N>_<M>_*.md` + `spec/requirements/README.md` — FR cards and cross-package rules/prerequisites.
+2. `spec/System_Requirements_Specification_Gemeni_Notebook.md` — release index (release → packages → FR card IDs). The former full SRS is archived as obsolete in `docs/archive/`.
+3. `spec/requirements/v<N>/package_<N>_<M>_*.md` + `spec/requirements/README.md` — FR cards, cross-package rules/prerequisites, contracts `C-01..C-03`, release gates, `DEV-xx` deviation log, card clarifications.
 4. `docs/solution-architecture.md` — binding architecture decisions (`D1..Dn`).
 
 ## Worktree Prerequisite (Mandatory First Step)
@@ -16,7 +16,7 @@
 
 - **Worktree-first mandate**: Every task, command, or workflow must begin by creating a dedicated Git worktree and working solely within it as the very first step.
 - **Package scope**: One FR package per `specs/<NNN>-<name>/` directory. Always load `spec/requirements/README.md` alongside the package's FR card; write generated specs in English.
-- **Bidirectional flow-back**: Downstream clarifications, contract refinements, or implementation discoveries must flow back into `spec.md`/`plan.md` and upstream to FR cards, SRS, or architecture decisions (`Dn`).
+- **Bidirectional flow-back**: Downstream clarifications, contract refinements, or implementation discoveries must flow back into `spec.md`/`plan.md` and upstream to FR cards, `spec/requirements/README.md`, the release index, or architecture decisions (`Dn`).
 - **Templates & gates**: Follow `.specify/memory/constitution.md` (`CC-01`..`CC-08`) and `.specify/templates/overrides/{spec,plan,tasks}-template.md` (do not edit managed `.specify/templates/*.md` or `{.agents,.github}/skills/speckit-*` directly).
 - **Traceability & TDD**: Cite SRS IDs on every requirement, plan section, task, and test (`CC-01`). Spec-derived failing tests precede implementation (`CC-02`, Red → Green → Refactor); report non-existent runners as `UNAVAILABLE`.
 - **Worktree isolation & feature pinning**: Work in dedicated Git worktrees on feature branches (never directly on `main`). Pin the active feature via `.specify/feature.json` (avoiding persistent `SPECIFY_FEATURE_DIRECTORY` env vars). Qualify task references with `[<feature-slug>] T001`.
@@ -26,8 +26,8 @@
 
 ### 1. Release Resolution to Packages and FR Cards
 When given a release-level goal (for example, `Release: v3.0 "Version 3.0: Multimodal Ingestion, Visual Graphs & Data Analytics"`), agents must resolve it to its constituent functional packages and FR cards using the following procedure:
-1. **SRS Release Chapter Lookup**: Consult [`spec/System_Requirements_Specification_Gemeni_Notebook.md`](spec/System_Requirements_Specification_Gemeni_Notebook.md) (§5 Roadmap / Release definitions, e.g. §5.3 Version 3.0) to identify all functional packages assigned to that release milestone. For `v3.0`, this resolves to 4 packages:
-   - Paket 3.1: `FR-SI-01`, `FR-SI-05`, `C-01`
+1. **Release Index Lookup**: Consult [`spec/System_Requirements_Specification_Gemeni_Notebook.md`](spec/System_Requirements_Specification_Gemeni_Notebook.md) (release index: one table per version) to identify all functional packages assigned to that release milestone. For `v3.0`, this resolves to 4 packages:
+   - Paket 3.1: `FR-SI-01` (subset B), `FR-SI-05`
    - Paket 3.2: `FR-GC-08`
    - Paket 3.3: `FR-ST-08`, `FR-ST-09`, `FR-ST-18`
    - Paket 3.4: `NFR-PERF-01`

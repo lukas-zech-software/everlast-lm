@@ -3,7 +3,7 @@
 - **Release:** v1.0
 - **Goal:** Provide a strictly source-grounded conversational agent that answers exclusively from active sources, attaches fine-grained inline citation badges with hover previews and click-to-source verification, and persists conversation history.
 - **FRs:** FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06
-- **Gate criteria (SRS §5.4):** Gate v1.0 #2 — `NFR-EVAL-01` to `04` pass ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$); Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
+- **Gate criteria (release gates):** Gate v1.0 #2 — `NFR-EVAL-01` to `04` pass ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$); Gate v1.0 #3 — clicking citation `[n]` deterministically scrolls the Source Inspector to the correct passage in a UI test.
 - **Out of scope:** Notebook overview & starter prompts (`v2.0` — `FR-GC-04`), follow-up suggestion chips (`v2.0` — `FR-GC-05`), configurable personas/response lengths (`v2.0` — `FR-GC-07`), save-to-note & feedback buttons (`v2.0` — `FR-GC-09`), Python code execution sandbox (`v3.0` — `FR-GC-08`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

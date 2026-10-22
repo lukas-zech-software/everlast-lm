@@ -3,7 +3,7 @@
 - **Release:** v5.0
 - **Goal:** Provide the signature 2-host dialogic AI Podcast generator ("Audio Overview") with pre-generation customization (focus prompt, length, multilingual output), an integrated audio player with speed/export controls, and the real-time interactive voice mode ("Join-In" / live interrupt).
 - **FRs:** FR-ST-01, FR-ST-02, FR-ST-03, FR-ST-04
-- **Gate criteria (SRS §5.4):** Gate v5.0 #1 — Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte; Gate v5.0 #2 — Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.
+- **Gate criteria (release gates):** Gate v5.0 #1 — Audio-Synthese liefert 2-Sprecher-Dialog ohne Überlappungsartefakte; Gate v5.0 #2 — Live-Voice-Interrupt (`FR-ST-03`) pausiert den Stream, beantwortet die Zwischenfrage streng *source-grounded* durch einen designierten Host im passenden Stimmenprofil (DEV-01) und setzt den Podcast fort.
 - **Out of scope:** Uploading custom user voice samples for voice cloning; audio link sharing is delivered in v6 under D10 and package 6.1.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

@@ -3,7 +3,7 @@
 - **Release:** v3.0
 - **Goal:** Provide the Grounded Reasoning Agent with an isolated, network-disabled Python code execution sandbox ("Cloud Computer") to perform deterministic calculations, data cleaning, and chart generation over structured/tabular data extracted from active sources.
 - **FRs:** FR-GC-08
-- **Gate criteria (SRS §5.4):** Gate v3.0 #2 — the Python sandbox (`FR-GC-08`) is network-isolated and returns correct calculation results and plots.
+- **Gate criteria (release gates):** Gate v3.0 #2 — the Python sandbox (`FR-GC-08`) is network-isolated and returns correct calculation results and plots.
 - **Out of scope:** Arbitrary user-facing Jupyter notebook IDE or persistent outbound network access from sandbox containers.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -33,7 +33,7 @@
 1. User uploads financial reports or table-heavy PDFs (raw CSV ingestion is not a supported FR-SI-01 format) and asks `"Calculate the compound annual growth rate (CAGR) of R&D spend from 2021 to 2025 and plot a bar chart"`.
 2. The assistant extracts the cited figures from $S_{\text{aktiv}}$, runs Python (`pandas`/`matplotlib`) in the isolated sandbox, and displays the exact CAGR percentage, the rendered bar chart image, an expandable `"View executed code"` drawer, and citations `[1]`, `[2]` to the source tables.
 
-Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
+Evidence: `SRS §3.3 FR-GC-08`, `Release gates: Gate v3.0 #2`
 
 **Inputs & limits**
 

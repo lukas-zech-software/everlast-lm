@@ -7,7 +7,7 @@
 ## Decision
 
 On 2026-10-20 the project owner approved Gate v2.0
-([SRS §5.4](../spec/System_Requirements_Specification_Gemeni_Notebook.md)) on their own authority, so a
+([release gates](../spec/requirements/README.md#release-gates)) on their own authority, so a
 running proof of concept can be deployed to the dev environment for stakeholders. Known bugs and missing
 features are accepted for this deployment. Staging and prod are out of scope until the next version.
 

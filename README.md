@@ -124,7 +124,7 @@ everlast-lm/
 ├── AGENTS.md                     ← shared operating manual for every coding agent (workflow, ownership, isolation)
 ├── CLAUDE.md                     ← imports AGENTS.md, plus one Claude-specific rule
 ├── spec/
-│   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: index of all requirement IDs and release gates
+│   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← release index: versions → packages → FR card IDs
 │   ├── requirements/
 │   │   ├── README.md             ← how FR cards are written + binding cross-package rules & prerequisites
 │   │   ├── _fr-card-template.md  ← EARS + Gherkin card template
@@ -162,22 +162,23 @@ Agents get a strict order of precedence, so that no conflict has to be resolved 
 | Rank | Document | Binding for |
 | :-: | :- | :- |
 | 1 | [`.specify/memory/constitution.md`](.specify/memory/constitution.md) | Principles, cross-package invariants and gates `CC-01`..`CC-08`. Overrides everything. |
-| 2 | [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) | **What** is built: all IDs, contracts, release packages and gates |
-| 3 | [FR cards & rules](spec/requirements/README.md) | The detail of each requirement (limits, states, errors, acceptance scenarios) and cross-package rules |
+| 2 | [Release index](spec/System_Requirements_Specification_Gemeni_Notebook.md) | Which packages and FR card IDs belong to each release |
+| 3 | [FR cards & rules](spec/requirements/README.md) | **What** is built: the detail of each requirement (limits, states, errors, acceptance scenarios), cross-package rules, contracts, release gates and the deviation log |
 | 4 | [Solution architecture](docs/solution-architecture.md) | **How** it is built: decisions `D1`..`D13` |
 
-Changes follow fixed rules. New scope is added as an SRS amendment. Removing or deferring scope needs a recorded
-architecture decision. A deliberate difference from the reference product is logged twice: as a `DEV-xx` entry in SRS
-§5.5 and as the matching `Dn` decision. IDs are never renumbered.
+Changes follow fixed rules. New scope is added as a requirements amendment (release index, FR card or FR README). Removing or deferring scope needs a recorded
+architecture decision. A deliberate difference from the reference product is logged twice: as a `DEV-xx` entry in the
+[deviation log](spec/requirements/README.md#deviation-log) and as the matching `Dn` decision. IDs are never renumbered.
 
 ---
 
 ## Requirements: how deep the specification goes
 
-### Layer 1: the SRS (index)
+### Layer 1: release index and FR README
 
-The [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) breaks the product into six domains (Workspace,
-Ingestion, Grounded Chat, Notes, Studio, Ecosystem/UI) and gives every function an ID. It also defines:
+The [release index](spec/System_Requirements_Specification_Gemeni_Notebook.md) maps each release to its packages and
+FR card IDs. Every function has an ID in one of six domains (Workspace, Ingestion, Grounded Chat, Notes, Studio,
+Ecosystem/UI). The [FR README](spec/requirements/README.md) defines:
 
 - **Formal quality metrics** that can be evaluated automatically: hallucination rate < 5 % (`NFR-EVAL-01`),
   citation-ID precision = 1.0 (`NFR-EVAL-02`), correct refusal of out-of-source questions ≥ 99 % (`NFR-EVAL-03`), and
@@ -187,7 +188,7 @@ Ingestion, Grounded Chat, Notes, Studio, Ecosystem/UI) and gives every function 
   `C-03 StudioGeneratorPlugin` (every Studio feature is a plugin; open-closed).
 - **Six release gates** with concrete automated acceptance criteria. Implementation of v(k+1) may not start before
   Gate v(k) passes.
-- **A deviation log** (§5.5) for accepted differences from the reference product.
+- **A deviation log** (`DEV-xx`) for accepted differences from the reference product.
 
 ### Layer 2: FR cards (binding detail)
 

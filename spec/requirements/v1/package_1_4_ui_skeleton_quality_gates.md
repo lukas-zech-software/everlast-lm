@@ -3,7 +3,7 @@
 - **Release:** v1.0
 - **Goal:** Provide the responsive 3-column Single-Page Application workspace layout and enforce automated quality/security gates for grounding faithfulness, citation precision, negative rejection, context scoping, and zero data training.
 - **FRs:** FR-UI-01, NFR-SEC-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04
-- **Gate criteria (SRS §5.4):** Gate v1.0 #2 — the automated suite for `NFR-EVAL-01` to `04` passes ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$).
+- **Gate criteria (release gates):** Gate v1.0 #2 — the automated suite for `NFR-EVAL-01` to `04` passes ($\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 99\%$, $\text{Leakage} = 0$).
 - **Out of scope:** Dark/Light mode and per-notebook language selector (`v2.0` — `FR-UI-02`), active Studio generator tiles in the right panel (`v2.0`–`v5.0` — `FR-ST-*`), `@Notebook` enterprise chat integration (deferred by D5 — `FR-INT-01`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

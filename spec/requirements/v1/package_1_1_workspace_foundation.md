@@ -3,7 +3,7 @@
 - **Release:** v1.0
 - **Goal:** Enable authenticated users to create, open, rename, and delete isolated notebook containers with enforced baseline resource quotas.
 - **FRs:** FR-WM-01, FR-WM-04, FR-WM-07 (baseline quotas)
-- **Gate criteria (SRS §5.4):** No Gate v1.0 item directly. Notebook isolation (`FR-WM-04`) is a prerequisite for Gate v1.0 #2 (`NFR-EVAL-04`, $\text{Leakage} = 0$).
+- **Gate criteria (release gates):** No Gate v1.0 item directly. Notebook isolation (`FR-WM-04`) is a prerequisite for Gate v1.0 #2 (`NFR-EVAL-04`, $\text{Leakage} = 0$).
 - **Out of scope:** Custom emojis/icons and sorting/pinning views (`v2.0` — `FR-WM-02`, `FR-WM-03`), multi-user sharing and RBAC (`v6.0` — `FR-WM-05`), usage analytics (`v6.0` — `FR-WM-06`).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

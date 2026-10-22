@@ -3,7 +3,7 @@
 - **Release:** v6.0
 - **Goal:** Provide the two autonomous source-discovery agents: the interactive "Discover Sources" agent (curating up to 10 relevant intranet/web sources with 1-click import) and the multi-step "Deep Research" agent (autonomous iterative search, verification, synthesis report generation, and primary source import).
 - **FRs:** FR-SI-06, FR-SI-07
-- **Gate criteria (SRS §5.4):** Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* & *Deep Research* finden niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
+- **Gate criteria (release gates):** Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* & *Deep Research* finden niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
 - **Out of scope:** Autonomous write-actions on external websites (form submissions, purchases).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

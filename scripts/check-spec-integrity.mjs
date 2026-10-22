@@ -2,7 +2,7 @@
 // Spec integrity check (no dependencies).
 //  1. Every relative Markdown link in the repository's own documents resolves to an existing file,
 //     and every #anchor resolves to a heading in the target file (GitHub slug rules).
-//  2. Every FR-/NFR- ID defined in the SRS links to an FR card.
+//  2. Every package FR card is linked from the release index (SRS).
 // Exit code 1 on any finding, so CI fails.
 
 import { readFileSync, existsSync, statSync } from "node:fs";
@@ -65,14 +65,12 @@ for (const file of files) {
   }
 }
 
-// Every requirement bullet in the SRS (`* **FR-XX-NN (...)`) must link to an FR card.
+// Every package FR card under spec/requirements/v<N>/ must be linked from the release index.
 const srs = readFileSync(SRS, "utf8");
-const ids = [];
-for (const line of srs.split("\n")) {
-  const m = line.match(/^\* \*\*((?:FR|NFR)-[A-Z]+-\d+)/);
-  if (!m) continue;
-  ids.push(m[1]);
-  if (!/FR-Karten?:.*\]\(requirements\//.test(line)) findings.push(`${SRS}: ${m[1]} has no FR card link`);
+const cards = files.filter((f) => /^spec\/requirements\/v\d+\/package_[^/]+\.md$/.test(f));
+const ids = [...new Set(srs.match(/\b(?:FR|NFR)-[A-Z]+-\d+\b/g) ?? [])];
+for (const card of cards) {
+  if (!srs.includes(`](${card.replace(/^spec\//, "")})`)) findings.push(`${SRS}: FR card ${card} is not linked from the index`);
 }
 
 // Validate generated Spec Kit artifacts under specs/<feature>/ (CC-01, CC-02, CC-01..CC-08 gates).
@@ -118,7 +116,7 @@ if (findings.length) {
   process.exit(1);
 }
 console.log(`✓ ${files.length} Markdown files: all relative links and anchors resolve`);
-console.log(`✓ ${ids.length} SRS requirement IDs: every one links to an FR card`);
+console.log(`✓ ${cards.length} FR cards (${ids.length} requirement IDs): every card is linked from the release index`);
 if (specFiles.length) {
   console.log(`✓ ${specFiles.length} Spec Kit feature artifact(s): CC-01/CC-02 checks pass`);
 }

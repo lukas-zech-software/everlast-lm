@@ -3,7 +3,7 @@
 - **Release:** v6.0
 - **Goal:** Scale the platform for enterprise multi-user collaboration with fine-grained role-based sharing (`Owner/Editor`, `Viewer Full`, `Viewer Chat-Only`), usage analytics dashboards, enterprise quota management, and strict SSO/OIDC authentication + document-level ACL enforcement.
 - **FRs:** FR-WM-05, FR-WM-06, FR-WM-07 (Enterprise scale), NFR-SEC-02; FR-ST-04 link-sharing delivery (D10)
-- **Gate criteria (SRS §5.4):** Gate v6.0 #1 — Penetration-/RBAC-Test: Ein *Chat-Only*-Nutzer kann weder über UI noch via direktem API-Call Rohquellen oder Studio-Endpunkte abrufen; Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* findet niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
+- **Gate criteria (release gates):** Gate v6.0 #1 — Penetration-/RBAC-Test: Ein *Chat-Only*-Nutzer kann weder über UI noch via direktem API-Call Rohquellen oder Studio-Endpunkte abrufen; Gate v6.0 #2 — ACL-Test (`NFR-SEC-02`): *Discover Sources* findet niemals Intranet-Dokumente, für die dem anfragenden Nutzer die Leseberechtigung fehlt.
 - **Out of scope:** Public anonymous internet sharing outside the enterprise tenant boundary.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -233,7 +233,7 @@ Scenario: Enterprise user uploads up to 300 sources into a single notebook
 1. User logs in via corporate SSO (OIDC/SAML).
 2. When user runs `Discover Sources` (`FR-SI-06`) on the company intranet, the search connector passes the user's identity token/ACL principals to the enterprise search index and returns only documents the user is permitted to read.
 
-Evidence: `SRS §4.3 NFR-SEC-02`, `SRS §5.4 Gate v6.0 #2`
+Evidence: `SRS §4.3 NFR-SEC-02`, `Release gates: Gate v6.0 #2`
 
 **Inputs & limits**
 

@@ -3,7 +3,7 @@
 - **Release:** v4.0
 - **Goal:** Provide interactive pedagogical Studio generators (`Contract C-03`) for Flashcards (with flip and chat-explain triggers), multi-format Quizzes (with immediate source-grounded grading), per-user learning progress tracking (spaced repetition / missed-items review), and combined Interactive Learning Overviews.
 - **FRs:** FR-ST-12, FR-ST-13, FR-ST-14, FR-ST-15
-- **Gate criteria (SRS §5.4):** Gate v4.0 #1 — Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab; Gate v4.0 #2 — Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.
+- **Gate criteria (release gates):** Gate v4.0 #1 — Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab; Gate v4.0 #2 — Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.
 - **Out of scope:** Export to external LMS via SCORM/LTI (not scheduled in the SRS).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -163,7 +163,7 @@ Scenario: Quiz covers only active sources and grades Short Answer semantically (
 3. Clicking `"Review 3 missed questions"` launches a 3-question round with only the missed items.
 4. Reloading the page retains the user's progress state.
 
-Evidence: `SRS §3.5.5 FR-ST-15`, `SRS §5.4 Gate v4.0 #2`
+Evidence: `SRS §3.5.5 FR-ST-15`, `Release gates: Gate v4.0 #2`
 
 **Inputs & limits**
 

@@ -3,7 +3,7 @@
 - **Release:** v5.0
 - **Goal:** Provide the three generative Video Overview modes in the Studio (`Contract C-03`): Standard Narrated Slideshow Videos, compact 60-second Short Video Overviews, and style-selectable Cinematic Video Overviews with synchronized narration and MP4/WebM export.
 - **FRs:** FR-ST-05, FR-ST-06, FR-ST-07
-- **Gate criteria (SRS §5.4):** Gate v5.0 #3 — Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`).
+- **Gate criteria (release gates):** Gate v5.0 #3 — Video-Rendering-Pipeline erzeugt synchronisierte MP4/WebM-Streams für alle drei Modi (`FR-ST-05` bis `07`).
 - **Out of scope:** Live real-time 3D avatar webcam calls.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
@@ -89,7 +89,7 @@ Scenario: Narrated Slideshow Video Overview produces synchronized MP4/WebM strea
 1. In the `Video Overview` modal, the user selects format `Short (~60s)`.
 2. The generated video delivers a concise, high-impact 60-second explainer with animated visual transitions and synchronized captions.
 
-Evidence: `SRS §3.5.2 FR-ST-06`, `SRS §5.4 Gate v5.0 #3`
+Evidence: `SRS §3.5.2 FR-ST-06`, `Release gates: Gate v5.0 #3`
 
 **Inputs & limits**
 
@@ -151,7 +151,7 @@ Scenario: Short Video Overview renders a synchronized 45-to-75-second video (Gat
 1. User opens `Video Overview` customize options, chooses `Cinematic`, and selects one of the visual style cards (`Scientific`, `Professional`, `Editorial`, `Sketch Note`).
 2. Pipeline generates each scene's visual sequence in the selected style palette and renders the final `.mp4` video.
 
-Evidence: `SRS §3.5.2 FR-ST-07`, `SRS §5.4 Gate v5.0 #3`
+Evidence: `SRS §3.5.2 FR-ST-07`, `Release gates: Gate v5.0 #3`
 
 **Inputs & limits**
 

@@ -3,7 +3,7 @@
 - **Release:** v3.0
 - **Goal:** Scale the `ScopedContextProvider` (`Contract C-02`) and Grounded Reasoning Engine to support an effective context window of $\ge 1 \times 10^6$ tokens across up to $300$ sources while maintaining a Time-to-First-Token ($\text{TTFT}$) $\le 2.5\text{ s}$.
 - **FRs:** NFR-PERF-01
-- **Gate criteria (SRS §5.4):** Gate v3.0 #3 — the effective context scales to $10^6$ tokens (`NFR-PERF-01`) with $\text{TTFT} \le 2.5\text{ s}$ while `NFR-EVAL-01..04` continue to pass.
+- **Gate criteria (release gates):** Gate v3.0 #3 — the effective context scales to $10^6$ tokens (`NFR-PERF-01`) with $\text{TTFT} \le 2.5\text{ s}$ while `NFR-EVAL-01..04` continue to pass.
 - **Out of scope:** Multi-notebook federated indexing (no scheduled release; D5 defers FR-INT-01).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

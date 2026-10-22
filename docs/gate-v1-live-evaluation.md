@@ -10,7 +10,7 @@
 
 Everlast LM v1.0 answers questions only from the documents a user selects and backs every claim with a
 clickable citation. Before v2.0 work can start, the release has to pass **Gate v1.0**
-([SRS §5.4](../spec/System_Requirements_Specification_Gemeni_Notebook.md)). It has three criteria:
+([release gates](../spec/requirements/README.md#release-gates)). It has three criteria:
 
 1. Uploading a PDF or Markdown file produces valid, citable text passages.
 2. Answer quality meets four thresholds (`NFR-EVAL-01` to `04`).
@@ -77,7 +77,7 @@ exactly the same questions.
 
 On 2026-10-19 the project owner decided that **one run on a fixed sample of 50 cases** is sufficient
 evidence for each release gate. This is recorded in
-[constitution v2.0.0](../.specify/memory/constitution.md) and the SRS §5.6.
+[constitution v2.0.0](../.specify/memory/constitution.md) and the [card consistency clarifications](../spec/requirements/README.md#card-consistency-clarifications).
 
 The sample is drawn proportionally from each category, so it is representative and identical every
 time:

@@ -3,8 +3,8 @@
 - **Release:** v2.0
 - **Goal:** Provide a persistent notes pinboard in the Right Panel supporting manual rich-text/Markdown notes, saving chat responses as notes, one-click conversion of notes into citable sources, and contextual AI actions across selected notes.
 - **FRs:** FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04
-- **Gate criteria (SRS §5.4):** Gate v2.0 #2 — round trip passes: *chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*.
-- **Persistence (D16; SRS §5.5 DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1). Sources made from notes (note-sources) are normal v1 PostgreSQL sources (`media_type: 'note_markdown'`) that share the notebook's source limit with uploads (owner decision 2026-10-20, D16).
+- **Gate criteria (release gates):** Gate v2.0 #2 — round trip passes: *chat answer $\rightarrow$ Save to note $\rightarrow$ Convert to source $\rightarrow$ the new source is citable in the next chat turn*.
+- **Persistence (D16; deviation log DEV-04 closed 2026-10-21 by specs/013):** v2 data is stored in PostgreSQL and survives API restarts and redeploys. "Persisted", "across sessions" and "after reload" in this package mean stored in PostgreSQL. The deployment still runs one API instance (D16). Access control, sources and chat stay in PostgreSQL (v1). Sources made from notes (note-sources) are normal v1 PostgreSQL sources (`media_type: 'note_markdown'`) that share the notebook's source limit with uploads (owner decision 2026-10-20, D16).
 - **Out of scope:** Real-time multi-cursor collaborative editing inside a single note (`v6.0` supports notebook-level sharing).
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).

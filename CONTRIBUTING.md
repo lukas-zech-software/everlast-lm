@@ -7,9 +7,9 @@ version for humans.
 ## Ground rules
 
 1. **Traceability.** Every spec, plan, task, test and pull request cites at least one ID from the
-   [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md) (`FR-*`, `NFR-*`, `C-01`..`C-03` or a release
+   [release index](spec/System_Requirements_Specification_Gemeni_Notebook.md) and [FR cards](spec/requirements/README.md) (`FR-*`, `NFR-*`, `C-01`..`C-03` or a release
    gate). Behaviour without an ID is not built.
-2. **Order of precedence.** Constitution → SRS → FR cards → solution architecture. Resolve conflicts against this
+2. **Order of precedence.** Constitution → release index → FR cards & FR README → solution architecture. Resolve conflicts against this
    order, never by picking a side.
 3. **Test-first.** Spec-derived tests are written before the implementation and must fail first
    ([Constitution, Principle II](.specify/memory/constitution.md)).

@@ -6,14 +6,19 @@
 
 - Target behavior is governed by a strict four-tier source-of-truth hierarchy (highest first):
   1. `.specify/memory/constitution.md` (principles, invariants, and process gates)
-  2. `spec/System_Requirements_Specification_Gemeni_Notebook.md` (SRS index of all `FR-*`,
-     `NFR-*`, `C-01`..`C-03`, release packages, and release gates)
-  3. `spec/requirements/v<N>/package_<N>_<M>_*.md` (FR cards) together with the binding
-     cross-package rules and package prerequisites in `spec/requirements/README.md`
+  2. `spec/System_Requirements_Specification_Gemeni_Notebook.md` (release index: maps each
+     release `v1.0`..`v6.0` to its packages and FR card IDs; the former full SRS is archived as
+     obsolete in `docs/archive/` and is not a source of truth)
+  3. `spec/requirements/v<N>/package_<N>_<M>_*.md` (FR cards) together with
+     `spec/requirements/README.md` (binding cross-package rules, package prerequisites,
+     architectural contracts `C-01`..`C-03`, release gates, the `DEV-xx` deviation log, and the
+     card consistency clarifications)
   4. `docs/solution-architecture.md` (binding technical decisions `D1`..`Dn` and risk controls)
 - Every feature spec, plan, task, test, and pull request MUST cite at least one SRS ID
   (`FR-*`, `NFR-*`, `C-01`..`C-03`, or a release gate). Behavior that cannot be traced to an
-  SRS ID MUST NOT be specified or built.
+  SRS ID MUST NOT be specified or built. "SRS ID" means a requirement ID defined by tiers 2–3;
+  a "requirements amendment" is a recorded change to the release index, an FR card, or
+  `spec/requirements/README.md`.
 - One FR package file (`package_<N>_<M>_*.md`) maps to one Spec Kit feature directory
   (`specs/<NNN>-<short-name>/`). `/speckit-specify` MUST transcribe all EARS statements,
   numeric limits, error states, and Gherkin acceptance scenarios from the package's FR cards
@@ -25,14 +30,15 @@
   choice, or uncovers a reality gap or edge case, that resolution MUST flow back into the
   feature's `specs/<NNN>-<short-name>/spec.md` (and `plan.md`) AND upstream into the governing
   source-of-truth tier (`spec/requirements/v<N>/package_<N>_<M>_*.md` FR cards,
-  `spec/requirements/README.md`, the SRS, `docs/solution-architecture.md` `Dn`, and affected
+  `spec/requirements/README.md`, the release index, `docs/solution-architecture.md` `Dn`, and affected
   GitHub issues) rather than remaining isolated in `specs/<NNN>-<short-name>/` or application
   code.
-- Scope changes MUST be recorded before planning starts: scope additions as an SRS amendment,
+- Scope changes MUST be recorded before planning starts: scope additions as a requirements amendment,
   and scope removals or deferrals as a recorded architecture decision (`Dn`) in
   `docs/solution-architecture.md`.
 - Every deliberate deviation from the reference product MUST be recorded twice before acting on
-  it: as a `DEV-xx` entry in SRS §5.5 and as a matching `Dn` decision in
+  it: as a `DEV-xx` entry in the deviation log of `spec/requirements/README.md` and as a matching
+  `Dn` decision in
   `docs/solution-architecture.md`. IDs MUST NEVER be renumbered.
 - Deferred packages and requirements (such as Package 6.3 / `FR-INT-01` under `D5` and
   `DEV-03`) MUST NOT be specified, planned, or implemented while their deferral remains active.
@@ -58,7 +64,7 @@ implementation discoveries back upstream—ensures deterministic, drift-free del
     inclusive limit applied to every source type (`FR-WM-07`, `FR-SI-01`).
 - Tests MUST fail for the expected requirement-related reason before implementation starts and
   pass after implementation (`Red → Green → Refactor`).
-- Disabling, skipping, or weakening a spec-derived test MUST NOT occur without a prior SRS
+- Disabling, skipping, or weakening a spec-derived test MUST NOT occur without a prior requirements
   amendment.
 - When a test runner, lint script, eval harness, or target environment does not exist yet
   (such as during the specs-only phase), agents MUST report the check explicitly as
@@ -166,7 +172,7 @@ through caches or chat history is the product's core enterprise guarantee.
   - Ingestion, Source Guide generation, Studio artifact generators, and media rendering MUST be
     implemented as deterministic pipelines with structured outputs.
 - Any breaking change to `C-01`, `C-02`, or `C-03` after its introducing release gate has passed
-  MUST be preceded by an SRS amendment, a recorded architecture decision (`Dn`), a migration
+  MUST be preceded by a requirements amendment, a recorded architecture decision (`Dn`), a migration
   plan, and updated consumer tests in the same pull request.
 
 **Rationale:** Enforced shared contracts and a strict boundary between agentic loops and
@@ -174,7 +180,7 @@ deterministic pipelines prevent cross-package regressions, latency spikes, and u
 
 ### V. Release Gates
 
-- Implementation of release `v(k+1)` MUST NOT start until `Gate v(k)` (SRS §5.4) has passed with
+- Implementation of release `v(k+1)` MUST NOT start until `Gate v(k)` (release gates in `spec/requirements/README.md`) has passed with
   documented evidence. Specification (`/speckit-specify`, `/speckit-clarify`) and planning
   (`/speckit-plan`, `/speckit-tasks`, `/speckit-analyze`) for later releases MAY run ahead.
   Git worktree isolation does not waive release gates.
@@ -196,7 +202,7 @@ deterministic pipelines prevent cross-package regressions, latency spikes, and u
   - `v6`: `6.1` RBAC, enterprise quotas, and `D10` audio share-link delivery precede `6.2`
     research agents; `6.3` (`FR-INT-01`) and `Gate v6.0 #3` remain inactive under `D5`/`DEV-03`.
 - Each feature MUST ship in its assigned release package unless a recorded architecture decision
-  (`Dn`) and SRS amendment move or defer it.
+  (`Dn`) and a requirements amendment move or defer it.
 
 **Rationale:** Sequential release gates and explicit within-release dependency ordering allow
 parallel agent execution without building on unverified foundations.
@@ -273,14 +279,16 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   `/speckit-implement` (followed by `/speckit-converge` if post-implementation gaps remain).
   The bundled 4-step `.specify/workflows/speckit/workflow.yml` alone is insufficient, and
   creating artifacts under `docs/superpowers/` is forbidden.
-- **Flow-back spec workflow**: Upstream specifications (`spec/requirements/` FR cards,
-  `spec/System_Requirements_Specification_Gemeni_Notebook.md`, `docs/solution-architecture.md`,
+- **Flow-back spec workflow**: Upstream specifications (`spec/requirements/` FR cards and
+  `README.md`, the release index `spec/System_Requirements_Specification_Gemeni_Notebook.md`,
+  `docs/solution-architecture.md`,
   and GitHub issues) and feature specifications (`specs/<NNN>-<package>/spec.md`) MUST stay
   synchronized across every stage:
   - **Clarify flow-back (`/speckit-clarify`)**: When open questions or ambiguities are resolved,
     the resolution MUST be written into `specs/<NNN>-<package>/spec.md` AND flowed back into the
     package's FR card (`spec/requirements/v<N>/package_<N>_<M>_*.md`, removing the open question)
-    and the SRS / GitHub issue if scope- or index-level.
+    and `spec/requirements/README.md`, the release index, or a GitHub issue if cross-package or
+    release-level.
   - **Plan & Analyze flow-back (`/speckit-plan`, `/speckit-analyze`)**: When planning or
     consistency analysis refines contracts (`C-01..C-03`), numeric/text limits, error states, or
     technical choices, those refinements MUST flow back into `spec.md`, the package's FR cards /
@@ -289,12 +297,12 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   - **Implement & Converge flow-back (`/speckit-implement`, `/speckit-converge`)**: When
     implementation or post-implementation convergence reveals reality gaps, unstated edge cases,
     or feasibility constraints, the resolution MUST flow back to `spec.md` AND upstream to the
-    FR card / SRS / `docs/solution-architecture.md` (`Dn`) (and affected GitHub issues), followed
+    FR card / `spec/requirements/README.md` / `docs/solution-architecture.md` (`Dn`) (and affected GitHub issues), followed
     by re-running `/speckit-analyze`, rather than only patching code or appending unbacked tasks.
 - **Constitution Check Gate Table (`CC-01`..`CC-08`)**: Every `plan.md` (before Phase 0 research
   and again after Phase 1 design) and every `/speckit-analyze` run MUST evaluate these eight
   gates explicitly. Any justified exception MUST be recorded in the plan's Complexity Tracking
-  table or as a prior `Dn` / SRS amendment:
+  table or as a prior `Dn` / requirements amendment:
 
 | Gate ID | Principle | Required Verification in `plan.md` and `/speckit-analyze` |
 | :--- | :--- | :--- |
@@ -315,7 +323,7 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
     running `/speckit-specify` to prevent sequential numbering collisions across worktrees.
   - Task references in commits, issues, and handoffs MUST be qualified by spec path (for example,
     `specs/001-workspace-foundation T001`).
-  - Edits to shared files (SRS, FR cards, constitution, `docs/solution-architecture.md`,
+  - Edits to shared files (release index, FR cards, `spec/requirements/README.md`, constitution, `docs/solution-architecture.md`,
     `AGENTS.md`, `packages/contracts`, root manifests, CI, and `infra/`)—including upstream
     spec flow-back updates—MUST be serialized under a single assigned owner and merged before
     dependent package work.
@@ -340,4 +348,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-08`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 2.0.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-19
+**Version**: 2.0.1 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-22
