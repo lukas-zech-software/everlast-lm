@@ -56,11 +56,13 @@ Scenario: Generated Mindmap JSON is strictly hierarchical and acyclic (Gate v3.0
 ```
 
 **Edge & error cases**
-- Very large notebook ($50+$ sources) $\rightarrow$ Hierarchical map-reduce over Source Guides (`FR-SI-02`) ensures balanced top-level branches without omitting sources.
+- Very large notebook ($50+$ sources) $\rightarrow$ Hierarchical map-reduce over Source Guides (`FR-SI-02`) ensures balanced top-level branches without omitting sources. Every original scoped chunk is considered and every factual label/summary keeps its supporting references.
+- API worker or restart during generation $\rightarrow$ Completed artifacts and queued mindmap/table work survive restart; redelivery resumes the same attempt without duplicate publication or an extra user retry. Interrupted legacy reports keep their existing `Failed`/`GenerationError` behavior with explicit retry. Deletion, revocation, source change or cancellation before publication fails the attempt (C-03).
+- Unsupported output language $\rightarrow$ `400`; other invalid parameters $\rightarrow$ `422` (existing Studio API behavior).
 
 **Measurable criteria**
 - $100\%$ of generated Mindmap JSON payloads pass acyclic tree schema validation (`Gate v3.0 #3`).
-- Mindmap generation completes in $\le 20.0\text{ s}$ (P95).
+- Mindmap generation completes in $\le 20.0\text{ s}$ (P95). Predeclare fixtures, environment, cold/warm mix and N≥20 accepted submissions; keep every accepted attempt (failed/unfinished = positive infinity) and use nearest-rank P95 at sorted position ceil(0.95·N). The clock runs from submission to Completed, including queue, generation, validation and publication; no post-hoc exclusions and no chat-only warm exception (D17 applies to chat only).
 
 **Deviations from reference:** None.
 
@@ -132,9 +134,11 @@ Scenario: Drilldown does not restore a historical source selection
 
 **Edge & error cases**
 - Clicking a node when all sources were subsequently deselected ($\lvert S_{\text{aktiv}}\rvert = 0$) $\rightarrow$ Prompts the user to select sources; never restores a snapshot automatically or sends labels derived from deselected sources into Chat.
+- Drilldown on any node $\rightarrow$ The server verifies the node's and its parent's supporting revisions and authorization before building a prompt; client labels are not trusted. Ordinary chat admission, history and citation checks apply.
+- Export $\rightarrow$ Covers the complete currently expanded tree regardless of pan/zoom; labels are escaped and the SVG contains no scripts or external resources. Every export rechecks authorization through the application (no reusable signed URL); deletion/revocation clears loaded and pending exports. A failed export publishes no partial file and can be retried without regenerating the map.
 
 **Measurable criteria**
-- Canvas pan/zoom and node expand/collapse render at $60\text{ fps}$ ($\le 16\text{ ms}$ frame time) up to $120$ nodes.
+- Canvas pan/zoom and node expand/collapse render at $60\text{ fps}$ ($\le 16\text{ ms}$ frame time) up to $120$ nodes. Declare browser actions, frame population, hardware and viewport before measuring; keep slow and failed samples.
 
 **Deviations from reference:** Supports lossless `.svg` export in addition to `.png`.
 
@@ -211,7 +215,8 @@ Scenario: Conflicting values remain individually cited in one cell
 **Edge & error cases**
 - Oversized requested results (more than 500 rows or 25 columns) → Fail with a clear limit explanation and request narrower instructions; publish no table. Evidence-limited lower counts still follow the shared C-03 rule.
 - Conflicting values for one item/attribute → Preserve all values and individual citations within the same cell, mark the disagreement, and retain one row per item; do not silently choose a value or use the missing-evidence marker.
-- Formula injection prevention in CSV/XLSX export $\rightarrow$ Cell values starting with `=`, `+`, `-`, or `@` are sanitized/escaped so opening the exported file in Excel cannot trigger CSV macro injection.
+- Formula injection prevention in CSV/XLSX export $\rightarrow$ Cell values starting with `=`, `+`, `-`, or `@` are sanitized/escaped so opening the exported file in Excel cannot trigger CSV macro injection. Leading whitespace/control-character bypasses are covered, in headers and item labels too; escaping is an export-only transformation that never changes stored values (number formatting: #153).
+- Table exports keep conflicting alternatives, the disagreement marker and per-value citations in the same cell. Every export rechecks authorization through the application; mere deselection keeps an authorized historical export available.
 
 **Measurable criteria**
 - Boundary fixtures requiring 501 rows or 26 columns publish zero tables and fail with a narrowing request; otherwise valid requests at 500 rows and 25 columns remain within bounds.
@@ -224,21 +229,6 @@ Scenario: Conflicting values remain individually cited in one cell
 
 **Open questions:** `None`
 
-## Planning contract refinements (refreshed 2026-10-21)
+## Design and history
 
-These refine FR-ST-08/09/18 and C-03 without altering release scope or accepted clarification answers.
-
-- **Shared plugin integration (C-03):** Existing report-specialized DTOs and PostgreSQL repository must be extended additively for mindmap/data_table before registration. specs/013 has closed DEV-04 and applied 0008 supplies Studio storage. Reuse existing report rows and repository; add a new numbered migration for typed kind/subtype constraints and durable admission/outbox/lease/cancellation/publication fences. Do not recreate deleted drafts or edit applied migrations. Preserve report wire shapes, exported schemas, lifecycle and report plugin behavior, app-scoped pool isolation and D16 single-API operation. Do not fork C-01/C-02 or a second Studio lifecycle.
-- **Evidence and validation (FR-ST-08/18, C-02/C-03):** Process all original scoped chunks with retained coverage and field-level evidence. Validate required output dimensions and individual conflicting values before atomic publication. Invalid citations fail immediately; package detail may identify InvalidMindmap/InvalidTable/TableLimitExceeded under existing safe failure codes. A capped model sample must not hide a requested result exceeding 500 rows/25 columns.
-- **Drilldown (FR-ST-09, FR-GC-01/02/06):** API accepts artifact/node identity and current explicit Ready selection. Verify node plus parent supporting revisions and authorization before constructing any source-derived prompt; do not trust client labels or auto-restore sources. Reuse ordinary chat admission/history/citation checks.
-- **Map presentation/export (FR-ST-08/09):** Use deterministic native SVG layout and browser Canvas for 2× PNG from a validated self-contained scene; bounds include every currently expanded node irrespective of viewport transform. Escape labels and forbid active SVG/external resource content. Expansion and sorting are local view state.
-- **Table serialization/export (FR-ST-18):** Use text-only ExcelJS XLSX serialization in the existing runtime and deterministic RFC4180 CSV with UTF-8 BOM. Sanitize formula-risk prefixes including whitespace/control bypasses in headers and values before CSV quoting, and use explicit string XLSX cells without formulas/macros/external links. Preserve conflict alternatives, disagreement and per-value citation references within the same exported cell; do not mutate canonical source values.
-- **Export authorization (FR-ST-09/18, NFR-SEC-02):** Serve through the application API with live source/notebook access checks and private/no-store delivery; no reusable signed URL bypass. Deletion/revocation invalidates loaded/pending/cached content and delivery; mere deselection alone retains authorized historical export. Clearing application state cannot revoke already downloaded files.
-
-- **Restart/concurrency acceptance (C-03, FR-ST-08/18, D16/specs/013):** Completed artifacts and queued new-plugin work survive API/worker restart. Transport redelivery recovers the same new-plugin attempt without duplicate publication or a user retry; terminal refusal is not silently regenerated. Preserve legacy reports: interrupted Queued/Running reports become Failed/GenerationError and require explicit retry. Exclude new-kind leased jobs from the legacy startup sweep before activation. Live owner/source revision and attempt/cancellation checks serialize atomically with publication. Drain/fence old inline work during rollout without resetting persisted rows; preserve existing row-locked rejection of late terminal report completion.
-- **Current source and delivery boundaries (C-02/C-03, NFR-SEC-02):** Reuse real PostgreSQL scoped reads and all-original keyset traversal, not chat top-k for exhaustive synthesis. Carry the captured owner/revision context into workers without process-local ownership caches or recapturing newer revisions. List/get/export invalidation also redacts source-derived titles, snippets and failure text; safe unavailable metadata contains no retained source content.
-- **Gate and eval evidence (NFR-EVAL-01..04):** Preserve the recorded Gate v2 owner override; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail. Deterministic citation/leakage every PR; judged faithfulness/rejection and semantic support once per release candidate on fixed stratified 50-case sample with case IDs/category composition/dataset hash (Constitution 2.0.0). Neither override nor document integrity proves package 3.3 runtime acceptance.
-
-## Task-analysis acceptance refinements (2026-10-22; FR-ST-08/09/18, C-03)
-
-Mindmap generation P95≤20.0s uses predeclared fixtures/environment, cold-warm mix and N≥20 accepted submissions. Queue/model/validation/persistence remain within submission-to-Completed; retain all accepted attempts, failed/unfinished=positive infinity, nearest-rank sorted position ceil(0.95*N). Missing the declared cohort cannot pass; no posthoc exclusions or chat-only warm exception. Declare browser actions/frame population/hardware before recording the unchanged 60fps/≤16ms target up to 120 nodes; retain slow/failed samples. Existing unsupported output-language 400 versus other invalid-parameter 422 responses remain compatible. These refinements specify reproducible measurement and current validation behavior without changing numeric thresholds, report compatibility, table limits or source/citation rules.
+Implementation design (plugin registry extension, migration 0011, serializers, export delivery) lives in the [package 3.3 plan](../../../specs/011-studio-mindmaps-data-tables/plan.md). Planning refinements from 2026-10-21 and 2026-10-22 are folded into the sections above; the [refresh report](../../../specs/011-studio-mindmaps-data-tables/refresh-report.md) records their history.

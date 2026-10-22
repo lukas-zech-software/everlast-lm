@@ -90,10 +90,12 @@ Scenario: Google Slides import preserves notes and deterministic locators
 - Screen web/research content for prompt injection before indexing or model use (Constitution VI). Quarantined content never becomes Ready or enters C-02.
 - Video URL has neither subtitles nor an extractable audio stream $\rightarrow$ Fails gracefully with `"No transcript available for this video"`.
 - Web URL points to a PDF $\rightarrow$ Automatically routes to the PDF ingestion parser (`Paket 1.2`).
+- Provider export/caption limits (e.g. the Drive export ceiling, captions unavailable to the user) $\rightarrow$ Fail explicitly. Never truncate, fall back to a service account, or redefine the application's inclusive 200 MB quota. Public YouTube visibility alone does not grant permission to download captions or audio.
+- New v3 source types keep note-source provenance, the shared source quota and trusted-only `note_markdown` admission (`FR-NM-03`, `FR-WM-07`).
 
 **Measurable criteria**
 - $100\%$ of ingested audio/video chunks contain valid `time_span` (`mm:ss`) locators (`Gate v3.0 #1`).
-- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95), measured from acceptance of the uploaded audio for transcription until its timestamped transcript is available. Include queue waiting; exclude upload and later indexing. Use a declared fixture/environment.
+- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95), measured from acceptance of the uploaded audio for transcription until its timestamped transcript is available. Include queue waiting; exclude upload and later indexing. Use a declared fixture/environment. Predeclare N≥20 accepted attempts and keep all of them in the nearest-rank P95; failed or unfinished attempts sort as positive infinity and their outcomes are reported separately. Never drop or reclassify attempts based on observed latency.
 
 **Deviations from reference:** Use the architecture's fetch + Readability path with deterministic snapshots. A page containing only an unsupported JavaScript shell fails clearly; no unapproved headless-browser dependency is implied.
 
@@ -161,6 +163,10 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 
 **Edge & error cases**
 - Historical chat message cited `chk_old_04` before re-sync $\rightarrow$ Mark the citation `Source updated`; an authorized viewer may read the saved historical snippet and explicitly open the current source at the top, but no exact-passage jump is offered. Chat-Only click-through stays blocked. Never retarget the old chunk ID to new text or use the stale snippet in a new prompt.
+- Transport redelivery of a re-sync $\rightarrow$ Resume the same operation idempotently. Deletion or a stale operation token prevents any later publication.
+- Successful re-sync $\rightarrow$ Publish canonical viewer text, anchors and chunks of the new revision in one transaction (D15). Durably mark the previous Source Guide as no longer current and request one for the new revision and output language; restart or redelivery must not lose that request or show the old Guide as current, even if nobody reopens the source (D16).
+- Deleted or revoked source $\rightarrow$ Media delivery rechecks notebook/document authorization and revision on every request; a previously issued reusable signed URL must not keep the content readable.
+- Rename title limit is 1–200 code points after trimming (FR-SI-05 only); copied-text creation keeps its existing 100-point limit.
 
 **Measurable criteria**
 - Deleting a source removes its chunks from retrieval immediately ($0\text{ ms}$ staleness on next chat turn).
@@ -171,21 +177,6 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 
 **Open questions:** `None`
 
-## Planning refinements — 2026-10-20 (FR-SI-01/05, C-01, NFR-SEC-02)
+## Design and history
 
-- Preserve the shared C-01 locator union; `mm:ss` is derived from `start_ms` in transcript/view metadata, not an additional required field inserted into strict shared locator objects. Reconcile any earlier plan/runtime encoding drift against SRS and consumer tests before v3 implementation; no breaking migration is authorized here.
-- Use durable operation IDs and a per-source publication fence for re-sync. A transport redelivery resumes the same operation idempotently; a distinct manual/webhook request while active is rejected with `Sync already in progress`, with no queued follow-up. Deletion or stale fencing tokens prevent later publication.
-- Provider export/caption capability failures remain explicit failures without truncation, service-account fallback, or redefining the inclusive application quota. Drive export's documented provider ceiling is not the application's 200MB limit; use supported delegated long-running export where appropriate. Public YouTube visibility alone does not imply authorized caption/audio access. The existing inaccessible-video failure applies; no assigned scope is removed.
-- Source media delivery must recheck document/notebook authorization and revision validity; an expired or revoked source cannot remain readable through a previously issued reusable signed object URL. Use authorization-checked proxy delivery with invalidation of active delivery on revocation.
-- The package plan uses regional Speech V2 Chirp 2 word offsets and existing Office normalization plus supplemental notes/descriptions, with Model Armor fail-closed screening. Deployment availability and the unchanged 45-second P95 target require live evidence; neither is asserted by planning. See `specs/009-multimodal-ingestion-sync/research.md` and `plan.md` for rationale and provider references.
-
-## Latest-main refinement — 2026-10-21 (FR-SI-01/05, FR-SI-02/04, C-01/C-02)
-
-- Preserve canonical viewer text and chunk anchors atomically with each published source revision under D15, so removing a source makes its text unavailable immediately through the same relational source access boundary. Raw and binary media delivery remains separately authorized.
-- A successful re-sync durably invalidates the previous current Source Guide and requests generation for the new exact revision/output language. Restart or redelivery must not lose the request or allow an old Guide to appear as current (D16). D16/specs/013 now supplies durable v2 storage and restart recovery; this package preserves those outcomes and adds reliable re-sync-trigger delivery, rather than redefining existing v2 persistence. Recovery must eventually regenerate the new revision even without a user reopening the source; existing valid Guide results are reused.
-- Preserve source-from-note provenance, shared source quota and trusted-only note-source admission when adding v3 source types (`FR-NM-03`, `FR-WM-07`). The 1–200-point rename limit is specific to FR-SI-05; existing copied-text creation retains its own 100-point title limit.
-- Gate v2 is owner-approved by override, recorded in `docs/gate-v2-live-evaluation.md`; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail; this is not a new claim that the earlier failed measurements passed.
-
-## Task-analysis clarification (2026-10-22; FR-SI-01/05, C-01)
-
-The timestamp display label is derived view metadata; the existing strict C-01 locator remains unchanged. For the declared 30-minute audio benchmark, predeclare N≥20 accepted attempts, include all attempts in nearest-rank P95, and sort failed/unfinished attempts as positive infinity while retaining their separate outcomes. Do not remove attempts or reclassify them based on observed latency. The ≤45s target still includes queue waiting and excludes upload/indexing. Concrete migration 0009 and file ownership in the feature plan only decompose this package's existing implementation scope.
+Implementation design (providers, migrations, file ownership) lives in the [package 3.1 plan](../../../specs/009-multimodal-ingestion-sync/plan.md). Planning refinements from 2026-10-20 to 2026-10-22 are folded into the sections above; the [refresh report](../../../specs/009-multimodal-ingestion-sync/refresh-report.md) records their history.

@@ -53,3 +53,11 @@ This section supersedes the current-state statements above about process-memory 
 ## Final baseline alignment — 2026-10-21 (`C-03`, `CC-08`)
 
 Main `ce3626b` adds Node 26, API `MIGRATE_ON_START=true` and dev-project example updates after `dc25c46`. Updated current plan/quickstart to Node 26 and additive startup-migration compatibility/readiness ordering; startup migration locking does not implement worker leases or recovery. No package project ID is hardcoded. Accepted decisions and all 38 unchecked custom questions remain unchanged. Worktree `/private/tmp/everlast-v3-refresh-final-3-3-20261021`, branch `codex/v3-refresh-final-3-3-20261021`, parent `05329a684fd70a6b4dbe6c824a386c0e0007ed6f`; first created worktree, second persisted the provided feature variable as `specs/011-studio-mindmaps-data-tables` and unset it. Historical refresh sections are preserved. Integrity/diff checks pass; no runtime qualification or deployment was performed.
+
+## Consolidation — 2026-10-22 (CC-01)
+
+Dated refinement appendices were folded into the documents they refine:
+
+- FR card and `spec.md`: restart/redelivery, drilldown verification, export completeness and re-authorization, formula-bypass coverage, API 400/422 behavior, eval cadence and the SC-002/SC-003 measurement rules now live in the edge-case/measurable/SC text.
+- `plan.md`: the task-generation section became "Files, tests and measurement" and cites the spec's SC rules instead of repeating them.
+- The architecture's Studio refinement paragraph was reduced to a pointer to this package's plan.

@@ -55,3 +55,10 @@ The project owner accepts Google's Agent Platform (Agent Engine) managed Code Ex
 The owner requested: “update 3.2 by making the r6 qualification obsolete. the code execution sandbox provided by Google's Agent Platform (Agent Engine) is more than capable enough”. Recorded D19 without renumbering D18 or R6. Updated the SRS, shared rules, own FR card/spec/designs/contracts/quickstart and checklist references. R6's file is retained as explicitly superseded history. Dependent 3.3/3.4 documents receive only the removal of the obsolete 3.2 prerequisite. Earlier report statements requiring R6 are historical and superseded by this section. No provider tests, implementation, provisioning or deployment occurred.
 
 Validation: `node scripts/check-spec-integrity.mjs` PASS (179 Markdown files, 55 SRS IDs, 35 feature artifacts); `git diff --check` PASS. Verified all seven measurable success criteria and FR-002/004–014 remain unchanged, all 37 custom questions remain unchecked, and all 16 built-in quality criteria remain satisfied. No code tests were executed for this documentation-only owner-decision update.
+
+## Consolidation — 2026-10-22 (CC-01)
+
+Dated refinement appendices were folded into the documents they refine:
+
+- FR card and `spec.md`: whole-table evidence, clarification-only turns, response projections, trace states and timing-cohort rules now live in the edge-case/SC text. The owner's D18, D19 and D20 wording moved to the spec's Clarifications (sessions 2026-10-20 and 2026-10-22).
+- `plan.md`: the main-reconciliation, second-refresh, D19 and task-generation sections became Project Structure entries, "Current baseline constraints" and "Validation and evidence". Baseline commit history stays in this report.

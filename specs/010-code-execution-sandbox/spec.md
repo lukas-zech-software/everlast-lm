@@ -30,6 +30,15 @@
 - Q: When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, should the assistant ask before calculating? → A: Option A — Ask which interpretation is intended before calculating.
 - Q: After an automatic correction retry, which execution attempts should the saved record and “View executed code” drawer retain? → A: Option A — Save and show both attempts in order, clearly marking the final attempt and its published outputs.
 
+### Session 2026-10-20
+
+- Q: Keep the old 1 vCPU / 512 MB caps or accept the managed default? → A: The owner first chose Option A ("We are not expecting more than one or two simultaneous users, so this should be fine"), then superseded it: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM" (D18). The 4 vCPU / 4 GB profile is not authorized; one or two simultaneous users remains workload context. This changes Everlast's acceptance envelope, not a reference-product deviation, so no DEV entry.
+
+### Session 2026-10-22
+
+- Owner accepts Agent Platform (Agent Engine) Code Execution as the managed dependency; R6 is obsolete with no separate qualification gate (D19).
+- Owner: "the specification was changed to whatever the managed sandbox can do. The sandbox defines the requirements for now" (D20). FR-002, FR-003, SC-002 and SC-004 use the documented managed limits; the 64 MB `/tmp` cap and packet-level evidence are dropped and the application enforces the 15.0 s deadline.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Calculate and inspect grounded results (Priority: P1)
@@ -106,6 +115,9 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **Conflicting units (`FR-GC-08`)**: Normalize explicitly in visible code comments, citing both input sources.
 - **Concurrent changes (`C-02`, `FR-SI-05`)**: Snapshot revisions cannot silently be replaced during a request; recheck authorization before reads and publication.
 - **Unauthorized access (`FR-WM-04`, `NFR-SEC-02`)**: Authentication alone never permits other notebook or document reads. Scope applies to sandbox inputs, caches, history and all generated outputs.
+- **Whole-table calculations (`FR-GC-08`, `C-02`)**: A targeted retrieval subset is not complete data. Obtain sufficient original evidence through C-02 with the same captured snapshot, or explain that evidence is insufficient.
+- **Clarification-only turns (`FR-GC-08`, `FR-GC-06`)**: Persist the clarification without claiming a computed result; the user's answer starts a fresh, explicitly scoped submission.
+- **Response projections (`FR-GC-06`)**: Historical responses stay compatible; every stored, visible and saved-response projection keeps trace provenance, exact results and authorization. An unknown result after actual code submission keeps its real attempt and is reconciled without replay.
 - **Insufficient/invalid evidence (`FR-GC-01/02`, `NFR-EVAL-03/04`)**: Never fabricate a guessed number; invalid citation validation causes refusal. Progress statuses may appear while answers are buffered, but never count as validated answer tokens.
 
 ## Requirements *(mandatory)*
@@ -140,7 +152,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 
 - **SC-001 (`FR-GC-08`, Gate v3.0 #2)**: The 12-month fixture produces the known correct standard deviation and matching trend chart with `Computed`, citation [1], inspectable code and download available; the financial CAGR example retains both source references and explicit normalization where needed.
 - **SC-002 (`FR-GC-08`, Gate v3.0 #2)**: Security tests observe zero successful outbound network connections from executed code (HTTP, DNS, metadata, private addresses); inbound access and unauthorized data access are blocked. Packet capture is not required (D20).
-- **SC-003 (`FR-GC-08`)**: On declared standard-tabular fixtures/environments, cold/warm boot plus execution latency is ≤4.0 s P95, and submission-to-“Running code…” is ≤2.5 s. This progress measurement is distinct from validated answer TTFT (`NFR-PERF-01`).
+- **SC-003 (`FR-GC-08`)**: On declared standard-tabular fixtures/environments, cold/warm boot plus execution latency is ≤4.0 s P95, and submission-to-“Running code…” is ≤2.5 s. This progress measurement is distinct from validated answer TTFT (`NFR-PERF-01`). Fix fixture, runtime and cohort sample counts before collection, keep every attempted run, and fail any cohort containing failed or timed-out runs; missing declared samples are UNAVAILABLE.
 - **SC-004 (`FR-GC-08`)**: Boundary fixtures show the managed 1.5 GB memory error and the 100 MB file-transfer cap are reported as failures, and the application's 15.0 s per-attempt deadline deletes the sandbox and discards late results; exception cases receive exactly one retry opportunity, timeout/memory violations zero, and terminal failures publish no guessed number.
 - **SC-005 (`C-02`, `NFR-EVAL-02/04`)**: Scope/revision/authorization and citation fixtures achieve citation-ID precision 1.0 and leakage 0, including stale in-flight outputs, history, caches and chart downloads.
 - **SC-006 (`NFR-EVAL-01/03`, Gate v3.0)**: Applicable judged grounding checks retain hallucination <5%, out-of-source rejection ≥99% and semantic citation support. Deterministic citation/leakage suites run every PR once available; judged checks run once per release gate on its release candidate using the fixed deterministic stratified 50-case golden-dataset sample. The gate report records case IDs, category composition and dataset hash; a single passing run suffices and judged checks are not required per PR (Constitution v2.0.0). This package alone does not establish the full v3 gate.
@@ -152,37 +164,3 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 - **Required technical terminology (`FR-GC-08`, CC-01)**: Python, resource units, artifact formats and persisted trace fields are source-mandated acceptance contracts, not new implementation choices. The code drawer is the card's documented auditability behavior; no new deviation is introduced.
 - **Out of Scope (`FR-GC-08`, `FR-SI-01`)**: A user-facing Jupyter IDE, persistent outbound networking, runtime installation of arbitrary third-party pip packages, and raw CSV ingestion. Other v3 packages retain their separate features and acceptance gates.
 - **Evidence boundary (`CC-01`, CC-02)**: Reference behavior is unverified background, not proof of a deployed service. Runtime sandbox/security/performance/eval validation remains UNAVAILABLE in this specification-only work; later tasks must place spec-derived failing tests before implementation.
-
-
-## Planning decision history (2026-10-20; FR-GC-08, R6, D18)
-
-The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
-
-**Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. The separate R6 qualification requirement was superseded on 2026-10-22 by D19; ordinary implementation and release tests remain.
-
-This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D18 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
-
-### Session 2026-10-20 (FR-GC-08, D18)
-
-- Q: Retain the old CPU/RAM caps or accept the managed default? → A: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This supersedes the initial Option A response recorded above. The managed default is selected; other controls stay unchanged.
-- Planning flow-back: use fresh managed sandboxes per attempt, scoped byte transfer without credentials, ordered traces and private authorized chart delivery. The [historical R6 record](r6-feasibility.md) is obsolete under D19 and retains the superseded qualification history.
-
-## Main refresh (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
-
-Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; v2 persistence is complete under D16/specs/013 (DEV-04 closed), while durable sandbox execution traces, operational cleanup records and charts remain new work. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and existing sandbox behavior and security requirements. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
-
-## Second main refresh integration baseline (2026-10-21; FR-GC-08, FR-GC-06, C-02)
-
-D16/specs/013 has closed DEV-04: v2 records now persist in PostgreSQL. This changes the implementation prerequisite, not FR-001..014 or the accepted D18 sandbox envelope. Existing history visibility, saved-response access rules and sources/history submission readiness remain applicable to computed and clarification turns. Sandbox admission, trace durability and crash cleanup still require their own implementation and ordinary integration tests; v2 restart recovery and the single-API deployment are not proof of those controls.
-
-## Managed provider acceptance (2026-10-22; FR-GC-08, D19)
-
-The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision.
-
-## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
-
-Ordinary code timing evidence declares fixture/environment/cohort sample counts before measurement, retains every attempted run and fails any cohort containing failed/timed-out attempts; missing declared samples are unavailable evidence. Cold/warm boot-plus-execution uses nearest-rank P95 and progress keeps the sufficient-intent submission clock. Cache/history tests retain exact notebook/revision/authorization/language/parameter keys and current-scope eligibility. Existing notebook authorization keeps missing 404 and foreign 403 status semantics; no extra source access follows from a status response.
-
-## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
-
-The project owner decided that, for now, the managed sandbox defines the limits. FR-002, FR-003, SC-002 and SC-004 use what Google documents for Agent Platform Code Execution: 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. The 64 MB `/tmp` cap and packet-level evidence are dropped. The application enforces the 15.0 s deadline per attempt by deleting the sandbox and discarding late results, because the provider documents no execution timeout.

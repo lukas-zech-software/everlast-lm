@@ -84,12 +84,16 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 ```
 
 **Edge & error cases**
-- Infinite loop (`while True: pass`) in generated code $\rightarrow$ Killed deterministically at $15.0\text{ s}$ wall-clock timeout; container destroyed.
+- Infinite loop (`while True: pass`) in generated code $\rightarrow$ Abandoned at the $15.0\text{ s}$ application deadline; the sandbox is deleted and late results are discarded (D20).
+- Whole-table calculation $\rightarrow$ A targeted retrieval subset is not complete data: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain that evidence is insufficient.
+- Clarification-only turn $\rightarrow$ Persisted without a computed result; the answer starts a fresh, explicitly scoped submission.
+- Execution never starts $\rightarrow$ A request rejected before execution allocation has no trace. An allocated execution failing before code submission records `Failed` with zero attempts, no final attempt and no artifacts (no invented exit code). An unknown result after submission keeps its real attempt and is reconciled without replay.
+- Historical responses stay compatible; every stored, visible and saved-response projection keeps trace provenance, exact results and authorization.
 - Source numbers have conflicting units (e.g., `$M` vs `$B`) $\rightarrow$ Agent normalizes units explicitly in the visible Python code comments and cites both sources.
 
 **Measurable criteria**
 - $0$ successful outbound network connections in security penetration tests (`Gate v3.0 #2`).
-- Sandbox cold/warm boot + execution latency $\le 4.0\text{ s}$ (P95) for standard tabular calculations.
+- Sandbox cold/warm boot + execution latency $\le 4.0\text{ s}$ (P95) for standard tabular calculations. Fix fixture, runtime and cohort sample counts before collection, keep every run, and fail any cohort containing failed or timed-out runs; missing samples are UNAVAILABLE.
 
 **Deviations from reference:** Exposes the executed Python snippet in a collapsible `"View executed code"` drawer for enterprise auditability.
 
@@ -99,29 +103,6 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 
 **Open questions:** `None`
 
+## Design and history
 
-## Planning decision history (2026-10-20; FR-GC-08, R6, D18)
-
-The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
-
-**Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. The separate R6 qualification requirement was superseded on 2026-10-22 by owner acceptance in D19; ordinary implementation and release tests remain.
-
-This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D18 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
-
-## Main refresh (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
-
-Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; v2 persistence is complete under D16/specs/013 (DEV-04 closed), while durable sandbox execution traces, operational cleanup records and charts remain new work. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and existing sandbox behavior and security requirements. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
-
-**Second main refresh (2026-10-21; FR-GC-08, FR-GC-06, C-02):** Reuse applied v2 migrations 0005–0008 and app-scoped PostgreSQL store selection, preserving visible history, saved-response access and transactional chat-clear hygiene. Preserve sources/history readiness before submission while retaining independent API scope and sandbox admission checks. Single-instance v2 report/Guide restart sweeps do not implement sandbox crash reconciliation or implement sandbox timeout/isolation handling.
-
-## Managed sandbox acceptance (2026-10-22; FR-GC-08, D19)
-
-The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision.
-
-## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
-
-A rejected request before execution allocation has no trace. An allocated execution that fails before code submission records Failed with zero actual attempts, null final attempt and no published artifacts, without inventing execution or exit 0. An unknown result after actual submission retains its real attempt and reconciles without replay. Timing evidence fixes fixture/runtime/cohort sample counts before collection, uses nearest-rank P95, retains all attempts and fails cohorts containing failed/time-out samples; missing samples are UNAVAILABLE. Existing scope/cache/history and 404 missing/403 foreign notebook authorization rules remain. D19 remains in force: these are normal integration/release requirements, not a separate R6 qualification.
-
-## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
-
-The project owner decided that, for now, the managed sandbox defines the FR-GC-08 limits. Use what Google documents for Agent Platform Code Execution: default 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. Scoped inputs are file copies in a fresh sandbox, so stored sources cannot be changed. The 64 MB `/tmp` cap is dropped. The provider documents no execution timeout, so the application enforces 15.0 s per attempt by deleting the sandbox and discarding late results. Network tests check that calls from executed code fail; packet capture is not required. Scope, citation, retry, cleanup and residency rules are unchanged.
+Limits follow decisions D18 (2026-10-20), D19 and D20 (2026-10-22) in the [architecture decisions](../../../docs/solution-architecture.md#decisions); the owner's wording is recorded in the [package 3.2 spec clarifications](../../../specs/010-code-execution-sandbox/spec.md#clarifications). Implementation design lives in the [package 3.2 plan](../../../specs/010-code-execution-sandbox/plan.md); the [refresh report](../../../specs/010-code-execution-sandbox/refresh-report.md) records planning history.

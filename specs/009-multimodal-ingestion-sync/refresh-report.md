@@ -44,3 +44,11 @@ Validation: setup-plan resolves the exact feature pin; Ruby Psych parses optiona
 ## Final fetched baseline — 2026-10-21 (FR-SI-01/05, CC-08)
 
 Main advanced to `ce3626bae6c302a998cc8206d9705c38d067f76a` during orchestration. Created `/private/tmp/everlast-v3-refresh-final-3-1-20261021` on `codex/v3-refresh-final-3-1-20261021` from cumulative `26d4fb710fa693f25767db9aff65e631bfab04a0`, then transferred the supplied feature environment value to the same pin and unset it before merging main. Narrow delta audit updates current plan runtime to Node.js 26 and quickstart for API startup migrations before traffic acceptance; require additive rollout compatibility for future sync migrations. Historical Node 24 statements above describe earlier checks only. The dev project example change does not affect package requirements. No product, provider, data-model or interface refinement was needed; existing checklist questions/states remain unchanged. Integrity and diff checks pass; runtime qualification remains unavailable.
+
+## Consolidation — 2026-10-22 (CC-01)
+
+Dated refinement appendices were folded into the documents they refine, so each fact has one home:
+
+- FR card and `spec.md`: re-sync redelivery/fencing, D15 atomic publication, durable Guide invalidation, media re-authorization, provider-limit failures, note-source and title rules, and the N≥20 audio benchmark rule now live in the FR/edge-case/SC text.
+- `plan.md`: the 2026-10-21 latest-main review and the 2026-10-22 task-analysis notes became "Current baseline constraints" and Project Structure entries. The baseline commit history stays in this report.
+- Architecture §4.1.1 was reduced to a pointer to this package's plan.

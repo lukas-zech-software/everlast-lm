@@ -47,3 +47,12 @@ Plan setup and checklist template resolution pass. Extension YAML parsed: before
 Created `/private/tmp/everlast-v3-refresh-final-3-4-20261021` on `codex/v3-refresh-final-3-4-20261021` from completed package 3.3 commit `b924848260e8315eca6a5147dfae8dcb5aecb099`; immediately transferred `SPECIFY_FEATURE_DIRECTORY=specs/012-long-context-latency-scaling` into the feature pin and unset it. Main `ce3626bae6c302a998cc8206d9705c38d067f76a` is already inherited. This narrow follow-up aligns current plan/research/quickstart with Node.js 26 and API startup migrations, preserving earlier report sections as history. The earlier Node 24 mismatch statement is historical and no longer describes the current runtime target.
 
 Inspected the actual API startup and migration runner: migration completion precedes listening, but does not establish model readiness. Warm classification remains prospective with full boot/recovery/dependency evidence; all submitted attempts retain their original clocks and no migration/lock delay is subtracted. Existing D12/D17/D18 requirements, 20-warm/19th P95, scope, contracts, data model and all 38 unchecked custom items remain unchanged. No upstream behavior amendment is needed: these are existing main runtime settings applied to the unchanged benchmark rules. Optional before/after-plan commit hooks parsed and skipped in favor of an explicit reviewed commit. Integrity and diff checks pass; runtime/benchmark/R6 qualification remains UNAVAILABLE. No tasks, implementation, dependency installation, migration execution or deployment performed.
+
+## Consolidation — 2026-10-22 (CC-01)
+
+The same task-analysis text appeared word for word in the FR card, `spec.md` and `plan.md`. Each fact now has one home:
+
+- FR card and `spec.md`: benchmark acceptance rules, context-cache scope/invalidation and bounded Studio reduction live in the edge-case/measurable/Assumptions text.
+- `plan.md`: the three dated baseline sections became "Current baseline and benchmark conditions"; the plan links to the contract for cache metadata and observation encoding. Baseline commit history stays in this report.
+- Cache metadata and JSON observation encoding now live only in `contracts/interfaces.md`; `data-model.md` and `plan.md` link to it.
+- The architecture's package 3.4 section was reduced to a pointer to this package's plan.
