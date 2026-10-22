@@ -3,6 +3,8 @@
 //  1. Every relative Markdown link in the repository's own documents resolves to an existing file,
 //     and every #anchor resolves to a heading in the target file (GitHub slug rules).
 //  2. Every FR-/NFR- ID defined in the SRS links to an FR card.
+//  3. Spec Kit artifacts cite SRS IDs and order tests before implementation (CC-01/CC-02).
+//  4. Long paragraphs are not copied between requirement, spec and architecture documents.
 // Exit code 1 on any finding, so CI fails.
 
 import { readFileSync, existsSync, statSync } from "node:fs";
@@ -112,6 +114,31 @@ for (const file of specFiles) {
   }
 }
 
+// 4. A long paragraph must have one home: the same text in two requirement/spec/architecture
+//    documents drifts apart over time. Cite the home by ID or link instead of copying it.
+const DUP_MIN_CHARS = 300;
+const DUP_SCOPE = /^(spec\/|specs\/[^/]+\/(spec|plan|research|data-model|quickstart|contracts\/[^/]+)\.md$|docs\/solution-architecture\.md$)/;
+const paragraphHomes = new Map();
+for (const file of files.filter((f) => DUP_SCOPE.test(f))) {
+  const paragraphs = readFileSync(file, "utf8").replace(/```[\s\S]*?```/g, "").split(/\n\s*\n/);
+  for (const paragraph of paragraphs) {
+    const text = paragraph.replace(/\s+/g, " ").trim();
+    if (text.length < DUP_MIN_CHARS || text.startsWith("|")) continue;
+    const homes = paragraphHomes.get(text) ?? new Set();
+    homes.add(file);
+    paragraphHomes.set(text, homes);
+  }
+}
+// Packages 001–008 predate this rule and are implemented; their copies are reported, not failed.
+const LEGACY_DUP = /^specs\/00[1-8]-/;
+const duplicateWarnings = [];
+for (const [text, homes] of paragraphHomes) {
+  if (homes.size < 2) continue;
+  const message = `Paragraph copied in ${[...homes].join(", ")}: "${text.slice(0, 80)}…" (keep one home and cite it)`;
+  if ([...homes].every((home) => LEGACY_DUP.test(home))) duplicateWarnings.push(message);
+  else findings.push(message);
+}
+
 if (findings.length) {
   console.error(findings.join("\n"));
   console.error(`\n✗ ${findings.length} finding(s)`);
@@ -121,4 +148,9 @@ console.log(`✓ ${files.length} Markdown files: all relative links and anchors 
 console.log(`✓ ${ids.length} SRS requirement IDs: every one links to an FR card`);
 if (specFiles.length) {
   console.log(`✓ ${specFiles.length} Spec Kit feature artifact(s): CC-01/CC-02 checks pass`);
+}
+console.log(`✓ No paragraph copied between requirement, spec and architecture documents`);
+if (duplicateWarnings.length) {
+  console.log(`! ${duplicateWarnings.length} copied paragraph(s) in packages 001–008 (warning only; run with --verbose to list)`);
+  if (process.argv.includes("--verbose")) console.log(duplicateWarnings.join("\n"));
 }
