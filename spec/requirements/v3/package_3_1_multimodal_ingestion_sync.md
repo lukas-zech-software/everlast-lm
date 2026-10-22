@@ -24,7 +24,7 @@
 - *Event:* When the Owner/Editor uploads a `.docx` or `.pptx` file, the system shall extract all document/slide text, tables, speaker notes, and embedded visual descriptions into `UnifiedDocumentChunk` records (`Contract C-01`) with C-01 `page_span` locators into the normalized viewer document. The Office adapter must preserve speaker notes and extract visual descriptions alongside PDF conversion; a rendered slide number is page metadata, not a new locator variant.
 - *Event:* When the Owner submits a Google Docs/Slides link or selects a document in the authorized picker, the v3 Google Drive import adapter shall use that user's delegated read access, export Docs/Slides into the Office normalization path, and preserve the external document ID for manual re-sync. Reject revoked/insufficient permission; never substitute a service account's access. This import adapter precedes v6 enterprise discovery (D11).
 - *Event:* When the Owner/Editor submits a Web URL, the system shall fetch the page, strip boilerplate navigation/ads, extract the main article content into `UnifiedDocumentChunk` records, and store the canonical URL.
-- *Event:* When the Owner/Editor submits a Video URL (e.g., YouTube or internal media portal) or uploads an Audio file (`.mp3`, `.wav`, `.m4a`), the system shall extract the caption transcript or run Automatic Speech Recognition (ASR) to produce `UnifiedDocumentChunk` records where every chunk carries a `time_span` locator (`start_ms`, `end_ms`, formatted `mm:ss`).
+- *Event:* When the Owner/Editor submits a Video URL (e.g., YouTube or internal media portal) or uploads an Audio file (`.mp3`, `.wav`, `.m4a`), the system shall extract the caption transcript or run Automatic Speech Recognition (ASR) to produce `UnifiedDocumentChunk` records where every chunk carries the existing C-01 `time_span` locator (`start_ms`, `end_ms`); its transcript/view DTO exposes the formatted `mm:ss` derived from `start_ms`, outside the strict locator object.
 - *Event:* When the user clicks an inline citation `[n]` (`FR-GC-03`) pointing to an audio or video chunk, the Source Inspector (`FR-SI-04`) shall open the transcript with an embedded media/timestamp player, scroll to the highlighted transcript segment, and seek the player to `start_ms`.
 
 **User story:** As a researcher working with heterogeneous media, I want to add Word docs, PowerPoint decks, web articles, YouTube/video links, and audio recordings to my notebook and jump to the exact timestamp when clicking a citation, so that all my formats are unified in one workspace.
@@ -44,7 +44,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 | Audio files | `.mp3`, `.wav`, `.m4a` | Max $200\text{ MB}$ | — |
 | Website URL | `https://...` | Public HTML or explicitly allowlisted enterprise HTML reachable under the requesting user's authorized access; Google Docs/Slides use the delegated v3 adapter, not generic scraping | — |
 | Video URL | YouTube / enterprise video URL | Must have captions/transcript or audio track accessible | — |
-| `time_span` locator | `Contract C-01` JSON | `{ start_ms: int, end_ms: int, display_time: "mm:ss" }` | — |
+| `time_span` locator / display DTO | Existing `Contract C-01` JSON + transcript/view DTO | Locator retains integer `start_ms`, `end_ms`; derived `display_time: "mm:ss"` is view metadata outside the strict C-01 locator | — |
 
 **Outputs & state**
 - Visible: Format-specific icons (Web globe, Video play icon, Audio waveform, Slides icon, Doc icon) in the Left Panel; timestamped transcript + media player in Source Inspector.
@@ -58,7 +58,8 @@ Scenario: Audio upload produces chunks with clickable mm:ss timestamp locators (
   Given an open notebook
   When the owner uploads a 10-minute "Interview.mp3" file
   Then the ASR pipeline transcribes the audio and creates UnifiedDocumentChunk records
-  And every chunk contains a valid time_span locator (start_ms, end_ms, "mm:ss")
+  And every chunk contains a valid existing C-01 time_span locator (start_ms, end_ms)
+  And its transcript/view DTO exposes the derived display_time "mm:ss"
   When the user clicks a chat citation [1] referencing a statement at 04:15 in "Interview.mp3"
   Then the Source Inspector opens "Interview.mp3", highlights the segment at 04:15, and seeks the player to 04:15
 
@@ -184,3 +185,7 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 - A successful re-sync durably invalidates the previous current Source Guide and requests generation for the new exact revision/output language. Restart or redelivery must not lose the request or allow an old Guide to appear as current (D16). D16/specs/013 now supplies durable v2 storage and restart recovery; this package preserves those outcomes and adds reliable re-sync-trigger delivery, rather than redefining existing v2 persistence. Recovery must eventually regenerate the new revision even without a user reopening the source; existing valid Guide results are reused.
 - Preserve source-from-note provenance, shared source quota and trusted-only note-source admission when adding v3 source types (`FR-NM-03`, `FR-WM-07`). The 1–200-point rename limit is specific to FR-SI-05; existing copied-text creation retains its own 100-point title limit.
 - Gate v2 is owner-approved by override, with unmeasured post-fix live follow-ups recorded in `docs/gate-v2-live-evaluation.md`; this is not a new claim that the earlier failed measurements passed.
+
+## Task-analysis clarification (2026-10-22; FR-SI-01/05, C-01)
+
+The timestamp display label is derived view metadata; the existing strict C-01 locator remains unchanged. For the declared30-minute audio benchmark, predeclare N≥20 accepted attempts, include all attempts in nearest-rank P95, and sort failed/unfinished attempts as positive infinity while retaining their separate outcomes. Do not remove attempts or reclassify them based on observed latency. The ≤45s target still includes queue waiting and excludes upload/indexing. Concrete migration0009 and file ownership in the feature plan only decompose this package's existing implementation scope.
