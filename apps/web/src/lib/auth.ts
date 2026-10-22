@@ -39,12 +39,41 @@ function tokenExpired(token: string): boolean {
 }
 
 /**
- * Identity Platform sign-in method from the configured provider id (D6). `password` is the dev PoC method
- * (Identity Platform email/password, no external IdP); `saml.*` and other ids redirect to the OIDC/SAML provider.
+ * Identity Platform sign-in method from the configured provider id (D6). `google.com` is the dev PoC method
+ * (Google sign-in, owner decision 2026-10-22); `password` is the earlier email/password PoC method; `saml.*` and
+ * other ids redirect to the OIDC/SAML provider.
  */
-export function signInMethod(providerId: string): "password" | "saml" | "oauth" {
+export function signInMethod(providerId: string): "google" | "password" | "saml" | "oauth" {
+  if (providerId === "google.com") return "google";
   if (providerId === "password") return "password";
   return providerId.startsWith("saml.") ? "saml" : "oauth";
+}
+
+/**
+ * "Sign in with Google" button. Uses a popup rather than a redirect, because the redirect flow needs the auth
+ * domain (`<project>.firebaseapp.com`) to share storage with the app, which current browsers block.
+ */
+function renderGoogleSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
+  return new Promise((resolve) => {
+    clear(root);
+    const message = h("p", { class: "muted", "data-testid": "signin-message", text: "Sign in with your Google account." });
+    const button = h("button", { class: "btn btn-primary", type: "button", "data-testid": "signin-google", text: "Sign in with Google" });
+    button.addEventListener("click", async () => {
+      message.textContent = "Signing in…";
+      try {
+        await authModule.signInWithPopup(auth, new authModule.GoogleAuthProvider());
+        resolve();
+      } catch (error) {
+        const code = String((error as { code?: unknown })?.code ?? "");
+        message.textContent =
+          code === "auth/popup-blocked" ? "The browser blocked the sign-in window. Allow pop-ups for this site and try again." :
+          code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" ? "Sign-in was cancelled." :
+          "Sign-in failed. Please try again.";
+      }
+    });
+    root.append(h("div", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message, button));
+    button.focus();
+  });
 }
 
 /** Email/password form for Identity Platform (dev PoC): sign in, or create the account on first use. */
@@ -162,6 +191,10 @@ export async function startSession(root: HTMLElement): Promise<Session> {
       resolve(u);
     });
   });
+  if (!user && signInMethod(ip.providerId) === "google") {
+    await renderGoogleSignIn(root, authModule, auth);
+    user = auth.currentUser;
+  }
   if (!user && signInMethod(ip.providerId) === "password") {
     await renderPasswordSignIn(root, authModule, auth);
     user = auth.currentUser;

@@ -111,6 +111,26 @@ resource "google_identity_platform_config" "auth" {
   authorized_domains = var.authorized_domains
 }
 
+# Dev PoC (owner decision 2026-10-22): Google sign-in replaces email/password. The OAuth web client lives in
+# Google Auth Platform; its redirect URI is https://<project>.firebaseapp.com/__/auth/handler.
+resource "google_identity_platform_default_supported_idp_config" "google" {
+  count         = var.enable_identity_platform && var.enable_google_sign_in ? 1 : 0
+  project       = var.project_id
+  idp_id        = "google.com"
+  client_id     = var.google_oauth_client_id
+  client_secret = var.google_oauth_client_secret
+  enabled       = true
+
+  lifecycle {
+    precondition {
+      condition     = var.google_oauth_client_id != "" && var.google_oauth_client_secret != ""
+      error_message = "enable_google_sign_in needs google_oauth_client_id and google_oauth_client_secret."
+    }
+  }
+
+  depends_on = [google_identity_platform_config.auth]
+}
+
 # 4. Keyless GitHub Actions Workload Identity Federation (Constitution Principle VI)
 resource "google_iam_workload_identity_pool" "github" {
   count                     = var.enable_github_wif ? 1 : 0

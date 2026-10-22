@@ -48,3 +48,22 @@ variable "enable_email_password_sign_in" {
   type        = bool
   default     = false
 }
+
+variable "enable_google_sign_in" {
+  description = "Enable Google as an Identity Platform sign-in provider (dev PoC, owner decision 2026-10-22; D6 keeps OIDC/SAML for staging/prod)."
+  type        = bool
+  default     = false
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth 2.0 web client ID (Google Auth Platform) for the Google sign-in provider."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_secret" {
+  description = "OAuth 2.0 web client secret for the Google sign-in provider. Set only in the gitignored tfvars."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

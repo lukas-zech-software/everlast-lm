@@ -11,6 +11,12 @@ authorized_domains = [
   "localhost",
 ]
 
+# Google sign-in (dev PoC). Client from Google Auth Platform → Clients → Web application, with
+# redirect URI https://<project_id>.firebaseapp.com/__/auth/handler.
+enable_google_sign_in      = true
+google_oauth_client_id     = "<client-id>.apps.googleusercontent.com"
+google_oauth_client_secret = "<client-secret>"
+
 cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000",
