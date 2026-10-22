@@ -22,7 +22,7 @@
 
 ## Requirement Clarity
 
-- [ ] CHK005 Is the approved envelope stated consistently as 2 vCPU / 1.5 GB RAM, 64 MB temporary storage and 15.0 seconds per attempt, with the accepted managed profile distinguished from unapproved larger profiles? [Clarity, Spec §FR-003 and §Planning decision history; FR-GC-08, D18]
+- [ ] CHK005 Is the approved envelope stated consistently as the D20 managed limits (2 vCPU / 1.5 GB RAM, 100 MB file I/O, provider-limited file system) and the application's 15.0-second deadline per attempt, with the accepted managed profile distinguished from unapproved larger profiles? [Clarity, Spec §FR-003 and §Planning decision history; FR-GC-08, D18]
 - [ ] CHK006 Are memory and temporary-storage unit interpretations and boundary inclusivity sufficiently specified to distinguish nominal provider profile labels from effective measured byte limits? [Clarity, Spec §FR-003/SC-004; Contracts §Accepted managed dependency; FR-GC-08, Ambiguity]
 - [ ] CHK007 Is statistical ambiguity defined by unresolved valid interpretations, with a focused follow-up required before computation and sufficient-intent submission identified as the progress timing origin? [Clarity, Spec §FR-014/SC-007; FR-GC-08]
 - [ ] CHK008 Are exact numerical representation, explicit unit normalization, non-finite values and missing evidence requirements clear enough to avoid model-selected arithmetic or guessed results? [Clarity, Spec §FR-005/008; Data Model §ChatMessage.code_execution_trace; FR-GC-08, FR-GC-02]
@@ -38,7 +38,7 @@
 
 - [ ] CHK013 Are the reference calculation and chart success criteria tied to declared input values, resolved statistical interpretation and an objectively defined expected result? [Measurability, Spec §User Story 1 and §SC-001/007; FR-GC-08, Gate v3.0 #2]
 - [ ] CHK014 Are the ≤2.5-second real-running progress and ≤4.0-second P95 boot-plus-computation criteria defined with clock boundaries, cold/warm populations, declared fixtures and one/two-user workload context? [Measurability, Spec §FR-004/SC-003; Contracts §Accepted managed dependency; FR-GC-08]
-- [ ] CHK015 Do the acceptance criteria distinguish zero network connections/escaping packets, actual termination by 15.0 seconds and bounded scratch from weaker proxy evidence such as client deadlines? [Measurability, Spec §SC-002/004; Contracts §Accepted managed dependency; FR-GC-08, NFR-SEC-02]
+- [ ] CHK015 Do the acceptance criteria state that network isolation is checked by failing network calls from executed code and that the 15.0-second limit is an application deadline with sandbox deletion (D20)? [Measurability, Spec §SC-002/004; Contracts §Accepted managed dependency; FR-GC-08, NFR-SEC-02]
 
 ## Scenario Coverage
 

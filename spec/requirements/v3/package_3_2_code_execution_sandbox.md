@@ -22,10 +22,10 @@
 
 **Requirement (EARS)**
 - *Event:* When a user asks a quantitative, statistical, aggregation, or plotting question in Chat over active sources ($S_{\text{aktiv}}$), the Grounded Reasoning Agent shall delegate computation to the `Code Execution Agent`, which writes and executes Python code inside an ephemeral, network-isolated Agent Platform sandbox selected in the architecture; the project owner accepts this managed service under D19, with no separate R6 feasibility or qualification gate.
-- *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, strictly bounded CPU/memory/execution-time limits, and read-only access solely to the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`).
+- *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, the managed sandbox's CPU/memory limits plus an application-enforced execution deadline, and access solely to copies of the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`); executed code cannot modify stored sources (D20).
 - *Event:* When code execution starts, the system shall show a `"Running code…"` status in the chat response within $\le 2.5\text{ s}$ of the user's submission (this progress event is not an answer token and does not satisfy `NFR-PERF-01`; code-execution turns have their own timing criteria).
 - *Event:* When sandbox execution completes, the system shall embed the computed numerical results, each marked with a `Computed` label, generated charts (PNG/SVG), and a collapsible `"View executed code"` (`"Code anzeigen"`) inspection block inside the assistant's grounded chat response alongside source citations `[n]` to the source data used.
-- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($1.5\text{ GB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
+- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the application execution deadline ($15\text{ s}$) or the sandbox reports a memory error (managed limit $1.5\text{ GB}$) (no retry for timeout or memory violations), then the system shall delete the sandbox, discard any later result and report the error transparently without fabricating a guessed number.
 
 - *Event:* When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, the assistant shall ask a focused follow-up and wait for the answer before calculating, rather than silently choosing an interpretation. Clarification-only turns do not start execution or show “Running code…”; execution-status timing applies to the submission that supplies sufficient statistical intent to start computation.
 
@@ -42,8 +42,8 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
 | Generated Python script | UTF-8 Python code using the managed runtime version recorded by the integration | Pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy` | — |
-| Sandbox CPU / RAM limit | Container quota | $\le 2\text{ vCPU}$, $\le 1.5\text{ GB RAM}$, $\le 64\text{ MB}$ temp `/tmp` disk | Enforced per run |
-| Execution timeout | Wall-clock duration | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
+| Sandbox CPU / RAM limit | Managed sandbox profile | $\le 2\text{ vCPU}$, $\le 1.5\text{ GB RAM}$ (provider default, D18); provider-limited file system; $\le 100\text{ MB}$ input/output files per request or response (D20) | Enforced by the provider |
+| Execution timeout | Wall-clock duration, enforced by the application (D20) | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
 | Outbound network | Network namespace | Disabled by the selected managed sandbox; application integration and release tests retain the isolation requirement | Disabled |
 
 **Outputs & state**
@@ -79,8 +79,8 @@ Scenario: Correction retry preserves inspectable execution history (FR-GC-08)
 Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #2)
   Given a prompt attempting to execute "import urllib.request; urllib.request.urlopen('https://example.com')"
   When the sandbox runs the code
-  Then the network call fails immediately due to full network isolation
-  And zero packets leave the sandbox environment
+  Then the network call fails because the managed sandbox has no network access
+  And no result derived from a network response is published
 ```
 
 **Edge & error cases**
@@ -121,3 +121,7 @@ The project owner accepts Google's Agent Platform (Agent Engine) managed Code Ex
 ## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
 
 A rejected request before execution allocation has no trace. An allocated execution that fails before code submission records Failed with zero actual attempts, null final attempt and no published artifacts, without inventing execution or exit0. An unknown result after actual submission retains its real attempt and reconciles without replay. Timing evidence fixes fixture/runtime/cohort sample counts before collection, uses nearest-rank P95, retains all attempts and fails cohorts containing failed/time-out samples; missing samples are UNAVAILABLE. Existing scope/cache/history and404 missing/403 foreign notebook authorization rules remain. D19 remains in force: these are normal integration/release requirements, not a separate R6 qualification.
+
+## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
+
+The project owner decided that, for now, the managed sandbox defines the FR-GC-08 limits. Use what Google documents for Agent Platform Code Execution: default 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. Scoped inputs are file copies in a fresh sandbox, so stored sources cannot be changed. The 64 MB `/tmp` cap is dropped. The provider documents no execution timeout, so the application enforces 15.0 s per attempt by deleting the sandbox and discarding late results. Network tests check that calls from executed code fail; packet capture is not required. Scope, citation, retry, cleanup and residency rules are unchanged.

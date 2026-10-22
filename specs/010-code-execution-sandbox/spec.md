@@ -74,13 +74,13 @@ As a notebook owner, I want calculations confined to the selected data and bound
 Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #2; FR-GC-08)
   Given a prompt attempting to execute "import urllib.request; urllib.request.urlopen('https://example.com')"
   When the sandbox runs the code
-  Then the network call fails immediately due to full network isolation
-  And zero packets leave the sandbox environment
+  Then the network call fails because the managed sandbox has no network access
+  And no result derived from a network response is published
 ```
 
 1. **Given** code raises an exception, **When** its first run fails, **Then** exactly one automatic self-correction retry is permitted; a second failure destroys the container and transparently reports an error with no guessed number (`FR-GC-08`).
-2. **Given** an infinite loop or memory violation, **When** the 15.0 s timeout or 1.5 GB bound is reached/exceeded respectively, **Then** the run is terminated, the container destroyed, and the error reported without retry (`FR-GC-08`).
-3. **Given** unselected, other-notebook or unauthorized data exists, **When** execution attempts to read it or escape the permitted filesystem/data boundary, **Then** it cannot access that content; source data remains read-only (`FR-GC-08`, `C-02`, `NFR-SEC-02`).
+2. **Given** an infinite loop or memory violation, **When** the 15.0 s application deadline passes or the sandbox reports a memory error (managed 1.5 GB limit), **Then** the application stops waiting, deletes the sandbox, discards any later result, and the error reported without retry (`FR-GC-08`).
+3. **Given** unselected, other-notebook or unauthorized data exists, **When** execution attempts to read it or escape the permitted filesystem/data boundary, **Then** it cannot access that content; it works only on copies of scoped inputs, so stored sources cannot change (`FR-GC-08`, `C-02`, `NFR-SEC-02`).
 
 ### User Story 3 - Preserve source scope through publication and history (Priority: P1)
 
@@ -102,7 +102,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 ### Edge Cases *(mandatory)*
 
 - **Ambiguous statistical intent (`FR-GC-08`)**: When neither request nor sources determines the intended interpretation, ask a focused follow-up before calculating. A request such as unspecified sample versus population standard deviation cannot proceed on an unstated assumption.
-- **Limits (`FR-GC-08`)**: Enforce at most 2 vCPU, 1.5 GB RAM, 64 MB temporary `/tmp` storage and 15.0 s wall-clock execution per run. An infinite loop is killed at 15.0 s; timeout and memory violations never receive a retry. Temporary storage is not permission to alter input source data.
+- **Limits (`FR-GC-08`, D20)**: Use the managed sandbox limits: 2 vCPU, 1.5 GB RAM, a provider-limited file system and at most 100 MB of input/output files per request or response. The application enforces 15.0 s per attempt: an infinite loop is abandoned at 15.0 s, the sandbox is deleted and late results are discarded. Timeout and memory violations never receive a retry. Inputs are copies; executed code cannot alter stored sources.
 - **Conflicting units (`FR-GC-08`)**: Normalize explicitly in visible code comments, citing both input sources.
 - **Concurrent changes (`C-02`, `FR-SI-05`)**: Snapshot revisions cannot silently be replaced during a request; recheck authorization before reads and publication.
 - **Unauthorized access (`FR-WM-04`, `NFR-SEC-02`)**: Authentication alone never permits other notebook or document reads. Scope applies to sandbox inputs, caches, history and all generated outputs.
@@ -113,8 +113,8 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 ### Functional Requirements
 
 - **FR-001 (`FR-GC-08`, `C-02`)**: When a user asks a quantitative, statistical, aggregation, data-cleaning or plotting question over active sources, the Grounded Reasoning Agent MUST delegate computation to the Code Execution Agent, which writes and runs Python in an ephemeral, network-isolated Agent Platform sandbox selected by the architecture. The project owner accepts the managed service under D19; a separate R6 provider qualification is not an implementation prerequisite.
-- **FR-002 (`FR-GC-08`, `C-02`)**: The sandbox MUST have zero inbound and outbound network access, strictly bounded resources, and read-only access solely to data/tables extracted from the current request's active-source snapshot. Local Docker flags are not evidence of isolation for the selected managed service.
-- **FR-003 (`FR-GC-08`)**: Each execution MUST enforce CPU ≤2 vCPU, RAM ≤1.5 GB, temporary `/tmp` disk ≤64 MB, and wall-clock execution ≤15.0 s (default 15.0 s). Input is UTF-8 Python with the managed runtime version recorded by the integration and pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy`.
+- **FR-002 (`FR-GC-08`, `C-02`)**: The sandbox MUST have zero inbound and outbound network access, the managed sandbox's bounded resources, and access solely to copies of data/tables extracted from the current request's active-source snapshot. Network isolation is provided by the managed sandbox (D20); tests check that network calls from executed code fail.
+- **FR-003 (`FR-GC-08`)**: Each execution MUST run in a fresh managed sandbox with the provider's limits (D20): CPU ≤2 vCPU, RAM ≤1.5 GB, provider-limited file system, ≤100 MB input/output files per request or response. The application MUST enforce wall-clock execution ≤15.0 s per attempt (default 15.0 s) by deleting the sandbox and discarding late results. Input is UTF-8 Python with the managed runtime version recorded by the integration and pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy`.
 - **FR-004 (`FR-GC-08`, `NFR-PERF-01`)**: When execution starts, “Running code…” MUST appear within ≤2.5 s of submission. This is progress, not an answer token, and does not satisfy standard chat TTFT; code-execution turns use their own timing criteria.
 - **FR-005 (`FR-GC-08`, `FR-GC-02`)**: On completion, the grounded response MUST embed exact computed numerical values individually labelled `Computed`, generated inline PNG/SVG charts with a download button, a collapsible “View executed code” (“Code anzeigen”) block containing Python source and stdout, and `[n]` citations to the source data used.
 - **FR-006 (`FR-GC-08`)**: If generated code raises an exception, the system MUST allow exactly one automatic self-correction retry. If that retry fails, or any run times out or violates memory limits, the system MUST terminate the sandbox container and report the error transparently without guessing a number. Timeout and memory violations MUST receive zero retries.
@@ -129,7 +129,7 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 
 ### Key Entities
 
-- **Execution request and source snapshot** (`FR-GC-08`, `C-02`): Quantitative question, notebook, exact selected Ready source IDs/revisions and effective authorization; input data is read-only and scope cannot expand during execution.
+- **Execution request and source snapshot** (`FR-GC-08`, `C-02`): Quantitative question, notebook, exact selected Ready source IDs/revisions and effective authorization; input data is passed as copies and scope cannot expand during execution.
 - **Sandbox execution** (`FR-GC-08`): Ephemeral bounded computation, generated code and at most one exception retry; states `CodeGenerating`, `SandboxRunning`, `Succeeded`, `TimedOut`, `Failed`.
 - **ChatMessage execution trace** (`FR-GC-08`, `FR-GC-06`): Ordered execution attempts, each retaining code, stdout, stderr, exit code and chart URLs, with the final attempt and its published outputs identified. Both attempts remain visible in the code drawer after a retry, subject to current access and deletion hygiene.
 - **Computed result and chart** (`FR-GC-08`, `FR-GC-02`): Numerical result labelled `Computed`, PNG/SVG chart and downloadable artifact, linked to validated citations and inspectable executed code.
@@ -139,9 +139,9 @@ As an analyst, I want my result to reflect exactly the source revisions I select
 ### Measurable Outcomes
 
 - **SC-001 (`FR-GC-08`, Gate v3.0 #2)**: The 12-month fixture produces the known correct standard deviation and matching trend chart with `Computed`, citation [1], inspectable code and download available; the financial CAGR example retains both source references and explicit normalization where needed.
-- **SC-002 (`FR-GC-08`, Gate v3.0 #2)**: Security penetration tests observe zero successful outbound network connections and zero packets leaving the sandbox; inbound access and unauthorized filesystem/data access are blocked.
+- **SC-002 (`FR-GC-08`, Gate v3.0 #2)**: Security tests observe zero successful outbound network connections from executed code (HTTP, DNS, metadata, private addresses); inbound access and unauthorized data access are blocked. Packet capture is not required (D20).
 - **SC-003 (`FR-GC-08`)**: On declared standard-tabular fixtures/environments, cold/warm boot plus execution latency is ≤4.0 s P95, and submission-to-“Running code…” is ≤2.5 s. This progress measurement is distinct from validated answer TTFT (`NFR-PERF-01`).
-- **SC-004 (`FR-GC-08`)**: Boundary fixtures demonstrate enforcement of 2 vCPU, 1.5 GB RAM, 64 MB temporary disk and 15.0 s per run; exception cases receive exactly one retry opportunity, timeout/memory violations zero, and terminal failures publish no guessed number.
+- **SC-004 (`FR-GC-08`)**: Boundary fixtures show the managed 1.5 GB memory error and the 100 MB file-transfer cap are reported as failures, and the application's 15.0 s per-attempt deadline deletes the sandbox and discards late results; exception cases receive exactly one retry opportunity, timeout/memory violations zero, and terminal failures publish no guessed number.
 - **SC-005 (`C-02`, `NFR-EVAL-02/04`)**: Scope/revision/authorization and citation fixtures achieve citation-ID precision 1.0 and leakage 0, including stale in-flight outputs, history, caches and chart downloads.
 - **SC-006 (`NFR-EVAL-01/03`, Gate v3.0)**: Applicable judged grounding checks retain hallucination <5%, out-of-source rejection ≥99% and semantic citation support. Deterministic citation/leakage suites run every PR once available; judged checks run once per release gate on its release candidate using the fixed deterministic stratified 50-case golden-dataset sample. The gate report records case IDs, category composition and dataset hash; a single passing run suffices and judged checks are not required per PR (Constitution v2.0.0). This package alone does not establish the full v3 gate.
 - **SC-007 (`FR-GC-08`)**: An ambiguous statistical request fixture triggers a focused clarification before any calculation; once its interpretation is resolved, the calculation matches that interpretation. A correction-retry fixture preserves and displays both attempts in order and identifies the final attempt and published outputs without publishing failed-attempt results.
@@ -182,3 +182,7 @@ The project owner accepts Google's Agent Platform (Agent Engine) managed Code Ex
 ## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
 
 Ordinary code timing evidence declares fixture/environment/cohort sample counts before measurement, retains every attempted run and fails any cohort containing failed/timed-out attempts; missing declared samples are unavailable evidence. Cold/warm boot-plus-execution uses nearest-rank P95 and progress keeps the sufficient-intent submission clock. Cache/history tests retain exact notebook/revision/authorization/language/parameter keys and current-scope eligibility. Existing notebook authorization keeps missing404 and foreign403 status semantics; no extra source access follows from a status response.
+
+## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
+
+The project owner decided that, for now, the managed sandbox defines the limits. FR-002, FR-003, SC-002 and SC-004 use what Google documents for Agent Platform Code Execution: 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. The 64 MB `/tmp` cap and packet-level evidence are dropped. The application enforces the 15.0 s deadline per attempt by deleting the sandbox and discarding late results, because the provider documents no execution timeout.
