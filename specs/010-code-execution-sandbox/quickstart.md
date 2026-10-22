@@ -21,7 +21,7 @@ For each scenario below, derive a failing Vitest/Playwright test with cited IDs 
 
 ```sh
 pnpm exec vitest run packages/contracts/test/package-v3-2.test.ts apps/api/test/code-execution.test.ts packages/db/test/code-execution.integration.test.ts
-pnpm exec playwright test tests/e2e/code-execution.spec.ts --project=chromium
+pnpm exec playwright test apps/web/test/code-execution.spec.ts --project=chromium
 pnpm eval:deterministic
 pnpm eval:judged
 ```
@@ -63,3 +63,7 @@ Future package tests must use the applied 0005–0008 baseline plus new ordered 
 ## Final main baseline (ce3626b; FR-GC-08, CC-02, CC-08)
 
 Use the workspace-selected Node 26 runtime. API infrastructure sets `MIGRATE_ON_START=true`: pending application migrations run at startup before traffic admission; the advisory-locked runner applies each file once. Future sandbox migrations must extend the numbered migration sequence and preserve compatibility with the previous revision when a new revision fails readiness. General startup migration wiring is present; sandbox-specific schema and recovery remain unimplemented. The changed dev project example is configuration guidance, not an approval to enable APIs or deploy the sandbox.
+
+## Task-analysis command and timing corrections (FR-GC-08, CC-01/02)
+
+Task generation reserves0010_code_execution.sql after predecessor0009. New browser files belong in apps/web/test under the existing Playwright config. Future validation uses the exact task paths; the new eval/performance suites and scripts/eval-v3-code-execution.mjs are planned, not existing runners. Freeze cohort sample counts, fixtures and runtime configuration before collecting data; nearest-rank P95 uses ceil(0.95*N), any failed/timeout attempt fails its cohort, and missing declared samples are UNAVAILABLE. Record all attempts and retry totals; never drop failures/reset the submission clock or treat progress as answer TTFT. These are ordinary integration/release tests under D19.

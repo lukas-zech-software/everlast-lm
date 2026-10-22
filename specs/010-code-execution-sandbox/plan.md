@@ -1,6 +1,6 @@
 # Implementation Plan: Quantitative Code Execution Sandbox
 
-**Branch**: `codex/v3-sandbox-provider-acceptance-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-tasks-3-2-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
 **SRS IDs in Scope**: FR-GC-08; FR-GC-01/02/03/06, FR-SI-03/05, FR-WM-04/05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #2
 **Input**: `specs/010-code-execution-sandbox/spec.md`
@@ -9,7 +9,7 @@
 
 Extend grounded chat with a bounded Python execution tool over immutable scoped inputs, exact Computed values, validated chart/citation publication and inspectable ordered retry traces. Consume package 3.1's C-01-compatible inputs without changing ingestion or Studio. The ADK agent decides when to compute; a deterministic controller enforces execution/security/retry rules. Accepted clarifications require a focused follow-up before ambiguous statistical calculations and preservation/display of both retry attempts.
 
-**Planning status: complete through Phase 1 design.** D18 records the owner's superseding acceptance of the managed default 2 vCPU / 1.5 GB profile. The primary path is Agent Platform Code Execution over REST from TypeScript. D19 records owner acceptance of the managed service and makes the separate R6 qualification gate obsolete. Normal application integration and release tests remain; no new runtime measurements are claimed. No implementation or tasks are generated.
+**Planning status: complete through Phase 1 design.** D18 records the owner's superseding acceptance of the managed default 2 vCPU / 1.5 GB profile. The primary path is Agent Platform Code Execution over REST from TypeScript. D19 records owner acceptance of the managed service and makes the separate R6 qualification gate obsolete. Normal application integration and release tests remain; no new runtime measurements are claimed. Tasks are now generated in tasks.md; no implementation is performed.
 
 ## Technical Context (FR-GC-08, C-01/C-02, NFR-SEC-01/02)
 
@@ -40,7 +40,7 @@ Statuses refer to design review, not deployed acceptance. D18 resolves the forme
 
 ## Project Structure (FR-GC-08, FR-GC-06)
 
-Artifacts: plan.md, research.md, r6-feasibility.md, data-model.md, contracts/interfaces.md, quickstart.md beside existing spec/checklist. No tasks.md created.
+Artifacts: plan.md, research.md, r6-feasibility.md, data-model.md, contracts/interfaces.md, quickstart.md beside existing spec/checklist. tasks.md supplies the test-first implementation sequence.
 
 Exact intended implementation boundaries (verified against main dc25c46):
 
@@ -83,7 +83,7 @@ D18 and the SRS amendment approve the CPU/RAM change only. This changes project 
 
 Use current `chunks` retrieval and snapshot verification, not an obsolete fixture-only baseline. Default retrieval limit is 12; whole-table computations require sufficient original C-02 evidence under the captured snapshot, or an honest insufficiency response. Expand evidence only behind C-02 and update the verified citation universe with exactly those supplied inputs; never read raw storage as a shortcut. Serialize contracts/schema and migrations after 3.1; retain D15 canonical text publication and reject stale source revision inputs. D16/specs/013 now persists v2 records and closes DEV-04; it does not provide durable sandbox admission or provider cleanup. Main's `VisibleMessage`, web `ChatMessage` and v2 `configureChatMessageReader` are separate real projections; all trace-aware consumers must be updated together, without leaking hidden traces into save-note/feedback paths. Existing v2 behavior remains compatible.
 
-Static review passes CC-01..08 under Constitution 2.0.0 before research and after the refreshed design. These are design conclusions, not runtime/security/eval passes. Release candidate judged evidence is one fixed stratified 50-case run with dataset hash, IDs and composition; deterministic PR checks remain required. No tasks or implementation are included.
+Static review passes CC-01..08 under Constitution 2.0.0 before research and after the refreshed design. These are design conclusions, not runtime/security/eval passes. Release candidate judged evidence is one fixed stratified 50-case run with dataset hash, IDs and composition; deterministic PR checks remain required. tasks.md is included; no implementation is performed.
 
 ## Second main refresh: persisted v2 baseline (2026-10-21; FR-GC-08, FR-GC-06, C-02)
 
@@ -97,4 +97,16 @@ Final baseline `ce3626b` (FR-GC-08, CC-08): Node 26 is selected by current works
 
 ## Owner-accepted managed dependency (2026-10-22; FR-GC-08, D19)
 
-The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision. Task generation may proceed without an R6 spike or admission task.
+The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision. Task generation proceeds without an R6 spike or admission task.
+
+## Task-generation integration refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02, CC-01/02)
+
+The numbered migration is reserved as `packages/db/migrations/0010_code_execution.sql`, after package3.1's planned0009. New DB operations live in `packages/db/src/code-execution.ts`; existing `chat-history.ts`, `cleanup.ts` and `index.ts` carry projection, clear and cleanup integration. Do not alter applied0001–0008 or predecessor0009.
+
+Exact new API implementation files are `apps/api/src/chat/execution/{runtime,manifest,controller,output,reconcile}.ts` and `apps/api/src/routes/chat-charts.ts`; these extend the existing service/model/draft/verifier/prompt and app/server boundaries. The accepted parent-runtime module uses `infra/modules/code_execution/{main,variables,outputs}.tf`, `infra/modules/code_execution/tests/runtime_policy.tftest.hcl`, dev module composition and existing compute/project-services/IAM ports; no apply/API enablement occurs during task generation. Browser tests live under the configured `apps/web/test/` directory, never an undiscovered top-level tests/e2e path.
+
+Planned API test files under `apps/api/test/` are `code-execution.test.ts`, `code-execution-runtime.test.ts`, `code-execution-runtime.integration.test.ts`, `code-execution-manifest.test.ts`, `code-execution-model.test.ts`, `code-execution-output.test.ts`, `code-execution-retry.test.ts`, `code-execution-recovery.test.ts`, `code-execution-scope.test.ts`, `code-execution-v2-compatibility.test.ts` and `chat-charts.test.ts`. DB tests under `packages/db/test/` are `code-execution.integration.test.ts`, `code-execution-recovery.integration.test.ts`, `code-execution-history.integration.test.ts`; web tests under `apps/web/test/` are `code-execution.test.ts`, `code-execution.spec.ts`, `code-execution-retry.test.ts`, `code-execution-history.spec.ts`. Shared fixtures are `packages/evals/src/fixtures/code-execution.ts`; unit/contract discovery uses existing Vitest projects, and new API pure-unit tests must be registered in its unit list rather than silently needing a database.
+
+Eval files are `packages/evals/test/code-execution.eval.test.ts` and `packages/evals/test/code-execution-performance.test.ts`; benchmark runner `scripts/eval-v3-code-execution.mjs` writes `specs/010-code-execution-sandbox/evidence/gate-v3-code-execution.md`. Freeze fixture IDs, runtime/config, sample count per cold/warm one/two-user cohort and readiness classification before collection. Compute each P95 by nearest rank `ceil(0.95*N)`; include every attempted run, assigning no completed timing to failures/timeouts and failing that cohort rather than silently dropping them. Empty/insufficient declared samples mean UNAVAILABLE. Every successful cohort must satisfy create→completion≤4.0sP95 and sufficient-intent submission→real-running≤2.5s; retry time/attempts are separately retained, no reset and no claim of standard answer TTFT. This is normal package validation, not R6 qualification.
+
+Cache/history coverage explicitly tests notebook/exact source revisions/effective authorization/output language/generation parameters and eligible-history exclusion. No new execution-result cache is required; any caching used by the integration must obey these keys and invalidation. A request rejected before allocating execution has no trace. If an allocated execution fails before any actual code attempt, persist Failed with zero attempts, null final_attempt_id and empty published_artifact_ids; after execution begins retain1–2 actual attempts, never fabricate an attempt or exit0. Existing auth behavior is404 missing notebook/403 foreign notebook through requireOwnedNotebook.

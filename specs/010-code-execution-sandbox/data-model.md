@@ -17,8 +17,8 @@ Nullable JSONB on chat_messages; absent/null means no computation for legacy and
 | schema_version | Literal 1 |
 | execution_id | UUID; immutable |
 | state | CodeGenerating, SandboxRunning, Succeeded, TimedOut or Failed |
-| attempts | Ordered 1–2 attempt records after execution; may be empty before execution |
-| final_attempt_id | Null before terminal completion; refers to last actual attempt afterward |
+| attempts | Ordered 1–2 actual attempt records after execution begins; empty before code execution, including a terminal pre-execution failure |
+| final_attempt_id | Null before terminal completion and for terminal pre-execution failure with zero attempts; otherwise the last actual attempt |
 | published_artifact_ids | Only artifacts from a successful final attempt, empty on refusal/failure |
 | failure_code | Nullable safe enum defined in contracts/interfaces.md |
 
@@ -43,3 +43,7 @@ Main persists chat via `StoredMessage`/`MESSAGE_COLUMNS`/`publishTurn` and expos
 ## Persisted v2 compatibility (second refresh; FR-GC-08, FR-GC-06, NFR-EVAL-04)
 
 Migrations 0005–0008 are applied baseline, not future sandbox work. Add sandbox records after the current migration tail and package 3.1 integration without rewriting existing tables. V2 feedback/follow-ups are durable and have no message foreign key; `clearThread` explicitly deletes them in its transaction. Extend this same clear/publication boundary for traces and artifact invalidation; do not assume cascades remove every dependent record. V2 store consumers use the owning app's async pool scope, while chat SQL retains its injected pool. Persisted configuration/feedback and restart-safe reports do not imply an existing execution lease or reconciler.
+
+## Pre-execution terminal result (FR-GC-08, FR-GC-06)
+
+A request rejected before allocation, including unresolved statistical intent, has no execution trace. Once an execution_id is allocated, a terminal code-generation/provider-creation failure before any actual execute attempt is Failed with attempts:[], final_attempt_id:null and published_artifact_ids:[]. No exit_code or fictitious success/attempt is invented. An execute accepted with unknown outcome is an actual attempt with nullable exit_code and requires reconciliation without replay.
