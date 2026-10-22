@@ -136,15 +136,15 @@ variable "deletion_protection" {
 }
 
 variable "enable_email_password_sign_in" {
-  description = "Dev PoC: Identity Platform email/password sign-in (owner decision 2026-10-20; replaced by Google sign-in on 2026-10-22)."
+  description = "Dev PoC: Identity Platform email/password sign-in (owner decision 2026-10-20; kept alongside Google sign-in, 2026-10-22)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_google_sign_in" {
   description = "Dev PoC: Google sign-in for stakeholders (owner decision 2026-10-22). Needs the OAuth client ID and secret."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "google_oauth_client_id" {

@@ -88,7 +88,7 @@ Every resource provisioned by `infra/stacks/v1_foundation` maps directly to an S
 | `project_services` | `google_project_service.v1_apis` | Activates required v1.0 GCP APIs (`run`, `cloudbuild`, `artifactregistry`, `storage`, `cloudtrace`, `logging`, `monitoring`, `aiplatform`, `sqladmin`, `cloudtasks`, `secretmanager`, `identitytoolkit`, `documentai`, `iam`, `iamcredentials`) only when `enable_project_services = true`. | `D3`, `D14`, Constitution Principle VI |
 | `iam_identity` | `google_service_account.{api,worker,tasks_invoker,ci_deployer}`, `google_project_iam_member.*` | Dedicated least-privilege runtime identities for `everlast-api`, `everlast-worker`, Cloud Tasks OIDC invocation, and keyless GitHub Actions deployment. | `D3`, `D6`, `NFR-SEC-01`, `NFR-SEC-02` |
 | `iam_identity` | `google_identity_platform_config.auth` | Configures Google Cloud Identity Platform in the target project with authorized OIDC callback domains. | `D6`, `FR-WM-01`, `NFR-SEC-02` |
-| `iam_identity` | `google_identity_platform_default_supported_idp_config.google` | Dev PoC only (`enable_google_sign_in`): Google as the Identity Platform sign-in provider; the web app then shows "Sign in with Google" (popup) and email/password stays off. | `D6`, `FR-WM-01` |
+| `iam_identity` | `google_identity_platform_default_supported_idp_config.google` | Dev PoC only (`enable_google_sign_in`): Google as an Identity Platform sign-in provider; the web app then shows "Sign in with Google" (popup), alongside email/password when that is on. | `D6`, `FR-WM-01` |
 | `iam_identity` | `google_iam_workload_identity_pool.github`, `google_iam_workload_identity_pool_provider.github_oidc` | Keyless OIDC federation for GitHub Actions CI/CD restricted to `var.github_repository`. | `D3`, `NFR-SEC-01` |
 | `storage_secrets` | `google_storage_bucket.workspace` | Regional (`EUROPE-WEST4`) bucket with uniform bucket-level access, enforced public access prevention, object versioning, CORS for direct browser signed-URL uploads (`200 MB = 200,000,000 bytes`), and `tmp/uploads/` cleanup lifecycle rule. | `D3`, `FR-WM-04`, `FR-SI-01`, `FR-SI-05`, `NFR-SEC-01`, `NFR-SEC-03` |
 | `storage_secrets` | `google_artifact_registry_repository.containers` | Regional (`europe-west4`) Docker repository for `everlast-api` and `everlast-worker` images. | `D3` |
@@ -240,13 +240,15 @@ Because `storage_secrets` creates **regional** secrets (`google_secret_manager_r
 
 ### 4.5 Google Sign-In (Dev PoC)
 
-Owner decision 2026-10-22: dev sign-in uses Google accounts instead of Identity Platform email/password.
-Staging and prod keep corporate OIDC/SAML (`D6`).
+Owner decision 2026-10-22: dev offers Google sign-in alongside Identity Platform email/password. Email/password is
+on by default (`enable_email_password_sign_in = true`); Google is off until its OAuth client exists. With both on,
+the sign-in page shows a "Sign in with Google" button above the email/password form
+(`IDENTITY_PLATFORM_PROVIDER_ID=google.com,password`). Staging and prod keep corporate OIDC/SAML (`D6`).
 
 1. In the console, open **Google Auth Platform** for the project:
    - **Branding:** app name and support email.
-   - **Audience:** External. In **Testing** mode only the listed test users (up to 100) can sign in, which is the
-     simplest allowlist for the PoC. In **Production** mode any Google account can create an account.
+   - **Audience:** External. In **Testing** mode only the listed test users (up to 100) can sign in with Google. In
+     **Production** mode any Google account can create an account.
    - **Clients → Create client → Web application:** add the app origin (for example
      `https://everlast-dev-api-865450204790.europe-west4.run.app`) under *Authorized JavaScript origins*, and
      `https://lukas-gcloud-playground.firebaseapp.com/__/auth/handler` under *Authorized redirect URIs*.
@@ -257,12 +259,13 @@ Staging and prod keep corporate OIDC/SAML (`D6`).
    google_oauth_client_secret = "<client-secret>"
    ```
    With `enable_google_sign_in = true` and no client ID or secret, `tofu plan` stops with a precondition error.
-3. `tofu plan` / `tofu apply`. The plan adds `google_identity_platform_default_supported_idp_config.google`, turns
-   email/password off, and sets `IDENTITY_PLATFORM_PROVIDER_ID=google.com` on the API service.
+3. `tofu plan` / `tofu apply`. The plan adds `google_identity_platform_default_supported_idp_config.google` and sets
+   `IDENTITY_PLATFORM_PROVIDER_ID=google.com,password` on the API service.
 
-The web app signs in with a popup, so it works on the `run.app` URL and needs no custom domain or auth proxy. For a
-custom domain, add it to `authorized_domains` and to the client's JavaScript origins. Existing email/password
-accounts stay in Identity Platform but can no longer sign in.
+Google sign-in uses a popup, so it works on the `run.app` URL and needs no custom domain or auth proxy. For a custom
+domain, add it to `authorized_domains` and to the client's JavaScript origins. To drop email/password later, set
+`enable_email_password_sign_in = false`. Existing password accounts then stay in Identity Platform but can no longer
+sign in. Email/password keeps open self-registration; restrict it before sharing the link more widely.
 
 ---
 

@@ -111,7 +111,7 @@ resource "google_identity_platform_config" "auth" {
   authorized_domains = var.authorized_domains
 }
 
-# Dev PoC (owner decision 2026-10-22): Google sign-in replaces email/password. The OAuth web client lives in
+# Dev PoC (owner decision 2026-10-22): Google sign-in alongside email/password. The OAuth web client lives in
 # Google Auth Platform; its redirect URI is https://<project>.firebaseapp.com/__/auth/handler.
 resource "google_identity_platform_default_supported_idp_config" "google" {
   count         = var.enable_identity_platform && var.enable_google_sign_in ? 1 : 0

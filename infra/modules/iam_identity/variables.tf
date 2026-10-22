@@ -50,7 +50,7 @@ variable "enable_email_password_sign_in" {
 }
 
 variable "enable_google_sign_in" {
-  description = "Enable Google as an Identity Platform sign-in provider (dev PoC, owner decision 2026-10-22; D6 keeps OIDC/SAML for staging/prod)."
+  description = "Enable Google as an Identity Platform sign-in provider, alongside email/password if that is on (dev PoC, owner decision 2026-10-22; D6 keeps OIDC/SAML for staging/prod)."
   type        = bool
   default     = false
 }

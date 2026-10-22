@@ -157,7 +157,7 @@ variable "enable_email_password_sign_in" {
 }
 
 variable "enable_google_sign_in" {
-  description = "Enable Google sign-in and use it as the web sign-in method; takes precedence over email/password (dev PoC only)."
+  description = "Enable Google sign-in as a web sign-in method; combines with email/password when both are on (dev PoC only)."
   type        = bool
   default     = false
 }
