@@ -1,6 +1,6 @@
 # Feature Specification: Long-Context and Latency Scaling
 
-**Feature Branch**: `codex/v3-tasks-3-4-20261022`
+**Feature Branch**: `codex/v3-tasks-analysis-pr-20261022`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`

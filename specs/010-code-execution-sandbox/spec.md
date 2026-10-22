@@ -1,6 +1,6 @@
 # Feature Specification: Quantitative Code Execution Sandbox
 
-**Feature Branch**: `codex/v3-refresh-final-3-2-20261021`
+**Feature Branch**: `codex/v3-tasks-analysis-pr-20261022`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`

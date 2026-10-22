@@ -1,6 +1,6 @@
 # Implementation Plan: Studio Mindmaps & Data Tables
 
-**Branch**: `codex/v3-tasks-3-3-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-tasks-analysis-pr-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md`
 **SRS IDs in Scope**: `FR-ST-08/09/18`, `C-01/C-02/C-03`, `FR-SI-03/05`, `FR-GC-01/02/06`, `NFR-SEC-01/02`, `NFR-EVAL-01..04` | **Release Gate**: Gate v3.0 #3
 

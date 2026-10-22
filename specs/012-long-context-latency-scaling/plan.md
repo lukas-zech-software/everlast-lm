@@ -1,6 +1,6 @@
 # Implementation Plan: Long-Context and Latency Scaling
 
-**Branch**: `codex/v3-tasks-3-4-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-tasks-analysis-pr-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`
 **SRS IDs in Scope**: `NFR-PERF-01`, supporting `C-01/C-02/C-03`, `FR-SI-01/02/03/05`, `FR-GC-01/02/06/08`, `FR-WM-04/07`, `NFR-SEC-01/02`, `NFR-EVAL-01..04` | **Release Gate**: Gate v3.0 #3 capacity component
 

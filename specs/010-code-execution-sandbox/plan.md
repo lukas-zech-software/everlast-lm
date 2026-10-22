@@ -1,6 +1,6 @@
 # Implementation Plan: Quantitative Code Execution Sandbox
 
-**Branch**: `codex/v3-tasks-3-2-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-tasks-analysis-pr-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_2_code_execution_sandbox.md`
 **SRS IDs in Scope**: FR-GC-08; FR-GC-01/02/03/06, FR-SI-03/05, FR-WM-04/05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04 | **Release Gate**: Gate v3.0 #2
 **Input**: `specs/010-code-execution-sandbox/spec.md`

@@ -1,6 +1,6 @@
 # Feature Specification: Multimodal Ingestion & Sync
 
-**Feature Branch**: `codex/v3-refresh2-3-1-20261021`
+**Feature Branch**: `codex/v3-tasks-analysis-pr-20261022`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md`

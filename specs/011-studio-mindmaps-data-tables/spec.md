@@ -1,6 +1,6 @@
 # Feature Specification: Studio Mindmaps and Data Tables
 
-**Feature Branch**: `codex/v3-refresh2-3-3-20261021`
+**Feature Branch**: `codex/v3-tasks-analysis-pr-20261022`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md`
