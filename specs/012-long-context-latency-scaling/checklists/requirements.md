@@ -38,4 +38,4 @@
 - Specification verification passed: `node scripts/check-spec-integrity.mjs` and `git diff --check`. This is document validation, not runtime proof of latency or eval metrics. Runtime tests/evals were not run for this specification-only change; no performance or release-gate pass is claimed.
 - Ready for `$speckit-plan`; `$speckit-clarify` is unnecessary unless new high-impact ambiguity appears. Planning must declare benchmark fixtures/environment and measurement method without weakening the card thresholds.
 
-- Second-main refresh (2026-10-21): revalidated all16 criteria after specs/013 persistence/DEV-04 closure. Spec retains numeric criteria and technology-neutral recovery obligations; planning details remain in plan/research. No new product ambiguity or checkbox change; custom38 questions remain reviewer-owned and unchecked.
+- Second-main refresh (2026-10-21): revalidated all 16 criteria after specs/013 persistence/DEV-04 closure. Spec retains numeric criteria and technology-neutral recovery obligations; planning details remain in plan/research. No new product ambiguity or checkbox change; custom 38 questions remain reviewer-owned and unchecked.

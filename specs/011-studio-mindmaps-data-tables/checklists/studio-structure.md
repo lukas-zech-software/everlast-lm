@@ -55,7 +55,7 @@
 
 ## Non-Functional Requirements
 
-- [ ] CHK025 Are requirements for keyboard access, focus management, accessible node/branch labels, table header relationships, sort announcements, and non-color evidence of disagreement defined or explicitly identified as gaps? [Coverage, Spec §Functional Requirements FR-004/005/007/016; Plan §Phase1 Design; FR-ST-09/18; Gap]
+- [ ] CHK025 Are requirements for keyboard access, focus management, accessible node/branch labels, table header relationships, sort announcements, and non-color evidence of disagreement defined or explicitly identified as gaps? [Coverage, Spec §Functional Requirements FR-004/005/007/016; Plan §Phase 1 Design; FR-ST-09/18; Gap]
 - [ ] CHK026 Are spreadsheet safety requirements complete for dangerous prefixes, whitespace/control bypasses, headers, item labels, conflicting alternatives, and preservation of canonical values? [Completeness, Spec §Functional Requirements FR-009; §Planning Refinements; Contracts §Exports; FR-ST-18]
 - [ ] CHK027 Are image-export requirements explicit about self-contained safe content, prohibited active/external content, final file format, and absence of misleading or cropped substitutes? [Completeness, Spec §Planning Refinements; Contracts §Exports; FR-ST-09, NFR-SEC-02]
 - [ ] CHK028 Are residency, no-training handling, authorized historical export, and the distinction between AI-generated content and structural illustration documented without overstating retention or revocation guarantees? [Clarity, Spec §Source Traceability & Package Scope—Data Residency; §Functional Requirements FR-014; Contracts §Exports; NFR-SEC-01/02]
@@ -85,11 +85,11 @@
 - [ ] CHK035 Are evaluation frequency, release sample provenance and the limited meaning of the inherited Gate v2 override distinguished from measured v3 runtime acceptance? [Clarity, Spec §Planning Refinements; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04, CC-06]
 - [ ] CHK036 Are historical unavailable-state requirements complete for source-derived list titles and cached export metadata as well as artifact payloads? [Coverage, Spec §Edge Cases—History and exports; Contracts §Studio admission and lifecycle; FR-ST-09/18, NFR-SEC-02]
 
-These four refresh questions are appended to the preserved32 questions, remain unchecked, and are not a reviewer evaluation of requirements quality.
+These four refresh questions are appended to the preserved 32 questions, remain unchecked, and are not a reviewer evaluation of requirements quality.
 
 ## Second latest-main refresh — 2026-10-21
 
 - [ ] CHK037 Are legacy interrupted-report failure and explicit retry distinguished from new-plugin durable recovery, including which attempts the startup sweep may affect and how rollout prevents stale completion? [Consistency, Spec §Functional Requirements FR-017; Data Model §Shared Studio envelope; C-03, FR-ST-10/11, D16/specs/013]
-- [ ] CHK038 Are app-scoped database selection and the retained single-API deployment constraint explicit for requests and asynchronous continuations, without presenting PostgreSQL persistence as proof of multi-instance job recovery? [Completeness, Plan §Phase1 Design; Contracts §Studio admission and lifecycle; C-03, NFR-SEC-02, D16]
+- [ ] CHK038 Are app-scoped database selection and the retained single-API deployment constraint explicit for requests and asynchronous continuations, without presenting PostgreSQL persistence as proof of multi-instance job recovery? [Completeness, Plan §Phase 1 Design; Contracts §Studio admission and lifecycle; C-03, NFR-SEC-02, D16]
 
-The original36 items remain unchanged and unchecked. These two delta questions are also unchecked; this refresh does not evaluate reviewer-owned criteria. CHK033 now refers to a closed exception and applied0008, as explained in the current plan.
+The original 36 items remain unchanged and unchecked. These two delta questions are also unchecked; this refresh does not evaluate reviewer-owned criteria. CHK033 now refers to a closed exception and applied 0008, as explained in the current plan.

@@ -120,7 +120,7 @@ The project owner accepts Google's Agent Platform (Agent Engine) managed Code Ex
 
 ## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
 
-A rejected request before execution allocation has no trace. An allocated execution that fails before code submission records Failed with zero actual attempts, null final attempt and no published artifacts, without inventing execution or exit0. An unknown result after actual submission retains its real attempt and reconciles without replay. Timing evidence fixes fixture/runtime/cohort sample counts before collection, uses nearest-rank P95, retains all attempts and fails cohorts containing failed/time-out samples; missing samples are UNAVAILABLE. Existing scope/cache/history and404 missing/403 foreign notebook authorization rules remain. D19 remains in force: these are normal integration/release requirements, not a separate R6 qualification.
+A rejected request before execution allocation has no trace. An allocated execution that fails before code submission records Failed with zero actual attempts, null final attempt and no published artifacts, without inventing execution or exit 0. An unknown result after actual submission retains its real attempt and reconciles without replay. Timing evidence fixes fixture/runtime/cohort sample counts before collection, uses nearest-rank P95, retains all attempts and fails cohorts containing failed/time-out samples; missing samples are UNAVAILABLE. Existing scope/cache/history and 404 missing/403 foreign notebook authorization rules remain. D19 remains in force: these are normal integration/release requirements, not a separate R6 qualification.
 
 ## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
 

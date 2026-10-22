@@ -18,10 +18,10 @@
 
 ## Requirement Clarity
 
-- [ ] CHK005 Is TTFT unambiguously defined from client submission to receipt of the first validated factual answer token, including waiting and validation overhead and excluding progress indicators? [Clarity, Spec FR-005; §Planning Refinements; Plan §Phase1 Design item 6; NFR-PERF-01, FR-GC-02, D13]
+- [ ] CHK005 Is TTFT unambiguously defined from client submission to receipt of the first validated factual answer token, including waiting and validation overhead and excluding progress indicators? [Clarity, Spec FR-005; §Planning Refinements; Plan §Phase 1 Design item 6; NFR-PERF-01, FR-GC-02, D13]
 - [ ] CHK006 Is warm-service eligibility defined prospectively from serving-instance readiness evidence, with clock uncertainty and unknown classification distinguished from response speed? [Clarity, Spec §Planning Refinements; Contracts §Evaluation output contract; NFR-PERF-01, D17/DEV-05]
-- [ ] CHK007 Are source-token volume and the total model-envelope allowance distinguished, including overhead at the inclusive million-token full-source boundary? [Clarity, Spec FR-004; §Planning Refinements; Plan §Phase1 Design items 3–4; NFR-PERF-01, C-03]
-- [ ] CHK008 Are broad-query routing obligations distinguished from detailed evidence retrieval, with a clear outcome when the required guides or evidence exceed the available context budget? [Clarity, Spec FR-002/003; Plan §Phase1 Design item 3; NFR-PERF-01, FR-SI-02, C-02]
+- [ ] CHK007 Are source-token volume and the total model-envelope allowance distinguished, including overhead at the inclusive million-token full-source boundary? [Clarity, Spec FR-004; §Planning Refinements; Plan §Phase 1 Design items 3–4; NFR-PERF-01, C-03]
+- [ ] CHK008 Are broad-query routing obligations distinguished from detailed evidence retrieval, with a clear outcome when the required guides or evidence exceed the available context budget? [Clarity, Spec FR-002/003; Plan §Phase 1 Design item 3; NFR-PERF-01, FR-SI-02, C-02]
 
 ## Requirement Consistency
 
@@ -32,7 +32,7 @@
 ## Acceptance Criteria Quality
 
 - [ ] CHK012 Is the P95 definition objective about the fixed 20-warm-run sample, nearest-rank estimator, 19th sorted value and inclusive 2,500 ms threshold? [Measurability, Spec SC-002; §Planning Refinements; Contracts §Evaluation output contract; NFR-PERF-01]
-- [ ] CHK013 Are failed, missing, refused and cancelled outcomes defined so they cannot become successful factual timestamps or disappear from acceptance reporting? [Measurability, Plan §Phase1 Design items 6–7; Contracts §Existing user API and transport; §Evaluation output contract; NFR-PERF-01, NFR-EVAL-02/03]
+- [ ] CHK013 Are failed, missing, refused and cancelled outcomes defined so they cannot become successful factual timestamps or disappear from acceptance reporting? [Measurability, Plan §Phase 1 Design items 6–7; Contracts §Existing user API and transport; §Evaluation output contract; NFR-PERF-01, NFR-EVAL-02/03]
 - [ ] CHK014 Are all attempted submissions retained, with a declared wake-cohort replacement rule and finite attempt cap, so the fixed acceptance sample cannot be favorably selected? [Measurability, Contracts §Evaluation output contract; Spec §Planning Refinements; NFR-PERF-01, D17/DEV-05]
 - [ ] CHK015 Are latency, exact needle/citation correctness and zero decoy leakage conjunctive acceptance criteria, rather than interchangeable measures of success? [Acceptance Criteria, Spec SC-002/003; §User Story 1 Scenario 1; NFR-PERF-01, NFR-EVAL-02/04]
 - [ ] CHK016 Are evidence-coverage criteria objectively stated for every original chunk and any subdivisions, including treatment of missing or duplicated coverage records? [Measurability, Spec FR-004; §Planning Refinements; Plan §Test Strategy and Evidence; NFR-PERF-01, C-01/C-03]
@@ -42,13 +42,13 @@
 - [ ] CHK017 Are precise-fact questions, broad 40-source synthesis and detailed follow-ups each covered by distinct evidence-selection requirements? [Coverage, Spec §User Stories 1–2; FR-002/003; NFR-PERF-01, FR-SI-02, FR-GC-01/02]
 - [ ] CHK018 Are separate wake-up, two-Owner concurrency and 300-source scenarios specified without redefining the core sequential acceptance population? [Coverage, Spec §Planning Refinements; Contracts §Evaluation output contract; NFR-PERF-01, FR-WM-04/07]
 - [ ] CHK019 Are unsupported questions and invalid citations covered by explicit refusal requirements that prohibit publication of unvalidated or stripped-citation drafts? [Coverage, Spec §User Story 1 Scenarios 2–3; FR-008; NFR-EVAL-01/02/03, FR-GC-02]
-- [ ] CHK020 Are cache expiry, cache misses and insufficient evidence addressed by explicit recovery requirements that retain the authorized original scope and forbid invented padding? [Coverage, Spec §Edge Cases; FR-007/009; Plan §Phase1 Design item 5; C-02/C-03, NFR-EVAL-03/04]
+- [ ] CHK020 Are cache expiry, cache misses and insufficient evidence addressed by explicit recovery requirements that retain the authorized original scope and forbid invented padding? [Coverage, Spec §Edge Cases; FR-007/009; Plan §Phase 1 Design item 5; C-02/C-03, NFR-EVAL-03/04]
 
 ## Edge Case Coverage
 
 - [ ] CHK021 Are the below, equal-to and above one-million-token boundaries specified alongside over-budget individual evidence units and unavailable model capacity? [Edge Case, Spec FR-004; §Planning Refinements; Plan §Test Strategy and Evidence; NFR-PERF-01, C-03]
 - [ ] CHK022 Are empty selections, later selection changes, replacement, deletion and authorization loss distinguished with explicit snapshot and publication consequences? [Edge Case, Spec §Edge Cases; FR-006; SC-005; C-02/C-03, FR-SI-03/05, NFR-SEC-02]
-- [ ] CHK023 Are sparse scoped evidence, missing required guides and insufficient context budget addressed without allowing scope expansion or silent truncation? [Edge Case, Plan §Phase1 Design items 2–3; Contracts §Request-bound C-02 integration; NFR-PERF-01, C-02, NFR-EVAL-04]
+- [ ] CHK023 Are sparse scoped evidence, missing required guides and insufficient context budget addressed without allowing scope expansion or silent truncation? [Edge Case, Plan §Phase 1 Design items 2–3; Contracts §Request-bound C-02 integration; NFR-PERF-01, C-02, NFR-EVAL-04]
 - [ ] CHK024 Are unknown readiness evidence, incomplete warm samples and absent quality-metric denominators assigned explicit unavailable or failing outcomes? [Edge Case, Contracts §Evaluation output contract; Plan §Test Strategy and Evidence; NFR-PERF-01, NFR-EVAL-01..04]
 
 ## Non-Functional Requirements

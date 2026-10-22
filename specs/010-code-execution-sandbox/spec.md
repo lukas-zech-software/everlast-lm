@@ -181,7 +181,7 @@ The project owner accepts Google's Agent Platform (Agent Engine) managed Code Ex
 
 ## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
 
-Ordinary code timing evidence declares fixture/environment/cohort sample counts before measurement, retains every attempted run and fails any cohort containing failed/timed-out attempts; missing declared samples are unavailable evidence. Cold/warm boot-plus-execution uses nearest-rank P95 and progress keeps the sufficient-intent submission clock. Cache/history tests retain exact notebook/revision/authorization/language/parameter keys and current-scope eligibility. Existing notebook authorization keeps missing404 and foreign403 status semantics; no extra source access follows from a status response.
+Ordinary code timing evidence declares fixture/environment/cohort sample counts before measurement, retains every attempted run and fails any cohort containing failed/timed-out attempts; missing declared samples are unavailable evidence. Cold/warm boot-plus-execution uses nearest-rank P95 and progress keeps the sufficient-intent submission clock. Cache/history tests retain exact notebook/revision/authorization/language/parameter keys and current-scope eligibility. Existing notebook authorization keeps missing 404 and foreign 403 status semantics; no extra source access follows from a status response.
 
 ## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
 
