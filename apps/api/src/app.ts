@@ -15,6 +15,7 @@ import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
 import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
 import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
+import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
 import type { ChatService } from "./chat/service.ts";
 import type { V2Runtime } from "./v2/runtime.ts";
 
@@ -98,6 +99,7 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
   registerSourceSyncRoutes(router, deps);
   registerSourceRoutes(router, deps);
   registerConnectionRoutes(router, deps);
+  registerMediaRoutes(router, deps);
   registerChatRoutes(router, deps);
   for (const register of deps.extraRoutes ?? []) register(router, deps);
 
@@ -144,6 +146,10 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
       return sendNoContent(res);
     }
 
+    // Source media (specs/009 T030): revision-bound capability, re-authorized on every request.
+    if (url.pathname.startsWith("/media/") && method === "GET") {
+      return handleMediaRequest(deps, req, res, url.pathname.slice("/media/".length));
+    }
     // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
     if (url.pathname === "/oauth/google/callback" && method === "GET") {
       const { location, clearCookie } = await handleOAuthCallback(deps, req, url);

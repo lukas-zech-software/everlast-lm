@@ -56,8 +56,19 @@ export class CloudRunJobRenderer implements OfficeRenderer {
     return res.data;
   }
 
-  /** Runs one conversion: `office-to-pdf` or `audio-to-flac`, returning the output object's bytes. */
+  /** Runs one conversion and returns the output object's bytes. */
   async run(command: "office-to-pdf" | "audio-to-flac", input: { name: string; generation: string }, format: string | null): Promise<Buffer> {
+    const output = await this.runToObject(command, input, format);
+    return this.config.storage.read(output.name, output.generation);
+  }
+
+  /** Audio preprocessing for Speech V2: returns the private FLAC object (FR-SI-01). */
+  async audioToFlac(input: { name: string; generation: string }, format: "mp3" | "wav" | "m4a"): Promise<{ name: string; generation: string }> {
+    return this.runToObject("audio-to-flac", input, format);
+  }
+
+  /** Runs one conversion (`office-to-pdf` | `audio-to-flac`) and returns the output object reference. */
+  async runToObject(command: "office-to-pdf" | "audio-to-flac", input: { name: string; generation: string }, format: string | null): Promise<{ name: string; generation: string }> {
     const operationId = randomUUID();
     const dir = /^(notebooks\/[^/]+\/sources\/[^/]+)\//.exec(input.name)?.[1];
     if (!dir) throw new RenderJobError("Render input is not a source object");
@@ -83,7 +94,7 @@ export class CloudRunJobRenderer implements OfficeRenderer {
     if (op.error) throw new RenderJobError("Render job failed");
     const meta = await this.config.storage.stat(outputObject);
     if (!meta) throw new RenderJobError("Render job produced no output");
-    return this.config.storage.read(outputObject, meta.generation);
+    return { name: outputObject, generation: meta.generation };
   }
 
   async convertToPdf(input: OfficeRenderInput): Promise<Buffer> {

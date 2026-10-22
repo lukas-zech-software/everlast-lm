@@ -264,9 +264,6 @@ importers:
       '@everlast/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit
-      '@types/jsdom':
-        specifier: ^21.1.7
-        version: 21.1.7
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2

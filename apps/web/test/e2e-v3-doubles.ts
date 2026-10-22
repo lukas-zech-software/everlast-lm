@@ -3,7 +3,10 @@ import { createDriveAdapter, type DriveApi } from "@everlast/worker/ingestion/dr
 import { createOfficeAdapter } from "@everlast/worker/ingestion/office";
 import type { AdapterKey, SourceAdapter } from "@everlast/worker/ingestion/pipeline";
 import type { ContentScreener } from "@everlast/worker/ingestion/screening";
-import { driveSlidesExportFixture, PROMPT_INJECTION_TEXT } from "@everlast/testkit/multimodal-fixtures";
+import { createWebAdapter, type Transport } from "@everlast/worker/ingestion/web";
+import { createAudioAdapter, createVideoAdapter, type Transcriber } from "@everlast/worker/ingestion/media";
+import type { ObjectStorage } from "@everlast/cloud";
+import { articleHtml, driveSlidesExportFixture, interviewWords, PROMPT_INJECTION_TEXT, roadmapHtml } from "@everlast/testkit/multimodal-fixtures";
 
 /**
  * TEST-ONLY doubles for the package 3.1 browser journeys (specs/009). Clearly labelled stand-ins for external
@@ -30,8 +33,37 @@ export const e2eScreener: ContentScreener = {
   screen: async (texts) => (texts.some((t) => t.includes(PROMPT_INJECTION_TEXT)) ? { verdict: "quarantined", reason: "pi_and_jailbreak" } : { verdict: "clean" }),
 };
 
-export function e2eAdapters(): Partial<Record<AdapterKey, SourceAdapter>> {
+/** Mutable fixture "internet": the SSRF guard and Readability are real; only DNS and sockets are doubles. */
+export const e2eWebPages = new Map<string, { status: number; body: string }>([
+  ["https://news.example.test/articles/depot-automation", { status: 200, body: articleHtml() }],
+  ["https://news.example.test/forbidden", { status: 403, body: "Forbidden" }],
+  ["https://intranet.example.test/roadmap", { status: 200, body: roadmapHtml("May") }],
+]);
+
+const e2eTransport: Transport = {
+  async request(req) {
+    const page = e2eWebPages.get(req.url.toString()) ?? { status: 404, body: "Not found" };
+    return { status: page.status, headers: { "content-type": "text/html; charset=utf-8" }, body: (async function* () { yield Buffer.from(page.body); })() };
+  },
+};
+
+export const e2eWeb = {
+  resolver: { lookup: async () => [{ address: "93.184.216.34", family: 4 }] },
+  transport: e2eTransport,
+  policy: { privateNetworks: [], allowedPrivateHosts: [] },
+};
+
+/** Labelled Speech-to-Text double: the fixture Interview transcript, cut to the declared duration when known. */
+export const e2eTranscriber: Transcriber = {
+  name: "e2e-fixture-asr",
+  transcribe: async ({ durationMs }) => ({ words: interviewWords().filter((w) => durationMs === null || w.end_ms <= durationMs) }),
+};
+
+export function e2eAdapters(storage: ObjectStorage): Partial<Record<AdapterKey, SourceAdapter>> {
   return {
+    audio: createAudioAdapter({ transcriber: e2eTranscriber }),
+    video: createVideoAdapter({ transcriber: e2eTranscriber, web: e2eWeb, storage }),
+    web: createWebAdapter(e2eWeb),
     office: createOfficeAdapter({}),
     drive: createDriveAdapter({ api: e2eDrive, tokens: { accessToken: async () => "e2e-user-token" }, office: {} }),
   };

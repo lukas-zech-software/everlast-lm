@@ -51,7 +51,7 @@ export async function startE2eServer(port: number) {
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   // Package 3.1 (specs/009): real Office normalization + labelled provider doubles (Drive, consent, screening).
   const worker = createWorkerHandler(
-    { pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, adapters: e2eAdapters(), screener: e2eScreener },
+    { pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, adapters: e2eAdapters(storage), screener: e2eScreener },
     { NODE_ENV: "test" }
   );
   let pending: Promise<unknown> = Promise.resolve();

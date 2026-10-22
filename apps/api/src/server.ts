@@ -9,6 +9,7 @@ import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmb
 import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
+import { GoogleDelegationBroker } from "./routes/connections.ts";
 import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
 import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
 import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
@@ -129,9 +130,20 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           ...(v2 ? { resolvePreferences: (ownerId: string, notebookId: string, locale?: string) => v2.chatPreferences(ownerId, notebookId, locale) } : {}),
         })
       : undefined);
+  // Delegated Drive access (D11, specs/009): only with an owner-registered OAuth client; the secret is mounted.
+  const delegationBroker =
+    env.GOOGLE_OAUTH_CLIENT_ID && env.DELEGATED_OAUTH_CLIENT_SECRET && env.PUBLIC_BASE_URL && (env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)
+      ? new GoogleDelegationBroker({
+          clientId: env.GOOGLE_OAUTH_CLIENT_ID,
+          clientSecret: async () => env.DELEGATED_OAUTH_CLIENT_SECRET!,
+          redirectUri: new URL("/oauth/google/callback", env.PUBLIC_BASE_URL).toString(),
+          projectId: (env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)!,
+        })
+      : undefined;
   const deps: AppDeps = {
     pool,
     config,
+    delegationBroker,
     verifier,
     localIssuer,
     storage,

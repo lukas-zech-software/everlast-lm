@@ -2,8 +2,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
+import { parseHtml, readArticle, type HtmlElement } from "./dom.ts";
 import { MAX_SOURCE_BYTES, WEB_EXTRACTION_FAILED_MESSAGE } from "@everlast/contracts";
 import { IngestionFailure, extractPdf, pageSection, splitLogicalPages, type CanonicalDocument, type CanonicalPage } from "./extract.ts";
 import type { NormalizedSource, SourceAdapter } from "./pipeline.ts";
@@ -144,6 +143,8 @@ export interface TransportRequest {
   family: number;
   headers: Record<string, string>;
   timeoutMs: number;
+  /** Aborted when the fetch's total wall-clock deadline passes (security review 2026-10-23). */
+  signal?: AbortSignal | undefined;
 }
 
 export interface TransportResponse {
@@ -198,6 +199,7 @@ export const nodeTransport: Transport = {
           servername: isIP(req.hostname) ? undefined : req.hostname,
           lookup: pinned as never,
           timeout: req.timeoutMs,
+          ...(req.signal ? { signal: req.signal } : {}),
         },
         (res) => {
           const headers: Record<string, string | undefined> = {};
@@ -220,7 +222,10 @@ export interface GuardedFetchOptions {
   principalAuthorized?: boolean;
   maxBytes?: number;
   maxRedirects?: number;
+  /** Per-socket idle timeout. */
   timeoutMs?: number;
+  /** Total wall-clock budget for all hops, headers and body streaming (default 60 s). */
+  deadlineMs?: number;
 }
 
 export interface FetchedResource {
@@ -251,10 +256,11 @@ async function validatedTarget(url: URL, options: GuardedFetchOptions): Promise<
   return { ...addresses[0]!, hostname };
 }
 
-async function readBounded(body: AsyncIterable<Uint8Array>, maxBytes: number): Promise<Buffer> {
+async function readBounded(body: AsyncIterable<Uint8Array>, maxBytes: number, signal?: AbortSignal): Promise<Buffer> {
   const parts: Buffer[] = [];
   let total = 0;
   for await (const chunk of body) {
+    if (signal?.aborted) throw new WebFetchError("Fetch deadline exceeded");
     total += chunk.length;
     if (total > maxBytes) {
       (body as { destroy?: () => void }).destroy?.();
@@ -268,29 +274,53 @@ async function readBounded(body: AsyncIterable<Uint8Array>, maxBytes: number): P
 export async function guardedFetch(input: string, options: GuardedFetchOptions): Promise<FetchedResource> {
   const maxRedirects = options.maxRedirects ?? 5;
   const maxBytes = options.maxBytes ?? MAX_SOURCE_BYTES;
-  let url = new URL(input);
-  for (let hop = 0; hop <= maxRedirects; hop++) {
-    const target = await validatedTarget(url, options);
-    const res = await (options.transport ?? nodeTransport).request({
-      url,
-      hostname: target.hostname,
-      address: target.address,
-      family: target.family,
-      headers: { accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.1", "user-agent": "EverlastLM-Ingestion/3.1" },
-      timeoutMs: options.timeoutMs ?? 20_000,
-    });
-    const location = res.headers.location;
-    if (res.status >= 300 && res.status < 400 && location) {
-      (res.body as { destroy?: () => void }).destroy?.();
-      url = new URL(location, url);
-      continue;
+  // One wall-clock budget for every hop, the headers and the whole body: a slow-drip server cannot stall the fetch.
+  const controller = new AbortController();
+  let current: AsyncIterable<Uint8Array> | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      (current as { destroy?: () => void } | null)?.destroy?.();
+      reject(new WebFetchError("Fetch deadline exceeded"));
+    }, options.deadlineMs ?? 60_000);
+  });
+  const run = async (): Promise<FetchedResource> => {
+    let url = new URL(input);
+    for (let hop = 0; hop <= maxRedirects; hop++) {
+      const target = await validatedTarget(url, options);
+      if (controller.signal.aborted) throw new WebFetchError("Fetch deadline exceeded");
+      const res = await (options.transport ?? nodeTransport).request({
+        url,
+        hostname: target.hostname,
+        address: target.address,
+        family: target.family,
+        headers: { accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.1", "user-agent": "EverlastLM-Ingestion/3.1" },
+        timeoutMs: options.timeoutMs ?? 20_000,
+        signal: controller.signal,
+      });
+      current = res.body;
+      const location = res.headers.location;
+      if (res.status >= 300 && res.status < 400 && location) {
+        (res.body as { destroy?: () => void }).destroy?.();
+        url = new URL(location, url);
+        continue;
+      }
+      const declared = Number(res.headers["content-length"] ?? "0");
+      if (declared > maxBytes) throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
+      const body = await readBounded(res.body, maxBytes, controller.signal);
+      return { finalUrl: url.toString(), status: res.status, contentType: (res.headers["content-type"] ?? "").toLowerCase(), body };
     }
-    const declared = Number(res.headers["content-length"] ?? "0");
-    if (declared > maxBytes) throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
-    const body = await readBounded(res.body, maxBytes);
-    return { finalUrl: url.toString(), status: res.status, contentType: (res.headers["content-type"] ?? "").toLowerCase(), body };
+    throw new WebFetchError("Too many redirects");
+  };
+  const attempt = run();
+  attempt.catch(() => undefined);
+  try {
+    return await Promise.race([attempt, deadline]);
+  } finally {
+    clearTimeout(timer);
+    controller.abort();
   }
-  throw new WebFetchError("Too many redirects");
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -310,15 +340,14 @@ const MIN_ARTICLE_WORDS = 10;
 const failExtraction = () => new IngestionFailure("WebExtractionFailed", WEB_EXTRACTION_FAILED_MESSAGE);
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
-function hasBlockDescendant(el: Element): boolean {
-  for (const child of Array.from(el.children)) if (BLOCKS.has(child.tagName) || hasBlockDescendant(child)) return true;
+function hasBlockDescendant(el: HtmlElement): boolean {
+  for (const child of Array.from(el.children as ArrayLike<HtmlElement>)) if (BLOCKS.has(child.tagName) || hasBlockDescendant(child)) return true;
   return false;
 }
 
 export function extractArticle(html: string, finalUrl: string): ExtractedArticle {
   // jsdom defaults: scripts are not executed and no subresource (img/css/script/iframe) is loaded.
-  const dom = new JSDOM(html, { url: finalUrl, contentType: "text/html" });
-  const document = dom.window.document;
+  const document = parseHtml(html, finalUrl);
   const canonicalHref = document.querySelector('link[rel~="canonical"]')?.getAttribute("href") ?? null;
   let canonicalUrl = finalUrl;
   if (canonicalHref) {
@@ -330,19 +359,19 @@ export function extractArticle(html: string, finalUrl: string): ExtractedArticle
     }
   }
   const pageTitle = squash(document.title ?? "");
-  const article = new Readability(document as unknown as Document, { charThreshold: 50 }).parse();
+  const article = readArticle(document);
   if (!article?.content) throw failExtraction();
 
-  const content = new JSDOM(`<!doctype html><body>${article.content}</body>`, { contentType: "text/html" }).window.document;
+  const content = parseHtml(`<!doctype html><body>${article.content}</body>`);
   const sectionsText: string[][] = [[]];
-  for (const el of Array.from(content.body.querySelectorAll("*"))) {
+  for (const el of Array.from(content.body.querySelectorAll("*") as ArrayLike<HtmlElement>)) {
     if (!BLOCKS.has(el.tagName)) continue;
     if (el.tagName === "TD" || el.tagName === "TH") continue; // handled as part of their row
     if (el.tagName !== "TR" && hasBlockDescendant(el)) continue;
     if (el.closest("tr") && el.tagName !== "TR") continue;
     const text =
       el.tagName === "TR"
-        ? Array.from(el.children).map((cell) => squash(cell.textContent ?? "")).filter(Boolean).join(" | ")
+        ? Array.from(el.children as ArrayLike<HtmlElement>).map((cell) => squash(cell.textContent ?? "")).filter(Boolean).join(" | ")
         : squash(el.textContent ?? "");
     if (!text) continue;
     if (NEW_SECTION.has(el.tagName) && sectionsText.at(-1)!.length > 0) sectionsText.push([]);

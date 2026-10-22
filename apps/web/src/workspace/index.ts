@@ -86,6 +86,11 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
       sources.element.hidden = false;
     },
     onOpened: (source, slot, viaCitation) => features.onSourceOpened(source, slot, viaCitation),
+    // FR-SI-05: a committed re-sync changes the revision; the list and history citations ("Source updated") refresh.
+    onSynced: () => {
+      void sources.refresh();
+      void chat.load();
+    },
   });
   const openCitation = (sourceId: string, chunkId: string) => {
     shell.revealSources();
@@ -120,6 +125,11 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
       shell.setLeftWide(true);
       sources.element.hidden = true;
       void inspector.open(sourceId, null);
+    },
+    // FR-SI-05: rename updates tooltips; removal makes history citations "Source deleted" immediately.
+    onSourceChanged: (sourceId, change) => {
+      if (change === "removed") inspector.closeIf(sourceId);
+      void chat.load();
     },
   });
   // Right Panel notes pinboard (FR-NM-01..04). A converted note becomes a v1 source: this browser selects it.

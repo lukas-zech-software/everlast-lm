@@ -17,7 +17,8 @@ module "project_services" {
 
   project_id              = var.project_id
   enable_project_services = var.enable_project_services
-  enable_model_armor      = var.enable_model_armor
+  # Model Armor is mandatory from v3 for web/synced content (Constitution VI, specs/009 T023).
+  enable_model_armor = var.enable_model_armor || var.enable_v3_ingestion
   # Package 3.1 ingestion APIs stay disabled until the project owner records approval (specs/009).
   enable_v3_ingestion_apis = var.enable_v3_ingestion
 }
@@ -32,7 +33,7 @@ module "iam_identity" {
   enable_github_wif        = var.enable_github_wif
   github_repository        = var.github_repository
   authorized_domains       = var.authorized_domains
-  enable_model_armor       = var.enable_model_armor
+  enable_model_armor       = var.enable_model_armor || var.enable_v3_ingestion
   enable_v3_ingestion      = var.enable_v3_ingestion
 
   enable_email_password_sign_in = var.enable_email_password_sign_in

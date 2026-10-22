@@ -159,6 +159,47 @@ describe("guarded fetch (FR-SI-01, NFR-SEC-02)", () => {
     expect((await guardedFetch("https://big.example.test/", { resolver: r, transport: exact, policy: OPEN, maxBytes: 100 })).body.length).toBe(100);
   });
 
+  it("SSRF-09: a total wall-clock deadline covers redirects, headers and slow-drip bodies; the stream is destroyed", async () => {
+    const r = resolver({ "slow.example.test": [PUBLIC] });
+    let destroyed = false;
+    const drip: Transport = {
+      async request(req) {
+        return {
+          status: 200,
+          headers: { "content-type": "text/html" },
+          body: Object.assign(
+            (async function* () {
+              for (;;) {
+                await new Promise((res) => setTimeout(res, 40));
+                if (req.signal?.aborted) return;
+                yield Buffer.from("x");
+              }
+            })(),
+            { destroy: () => void (destroyed = true) }
+          ),
+        };
+      },
+    };
+    const started = Date.now();
+    await expect(guardedFetch("https://slow.example.test/", { resolver: r, transport: drip, policy: OPEN, deadlineMs: 300 })).rejects.toThrow(/deadline/i);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(destroyed).toBe(true);
+
+    const hang: Transport = { request: () => new Promise(() => undefined) };
+    await expect(guardedFetch("https://slow.example.test/", { resolver: r, transport: hang, policy: OPEN, deadlineMs: 200 })).rejects.toThrow(/deadline/i);
+
+    let hops = 0;
+    const slowRedirects: Transport = {
+      async request() {
+        hops++;
+        await new Promise((res) => setTimeout(res, 120));
+        return { status: 302, headers: { location: "https://slow.example.test/next" }, body: (async function* () {})() };
+      },
+    };
+    await expect(guardedFetch("https://slow.example.test/", { resolver: r, transport: slowRedirects, policy: OPEN, deadlineMs: 300, maxRedirects: 5 })).rejects.toThrow(/deadline/i);
+    expect(hops).toBeLessThanOrEqual(3);
+  });
+
   it("SSRF-08: the Node transport connects to the given address without its own DNS lookup", async () => {
     const server = http.createServer((req, res) => res.writeHead(200, { "content-type": "text/plain" }).end(`host=${req.headers.host}`));
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));

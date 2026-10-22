@@ -22,6 +22,7 @@ import {
   type SourceRecord,
 } from "@everlast/db";
 import { readJson, sendJson, validationError } from "../http.ts";
+import { mediaUrlFor } from "./media.ts";
 import type { Router } from "../router.ts";
 import type { AppDeps } from "../app.ts";
 
@@ -249,6 +250,10 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
       highlightChunkId: url.searchParams.get("chunk_id") ?? undefined,
       cursor: url.searchParams.get("cursor") ?? undefined,
     });
+    // Audio playback goes through the authorized, revision-bound media proxy (specs/009 T030).
+    if (content.player?.type === "audio") {
+      content.player = { type: "audio", url: mediaUrlFor(deps, user.userId, params.id!, params.sourceId!, content.source.revision), duration_ms: content.source.media_duration_ms };
+    }
     sendJson(res, 200, content);
   });
 }

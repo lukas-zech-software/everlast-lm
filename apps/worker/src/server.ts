@@ -15,6 +15,8 @@ import {
 } from "@everlast/cloud";
 import { processIngestJob, type AdapterKey, type SourceAdapter } from "./ingestion/pipeline.ts";
 import type { ContentScreener } from "./ingestion/screening.ts";
+import { processSyncJob } from "./ingestion/sync.ts";
+import { createV3IngestionFromEnv } from "./ingestion/v3-adapters.ts";
 import { drainJobs, type JobHandler } from "./jobs.ts";
 import { processNotebookCleanup } from "./notebook-cleanup.ts";
 import type { JobKind } from "@everlast/db";
@@ -31,8 +33,8 @@ export interface WorkerDeps {
   ocr?: OcrEngine;
   handlers?: Partial<Record<JobKind, JobHandler>>;
   /** v3 format adapters and external-content screening (specs/009). */
-  adapters?: Partial<Record<AdapterKey, SourceAdapter>>;
-  screener?: ContentScreener;
+  adapters?: Partial<Record<AdapterKey, SourceAdapter>> | undefined;
+  screener?: ContentScreener | undefined;
 }
 
 export function ingestHandler(deps: WorkerDeps): JobHandler {
@@ -41,6 +43,20 @@ export function ingestHandler(deps: WorkerDeps): JobHandler {
     const outcome = await processIngestJob(
       { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr, adapters: deps.adapters, screener: deps.screener },
       { source_id: job.payload.source_id!, attempt_id: job.payload.attempt_id!, operation_id: job.payload.operation_id },
+      job.attempts
+    );
+    if (outcome.status === "busy") return { kind: "defer", seconds: 30 };
+    return outcome.status === "retry" ? { kind: "retry", errorCode: outcome.errorCode } : { kind: "done" };
+  };
+}
+
+/** Re-sync operations (FR-SI-05, specs/009): one durable operation per job; redelivery resumes it. */
+export function syncHandler(deps: WorkerDeps): JobHandler {
+  return async (job) => {
+    if (!deps.embedder || !deps.ocr) return { kind: "retry", errorCode: "IngestionNotConfigured" };
+    const outcome = await processSyncJob(
+      { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr, adapters: deps.adapters, screener: deps.screener },
+      { operation_id: job.payload.operation_id! },
       job.attempts
     );
     if (outcome.status === "busy") return { kind: "defer", seconds: 30 };
@@ -67,6 +83,7 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
   const handlers: Partial<Record<JobKind, JobHandler>> = {
     cleanup: cleanupHandler(deps),
     ingest: ingestHandler(deps),
+    sync: syncHandler(deps),
     ...deps.handlers,
   };
   let draining: Promise<unknown> | null = null;
@@ -101,9 +118,14 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
 }
 
 export async function startWorker(env: NodeJS.ProcessEnv = process.env, extra: Partial<WorkerDeps> = {}) {
+  const storage = extra.storage ?? createObjectStorage(env);
+  // Package 3.1 (specs/009): format adapters and Model Armor screening from configuration (absent → fail clearly).
+  const v3 = createV3IngestionFromEnv(env, storage);
   const deps: WorkerDeps = {
     pool: createPool(),
-    storage: createObjectStorage(env),
+    storage,
+    adapters: v3.adapters,
+    screener: v3.screener,
     embedder:
       extra.embedder ??
       (env.EVERLAST_DEV_TEST_EMBEDDER === "1"

@@ -2,6 +2,8 @@ import type { Pool } from "pg";
 import {
   SourceSnapshotInvalidError,
   filterScopedChunks,
+  formatDisplayTime,
+  type TranscriptSegmentView,
   UnifiedDocumentChunkSchema,
   type ChunkLocator,
   type UnifiedDocumentChunk,
@@ -204,14 +206,48 @@ export interface InspectorPage {
   page_number: number;
   physical_page?: number;
   text: string;
+  /** Article section selector (web sources; specs/009). */
+  dom_selector?: string;
+  /** Transcript segment interval (audio/video; specs/009). */
+  start_ms?: number;
+  end_ms?: number;
+}
+
+export interface InspectorHighlight {
+  chunk_id: string;
+  page_number: number;
+  start_offset?: number;
+  end_offset?: number;
+  /** time_span chunks: seek target and its derived `mm:ss` label (view metadata, never part of C-01). */
+  start_ms?: number;
+  end_ms?: number;
+  display_time?: string;
+  selector?: string;
 }
 
 export interface InspectorContent {
-  source: { id: string; title: string; media_type: string; revision: number; page_count: number };
+  source: {
+    id: string;
+    title: string;
+    media_type: string;
+    revision: number;
+    page_count: number;
+    /** v3 additive fields (specs/009). */
+    viewer_kind: "pages" | "article" | "transcript";
+    link_kind: string | null;
+    external_url: string | null;
+    canonical_url: string | null;
+    last_synced_at: string | null;
+    media_duration_ms: number | null;
+  };
   pages: InspectorPage[];
   chunks: UnifiedDocumentChunk[];
-  highlight: { chunk_id: string; page_number: number; start_offset: number; end_offset: number } | null;
+  highlight: InspectorHighlight | null;
   next_cursor: string | null;
+  /** Transcript sources: segments with derived display_time (specs/009 T030). */
+  transcript?: TranscriptSegmentView[];
+  /** Player descriptor stored with the revision; the API turns `audio` into an authorized proxy URL. */
+  player?: { type: string; [key: string]: unknown } | null;
 }
 
 /**
@@ -238,8 +274,20 @@ export async function readSourceForInspection(
       fromPage = Number(m[2]);
     }
 
-    const meta = await tx.query<{ title: string; media_type: string; page_count: number | null }>(
-      `SELECT s.title, s.media_type, r.page_count FROM sources s
+    const meta = await tx.query<{
+      title: string;
+      media_type: string;
+      page_count: number | null;
+      viewer_kind: string | null;
+      media_duration_ms: number | null;
+      player: { type: string } | null;
+      link_kind: string | null;
+      external_url: string | null;
+      canonical_url: string | null;
+      last_synced_at: Date | null;
+    }>(
+      `SELECT s.title, s.media_type, r.page_count, r.viewer_kind, r.media_duration_ms, r.player, s.link_kind, s.external_url,
+              s.canonical_url, s.last_synced_at FROM sources s
        JOIN source_revisions r ON r.notebook_id = s.notebook_id AND r.source_id = s.id AND r.revision = $3
        WHERE s.notebook_id = $1 AND s.id = $2`,
       [notebookId, sourceId, revision]
@@ -247,19 +295,27 @@ export async function readSourceForInspection(
 
     let highlight: InspectorContent["highlight"] = null;
     if (options.highlightChunkId && isUuid(options.highlightChunkId)) {
-      const h = await tx.query<{ chunk_id: string; locator: { page_number: number; start_offset: number; end_offset: number } }>(
-        "SELECT chunk_id, locator FROM chunks WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND chunk_id = $4",
+      const h = await tx.query<{ chunk_id: string; anchor_page: number | null; locator: Record<string, number | string> }>(
+        "SELECT chunk_id, anchor_page, locator FROM chunks WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND chunk_id = $4",
         [notebookId, sourceId, revision, options.highlightChunkId]
       );
       if (h.rows[0]) {
         const loc = h.rows[0].locator;
-        highlight = { chunk_id: h.rows[0].chunk_id, page_number: loc.page_number, start_offset: loc.start_offset, end_offset: loc.end_offset };
+        const page = h.rows[0].anchor_page ?? Number(loc.page_number);
+        if ("start_ms" in loc) {
+          const start = Number(loc.start_ms);
+          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, start_ms: start, end_ms: Number(loc.end_ms), display_time: formatDisplayTime(start) };
+        } else if ("selector" in loc) {
+          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, selector: String(loc.selector), start_offset: Number(loc.start_offset), end_offset: Number(loc.end_offset) };
+        } else {
+          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, start_offset: Number(loc.start_offset), end_offset: Number(loc.end_offset) };
+        }
         if (!options.cursor) fromPage = 1;
       }
     }
 
-    const pageRows = await tx.query<{ page_number: number; physical_page: number | null; text: string }>(
-      `SELECT page_number, physical_page, text FROM source_pages
+    const pageRows = await tx.query<{ page_number: number; physical_page: number | null; text: string; dom_selector: string | null; start_ms: number | null; end_ms: number | null }>(
+      `SELECT page_number, physical_page, text, dom_selector, start_ms, end_ms FROM source_pages
        WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND page_number >= $4
        ORDER BY page_number`,
       [notebookId, sourceId, revision, fromPage]
@@ -273,30 +329,52 @@ export async function readSourceForInspection(
         nextCursor = `r${revision}p${row.page_number}`;
         break;
       }
-      pages.push({ page_number: row.page_number, ...(row.physical_page ? { physical_page: row.physical_page } : {}), text: row.text });
+      pages.push({
+        page_number: row.page_number,
+        ...(row.physical_page ? { physical_page: row.physical_page } : {}),
+        text: row.text,
+        ...(row.dom_selector ? { dom_selector: row.dom_selector } : {}),
+        ...(row.start_ms !== null && row.end_ms !== null ? { start_ms: row.start_ms, end_ms: row.end_ms } : {}),
+      });
       chars += row.text.length;
     }
     const lastPage = pages.at(-1)?.page_number ?? fromPage;
     const chunkRows = await tx.query<ChunkRow>(
       `SELECT chunk_id, source_id, revision, locator, token_count, text, 0::float8 AS score FROM chunks
        WHERE notebook_id = $1 AND source_id = $2 AND revision = $3
-         AND (locator->>'page_number')::int BETWEEN $4 AND $5
+         AND coalesce(anchor_page, (locator->>'page_number')::int) BETWEEN $4 AND $5
        ORDER BY sequence`,
       [notebookId, sourceId, revision, fromPage, lastPage]
     );
     const chunks = filterScopedChunks(snapshot.sources, chunkRows.rows.map(toChunk));
+    const m = meta.rows[0];
+    const viewerKind = (m?.viewer_kind ?? "pages") as InspectorContent["source"]["viewer_kind"];
     return {
       source: {
         id: sourceId,
-        title: meta.rows[0]?.title ?? "",
-        media_type: meta.rows[0]?.media_type ?? "",
+        title: m?.title ?? "",
+        media_type: m?.media_type ?? "",
         revision,
-        page_count: meta.rows[0]?.page_count ?? pages.length,
+        page_count: m?.page_count ?? pages.length,
+        viewer_kind: viewerKind,
+        link_kind: m?.link_kind ?? null,
+        external_url: m?.external_url ?? null,
+        canonical_url: m?.canonical_url ?? null,
+        last_synced_at: m?.last_synced_at ? m.last_synced_at.toISOString() : null,
+        media_duration_ms: m?.media_duration_ms ?? null,
       },
       pages,
       chunks,
       highlight,
       next_cursor: nextCursor,
+      ...(viewerKind === "transcript"
+        ? {
+            transcript: pages
+              .filter((p) => p.start_ms !== undefined && p.end_ms !== undefined)
+              .map((p) => ({ page_number: p.page_number, start_ms: p.start_ms!, end_ms: p.end_ms!, display_time: formatDisplayTime(p.start_ms!), text: p.text })),
+          }
+        : {}),
+      player: m?.player ?? null,
     };
   });
 }

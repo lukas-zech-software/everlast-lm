@@ -54,7 +54,8 @@
     "build:web": "node scripts/build-web.mjs",
     "test": "vitest run",
     "db:test:up": "node scripts/db-test.mjs up",
-    "db:test:down": "node scripts/db-test.mjs down"
+    "db:test:down": "node scripts/db-test.mjs down",
+    "eval:v3-audio": "node scripts/eval-v3-audio.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",
