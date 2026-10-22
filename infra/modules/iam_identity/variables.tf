@@ -48,3 +48,9 @@ variable "enable_email_password_sign_in" {
   type        = bool
   default     = false
 }
+
+variable "enable_v3_ingestion" {
+  description = "Grants the worker Speech-to-Text V2 access for v3 audio/video ingestion (FR-SI-01 Subset B; owner approval)."
+  type        = bool
+  default     = false
+}

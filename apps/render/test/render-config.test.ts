@@ -84,8 +84,8 @@ describe("infrastructure (D3, NFR-SEC-01, CC-08)", () => {
   it("RENDER-06: everlast-render is a Cloud Run Job in the configured EU region with its own service account", () => {
     const job = /resource "google_cloud_run_v2_job" "render" \{[\s\S]*?\n\}/.exec(compute)?.[0] ?? "";
     expect(job).not.toBe("");
-    expect(job).toContain("location            = var.region");
-    expect(job).toContain("service_account = var.render_service_account_email");
+    expect(job).toMatch(/location\s+=\s+var\.region/);
+    expect(job).toMatch(/service_account\s+=\s+var\.render_service_account_email/);
     expect(job).toMatch(/max_retries\s*=\s*0/);
     expect(job).toMatch(/timeout\s*=\s*"\d+s"/);
     expect(iam).toContain('resource "google_service_account" "render"');

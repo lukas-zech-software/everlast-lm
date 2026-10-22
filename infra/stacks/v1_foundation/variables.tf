@@ -161,3 +161,27 @@ variable "identity_platform_provider_id" {
   type        = string
   default     = "oidc.corporate"
 }
+
+variable "render_image" {
+  description = "everlast-render job image (Package 3.1, specs/009); empty skips the job."
+  type        = string
+  default     = ""
+}
+
+variable "enable_v3_ingestion" {
+  description = "Owner-approval gate for v3 ingestion APIs and worker wiring (Speech V2, Drive, YouTube; FR-SI-01 Subset B)."
+  type        = bool
+  default     = false
+}
+
+variable "model_armor_template_id" {
+  description = "Model Armor template for fail-closed screening of web/synced content (Constitution VI)."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth client ID for delegated per-user Google Drive access (D11)."
+  type        = string
+  default     = ""
+}

@@ -24,3 +24,9 @@ variable "disable_on_destroy" {
   type        = bool
   default     = false
 }
+
+variable "enable_v3_ingestion_apis" {
+  description = "Owner-approval gate for the v3 ingestion APIs (Speech-to-Text V2, Drive, YouTube Data; FR-SI-01 Subset B, D11). Default false."
+  type        = bool
+  default     = false
+}

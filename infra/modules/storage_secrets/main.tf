@@ -65,6 +65,13 @@ resource "google_storage_bucket_iam_member" "worker_object_user" {
   member = "serviceAccount:${var.worker_service_account_email}"
 }
 
+resource "google_storage_bucket_iam_member" "render_object_user" {
+  count  = var.render_service_account_email == "" ? 0 : 1
+  bucket = google_storage_bucket.workspace.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${var.render_service_account_email}"
+}
+
 # 2. Artifact Registry for Cloud Run Container Images (europe-west4)
 resource "google_artifact_registry_repository" "containers" {
   project       = var.project_id

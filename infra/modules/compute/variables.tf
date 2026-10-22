@@ -159,3 +159,33 @@ variable "tasks_location" {
   type        = string
   default     = "europe-west1"
 }
+
+variable "render_image" {
+  description = "Container image of the everlast-render job (specs/009); empty skips the job (Office/audio adapters then fail clearly)."
+  type        = string
+  default     = ""
+}
+
+variable "render_service_account_email" {
+  description = "Service account the everlast-render job runs as."
+  type        = string
+  default     = ""
+}
+
+variable "enable_v3_ingestion" {
+  description = "Wires Speech-to-Text V2, Model Armor and delegated Drive configuration into the worker (owner approval; specs/009)."
+  type        = bool
+  default     = false
+}
+
+variable "model_armor_template_id" {
+  description = "Model Armor template ID in the region (fail-closed prompt-injection screening of external content)."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth client ID for delegated per-user Drive access (D11); the client secret is a Secret Manager secret."
+  type        = string
+  default     = ""
+}

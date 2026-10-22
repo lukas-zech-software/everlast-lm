@@ -291,3 +291,23 @@ input, textarea { font: inherit; color: inherit; }
 .report-prompt { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font-family: inherit; resize: vertical; }
 .report-prompt-meta { display: flex; align-items: center; gap: 8px; }
 .report-prompt-count.over-limit { color: var(--danger); }
+
+/* Package 3.1 (FR-SI-01/04/05, specs/009): format icons, ⋮ menu, sync indicator, linked-source dialogs, media. */
+.source-row { position: relative; }
+.source-icon { display: inline-block; width: 1.25rem; text-align: center; }
+.source-menu { margin-left: 2px; }
+.source-menu-popup { position: absolute; right: 4px; top: 100%; z-index: 30; display: flex; flex-direction: column; min-width: 160px; background: var(--surface, #fff); border: 1px solid var(--border, #ddd); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12); padding: 4px; }
+.menu-item { text-align: left; background: none; border: 0; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: inherit; font: inherit; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--hover, rgba(0, 0, 0, 0.06)); }
+.menu-item.danger { color: #b3261e; }
+.source-syncing { font-size: 0.75rem; color: var(--muted, #666); white-space: nowrap; }
+.url-input, .rename-input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border, #ccc); border-radius: 6px; font: inherit; }
+.field-error { color: #b3261e; font-size: 0.85rem; margin-top: 4px; }
+.inspector-sync { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--muted, #666); padding: 4px 0; }
+.inspector-player { margin: 6px 0 10px; }
+.inspector-player audio, .inspector-player iframe { width: 100%; }
+.inspector-player iframe { aspect-ratio: 16 / 9; border: 0; }
+.transcript-segment { display: flex; gap: 10px; padding: 4px 0; }
+.transcript-time { font-variant-numeric: tabular-nums; color: var(--muted, #666); background: none; border: 0; cursor: pointer; padding: 0; font: inherit; }
+.citation-badge.updated { opacity: 0.7; font-style: italic; }
+.popover-action { margin-top: 6px; }

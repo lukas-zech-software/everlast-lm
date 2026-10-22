@@ -111,7 +111,7 @@ describe("FR-SI-01 source routes", () => {
       { attempt_id: randomUUID(), file_name: "ok.pdf", declared_bytes: 10 },
       { attempt_id: randomUUID(), file_name: "full.pdf", declared_bytes: 10 },
       { attempt_id: randomUUID(), file_name: "big.pdf", declared_bytes: 215_000_000 },
-      { attempt_id: randomUUID(), file_name: "slides.pptx", declared_bytes: 10 },
+      { attempt_id: randomUUID(), file_name: "slides.ppt", declared_bytes: 10 }, // .pptx is supported since v3 (FR-SI-01 Subset B)
     ];
     const items = ((await (await api.fetch(`/api/notebooks/${nb}/sources/uploads`, { method: "POST", as: "src03", json: { files } })).json()) as any).items;
     expect(items.map((i: any) => i.admitted)).toEqual([true, false, false, false]);

@@ -1,11 +1,14 @@
 import { api, ApiError } from "../lib/api.ts";
-import { clear, h, toast } from "../lib/dom.ts";
+import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { SelectionModel } from "../lib/selection.ts";
 import type { QuotaSummary, SourceDto } from "../lib/types.ts";
+import { KIND_ICONS, UPLOAD_ACCEPT, parseGoogleDocumentLink, sourceKind, validRenameTitle } from "../lib/v3-sources.ts";
 
 /**
- * Sources panel (FR-SI-01, FR-SI-03, FR-WM-07): server-authoritative capacity, upload/paste modal, status rows,
- * dismissible error rows, per-source checkboxes and "Select all sources" with indeterminate state.
+ * Sources panel (FR-SI-01, FR-SI-03, FR-SI-05, FR-WM-07): server-authoritative capacity, Add sources modal (file
+ * upload incl. Word/PowerPoint/audio, Website, YouTube/Video URL, Google Drive, Copied text), format icons, status
+ * rows with progress substates, dismissible error rows, the ⋮ menu (Rename source / Remove source), per-source
+ * checkboxes and "Select all sources" with indeterminate state.
  */
 
 export interface SourcesPanelOptions {
@@ -14,6 +17,8 @@ export interface SourcesPanelOptions {
   onSelectionChange(): void;
   onOpenSource(sourceId: string): void;
   onNotebookMissing(): void;
+  /** Called after a source was removed or renamed so dependent views (Inspector, chat) refresh. */
+  onSourceChanged?(sourceId: string, change: "renamed" | "removed"): void;
 }
 
 export interface SourcesPanel {
@@ -23,8 +28,11 @@ export interface SourcesPanel {
   openAddSources(): void;
 }
 
-const ACCEPT = ".pdf,.txt,.md,.markdown,application/pdf,text/plain,text/markdown";
-const ICONS: Record<string, string> = { "application/pdf": "📄", "text/plain": "📝", "text/markdown": "📝", copied_text: "📋", note_markdown: "🗒️" };
+interface Connection {
+  id: string;
+  provider: string;
+  account_label: string | null;
+}
 
 export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
   let sources: SourceDto[] = [];
@@ -68,8 +76,81 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
     updateChecks();
   };
 
+  const closeMenus = () => document.querySelectorAll(".source-menu-popup").forEach((m) => m.remove());
+
+  const renameSource = (source: SourceDto) => {
+    closeMenus();
+    document.querySelector(".rename-modal")?.remove();
+    const input = h("input", { class: "rename-input", "data-testid": "rename-input", value: source.title, "aria-label": "Source title" });
+    const error = h("div", { class: "field-error", "data-testid": "rename-error", hidden: true });
+    const save = h("button", { class: "btn btn-primary", "data-testid": "rename-save", text: "Save" });
+    const cancel = h("button", { class: "btn", "data-testid": "rename-cancel", text: "Cancel" });
+    const modal = h(
+      "div",
+      { class: "modal-backdrop rename-modal", role: "dialog", "aria-modal": "true" },
+      h("div", { class: "modal" }, h("h2", { text: "Rename source" }), input, error, h("div", { class: "modal-actions" }, cancel, save))
+    );
+    const validate = () => {
+      const ok = validRenameTitle(input.value);
+      save.disabled = !ok;
+      error.hidden = ok;
+      error.textContent = ok ? "" : "Title must be 1–200 characters.";
+      return ok;
+    };
+    input.addEventListener("input", validate);
+    cancel.addEventListener("click", () => modal.remove());
+    save.addEventListener("click", async () => {
+      if (!validate()) return;
+      save.disabled = true;
+      try {
+        await api(`/api/notebooks/${options.notebookId}/sources/${source.id}`, { method: "PATCH", json: { title: input.value } });
+        modal.remove();
+        await refresh();
+        options.onSourceChanged?.(source.id, "renamed");
+      } catch (err) {
+        error.hidden = false;
+        error.textContent = err instanceof ApiError ? err.message : "Could not rename the source.";
+        save.disabled = false;
+      }
+    });
+    document.body.append(modal);
+    input.focus();
+    input.select();
+  };
+
+  const removeSource = async (source: SourceDto) => {
+    closeMenus();
+    const confirmed = await confirmDialog({
+      title: "Remove source?",
+      body: `"${source.title}" and everything derived from it will be removed from this notebook.`,
+      confirm: "Remove",
+      danger: true,
+    });
+    if (!confirmed) return;
+    try {
+      await api(`/api/notebooks/${options.notebookId}/sources/${source.id}`, { method: "DELETE" });
+    } catch (err) {
+      if (!(err instanceof ApiError && err.status === 404)) toast("Could not remove the source.");
+    }
+    await refresh();
+    options.onSourceChanged?.(source.id, "removed");
+  };
+
+  const openMenu = (anchor: HTMLElement, source: SourceDto) => {
+    const already = document.querySelector(`.source-menu-popup[data-for="${source.id}"]`);
+    closeMenus();
+    if (already) return;
+    const rename = h("button", { class: "menu-item", role: "menuitem", "data-testid": "source-rename", text: "Rename source" });
+    const remove = h("button", { class: "menu-item danger", role: "menuitem", "data-testid": "source-remove", text: "Remove source" });
+    rename.addEventListener("click", () => renameSource(source));
+    remove.addEventListener("click", () => void removeSource(source));
+    const popup = h("div", { class: "source-menu-popup", role: "menu", "data-for": source.id }, source.status === "Failed" ? null : rename, remove);
+    anchor.after(popup);
+  };
+
   const renderRow = (source: SourceDto): HTMLElement => {
     const ready = source.status === "Ready";
+    const kind = sourceKind(source);
     const checkbox = h("input", {
       type: "checkbox",
       "data-testid": "source-checkbox",
@@ -82,22 +163,40 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
       updateChecks();
       options.onSelectionChange();
     });
+    const progressLabel = source.progress ?? source.status;
+    const icon = h("span", { class: "source-icon", "data-testid": "source-icon", "data-kind": kind, "aria-hidden": "true", text: KIND_ICONS[kind] });
     const status =
       source.status === "Failed"
         ? h("span", { class: "status status-failed", "data-testid": "source-error", text: source.error?.message ?? "Failed" })
         : ready
-          ? h("span", { class: "status status-ready", "aria-label": "Ready", text: ICONS[source.media_type] ?? "📄" })
-          : h("span", { class: "spinner", "data-testid": "source-spinner", "aria-label": source.status, title: source.status });
+          ? h("span", { class: "status status-ready", "aria-label": "Ready" }, icon)
+          : h("span", { class: "spinner", "data-testid": "source-spinner", "aria-label": progressLabel, title: progressLabel });
     const titleButton = h("button", { class: "source-title", "data-testid": "source-title", text: source.title, disabled: !ready });
     titleButton.addEventListener("click", () => options.onOpenSource(source.id));
+    const syncing = ready && source.progress === "Syncing" ? h("span", { class: "source-syncing", "data-testid": "source-syncing", text: "Syncing..." }) : null;
+    const menu = h("button", { class: "icon-btn source-menu", "data-testid": "source-menu", "aria-label": `More actions for ${source.title}`, "aria-haspopup": "menu", text: "⋮" });
+    menu.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openMenu(menu, source);
+    });
     const row = h(
       "li",
-      { class: `source-row status-${source.status.toLowerCase()}`, "data-testid": "source-row", "data-source-id": source.id, "data-status": source.status },
+      {
+        class: `source-row status-${source.status.toLowerCase()}`,
+        "data-testid": "source-row",
+        "data-source-id": source.id,
+        "data-status": source.status,
+        "data-kind": kind,
+        "data-progress": source.progress ?? "",
+      },
       status,
+      !ready && source.status !== "Failed" ? icon : null,
       titleButton,
       // FR-NM-03: a source made from notes keeps a visible Note label (owner decision 2026-10-20: a v1 source).
       source.media_type === "note_markdown" ? h("span", { class: "source-kind", "data-testid": "source-kind-note", text: "Note" }) : null,
-      source.status === "Failed" ? null : checkbox
+      syncing,
+      source.status === "Failed" ? null : checkbox,
+      source.status === "Uploading" ? null : menu
     );
     if (source.status === "Failed") {
       const dismiss = h("button", { class: "icon-btn", "data-testid": "dismiss-error", "aria-label": "Dismiss error", text: "✕" });
@@ -122,7 +221,7 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
 
   const schedulePoll = () => {
     if (pollTimer) clearTimeout(pollTimer);
-    if (sources.some((s) => s.status === "Uploading" || s.status === "Processing")) {
+    if (sources.some((s) => s.status === "Uploading" || s.status === "Processing" || s.progress === "Syncing")) {
       pollTimer = setTimeout(() => void refresh(), 1000);
     }
   };
@@ -193,19 +292,115 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
     }
   }
 
+  /** Linked imports (FR-SI-01): 202 {source_id, operation_id}; the row shows Fetching/Transcribing/Parsing. */
+  async function importLinked(body: Record<string, unknown>): Promise<boolean> {
+    try {
+      const accepted = await api<{ source_id: string }>(`/api/notebooks/${options.notebookId}/sources/imports`, {
+        method: "POST",
+        json: { attempt_id: crypto.randomUUID(), ...body },
+      });
+      options.selection.markImported(accepted.source_id);
+      await refresh();
+      return true;
+    } catch (err) {
+      toast(err instanceof ApiError ? err.message : "Could not import the link.");
+      return false;
+    }
+  }
+
+  function urlForm(body: HTMLElement, kind: "web" | "video", dismiss: () => void): void {
+    clear(body);
+    const input = h("input", {
+      type: "url",
+      class: "url-input",
+      "data-testid": "url-input",
+      placeholder: kind === "web" ? "https://example.com/article" : "https://www.youtube.com/watch?v=…",
+      "aria-label": kind === "web" ? "Website URL" : "Video URL",
+    });
+    const submit = h("button", { class: "btn btn-primary", "data-testid": "url-import", text: "Insert", disabled: true });
+    input.addEventListener("input", () => {
+      try {
+        const url = new URL(input.value.trim());
+        submit.disabled = !(url.protocol === "https:" || url.protocol === "http:");
+      } catch {
+        submit.disabled = true;
+      }
+    });
+    submit.addEventListener("click", async () => {
+      submit.disabled = true;
+      if (await importLinked({ kind, url: input.value.trim() })) dismiss();
+      else submit.disabled = false;
+    });
+    body.append(h("h3", { text: kind === "web" ? "Website" : "YouTube / Video URL" }), input, h("div", { class: "modal-actions" }, submit));
+    input.focus();
+  }
+
+  async function driveForm(body: HTMLElement, dismiss: () => void): Promise<void> {
+    clear(body);
+    body.append(h("h3", { text: "Google Drive" }));
+    let connections: Connection[] = [];
+    try {
+      ({ connections } = await api<{ connections: Connection[] }>("/api/connections"));
+    } catch {
+      toast("Could not load Google Drive connections.");
+    }
+    if (connections.length === 0) {
+      const connect = h("button", { class: "btn btn-primary", "data-testid": "drive-connect", text: "Connect Google Drive" });
+      connect.addEventListener("click", async () => {
+        try {
+          const { authorization_url } = await api<{ authorization_url: string }>("/api/connections/google/authorize", {
+            method: "POST",
+            json: { return_to: window.location.pathname },
+          });
+          window.location.assign(authorization_url);
+        } catch (err) {
+          toast(err instanceof ApiError ? err.message : "Google Drive access is not available.");
+        }
+      });
+      body.append(h("p", { class: "muted", text: "Grant read-only access with your own Google account to import Docs and Slides." }), connect);
+      return;
+    }
+    const connection = connections[0]!;
+    const input = h("input", { type: "url", class: "url-input", "data-testid": "drive-link", placeholder: "https://docs.google.com/presentation/d/…", "aria-label": "Google Docs or Slides link" });
+    const error = h("div", { class: "field-error", "data-testid": "drive-link-error", hidden: true, text: "Paste a Google Docs or Google Slides link." });
+    const submit = h("button", { class: "btn btn-primary", "data-testid": "drive-import", text: "Import", disabled: true });
+    input.addEventListener("input", () => {
+      const ok = parseGoogleDocumentLink(input.value.trim()) !== null;
+      submit.disabled = !ok;
+      error.hidden = ok || input.value.trim() === "";
+    });
+    submit.addEventListener("click", async () => {
+      const parsed = parseGoogleDocumentLink(input.value.trim());
+      if (!parsed) return;
+      submit.disabled = true;
+      if (await importLinked({ kind: "drive", external_document_id: parsed.id, connection_id: connection.id })) dismiss();
+      else submit.disabled = false;
+    });
+    body.append(
+      h("p", { class: "muted", text: `Connected as ${connection.account_label ?? "your Google account"}` }),
+      input,
+      error,
+      h("div", { class: "modal-actions" }, submit)
+    );
+    input.focus();
+  }
+
   function openAddSources(): void {
     document.querySelector(".add-sources-modal")?.remove();
-    const fileInput = h("input", { type: "file", multiple: true, accept: ACCEPT, "data-testid": "file-input", class: "visually-hidden" });
+    const fileInput = h("input", { type: "file", multiple: true, accept: UPLOAD_ACCEPT, "data-testid": "file-input", class: "visually-hidden" });
     const disabled = atLimit();
     const dropzone = h(
       "div",
       { class: "dropzone", "data-testid": "dropzone", "data-disabled": String(disabled), tabindex: 0, role: "button" },
-      h("strong", { text: "Upload files: PDF, .txt, Markdown" }),
+      h("strong", { text: "Upload files: PDF, .txt, Markdown, Word, PowerPoint, MP3/WAV/M4A audio" }),
       h("span", { class: "muted", text: disabled ? "Source limit reached" : "Drag and drop or click to browse" })
     );
+    const websiteChip = h("button", { class: "chip", "data-testid": "add-website", text: "🌐 Website", disabled });
+    const videoChip = h("button", { class: "chip", "data-testid": "add-video", text: "▶️ YouTube / Video URL", disabled });
+    const driveChip = h("button", { class: "chip", "data-testid": "add-drive", text: "📙 Google Drive / Office files", disabled });
     const pasteChip = h("button", { class: "chip", "data-testid": "copied-text", text: "Copied text", disabled });
     const close = h("button", { class: "icon-btn", "data-testid": "close-add-sources", "aria-label": "Close", text: "✕" });
-    const body = h("div", { class: "modal-body" }, dropzone, h("div", { class: "chips" }, pasteChip), fileInput);
+    const body = h("div", { class: "modal-body" }, dropzone, h("div", { class: "chips" }, websiteChip, videoChip, driveChip, pasteChip), fileInput);
     const modal = h(
       "div",
       { class: "modal-backdrop add-sources-modal", "data-testid": "add-sources-modal", role: "dialog", "aria-modal": "true" },
@@ -240,6 +435,9 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
       dismiss();
       void uploadFiles(files);
     });
+    websiteChip.addEventListener("click", () => urlForm(body, "web", dismiss));
+    videoChip.addEventListener("click", () => urlForm(body, "video", dismiss));
+    driveChip.addEventListener("click", () => void driveForm(body, dismiss));
     pasteChip.addEventListener("click", () => {
       clear(body);
       const textarea = h("textarea", { class: "paste-area", "data-testid": "paste-text", rows: 12, placeholder: "Paste text here" });
@@ -257,6 +455,9 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
   }
 
   addButton.addEventListener("click", openAddSources);
+  document.addEventListener("click", (event) => {
+    if (!(event.target as HTMLElement | null)?.closest?.(".source-menu-popup, .source-menu")) closeMenus();
+  });
 
   return { element, refresh, sources: () => sources, openAddSources };
 }

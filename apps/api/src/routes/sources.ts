@@ -5,17 +5,20 @@ import {
   DEFAULT_COPIED_TEXT_TITLE,
   MAX_SOURCE_BYTES,
   MAX_SOURCE_WORDS,
+  UNSUPPORTED_UPLOAD_MESSAGE,
   countWords,
-  mediaTypeForFileName,
+  uploadMediaTypeForFileName,
   type SourceDto,
 } from "@everlast/contracts";
 import {
   acceptReceivedSource,
   getNotebook,
   getSource,
+  listActiveOperations,
   listSources,
   readSourceForInspection,
   reserveSources,
+  type SourceOperationRecord,
   type SourceRecord,
 } from "@everlast/db";
 import { readJson, sendJson, validationError } from "../http.ts";
@@ -31,7 +34,7 @@ import type { AppDeps } from "../app.ts";
 export const UPLOAD_TTL_SECONDS = 3600;
 const COPIED_TEXT_BODY_LIMIT = 16 * 1024 * 1024;
 
-export function toSourceDto(record: SourceRecord): SourceDto {
+export function toSourceDto(record: SourceRecord, activeOperation?: SourceOperationRecord | null): SourceDto {
   return {
     id: record.id,
     notebook_id: record.notebook_id,
@@ -44,6 +47,13 @@ export function toSourceDto(record: SourceRecord): SourceDto {
     error: record.failure_code ? { code: record.failure_code, message: record.failure_message ?? "" } : null,
     created_at: record.created_at,
     updated_at: record.updated_at,
+    // v3 (FR-SI-01/05, specs/009): additive linked-source, progress and sync fields; no delegated secrets.
+    link_kind: record.link_kind,
+    external_url: record.external_url,
+    canonical_url: record.canonical_url,
+    progress: record.progress,
+    last_synced_at: record.last_synced_at,
+    sync: activeOperation && activeOperation.kind === "sync" ? { operation_id: activeOperation.id, state: activeOperation.state } : null,
   };
 }
 
@@ -89,11 +99,13 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
       deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, params.id!));
       deps.v2.syncSources(user.userId, params.id!, sources);
     }
-    sendJson(res, 200, { sources: sources.map(toSourceDto) });
+    const active = await listActiveOperations(deps.pool, params.id!);
+    sendJson(res, 200, { sources: sources.map((s) => toSourceDto(s, active.get(s.id))) });
   });
 
   router.add("GET", "/api/notebooks/:id/sources/:sourceId", async ({ res, user, params }) => {
-    sendJson(res, 200, { source: toSourceDto(await getSource(deps.pool, user.userId, params.id!, params.sourceId!)) });
+    const source = await getSource(deps.pool, user.userId, params.id!, params.sourceId!);
+    sendJson(res, 200, { source: toSourceDto(source, (await listActiveOperations(deps.pool, params.id!)).get(source.id)) });
   });
 
   router.add("POST", "/api/notebooks/:id/sources/uploads", async ({ req, res, user, params }) => {
@@ -104,12 +116,13 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
     const admissible: { index: number; entry: Parameters<typeof reserveSources>[3][number] }[] = [];
 
     parsed.data.files.forEach((file, index) => {
-      const mediaType = mediaTypeForFileName(file.file_name);
+      // FR-SI-01 Subset A + B (specs/009): PDF, TXT, MD, DOCX, PPTX, MP3, WAV, M4A; never copied_text/note_markdown.
+      const mediaType = uploadMediaTypeForFileName(file.file_name);
       if (!mediaType) {
         items[index] = {
           attempt_id: file.attempt_id,
           admitted: false,
-          error: { code: "UnsupportedMediaType", message: "Only PDF, .txt and Markdown files are supported" },
+          error: { code: "UnsupportedMediaType", message: UNSUPPORTED_UPLOAD_MESSAGE },
         };
       } else if (file.declared_bytes > MAX_SOURCE_BYTES) {
         // Rejected before any capability is issued (FR-WM-07: <= 200 ms, no slot consumed).

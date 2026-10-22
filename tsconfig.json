@@ -28,6 +28,9 @@
     },
     {
       "path": "apps/worker"
+    },
+    {
+      "path": "apps/render"
     }
   ]
 }

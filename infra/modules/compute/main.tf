@@ -37,7 +37,17 @@ locals {
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"
     POSTGRES_USER = var.worker_db_iam_username
-  })
+    }, var.render_image == "" ? {} : {
+    # Package 3.1 (specs/009): Office/audio normalization runs as everlast-render executions.
+    RENDER_JOB_NAME     = "${local.name_prefix}-render"
+    RENDER_JOB_LOCATION = var.region
+    }, var.enable_v3_ingestion ? {
+    SPEECH_LOCATION             = var.region # Chirp 2, europe-west4 (D3); no silent region fallback
+    MODEL_ARMOR_LOCATION        = var.region
+    MODEL_ARMOR_TEMPLATE_ID     = var.model_armor_template_id
+    GOOGLE_OAUTH_CLIENT_ID      = var.google_oauth_client_id
+    DELEGATED_SECRET_PROJECT_ID = var.project_id
+  } : {})
 }
 
 # 1. everlast-worker: Internal-only Cloud Run Service (Cloud Tasks Target, §3.3 & §5.1)
@@ -207,4 +217,57 @@ resource "google_cloud_run_v2_service_iam_member" "api_public_invoker" {
   name     = google_cloud_run_v2_service.api.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# 3. everlast-render: Cloud Run Job (C8; FR-SI-01 Subset B, specs/009 T013). One execution per conversion, started
+#    by the worker with RENDER_* overrides; jobs have no idle instances, so it costs nothing while unused.
+resource "google_cloud_run_v2_job" "render" {
+  count               = var.render_image == "" ? 0 : 1
+  project             = var.project_id
+  name                = "${local.name_prefix}-render"
+  location            = var.region
+  deletion_protection = var.deletion_protection
+  labels              = var.labels
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = var.render_service_account_email
+      timeout         = "600s"
+      max_retries     = 0
+
+      containers {
+        name  = "render"
+        image = var.render_image
+
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "4Gi"
+          }
+        }
+
+        env {
+          name  = "GCS_WORKSPACE_BUCKET"
+          value = var.workspace_bucket_name
+        }
+        env {
+          name  = "NODE_ENV"
+          value = var.environment == "prod" ? "production" : "development"
+        }
+      }
+    }
+  }
+}
+
+# The worker may start executions with per-run overrides (input/output object references) and nothing else.
+resource "google_cloud_run_v2_job_iam_member" "worker_render_executor" {
+  count    = var.render_image == "" ? 0 : 1
+  project  = var.project_id
+  location = google_cloud_run_v2_job.render[0].location
+  name     = google_cloud_run_v2_job.render[0].name
+  role     = "roles/run.jobsExecutorWithOverrides"
+  member   = "serviceAccount:${var.worker_service_account_email}"
 }

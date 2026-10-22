@@ -12,6 +12,7 @@ import { createV2Runtime } from "@everlast/api/v2/runtime";
 import type { GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
 import { createWorkerHandler } from "@everlast/worker";
+import { e2eAdapters, e2eDelegationBroker, e2eScreener } from "./e2e-v3-doubles.ts";
 
 /**
  * TEST-ONLY E2E server (FR-UI-01, FR-SI-01/03/04, FR-GC-01/02/03/06, Gate v1.0 #1/#3).
@@ -48,7 +49,11 @@ export async function startE2eServer(port: number) {
   const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: baseUrl });
   const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
-  const worker = createWorkerHandler({ pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
+  // Package 3.1 (specs/009): real Office normalization + labelled provider doubles (Drive, consent, screening).
+  const worker = createWorkerHandler(
+    { pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, adapters: e2eAdapters(), screener: e2eScreener },
+    { NODE_ENV: "test" }
+  );
   let pending: Promise<unknown> = Promise.resolve();
   const notifyJobs = () => {
     pending = pending.then(() => worker.drain());
@@ -78,6 +83,7 @@ export async function startE2eServer(port: number) {
     // Release v2 PoC stores (D16); no generation client, so Source Guide/overview/follow-ups report 503.
     v2,
     notifyJobs,
+    delegationBroker: e2eDelegationBroker,
   };
   const server = http.createServer(createApp(deps));
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
