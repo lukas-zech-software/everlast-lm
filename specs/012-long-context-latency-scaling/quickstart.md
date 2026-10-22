@@ -13,7 +13,7 @@ Expected: traceability/checklist checks and whitespace pass. These validate arti
 
 ## Implementation prerequisites (`CC-02/06/07`, NFR-PERF-01)
 
-Before implementation, inspect documented Gate v2.0 owner override in `docs/gate-v2-live-evaluation.md`, retaining known failures/no post-fix live rerun as limitations; before integrated v3 acceptance, implemented3.1–3.3, shared contract compatibility, current production SQL-backed C-02 qualified at scale, enterprise EU model/cache adapters, and R6 qualified sandbox controls. D18 accepts2vCPU/1.5GB only; scratch64MB/no-network/read-only-input/15.0s actual termination/cleanup requirements remain. No cloud API enablement, IAM change or deployment is authorized by this guide.
+Before implementation, inspect documented Gate v2.0 owner override in `docs/gate-v2-live-evaluation.md`, retaining known failures/no post-fix live rerun as limitations; before integrated v3 acceptance, implemented3.1–3.3, shared contract compatibility, current production SQL-backed C-02 qualified at scale, enterprise EU model/cache adapters, and package3.2 integration with the owner-accepted managed sandbox (D19; R6 obsolete). D18 accepts2vCPU/1.5GB only; scratch64MB/no-network/read-only-input/15.0s actual termination/cleanup requirements remain. No cloud API enablement, IAM change or deployment is authorized by this guide.
 
 After spec-derived Red tests exist, implement and pass contract/DB/worker/chat instrumentation coverage in [plan.md](plan.md). Freeze manifest and envelope/index parameters using calibration data distinct from acceptance data. Read [contracts/interfaces.md](contracts/interfaces.md) and [data-model.md](data-model.md) for timing, scope and report fields.
 
@@ -41,7 +41,7 @@ Retain immutable manifest, all observations, stage timings, scope/prompt audit, 
 
 Use existing chunks/source_pages, current RequestScopedContextProvider/retrieveScopedChunks and strict ChatService history eligibility. Calibrate current40candidate/12result RRF60 against exact scoped ranking before tuning; retain notebook/source/revision SQL predicates and C-01 projection. Confirm broad40Guide routing uses3.1's durable revision/language-keyed ports and Studio uses3.3's durable repository/outbox. Current all-original keyset reads return an array; qualify application-memory and serialized-model bounds separately. Current report baseline4,000tokens/8chunks/concurrency4 still needs oversized-chunk segmentation and bounded composition/coverage. Do not recreate already-existing embeddings or indexes or claim refreshed designs implemented. Sandbox code/clarification turn projections follow3.2's actual service/model/draft/verifier/SSE integration.
 
-The planned scripts/eval-v3-scale.mjs runner is absent. No deployed million-token, EU cache/model-envelope, prospective readiness, Studio bounded-memory, R6 or integrated v3 pass is established by document checks. Do not invoke infra start/warmup/deploy from this guide during a planning refresh.
+The planned scripts/eval-v3-scale.mjs runner is absent. No deployed million-token, EU cache/model-envelope, prospective readiness, Studio bounded-memory or integrated v3 pass is established by document checks. Do not invoke infra start/warmup/deploy from this guide during a planning refresh.
 
 ## Second-main persistence baseline (`NFR-PERF-01`, C-02/C-03)
 

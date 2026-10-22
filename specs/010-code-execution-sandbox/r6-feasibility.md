@@ -1,4 +1,14 @@
-# R6 Qualification Record: Managed Default Sandbox
+# R6 — Obsolete: Managed Sandbox Accepted
+
+**Closed 2026-10-22 by project-owner decision D19 (FR-GC-08).** The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision.
+
+The material below is historical and superseded. Any statement requiring pre-implementation qualification, a separate R6 test deployment, admission evidence or a qualification-triggered fallback is no longer operative. Retained behavior is tested through the ordinary implementation/release workflow described in quickstart.md.
+
+---
+
+## Historical R6 record (superseded)
+
+### Original qualification record: managed default sandbox
 
 Date: 2026-10-20. Scope: FR-GC-08, NFR-SEC-01/02, Gate v3.0 #2, CC-07/08, D18.
 Status: **Design complete; deployment qualification UNAVAILABLE.** This record distinguishes the selected architecture from evidence still required before implementation/runtime admission.

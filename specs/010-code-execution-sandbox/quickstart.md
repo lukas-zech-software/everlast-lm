@@ -1,6 +1,6 @@
 # Quickstart Validation: Quantitative Code Execution Sandbox
 
-Scope: FR-GC-08, C-01/C-02, NFR-EVAL-01..04, NFR-SEC-01/02, Gate v3.0 #2. This is a validation guide, not implementation code. D18 selects the managed default; design is complete, while this document cannot certify R6 or the release gate.
+Scope: FR-GC-08, C-01/C-02, NFR-EVAL-01..04, NFR-SEC-01/02, Gate v3.0 #2. This is a validation guide, not implementation code. D18 selects the managed default and D19 accepts the provider, making R6 obsolete. Normal integration tests and the release gate remain.
 
 ## Current runnable checks (CC-01/CC-02)
 
@@ -11,11 +11,11 @@ node scripts/check-spec-integrity.mjs
 git diff --check
 ```
 
-No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, sandbox-specific startup/migration wiring and R6 evidence are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or R6 evidence. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
+No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, sandbox-specific startup/migration wiring and integration results are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or its integration results. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
 
 ## Implementation-time prerequisites (FR-GC-08, NFR-SEC-01/02)
 
-Require recorded Gate v2 acceptance, package 3.1 C-01/C-02 compatibility, the D18 managed-default runtime design, isolated test project/credentials, OpenTofu-provisioned EU services after owner-approved API enablement, database migration and real API/web startup entrypoints. Pin runtime/package versions and required preinstalled libraries. Configure no-network isolation and strict caps before running untrusted code. Use synthetic fixtures only during qualification. A single test service credential stays outside the sandbox; code receives no credentials or bucket URLs.
+Require recorded Gate v2 acceptance, package 3.1 C-01/C-02 compatibility, the D18 managed-default runtime design, isolated test project/credentials, OpenTofu-provisioned EU services after owner-approved API enablement, database migration and real API/web startup entrypoints. Pin runtime/package versions and required preinstalled libraries. Configure no-network isolation and strict caps before running untrusted code. Use synthetic fixtures for integration and security tests. A single test service credential stays outside the sandbox; code receives no credentials or bucket URLs.
 
 For each scenario below, derive a failing Vitest/Playwright test with cited IDs before its implementation; record expected failure, implement, rerun and retain evidence. Install pinned workspace dependencies with `pnpm install --frozen-lockfile`. Once the named files exist, run:
 
@@ -44,9 +44,9 @@ These new test paths are planned, not present. Missing files/harness/environment
 | Cancellation | Clear chat during either attempt; terminate execution, fence callbacks using generation_epoch, no re-created message or retained downloadable artifact. |
 | UI/latency | Truthful Running code… ≤2.5s from sufficient-intent submission; keyboard-accessible code drawer and download; no computation progress on clarification. |
 
-## R6 and timing evidence (FR-GC-08, NFR-PERF-01)
+## Integration and timing evidence (FR-GC-08, NFR-PERF-01, D19)
 
-Record runtime identity/config, versions, region, exact memory units, enforced controls, destruction evidence and packet-observation method. The former managed CPU/RAM mismatch is resolved by D18; exact retained-control enforcement still needs empirical evidence. Verify the default profile, not the larger optional machine. Fallback requires contract-equivalent qualification; disabling a Python import or JavaScript worker separation is insufficient.
+Record runtime identity/config, versions, region and observed results during normal implementation/release tests. D19 accepts the Google managed sandbox as the service dependency; R6 is obsolete, with no separate provider spike, qualification dossier or pre-implementation test deployment. Use the D18 default profile. Keep the existing behavior, cleanup and timing assertions; this owner decision supplies no fabricated measurement or release pass.
 
 Declare standard-tabular fixtures, cold/warm categories, concurrency, measurement window and percentile estimator before testing. Measure from sandbox creation request through execution completion, including cold/warm boot, and require ≤4.0s P95; report both strata. Measure submission-to-real-running-code independently (≤2.5s). Retry end-to-end time is reported separately and never silently removed from trace evidence. Progress is not answer TTFT; package 3.4 owns integrated NFR-PERF-01 measurements. Judged hallucination <5%, rejection ≥99% and semantic citation support supplement deterministic precision/leakage checks; no isolated package result certifies the full release.
 

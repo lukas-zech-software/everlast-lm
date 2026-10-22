@@ -34,7 +34,7 @@ Date:2026-10-21; refreshed against latest main `dc25c46` (second refresh; prior 
 
 ## Feasibility boundary (`FR-ST-08/09/18`, `NFR-EVAL-01..04`)
 
-No product questions remain. Generic runnable dev/migration and test/eval scripts are present (see quickstart), but new payloads/plugins/routes/exports and package-specific timing/eval fixtures do not yet exist. They are UNAVAILABLE for runtime qualification during planning. Package3.2 managed default2vCPU/1.5GB (D18) is inherited without changing its pending R6 controls;3.3 requires no sandbox execution. No new cloud API is enabled or deployment made.
+No product questions remain. Generic runnable dev/migration and test/eval scripts are present (see quickstart), but new payloads/plugins/routes/exports and package-specific timing/eval fixtures do not yet exist. They are UNAVAILABLE for runtime qualification during planning. Package3.2 managed default2vCPU/1.5GB (D18) is inherited with D19 provider acceptance (R6 obsolete);3.3 requires no sandbox execution. No new cloud API is enabled or deployment made.
 
 ## Current-main integration review (`C-02/C-03`, `D15/D16`, `FR-ST-08/09/18`)
 

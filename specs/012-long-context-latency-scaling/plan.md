@@ -6,7 +6,7 @@
 
 ## Summary (`NFR-PERF-01`, `C-01..C-03`)
 
-Benchmark and tune the existing PostgreSQL C-02 hybrid retrieval path, adding scoped Source Guide routing; preserve full original-chunk processing for asynchronous Studio. Establish reproducible million-token correctness and validated-answer latency evidence. This is package3.4 only; ingestion, code execution, maps and tables remain prerequisite packages. The inherited 3.2 plan accepts the default 2vCPU/1.5GB sandbox under D18; R6 qualification remains pending. Planning completes without claiming runtime acceptance.
+Benchmark and tune the existing PostgreSQL C-02 hybrid retrieval path, adding scoped Source Guide routing; preserve full original-chunk processing for asynchronous Studio. Establish reproducible million-token correctness and validated-answer latency evidence. This is package3.4 only; ingestion, code execution, maps and tables remain prerequisite packages. The inherited 3.2 plan accepts the default 2vCPU/1.5GB sandbox under D18; R6 is obsolete under owner acceptance D19; normal package 3.2 integration/release tests remain. Planning completes without claiming runtime acceptance.
 
 ## Technical Context (`NFR-PERF-01`, `C-01..C-03`, `NFR-SEC-01/02`)
 
@@ -18,7 +18,7 @@ Benchmark and tune the existing PostgreSQL C-02 hybrid retrieval path, adding sc
 **Execution Model**: Existing ADK chat loop receives C-02-owned evidence. Query classification, retrieval/ranking, token budgeting, cache eligibility, Studio batching and benchmark aggregation are deterministic TypeScript. Model calls extract/compose structured evidence inside deterministic Studio pipelines.
 **Performance Goals**: 20 warm standard-chat runs; nearest-rank P95≤2,500ms (19th sorted value), submission→first validated answer token. Every run must answer142.8bar with the needle citation and zero decoy leakage. Wake-up measurements are separate without blocking latency threshold (D17/DEV-05). Code turns and Studio have their own package constraints.
 **Constraints**: At least1,000,000 active tokens; needle fixture selected sources1–40≥1,050,000 tokens excluding source41. Million tokens is not a notebook quota cap: up to300 sources, each≤200,000,000bytes and≤500,000extracted words. All original chunks participate in Studio above capacity (D12). No silent token truncation or scope widening.
-**Within-Release Prerequisites**: Inherit completed3.1,3.2,3.3 plans/contracts in that order; integrate existing v1 chat/C-02 and v2 Source Guides/C-03. `docs/gate-v2-live-evaluation.md` records Gate v2.0 approval by owner override with known failures and no post-fix live re-run; preserve this authority/evidence distinction. Full Gate v3.0 depends on every v3 package, including R6 qualification.
+**Within-Release Prerequisites**: Inherit completed3.1,3.2,3.3 plans/contracts in that order; integrate existing v1 chat/C-02 and v2 Source Guides/C-03. `docs/gate-v2-live-evaluation.md` records Gate v2.0 approval by owner override with known failures and no post-fix live re-run; preserve this authority/evidence distinction. Full Gate v3.0 depends on every v3 package, with package 3.2 using the owner-accepted managed sandbox under D19 (R6 obsolete).
 
 ## Constitution Check (`CC-01`..`CC-08`)
 
@@ -31,7 +31,7 @@ Pre-research and post-design checks assess design compliance. Runtime gate outco
 | CC-03 | Scope/snapshot | PASS | PASS | C-02-only source reads; exact snapshot/ACL/revision checks on retrieval, caches and publication. |
 | CC-04 | Citations/leakage | PASS | PASS | Fully buffered factual answer validates before first answer event; zero leakage across retrieval/history/cache; no citation-stripped draft or retry. |
 | CC-05 | Contracts/pipelines | PASS | PASS | Shared additive contracts only; unchanged C-01/C-02 public signature/C-03 lifecycle; deterministic Studio batches. |
-| CC-06 | Release/package order | PASS | PASS | Inherited refreshed3.1–3.3 plans; documented v2 owner override disclosed without claiming measured pass; v3 gate/R6 pending. |
+| CC-06 | Release/package order | PASS | PASS | Inherited refreshed3.1–3.3 plans; documented v2 owner override disclosed without claiming measured pass; v3 runtime gate pending; R6 obsolete under D19. |
 | CC-07 | Security/residency | PASS | PASS | Owner/document checks, EU enterprise processing and private evidence; no new source-admission path. |
 | CC-08 | Platform/cost | PASS | PASS | Same TypeScript/Cloud Run/single SQL/GCS stack, scale to zero; no new service or fixed cost. |
 
@@ -75,7 +75,7 @@ Create spec-derived failing tests before implementation for all FR001–010 and 
 | Million-token deployed acceptance | Sources1–40≥1,050,000tokens, real C-02/model/publication, all20correct needle/citations, P95≤2,500ms, decoy leakage0; record all attempted runs and wake cohort. |
 | Integrated quality/security | Hallucination<5%; citation-ID precision1.0 with semantic support; out-of-source rejection≥99%; leakage0; multimodal locators, scope mutation, no summary-only evidence and sandbox admission status included. |
 
-Deterministic citation/leakage suites each PR; judged faithfulness/rejection/semantic support once per release candidate on a fixed deterministic stratified50-case golden sample, recording IDs/category composition/dataset hash (Constitution2.0.0). Independent deployed timing and model results are UNAVAILABLE today. Gate v3.0 cannot pass until all package gates, R6 and these integrated evaluations pass. No plan gate is waived by documenting runtime work.
+Deterministic citation/leakage suites each PR; judged faithfulness/rejection/semantic support once per release candidate on a fixed deterministic stratified50-case golden sample, recording IDs/category composition/dataset hash (Constitution2.0.0). Independent deployed timing and model results are UNAVAILABLE today. Gate v3.0 cannot pass until all package gates and these integrated evaluations pass; D19 makes the separate R6 qualification obsolete. No plan gate is waived by documenting runtime work.
 
 ## Complexity Tracking (`CC-05/08`, D12/D17/D18)
 

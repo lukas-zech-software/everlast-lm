@@ -35,7 +35,7 @@ Date: 2026-10-22. Baseline main `ce3626b`; inherited refreshed3.1–3.3. Local s
 ## Release/eval authority (`NFR-EVAL-01..04`, CC-06/07)
 
 **Decision:** Use Constitution2.0.0: deterministic citation/leakage every PR; judged hallucination/rejection/semantic support once per release candidate against fixed deterministic stratified50golden cases with IDs/category composition/dataset hash. Disclose v2 Gate owner override and no post-fix live re-run from docs/gate-v2-live-evaluation.md.
-**Rationale:** main documents pre-fix Guide/report/response-length failures and owner acceptance for dev stakeholder PoC. That authority permits progression without fabricating measured green. D18 accepts managed2vCPU/1.5GB but R6 no-network/read-only scoped input/64MBscratch/15.0s actual termination/cleanup/EU evidence remains pending.
+**Rationale:** main documents pre-fix Guide/report/response-length failures and owner acceptance for dev stakeholder PoC. That authority permits progression without fabricating measured green. D18 accepts managed2vCPU/1.5GB; D19 accepts the managed service and makes R6 obsolete. Existing sandbox behavior/security requirements remain ordinary implementation/release test obligations.
 **Alternatives considered:** Requiring judged suites on every prompt PR conflicts with amended constitution; silently converting override or planning completion into runtime acceptance invents evidence. No tasks, implementation, provider enablement, IAM change or deployment is performed here.
 
 ## Final runtime and startup delta (`NFR-PERF-01`, D17, CC-08)

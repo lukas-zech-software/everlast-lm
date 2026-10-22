@@ -46,6 +46,6 @@ Do not call a green unrelated suite package acceptance. The judged harness exist
 
 ## Evaluation and handoff (`NFR-EVAL-01..04`, `CC-01..CC-08`)
 
-Require citation-ID precision1.0 and leakage0 deterministic suites on each PR; judged hallucination<5%, rejection≥99%, semantic support once per release candidate on the fixed stratified50-case sample, recording case IDs/category composition/dataset hash. No judged-per-PR obligation is introduced. Use schema-valid multimodal locators and all supported content kinds, not only plain PDFs. Record refusal/no-publication errors as assertions, not ignored failed fixtures. Integrated Gate v3.0 additionally needs3.1/3.2/3.4 runtime evidence;3.2 R6 remains pending and this guide does not qualify it.
+Require citation-ID precision1.0 and leakage0 deterministic suites on each PR; judged hallucination<5%, rejection≥99%, semantic support once per release candidate on the fixed stratified50-case sample, recording case IDs/category composition/dataset hash. No judged-per-PR obligation is introduced. Use schema-valid multimodal locators and all supported content kinds, not only plain PDFs. Record refusal/no-publication errors as assertions, not ignored failed fixtures. Integrated Gate v3.0 additionally needs3.1/3.2/3.4 runtime evidence;D19 accepts3.2's managed provider and makes R6 obsolete; normal integration/release tests still apply.
 
 Next workflow is speckit-tasks, then speckit-analyze, then gated test-first implementation. No runtime gate is claimed by planning completion.

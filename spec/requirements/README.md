@@ -124,7 +124,7 @@ the cited SRS requirements; they do not introduce new release packages.
   notes, research and re-sync paths. Uploading/Processing/Ready sources consume a slot;
   Failed uploads release it and retain only a dismissible error row. Re-sync uses the same
   slot and leaves the old revision intact if validation fails. Each source obeys both limits.
-- **Quantitative sandbox envelope (FR-GC-08, D18):** Use the owner-approved managed default of 2 vCPU / 1.5 GB RAM. This replaces the former CPU/RAM caps only; zero network, read-only scoped input, 64 MB temporary storage, 15.0 s execution and retry rules remain. R6 qualification precedes implementation/runtime admission; planning completion is not runtime evidence.
+- **Quantitative sandbox envelope (FR-GC-08, D18/D19):** Use the owner-approved Google Agent Platform (Agent Engine) managed default of 2 vCPU / 1.5 GB RAM. Zero network, read-only scoped input, 64 MB temporary storage, 15.0 s execution and retry rules remain. The owner accepts the managed service: R6 is obsolete and imposes no separate pre-implementation or deployment qualification gate. Normal application integration tests and release gates still apply; no empirical pass is inferred from this decision.
 - **Validation cadence (NFR-EVAL-01..04, all release gates):** Deterministic citation-ID and
   leakage checks run on every PR. LLM-judged faithfulness/rejection and semantic citation
   support checks run once per release gate on a fixed stratified 50-case sample of the
