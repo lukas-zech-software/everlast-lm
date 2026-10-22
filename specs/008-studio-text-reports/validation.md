@@ -95,3 +95,32 @@ this report"). That was correct: the 4-chunk fixture could not support every req
 `VERTEX_LOCATION=europe-west4`) failed during authentication with `invalid_grant`, because the ADC refresh token
 has expired. No model call was made. After `gcloud auth application-default login` the check must be re-run, and
 the validity, precision, leakage and P95 values recorded here. Until then the live P95 ≤ 25.0 s is not proven.
+
+## Live Gate v2.0 #3 fixes, 2026-10-22 (branch `fix/studio-reports-live`, T065–T069)
+
+**Before**, on the dev deployment (image `everlast:ce3626b`) and in the local live run with
+`runStudioReportsReleaseGate` (`VERTEX_PROJECT=lukas-gcloud-playground`, `europe-west4:gemini-2.5-flash`): Gate v2.0 #3
+FAIL, validity 25 % (1/4), P95 28,468 ms. Briefing Doc: `Quote in quotes is not in the cited chunk`. Study Guide:
+compose took > 18 s and Vertex returned 504 `DEADLINE_EXCEEDED`. FAQ: one 429 `RESOURCE_EXHAUSTED` failed the report.
+On dev, timeline was refused with `InsufficientEvidence` in one run.
+
+**Changes:** T066 (finding references and the literal evidence filter), T067 (parallel compose per section group),
+T068 (transport retry for 429/5xx), T069 (rejection logging without content).
+
+| Check | Result |
+| :-- | :-- |
+| `pnpm exec vitest run apps/worker/test/studio-vertex-report-model.test.ts` | 17/17 pass (12 new tests observed failing first) |
+| Full suite with `TEST_DATABASE_URL` (local PostgreSQL + pgvector) | 92 files, 796 tests pass |
+| `pnpm typecheck`, `pnpm lint` | pass |
+| `pnpm eval:deterministic` | Gate v2.0 #3 (deterministic) PASS, validity 100 %, precision 1.000, leakage 0 |
+| **Live Gate v2.0 #3, run 1** (`runStudioReportsReleaseGate`, Vertex `europe-west4:gemini-2.5-flash`) | **PASS**: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 18,401 ms (≤ 25,000 ms) |
+| **Live Gate v2.0 #3, run 2** | **PASS**: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 17,383 ms |
+
+Per-template live times (run 1): Briefing Doc 15.7 s, Study Guide 18.4 s, FAQ 13.7 s, Timeline 7.8 s. Compose calls
+now take 2–5 s each; the extract map step (up to ~10 s) is the larger share.
+
+## Section keys per compose group, 2026-10-22 (branch `fix/studio-report-section-keys`, T070–T071)
+
+- **Dev smoke (image `61542fc`)**: Gate #3 fixture on dev 4/4 Completed. A Timeline over a 195-word status memo without named people failed 4/4 with `GenerationError` (reproduced locally against Vertex: `The report has an unknown section.`).
+- **After T070–T071** (Vertex `europe-west4:gemini-2.5-flash`, keyless ADC): the memo Timeline refuses 3/3 with `InsufficientEvidence` (no supported `cast_of_characters`, FR-015); memo Briefing Doc, FAQ and Study Guide complete and validate. Gate v2.0 #3 PASS: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 17.6 s.
+

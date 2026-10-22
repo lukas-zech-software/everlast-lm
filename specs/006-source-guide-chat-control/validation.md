@@ -128,3 +128,16 @@ Branch `fix/v2-006-live-gate` (base `main` 5a8dbe0, which includes the Gate v2.0
 - `node scripts/check-spec-integrity.mjs` passed.
 
 **Live verification:** `UNAVAILABLE`. The targeted live check (`runSourceGuideReleaseGate`, project `lukas-gcloud-playground`, `europe-west4`) failed before any model call: every request returned `400 invalid_grant` from Application Default Credentials, because the ADC refresh token had expired. No billable calls were made. Gate v2.0 #1 and the FR-GC-07 numbers stay open (T088) until the owner re-runs `gcloud auth application-default login` and then `pnpm eval:judged` once.
+
+## Live re-run, 2026-10-22 (T088)
+
+`pnpm eval:judged --concurrency 1` on `main` 51f78ab (Vertex AI `europe-west4`, keyless ADC; chat `gemini-2.5-flash`, judge and Source Guide `gemini-2.5-flash-lite`, OCR Document AI `eu`). NFR-SEC-01 preflight: all checks pass. Two earlier attempts at the default concurrency (4) crashed in the FR-GC-07 phase on a Vertex `429 RESOURCE_EXHAUSTED`. The response-length runner has no retry, so one rate-limited call aborts the run before the report is written.
+
+| Check | Result |
+| :-- | :-- |
+| Gate v2.0 #1 (`FR-SI-02`) | **FAIL**: GuideReady 90 % (18/20), P95 from `Ready` 3,353 ms (< 10,000 ms). Both rejections are German guides: Infrastructure_Inventory.pdf `summary_md` > 250 words; Security_Policy.md key topic 6 > 40 code points. Timing passes. |
+| `FR-GC-07` response length | **FAIL**: Shorter/Default 100 % (≤ 50 %), Longer/Default 234 % (≥ 150 %). 8 eligible cases; Default answers are 15–25 words, and Shorter returns the same length. 6 of 14 synthesis cases refused at Default and were excluded. |
+| Gate v2.0 #3 (`FR-ST-10`) | **PASS**: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 17,670 ms |
+| `NFR-EVAL-01..04` (50-case sample) | citation precision 18/18, hallucination 0/18, semantic support 18/18, leakage 0; negative rejection 24/25 (**fail**). NEG-060, SYN-041 and SYN-050 errored (likely residual 429s); the NEG-060 error counts as a missed rejection. |
+
+The fixes from #135 work for Longer and cut Source Guide rejections from 6/20 to 2/20, but they did not fix Shorter or the German summary and topic limits. Gate v2.0 stays approved by owner override ([record](../../docs/gate-v2-live-evaluation.md)). Remaining defects are follow-ups, not blockers.
