@@ -21,11 +21,13 @@
 | Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.3 & §4.1 |
 
 **Requirement (EARS)**
-- *Event:* When a user asks a quantitative, statistical, aggregation, or plotting question in Chat over active sources ($S_{\text{aktiv}}$), the Grounded Reasoning Agent shall delegate computation to the `Code Execution Agent`, which writes and executes Python code inside an ephemeral, network-isolated Agent Platform sandbox selected in the architecture; verify its limits and egress isolation in the R6 spike before implementation, using the documented fallback only if that verification fails.
-- *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, strictly bounded CPU/memory/execution-time limits, and read-only access solely to the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`).
+- *Event:* When a user asks a quantitative, statistical, aggregation, or plotting question in Chat over active sources ($S_{\text{aktiv}}$), the Grounded Reasoning Agent shall delegate computation to the `Code Execution Agent`, which writes and executes Python code inside an ephemeral, network-isolated Agent Platform sandbox selected in the architecture; the project owner accepts this managed service under D19, with no separate R6 feasibility or qualification gate.
+- *Ubiquitous:* The sandbox environment shall have **zero outbound or inbound network access**, the managed sandbox's CPU/memory limits plus an application-enforced execution deadline, and access solely to copies of the data/tables extracted from the current request's $S_{\text{aktiv}}$ (`Contract C-02`); executed code cannot modify stored sources (D20).
 - *Event:* When code execution starts, the system shall show a `"Running code…"` status in the chat response within $\le 2.5\text{ s}$ of the user's submission (this progress event is not an answer token and does not satisfy `NFR-PERF-01`; code-execution turns have their own timing criteria).
 - *Event:* When sandbox execution completes, the system shall embed the computed numerical results, each marked with a `Computed` label, generated charts (PNG/SVG), and a collapsible `"View executed code"` (`"Code anzeigen"`) inspection block inside the assistant's grounded chat response alongside source citations `[n]` to the source data used.
-- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the execution timeout ($15\text{ s}$) or memory limit ($512\text{ MB}$) (no retry for timeout or memory violations), then the system shall terminate the sandbox container and report the error transparently without fabricating a guessed number.
+- *Unwanted:* If the generated Python code raises an exception, then the system shall allow exactly $1$ automatic self-correction retry; if the retry also fails, or if any run exceeds the application execution deadline ($15\text{ s}$) or the sandbox reports a memory error (managed limit $1.5\text{ GB}$) (no retry for timeout or memory violations), then the system shall delete the sandbox, discard any later result and report the error transparently without fabricating a guessed number.
+
+- *Event:* When a statistical request has multiple valid interpretations and neither the question nor its sources identifies the intended one, the assistant shall ask a focused follow-up and wait for the answer before calculating, rather than silently choosing an interpretation. Clarification-only turns do not start execution or show “Running code…”; execution-status timing applies to the submission that supplies sufficient statistical intent to start computation.
 
 **User story:** As a financial or data analyst, I want the chat assistant to calculate exact sums, growth rates, regressions, and charts by running real Python code on numbers from my sources, so that I never suffer from LLM arithmetic hallucinations.
 
@@ -39,14 +41,14 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
-| Generated Python script | UTF-8 Python code using the managed runtime version verified in the R6 spike | Pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy` | — |
-| Sandbox CPU / RAM limit | Container quota | $\le 1\text{ vCPU}$, $\le 512\text{ MB RAM}$, $\le 64\text{ MB}$ temp `/tmp` disk | Enforced per run |
-| Execution timeout | Wall-clock duration | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
-| Outbound network | Network namespace | Completely disabled and verified for the selected managed sandbox; a local Docker flag is not evidence for a managed service | Disabled |
+| Generated Python script | UTF-8 Python code using the managed runtime version recorded by the integration | Pre-installed `math`, `statistics`, `numpy`, `pandas`, `matplotlib`, `scipy` | — |
+| Sandbox CPU / RAM limit | Managed sandbox profile | $\le 2\text{ vCPU}$, $\le 1.5\text{ GB RAM}$ (provider default, D18); provider-limited file system; $\le 100\text{ MB}$ input/output files per request or response (D20) | Enforced by the provider |
+| Execution timeout | Wall-clock duration, enforced by the application (D20) | $\le 15.0\text{ s}$ per execution (no retry after timeout; max $1$ retry after an exception) | $15.0\text{ s}$ |
+| Outbound network | Network namespace | Disabled by the selected managed sandbox; application integration and release tests retain the isolation requirement | Disabled |
 
 **Outputs & state**
 - Visible: Exact computed values, inline rendered chart image (PNG/SVG with download button), collapsible code block (`stdout` + Python source), and source citations `[n]`.
-- Persisted: `code_execution_trace` (`code`, `stdout`, `stderr`, `exit_code`, `artifacts: [chart_urls]`) stored on the `ChatMessage` entity.
+- Persisted: `code_execution_trace` stored on `ChatMessage` as an ordered record of every execution attempt. Each attempt retains `code`, `stdout`, `stderr`, `exit_code`, and `artifacts: [chart_urls]`. After an automatic correction retry, save and show both attempts in execution order in the “View executed code” drawer, explicitly identifying the final attempt and its published outputs. Failed-attempt artifacts are not published results; existing scope, authorization and deletion hygiene apply to every attempt.
 - States: `CodeGenerating` $\rightarrow$ `SandboxRunning` $\rightarrow$ `Succeeded` (or `TimedOut` / `Failed`).
 
 **Acceptance criteria (Gherkin)**
@@ -54,15 +56,31 @@ Evidence: `SRS §3.3 FR-GC-08`, `SRS §5.4 Gate v3.0 #2`
 ```gherkin
 Scenario: Sandbox computes exact arithmetic and renders plot from active source data (Gate v3.0 #2)
   Given an active source containing a table of 12 monthly server latency values
+  And the intended sample or population interpretation is identified by the request, sources, or a clarification answer
   When the user asks "What is the exact standard deviation of the monthly latency and plot the trend?"
   Then the Code Execution Agent executes Python in the sandbox
   And the response includes the exact calculated standard deviation labelled "Computed", an inline chart image, and citation [1]
 
+Scenario: Ambiguous statistical intent is clarified before computation (FR-GC-08)
+  Given a statistical request has multiple valid interpretations
+  And neither the request nor its sources identifies the intended interpretation
+  When the assistant prepares the calculation
+  Then it asks a focused follow-up and waits for the answer before calculating
+  And it does not silently choose an interpretation
+
+Scenario: Correction retry preserves inspectable execution history (FR-GC-08)
+  Given the first execution raises an exception
+  And the automatic correction retry completes
+  When the user opens "View executed code"
+  Then both attempts appear in execution order
+  And the final attempt and its published outputs are explicitly identified
+  And failed-attempt artifacts are not presented as published results
+
 Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #2)
   Given a prompt attempting to execute "import urllib.request; urllib.request.urlopen('https://example.com')"
   When the sandbox runs the code
-  Then the network call fails immediately due to full network isolation
-  And zero packets leave the sandbox environment
+  Then the network call fails because the managed sandbox has no network access
+  And no result derived from a network response is published
 ```
 
 **Edge & error cases**
@@ -77,4 +95,33 @@ Scenario: Sandbox blocks all network and filesystem escape attempts (Gate v3.0 #
 
 **Out of scope:** Installing arbitrary third-party `pip` packages at runtime.
 
+**Clarifications (2026-10-19):** The project owner selected a focused follow-up before ambiguous statistical calculations and ordered persistence/display of both execution attempts after a retry, with the final attempt and published outputs identified.
+
 **Open questions:** `None`
+
+
+## Planning decision history (2026-10-20; FR-GC-08, R6, D18)
+
+The initial provider investigation found that the managed default (2 vCPU / 1.5 GB RAM) exceeded the former 1 vCPU / 512 MB limits. The owner initially selected Option A: "Option A: We are not expecting more than one or two simultaneous users, so this should be fine." That decision preserved the former limits and held planning for feasibility evidence.
+
+**Superseding decision:** The owner then instructed: "Revise 3.2-P1 / FR-GC-08: accept the higher limits for default sandbox of 2 vCPU and 1.5 GB RAM". This replaces the earlier CPU/RAM caps and the planning hold caused by that mismatch. Use the managed default profile; the 4 vCPU / 4 GB alternative is not authorized. Zero inbound/outbound network, read-only scoped input, 64 MB temporary storage, 15.0-second per-run execution, retry rules and all citation/access controls remain unchanged. One or two simultaneous users remains workload context. The separate R6 qualification requirement was superseded on 2026-10-22 by owner acceptance in D19; ordinary implementation and release tests remain.
+
+This changes Everlast's project acceptance envelope, not a verified reference-product deviation; D18 and the SRS FR-GC-08 amendment record the change. No new DEV entry is inferred.
+
+## Main refresh (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
+
+Latest main supplies a runnable PostgreSQL-backed chat path, buffered citation verification and hybrid scoped retrieval. Integrate sandbox execution into that path; v2 persistence is complete under D16/specs/013 (DEV-04 closed), while durable sandbox execution traces, operational cleanup records and charts remain new work. Keep historical responses compatible while preserving trace provenance, exact results and authorization on every response projection, including saved-response consumers. A targeted retrieval subset must not be presented as complete data for a whole-table calculation: obtain sufficient original evidence through C-02 with the same captured snapshot, or explain insufficient evidence without guessing. Persist a clarification-only response without claiming a computed result; its answer starts a fresh explicitly scoped submission. Retain D18's managed CPU/RAM profile and existing sandbox behavior and security requirements. D15 remains canonical source publication, D17/DEV-05 governs warm chat timing, and none relaxes sandbox acceptance.
+
+**Second main refresh (2026-10-21; FR-GC-08, FR-GC-06, C-02):** Reuse applied v2 migrations 0005–0008 and app-scoped PostgreSQL store selection, preserving visible history, saved-response access and transactional chat-clear hygiene. Preserve sources/history readiness before submission while retaining independent API scope and sandbox admission checks. Single-instance v2 report/Guide restart sweeps do not implement sandbox crash reconciliation or implement sandbox timeout/isolation handling.
+
+## Managed sandbox acceptance (2026-10-22; FR-GC-08, D19)
+
+The project owner accepts Google's Agent Platform (Agent Engine) managed Code Execution sandbox as the selected service dependency. R6 is obsolete: no separate provider feasibility spike, qualification dossier or R6 implementation/deployment admission gate is required. D18's 2 vCPU / 1.5 GB default and the existing scoped-input, network, scratch, timeout, retry, cleanup, authorization, citation and residency requirements remain. Verify the application integration and required behavior through normal spec-derived tests and release gates; this decision records owner acceptance, not newly executed runtime evidence. Switching runtimes requires a new explicit architecture decision.
+
+## Task-analysis refinements (2026-10-22; FR-GC-08, FR-GC-06, C-02)
+
+A rejected request before execution allocation has no trace. An allocated execution that fails before code submission records Failed with zero actual attempts, null final attempt and no published artifacts, without inventing execution or exit 0. An unknown result after actual submission retains its real attempt and reconciles without replay. Timing evidence fixes fixture/runtime/cohort sample counts before collection, uses nearest-rank P95, retains all attempts and fails cohorts containing failed/time-out samples; missing samples are UNAVAILABLE. Existing scope/cache/history and 404 missing/403 foreign notebook authorization rules remain. D19 remains in force: these are normal integration/release requirements, not a separate R6 qualification.
+
+## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
+
+The project owner decided that, for now, the managed sandbox defines the FR-GC-08 limits. Use what Google documents for Agent Platform Code Execution: default 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. Scoped inputs are file copies in a fresh sandbox, so stored sources cannot be changed. The 64 MB `/tmp` cap is dropped. The provider documents no execution timeout, so the application enforces 15.0 s per attempt by deleting the sandbox and discarding late results. Network tests check that calls from executed code fail; packet capture is not required. Scope, citation, retry, cleanup and residency rules are unchanged.

@@ -24,7 +24,7 @@
 - *Event:* When the Owner/Editor uploads a `.docx` or `.pptx` file, the system shall extract all document/slide text, tables, speaker notes, and embedded visual descriptions into `UnifiedDocumentChunk` records (`Contract C-01`) with C-01 `page_span` locators into the normalized viewer document. The Office adapter must preserve speaker notes and extract visual descriptions alongside PDF conversion; a rendered slide number is page metadata, not a new locator variant.
 - *Event:* When the Owner submits a Google Docs/Slides link or selects a document in the authorized picker, the v3 Google Drive import adapter shall use that user's delegated read access, export Docs/Slides into the Office normalization path, and preserve the external document ID for manual re-sync. Reject revoked/insufficient permission; never substitute a service account's access. This import adapter precedes v6 enterprise discovery (D11).
 - *Event:* When the Owner/Editor submits a Web URL, the system shall fetch the page, strip boilerplate navigation/ads, extract the main article content into `UnifiedDocumentChunk` records, and store the canonical URL.
-- *Event:* When the Owner/Editor submits a Video URL (e.g., YouTube or internal media portal) or uploads an Audio file (`.mp3`, `.wav`, `.m4a`), the system shall extract the caption transcript or run Automatic Speech Recognition (ASR) to produce `UnifiedDocumentChunk` records where every chunk carries a `time_span` locator (`start_ms`, `end_ms`, formatted `mm:ss`).
+- *Event:* When the Owner/Editor submits a Video URL (e.g., YouTube or internal media portal) or uploads an Audio file (`.mp3`, `.wav`, `.m4a`), the system shall extract the caption transcript or run Automatic Speech Recognition (ASR) to produce `UnifiedDocumentChunk` records where every chunk carries the existing C-01 `time_span` locator (`start_ms`, `end_ms`); its transcript/view DTO exposes the formatted `mm:ss` derived from `start_ms`, outside the strict locator object.
 - *Event:* When the user clicks an inline citation `[n]` (`FR-GC-03`) pointing to an audio or video chunk, the Source Inspector (`FR-SI-04`) shall open the transcript with an embedded media/timestamp player, scroll to the highlighted transcript segment, and seek the player to `start_ms`.
 
 **User story:** As a researcher working with heterogeneous media, I want to add Word docs, PowerPoint decks, web articles, YouTube/video links, and audio recordings to my notebook and jump to the exact timestamp when clicking a citation, so that all my formats are unified in one workspace.
@@ -44,7 +44,7 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 | Audio files | `.mp3`, `.wav`, `.m4a` | Max $200\text{ MB}$ | — |
 | Website URL | `https://...` | Public HTML or explicitly allowlisted enterprise HTML reachable under the requesting user's authorized access; Google Docs/Slides use the delegated v3 adapter, not generic scraping | — |
 | Video URL | YouTube / enterprise video URL | Must have captions/transcript or audio track accessible | — |
-| `time_span` locator | `Contract C-01` JSON | `{ start_ms: int, end_ms: int, display_time: "mm:ss" }` | — |
+| `time_span` locator / display DTO | Existing `Contract C-01` JSON + transcript/view DTO | Locator retains integer `start_ms`, `end_ms`; derived `display_time: "mm:ss"` is view metadata outside the strict C-01 locator | — |
 
 **Outputs & state**
 - Visible: Format-specific icons (Web globe, Video play icon, Audio waveform, Slides icon, Doc icon) in the Left Panel; timestamped transcript + media player in Source Inspector.
@@ -58,9 +58,18 @@ Scenario: Audio upload produces chunks with clickable mm:ss timestamp locators (
   Given an open notebook
   When the owner uploads a 10-minute "Interview.mp3" file
   Then the ASR pipeline transcribes the audio and creates UnifiedDocumentChunk records
-  And every chunk contains a valid time_span locator (start_ms, end_ms, "mm:ss")
+  And every chunk contains a valid existing C-01 time_span locator (start_ms, end_ms)
+  And its transcript/view DTO exposes the derived display_time "mm:ss"
   When the user clicks a chat citation [1] referencing a statement at 04:15 in "Interview.mp3"
   Then the Source Inspector opens "Interview.mp3", highlights the segment at 04:15, and seeks the player to 04:15
+
+Scenario: Audio transcription timing includes queue waiting
+  Given a declared 30-minute audio fixture has completed upload
+  When the uploaded audio is accepted for transcription
+  Then timing starts at acceptance and includes queue waiting
+  And timing ends when the timestamped transcript is available
+  And P95 across the declared benchmark runs is at most 45 seconds
+  And upload and later indexing are excluded
 
 Scenario: Paywalled or unreachable Web URL fails with clear message
   Given a Web URL returning HTTP 403 Forbidden or no extractable article content
@@ -84,7 +93,7 @@ Scenario: Google Slides import preserves notes and deterministic locators
 
 **Measurable criteria**
 - $100\%$ of ingested audio/video chunks contain valid `time_span` (`mm:ss`) locators (`Gate v3.0 #1`).
-- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95).
+- $30$-minute audio file ASR transcription completes in $\le 45\text{ s}$ (P95), measured from acceptance of the uploaded audio for transcription until its timestamped transcript is available. Include queue waiting; exclude upload and later indexing. Use a declared fixture/environment.
 
 **Deviations from reference:** Use the architecture's fetch + Readability path with deterministic snapshots. A page containing only an unsupported JavaScript shell fails clearly; no unapproved headless-browser dependency is implied.
 
@@ -109,6 +118,8 @@ Scenario: Google Slides import preserves notes and deterministic locators
 - *Event:* When the Owner/Editor selects `"Remove source"` (`"Quelle entfernen"`) and confirms, the system shall delete the `Source` and its `UnifiedDocumentChunk` records from the notebook and decrement the source counter.
 - *Event:* Where a source originates from a mutable external link (Web URL or linked cloud/intranet document), when the Owner/Editor clicks `"Re-sync"` (`"Neu synchronisieren"` / `"Click to sync"`) in the Source Inspector or via a webhook event, the system shall re-fetch the latest content, stage and validate the replacement (limits, safety, parsing and embeddings), then atomically replace the source's `UnifiedDocumentChunk` set with fresh non-reused chunk IDs, and regenerate its `Source Guide` (`FR-SI-02`).
 
+- *State:* While a source re-sync is active, the system shall reject additional manual or webhook re-sync requests for that source with `"Sync already in progress"`, leave the active refresh unchanged, and queue no follow-up refresh. The caller must retry after the active refresh finishes.
+
 **User story:** As a project lead working with living web pages and cloud documents, I want to rename or remove sources and re-sync external sources when the upstream document changes, so that my notebook never works on stale information.
 
 **Reference behaviour**
@@ -132,6 +143,14 @@ Evidence: `https://support.google.com/notebooklm/answer/16213268`, `SRS §3.2 FR
 **Acceptance criteria (Gherkin)**
 
 ```gherkin
+Scenario: Overlapping re-sync requests are rejected without a queued follow-up
+  Given a source re-sync is already active
+  When another manual request or webhook requests re-sync for that source
+  Then the additional request is rejected with "Sync already in progress"
+  And the active refresh continues unchanged and no follow-up is queued
+  When the caller submits a new request after the active refresh finishes
+  Then the new request can start normally
+
 Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chunks on network failure
   Given a Web URL source "https://intranet.corp/roadmap" ingested with content "Release v1 in May"
   When the upstream page changes to "Release v1 in June" and the owner clicks "Re-sync"
@@ -151,3 +170,22 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 **Out of scope:** Sub-second live keystroke streaming from external editors.
 
 **Open questions:** `None`
+
+## Planning refinements — 2026-10-20 (FR-SI-01/05, C-01, NFR-SEC-02)
+
+- Preserve the shared C-01 locator union; `mm:ss` is derived from `start_ms` in transcript/view metadata, not an additional required field inserted into strict shared locator objects. Reconcile any earlier plan/runtime encoding drift against SRS and consumer tests before v3 implementation; no breaking migration is authorized here.
+- Use durable operation IDs and a per-source publication fence for re-sync. A transport redelivery resumes the same operation idempotently; a distinct manual/webhook request while active is rejected with `Sync already in progress`, with no queued follow-up. Deletion or stale fencing tokens prevent later publication.
+- Provider export/caption capability failures remain explicit failures without truncation, service-account fallback, or redefining the inclusive application quota. Drive export's documented provider ceiling is not the application's 200MB limit; use supported delegated long-running export where appropriate. Public YouTube visibility alone does not imply authorized caption/audio access. The existing inaccessible-video failure applies; no assigned scope is removed.
+- Source media delivery must recheck document/notebook authorization and revision validity; an expired or revoked source cannot remain readable through a previously issued reusable signed object URL. Use authorization-checked proxy delivery with invalidation of active delivery on revocation.
+- The package plan uses regional Speech V2 Chirp 2 word offsets and existing Office normalization plus supplemental notes/descriptions, with Model Armor fail-closed screening. Deployment availability and the unchanged 45-second P95 target require live evidence; neither is asserted by planning. See `specs/009-multimodal-ingestion-sync/research.md` and `plan.md` for rationale and provider references.
+
+## Latest-main refinement — 2026-10-21 (FR-SI-01/05, FR-SI-02/04, C-01/C-02)
+
+- Preserve canonical viewer text and chunk anchors atomically with each published source revision under D15, so removing a source makes its text unavailable immediately through the same relational source access boundary. Raw and binary media delivery remains separately authorized.
+- A successful re-sync durably invalidates the previous current Source Guide and requests generation for the new exact revision/output language. Restart or redelivery must not lose the request or allow an old Guide to appear as current (D16). D16/specs/013 now supplies durable v2 storage and restart recovery; this package preserves those outcomes and adds reliable re-sync-trigger delivery, rather than redefining existing v2 persistence. Recovery must eventually regenerate the new revision even without a user reopening the source; existing valid Guide results are reused.
+- Preserve source-from-note provenance, shared source quota and trusted-only note-source admission when adding v3 source types (`FR-NM-03`, `FR-WM-07`). The 1–200-point rename limit is specific to FR-SI-05; existing copied-text creation retains its own 100-point title limit.
+- Gate v2 is owner-approved by override, recorded in `docs/gate-v2-live-evaluation.md`; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail; this is not a new claim that the earlier failed measurements passed.
+
+## Task-analysis clarification (2026-10-22; FR-SI-01/05, C-01)
+
+The timestamp display label is derived view metadata; the existing strict C-01 locator remains unchanged. For the declared 30-minute audio benchmark, predeclare N≥20 accepted attempts, include all attempts in nearest-rank P95, and sort failed/unfinished attempts as positive infinity while retaining their separate outcomes. Do not remove attempts or reclassify them based on observed latency. The ≤45s target still includes queue waiting and excludes upload/indexing. Concrete migration 0009 and file ownership in the feature plan only decompose this package's existing implementation scope.

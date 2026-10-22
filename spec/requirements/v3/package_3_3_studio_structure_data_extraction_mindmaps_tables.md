@@ -157,6 +157,8 @@ Scenario: Drilldown does not restore a historical source selection
 **Requirement (EARS)**
 - *Event:* When the Owner/Editor clicks the `"Data Table"` (`"Datentabelle"`) tile in the Studio panel (optionally providing a focus prompt such as `"Compare all vendors by pricing, SLA, and certifications"` or choosing a suggested table schema), the `Table Extraction Agent` shall extract structured rows and columns across $S_{\text{aktiv}}$ and persist a `StudioArtifact` (`Contract C-03`).
 - *Ubiquitous:* Every cell in a generated Data Table that asserts a factual value shall include a citation reference (`chunk_id`) linking back to the source passage, or display `"N/A (Not in sources)"` if a document does not state that attribute.
+- *Unwanted:* If fulfilling the requested comparison requires more than 500 rows or 25 columns, the system shall mark the attempt Failed, explain the exceeded limit, ask for narrower instructions, and publish no table. A partial table is not a successful substitute.
+- *State:* When selected documents give conflicting values for the same item and attribute, the table shall keep one row per item, show all conflicting values in the same cell with individual supporting citations, and explicitly mark the disagreement.
 - *Event:* When the user clicks `"Export CSV"` or `"Export Excel (.xlsx)"` in the Data Table viewer, the system shall generate and download a valid UTF-8 `.csv` or OpenXML `.xlsx` file.
 
 **User story:** As an enterprise analyst comparing multiple proposals, contracts, or research papers, I want the Studio to extract structured comparison tables across my active sources and export them to CSV or Excel, so that I don't have to copy-paste metrics manually.
@@ -190,12 +192,30 @@ Scenario: Extract multi-document comparison table and export valid CSV and XLSX 
   Then the generated table contains 3 rows and columns for Vendor, Price, and Uptime SLA with cell citations
   When the user clicks "Export CSV" and "Export XLSX"
   Then the downloaded CSV parses without syntax errors and the XLSX opens cleanly in openpyxl/Excel
+
+Scenario: Oversized comparison fails without publishing a partial table
+  Given a requested comparison requires 501 rows or 26 columns
+  When the system determines that either table limit would be exceeded
+  Then the attempt is Failed with a clear limit explanation
+  And the user is asked to provide narrower instructions
+  And no table is published
+
+Scenario: Conflicting values remain individually cited in one cell
+  Given two active documents state different prices for Vendor A
+  When the owner generates a vendor price comparison
+  Then Vendor A occupies one row
+  And its Price cell shows both values with individual supporting citations
+  And the cell explicitly marks the disagreement
 ```
 
 **Edge & error cases**
+- Oversized requested results (more than 500 rows or 25 columns) → Fail with a clear limit explanation and request narrower instructions; publish no table. Evidence-limited lower counts still follow the shared C-03 rule.
+- Conflicting values for one item/attribute → Preserve all values and individual citations within the same cell, mark the disagreement, and retain one row per item; do not silently choose a value or use the missing-evidence marker.
 - Formula injection prevention in CSV/XLSX export $\rightarrow$ Cell values starting with `=`, `+`, `-`, or `@` are sanitized/escaped so opening the exported file in Excel cannot trigger CSV macro injection.
 
 **Measurable criteria**
+- Boundary fixtures requiring 501 rows or 26 columns publish zero tables and fail with a narrowing request; otherwise valid requests at 500 rows and 25 columns remain within bounds.
+- Conflicting-value fixtures preserve one row per item and all conflicting values with individual citations and an explicit disagreement marker.
 - $100\%$ of exported `.csv` and `.xlsx` files pass format parser validation (`Gate v3.0 #3`).
 
 **Deviations from reference:** First-class dedicated Studio tile with `.csv`/`.xlsx` export and formula-injection sanitization.
@@ -203,3 +223,22 @@ Scenario: Extract multi-document comparison table and export valid CSV and XLSX 
 **Out of scope:** Full two-way live spreadsheet formula editing inside the Studio viewer.
 
 **Open questions:** `None`
+
+## Planning contract refinements (refreshed 2026-10-21)
+
+These refine FR-ST-08/09/18 and C-03 without altering release scope or accepted clarification answers.
+
+- **Shared plugin integration (C-03):** Existing report-specialized DTOs and PostgreSQL repository must be extended additively for mindmap/data_table before registration. specs/013 has closed DEV-04 and applied 0008 supplies Studio storage. Reuse existing report rows and repository; add a new numbered migration for typed kind/subtype constraints and durable admission/outbox/lease/cancellation/publication fences. Do not recreate deleted drafts or edit applied migrations. Preserve report wire shapes, exported schemas, lifecycle and report plugin behavior, app-scoped pool isolation and D16 single-API operation. Do not fork C-01/C-02 or a second Studio lifecycle.
+- **Evidence and validation (FR-ST-08/18, C-02/C-03):** Process all original scoped chunks with retained coverage and field-level evidence. Validate required output dimensions and individual conflicting values before atomic publication. Invalid citations fail immediately; package detail may identify InvalidMindmap/InvalidTable/TableLimitExceeded under existing safe failure codes. A capped model sample must not hide a requested result exceeding 500 rows/25 columns.
+- **Drilldown (FR-ST-09, FR-GC-01/02/06):** API accepts artifact/node identity and current explicit Ready selection. Verify node plus parent supporting revisions and authorization before constructing any source-derived prompt; do not trust client labels or auto-restore sources. Reuse ordinary chat admission/history/citation checks.
+- **Map presentation/export (FR-ST-08/09):** Use deterministic native SVG layout and browser Canvas for 2× PNG from a validated self-contained scene; bounds include every currently expanded node irrespective of viewport transform. Escape labels and forbid active SVG/external resource content. Expansion and sorting are local view state.
+- **Table serialization/export (FR-ST-18):** Use text-only ExcelJS XLSX serialization in the existing runtime and deterministic RFC4180 CSV with UTF-8 BOM. Sanitize formula-risk prefixes including whitespace/control bypasses in headers and values before CSV quoting, and use explicit string XLSX cells without formulas/macros/external links. Preserve conflict alternatives, disagreement and per-value citation references within the same exported cell; do not mutate canonical source values.
+- **Export authorization (FR-ST-09/18, NFR-SEC-02):** Serve through the application API with live source/notebook access checks and private/no-store delivery; no reusable signed URL bypass. Deletion/revocation invalidates loaded/pending/cached content and delivery; mere deselection alone retains authorized historical export. Clearing application state cannot revoke already downloaded files.
+
+- **Restart/concurrency acceptance (C-03, FR-ST-08/18, D16/specs/013):** Completed artifacts and queued new-plugin work survive API/worker restart. Transport redelivery recovers the same new-plugin attempt without duplicate publication or a user retry; terminal refusal is not silently regenerated. Preserve legacy reports: interrupted Queued/Running reports become Failed/GenerationError and require explicit retry. Exclude new-kind leased jobs from the legacy startup sweep before activation. Live owner/source revision and attempt/cancellation checks serialize atomically with publication. Drain/fence old inline work during rollout without resetting persisted rows; preserve existing row-locked rejection of late terminal report completion.
+- **Current source and delivery boundaries (C-02/C-03, NFR-SEC-02):** Reuse real PostgreSQL scoped reads and all-original keyset traversal, not chat top-k for exhaustive synthesis. Carry the captured owner/revision context into workers without process-local ownership caches or recapturing newer revisions. List/get/export invalidation also redacts source-derived titles, snippets and failure text; safe unavailable metadata contains no retained source content.
+- **Gate and eval evidence (NFR-EVAL-01..04):** Preserve the recorded Gate v2 owner override; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail. Deterministic citation/leakage every PR; judged faithfulness/rejection and semantic support once per release candidate on fixed stratified 50-case sample with case IDs/category composition/dataset hash (Constitution 2.0.0). Neither override nor document integrity proves package 3.3 runtime acceptance.
+
+## Task-analysis acceptance refinements (2026-10-22; FR-ST-08/09/18, C-03)
+
+Mindmap generation P95≤20.0s uses predeclared fixtures/environment, cold-warm mix and N≥20 accepted submissions. Queue/model/validation/persistence remain within submission-to-Completed; retain all accepted attempts, failed/unfinished=positive infinity, nearest-rank sorted position ceil(0.95*N). Missing the declared cohort cannot pass; no posthoc exclusions or chat-only warm exception. Declare browser actions/frame population/hardware before recording the unchanged 60fps/≤16ms target up to 120 nodes; retain slow/failed samples. Existing unsupported output-language 400 versus other invalid-parameter 422 responses remain compatible. These refinements specify reproducible measurement and current validation behavior without changing numeric thresholds, report compatibility, table limits or source/citation rules.
