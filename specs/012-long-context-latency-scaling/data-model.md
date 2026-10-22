@@ -36,7 +36,7 @@ A failure/missing answer keeps terminal status and contributes positive infinity
 
 ## Release quality evidence (`NFR-EVAL-01..04`, CC-06)
 
-Keep benchmark20warm observations distinct from judged release sample50. Release record includes versioned golden dataset hash, fixed deterministic stratified sample IDs/category composition, candidate commit/model/configuration, metric numerators/denominators and result. Deterministic citation/leakage reports run each PR. Preserve prior owner override as approval authority with failures/no post-fix rerun; never encode it as measured green. No private source contents or credentials belong in generic telemetry.
+Keep benchmark20warm observations distinct from judged release sample50. Release record includes versioned golden dataset hash, fixed deterministic stratified sample IDs/category composition, candidate commit/model/configuration, metric numerators/denominators and result. Deterministic citation/leakage reports run each PR. Preserve prior owner override as approval authority with its remaining failures (the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail); never encode it as measured green. No private source contents or credentials belong in generic telemetry.
 
 ## Persistence baseline metadata (`NFR-PERF-01`, C-02/C-03)
 

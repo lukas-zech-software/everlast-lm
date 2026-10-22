@@ -184,7 +184,7 @@ Scenario: Re-syncing a Web URL updates chunks atomically and keeps previous chun
 - Preserve canonical viewer text and chunk anchors atomically with each published source revision under D15, so removing a source makes its text unavailable immediately through the same relational source access boundary. Raw and binary media delivery remains separately authorized.
 - A successful re-sync durably invalidates the previous current Source Guide and requests generation for the new exact revision/output language. Restart or redelivery must not lose the request or allow an old Guide to appear as current (D16). D16/specs/013 now supplies durable v2 storage and restart recovery; this package preserves those outcomes and adds reliable re-sync-trigger delivery, rather than redefining existing v2 persistence. Recovery must eventually regenerate the new revision even without a user reopening the source; existing valid Guide results are reused.
 - Preserve source-from-note provenance, shared source quota and trusted-only note-source admission when adding v3 source types (`FR-NM-03`, `FR-WM-07`). The 1–200-point rename limit is specific to FR-SI-05; existing copied-text creation retains its own 100-point title limit.
-- Gate v2 is owner-approved by override, with unmeasured post-fix live follow-ups recorded in `docs/gate-v2-live-evaluation.md`; this is not a new claim that the earlier failed measurements passed.
+- Gate v2 is owner-approved by override, recorded in `docs/gate-v2-live-evaluation.md`; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail; this is not a new claim that the earlier failed measurements passed.
 
 ## Task-analysis clarification (2026-10-22; FR-SI-01/05, C-01)
 

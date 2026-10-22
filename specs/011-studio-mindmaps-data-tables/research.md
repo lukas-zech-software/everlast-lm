@@ -45,7 +45,7 @@ No product questions remain. Generic runnable dev/migration and test/eval script
 ## Verification cadence and operational evidence (`NFR-EVAL-01..04`, `CC-06`)
 
 **Decision:** Constitution2.0 deterministic citation/leakage every PR; judged faithfulness/rejection/semantic support once on release candidate using fixed stratified50-case sample with recorded case IDs/category composition/hash. `packages/evals/src/cli.ts` already selects that sample despite an obsolete leading comment mentioning full-dataset PR runs; document current behavior, do not replicate that comment. `scripts/dev.mjs` launches database, migrations, API/worker and built web; db:migrate is a real migration runner, not a harness banner.
-**Rationale:** Prior plan's cadence and harness-only launch claims are stale. Gate v2 has explicit owner override after earlier live failures and no post-fix rerun; approval is preserved without claiming those failures were measured resolved. Package-specific v3 routes/suites/performance remain unavailable.
+**Rationale:** Prior plan's cadence and harness-only launch claims are stale. Gate v2 has explicit owner override after earlier live failures; the 2026-10-22 live re-run passes #3 while #1 and FR-GC-07 Shorter still fail; approval is preserved without claiming those failures were measured resolved. Package-specific v3 routes/suites/performance remain unavailable.
 **Alternatives considered:** Requiring judged suites per PR would contradict the amended constitution; treating inherited green suites or gate override as new v3 evidence would misstate acceptance.
 
 ## Task-analysis measurement and reuse decisions (2026-10-22; FR-ST-08/09/18, CC-01/02)
