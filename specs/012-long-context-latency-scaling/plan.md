@@ -1,6 +1,6 @@
 # Implementation Plan: Long-Context and Latency Scaling
 
-**Branch**: `codex/v3-refresh-final-3-4-20261021` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
+**Branch**: `codex/v3-tasks-3-4-20261022` | **Date**: 2026-10-22 | **Spec**: [spec.md](spec.md)
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`
 **SRS IDs in Scope**: `NFR-PERF-01`, supporting `C-01/C-02/C-03`, `FR-SI-01/02/03/05`, `FR-GC-01/02/06/08`, `FR-WM-04/07`, `NFR-SEC-01/02`, `NFR-EVAL-01..04` | **Release Gate**: Gate v3.0 #3 capacity component
 
@@ -27,7 +27,7 @@ Pre-research and post-design checks assess design compliance. Runtime gate outco
 | Gate | Principle | Pre-Research | Post-Design | Evidence |
 | :--- | :--- | :--- | :--- | :--- |
 | CC-01 | Traceability | PASS | PASS | SRS IDs on every design area; refinements mirrored in spec/card/architecture. |
-| CC-02 | Test-first | PASS | PASS | Coverage below requires spec-derived Red before changes, Green/refactor after; tasks deferred. |
+| CC-02 | Test-first | PASS | PASS | Coverage below requires spec-derived Red before changes, Green/refactor after; tasks.md now supplies ordered coverage. |
 | CC-03 | Scope/snapshot | PASS | PASS | C-02-only source reads; exact snapshot/ACL/revision checks on retrieval, caches and publication. |
 | CC-04 | Citations/leakage | PASS | PASS | Fully buffered factual answer validates before first answer event; zero leakage across retrieval/history/cache; no citation-stripped draft or retry. |
 | CC-05 | Contracts/pipelines | PASS | PASS | Shared additive contracts only; unchanged C-01/C-02 public signature/C-03 lifecycle; deterministic Studio batches. |
@@ -37,7 +37,7 @@ Pre-research and post-design checks assess design compliance. Runtime gate outco
 
 ## Project Structure and Ownership (`C-02`, `C-03`, `NFR-PERF-01`)
 
-Artifacts here: spec.md, plan.md, research.md, data-model.md, contracts/interfaces.md, quickstart.md and existing requirements checklist. No tasks.md or executable implementation is created.
+Artifacts here: spec.md, plan.md, research.md, data-model.md, contracts/interfaces.md, quickstart.md and existing requirements checklist. tasks.md and analysis.md now record unexecuted implementation work and consistency review; no executable implementation is created.
 
 | Planned implementation boundary | Work and serialization |
 | :--- | :--- |
@@ -85,7 +85,7 @@ No constitution violation or new deviation. D12 complete evidence, D17/DEV-05 wa
 
 Baseline main `dc25c46` is an ancestor. The preceding package refresh commit is `f2d438eb72f93ebfb71f52e13f8653ae6612021c`. Current `/healthz` is liveness; `/readyz` only checks SQL `SELECT 1`, so neither alone proves readiness of the actual serving instance plus configured model/retrieval/cache dependencies for an acceptance request. Define boot ID/readiness evidence and its mapping to the serving request before collection. A preparatory request to one Cloud Run instance does not establish another instance warm. Use current startup/SQL health as inputs, not invented production telemetry; unknown classification invalidates acceptance. Infrastructure warmup commands mutate resources and are not executed by this refresh.
 
-D16/specs/013 closes DEV-04: applied migrations0005–0008 persist v2 preferences, Guides/overview/chat control, notes and reports using the app-scoped PostgreSQL pool. In-process jobs and single-API deployment remain.3.1 owns remaining durable re-sync/Guide dispatch and revision/attempt publication fences;3.3 owns new-kind admission/outbox, leases and transactional publication fences. Integrated benchmark setup must require those completed paths and current3.2 service/model/draft/verifier/SSE integration, not treat their refreshed plans as implemented. Preserve D15 canonical source_pages, D17/DEV-05 warmth and D18 managed sandbox. No critical product ambiguity remains after spec-first review; planned implementation questions are resolved in research. No tasks or analyze invocation before tasks exist.
+D16/specs/013 closes DEV-04: applied migrations0005–0008 persist v2 preferences, Guides/overview/chat control, notes and reports using the app-scoped PostgreSQL pool. In-process jobs and single-API deployment remain.3.1 owns remaining durable re-sync/Guide dispatch and revision/attempt publication fences;3.3 owns new-kind admission/outbox, leases and transactional publication fences. Integrated benchmark setup must require those completed paths and current3.2 service/model/draft/verifier/SSE integration, not treat their refreshed plans as implemented. Preserve D15 canonical source_pages, D17/DEV-05 warmth and D18 managed sandbox. No critical product ambiguity remains after spec-first review; planned implementation questions are resolved in research. Task generation is now complete; analysis follows the generated tasks.
 
 ## Persisted runtime benchmark conditions (`NFR-PERF-01`, C-02/C-03, D16/D17)
 
@@ -96,3 +96,22 @@ Keep single-API/in-process jobs as the current topology until separately qualifi
 ## Final runtime baseline (`NFR-PERF-01`, D17, CC-08)
 
 Main `ce3626b` sets Node.js26 and enables `MIGRATE_ON_START=true` for the deployed API. The server awaits advisory-locked, once-per-file numbered migrations before listening. Record runtime version, schema version/hash and migration completion in boot/readiness evidence; a migration lock wait is startup work, not proof of warm readiness. Retain prospective serving-instance classification and the original submission clock for every attempt, including requests delayed during rollout. Never subtract migration delay, reclassify an already-warm slow request, or infer model readiness from completed migrations. Qualify schema compatibility with an older serving revision before rollout; full boot/recovery/dependency readiness remains required.
+
+## Task-analysis refinements (2026-10-22; `NFR-PERF-01`, `C-02/C-03`, `NFR-SEC-02`, `NFR-EVAL-04`)
+
+Context-cache metadata is process-local to the executing adapter instance; it stores no alternate source corpus and requires no database migration. Every provider cache creation sets an explicit finite expiry (record the configured TTL and provider-confirmed expires_at; reject missing, nonpositive or non-finite values). Revalidate exact scope, current authorization and revisions through C-02 before every use and publication. Invalidation immediately removes local eligibility and attempts idempotent provider deletion; cleanup failure never restores eligibility. On restart, do not discover or reattach orphan handles: treat them as misses and rebuild only from reauthorized original chunks. Provider expiry bounds orphan lifetime; it never grants access or replaces immediate application-side invalidation.
+
+JSON observations encode a missing/failed factual answer with client_first_validated_answer_ms=null, latency_ms=null and an explicit terminal failure/refusal/cancelled status. Derive positive infinity only inside aggregation, never serialize Infinity or NaN. A failed aggregate serializes p95_ms=null with result=FAIL and the retained failure observations; any valid warm failure fails acceptance regardless of rank. Unavailable readiness/sample prerequisites serialize result=UNAVAILABLE separately; neither null nor unavailable means zero latency.
+
+## Concrete task ownership (`NFR-PERF-01`, `C-02/C-03`, CC-01/02)
+
+All paths below are implementation targets, not claims of existing files. `tasks.md` is the authoritative ordered file allocation; one writer owns shared implementation files. Test-only [P] tasks own disjoint files.
+
+| Owner | Concrete paths and boundary |
+| :--- | :--- |
+| Foundation T003–T009 | `packages/contracts/src/package-v3-4.ts`, `packages/contracts/test/package-v3-4.test.ts`; `packages/db/src/scoped-corpus.ts`, existing `scoped-context.ts`/`scope-guard.ts` and package exports; `packages/db/test/scoped-context-scale.integration.test.ts`; `packages/evals/src/v3-scale-fixture.ts`, `packages/evals/test/v3-scale.eval.test.ts`; `packages/evals/fixtures/v3/scale-manifest.json` and `README.md`. |
+| US1 T010–T021 | `packages/evals/src/latency.ts`, `report.ts`, `retrieval-calibration.ts`, `v3-scale.ts`; `packages/evals/test/latency.test.ts`, `v3-scale-client.test.ts`; `packages/db/test/scoped-retrieval-calibration.integration.test.ts`; `apps/api/src/observability/benchmark.ts`, existing chat/route/app/server/config files; `apps/api/test/benchmark-readiness.test.ts`, `chat-scale.test.ts`; `apps/web/test/chat-scale.spec.ts`; `scripts/eval-v3-scale.mjs`. |
+| US2 T022–T031 | `apps/api/src/chat/context-plan.ts`, existing `chat/prompt.ts`/service/model and `services/source-context.ts`; `packages/db/src/package-v2-2.ts`; `apps/worker/src/studio/context-cache.ts`; `apps/api/test/chat-context-plan.test.ts`, `chat-context-scope.test.ts`; `packages/db/test/scoped-guides.integration.test.ts`; `apps/worker/test/studio-context-cache.test.ts`; `apps/web/test/chat-context.spec.ts`. |
+| US3 T032–T043 | `apps/worker/src/studio/context-plan.ts`, `reduce.ts`, `runner.ts`, existing report `batching.ts`/`pipeline.ts`/`vertex-model.ts`, and `apps/api/src/v2/runtime.ts`; `apps/worker/test/studio-context-streaming.test.ts`, `studio-context-plan.test.ts`, `studio-reduction.test.ts`, `studio-context-cache.integration.test.ts`, `studio-scale.integration.test.ts`; `apps/web/test/studio-scale.spec.ts`; `scripts/eval-v3-context.mjs`. Extend predecessor `[011-studio-mindmaps-data-tables] T018` `evidence.ts`, `[011-studio-mindmaps-data-tables] T010` `handler.ts` and `[011-studio-mindmaps-data-tables] T020` `registry.ts` only after their completed baseline ports; no circular prerequisite. |
+
+Reuse applied 0005–0008 and predecessor reservations 0009/0010/0011; no 0012 migration is justified by this package. Existing generic runners discover tests in the actual test directories; benchmark CLIs and deployed proof remain UNAVAILABLE until implemented. The finite TTL is frozen in approved deployment configuration and recorded in evidence, not invented as a new product timing threshold.

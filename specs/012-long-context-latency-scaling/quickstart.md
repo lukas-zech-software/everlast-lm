@@ -50,3 +50,7 @@ Use the deployed PostgreSQL app pool and applied0005–0008, preserving stored p
 ## Startup migration baseline (`NFR-PERF-01`, D17, CC-06/08)
 
 The current API deployment enables `MIGRATE_ON_START=true`; numbered SQL runs under the migration advisory lock before the API listens. Before collecting the warm cohort, capture Node.js26 runtime, applied schema/hash, migration completion and startup recovery/dependency readiness tied to the serving instance. Pending migration or lock waits cannot establish warm readiness. Keep all submitted attempts and their original clocks, report wake/startup observations separately under D17, and do not subtract migration time from TTFT. Migration completion alone does not prove model readiness; qualify rolling-version schema compatibility before deploying a benchmark revision. This guide does not execute migrations or deploy resources during planning.
+
+## Task-analysis regression cases (`NFR-PERF-01`, `C-02/C-03`, `NFR-EVAL-04`)
+
+Test process-local cache restart, no orphan reattachment, required finite positive TTL/confirmed expiry, deletion failure and per-use authorization. Failure JSON must round-trip with explicit terminal status and null timing/p95; positive infinity exists only in aggregation. Tests T010/T015 and T023/T028 own these cases. Tasks remain unexecuted; this document supplies validation instructions only.

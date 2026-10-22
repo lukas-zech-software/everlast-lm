@@ -1,6 +1,6 @@
 # Feature Specification: Long-Context and Latency Scaling
 
-**Feature Branch**: `codex/v3-refresh-3-4-20261021`
+**Feature Branch**: `codex/v3-tasks-3-4-20261022`
 **Created**: 2026-10-19
 **Status**: Draft
 **Package Source**: `spec/requirements/v3/package_3_4_long_context_latency_scaling.md`
@@ -126,8 +126,14 @@ The Owner generates an existing Studio artifact from large selected collections 
 - **Benchmark interpretation (`NFR-PERF-01`)**: Acceptance covers requests submitted after the service is awake; requests waiting for wake-up are measured/reported separately without a release-blocking threshold (D17/DEV-05). Both classifications retain submission-to-first-validated-answer measurement. Fixtures, warm-state classification, wake-up observations and environments must be declared during planning; the card defines 20 runs and P95 but does not prescribe a percentile estimator or concurrency target. No wake-up threshold or runtime result is asserted here.
 - **Binding architecture (`C-01..C-03`, D1, D12, D13)**: Retrieval-first chat and complete-evidence Studio modes above restate existing decisions, not new implementation choices. No language, framework, datastore or deployment design is introduced.
 - **Evidence (`CC-01`)**: Reference-product behavior in the card is explicitly unverified provenance, not evidence of tested performance. These are Everlast LM acceptance requirements.
-- **Out of Scope / Deferred (`FR-INT-01`, D5/DEV-03)**: Cross-notebook search, federated indexing and multi-notebook synthesis. Sharing roles are v6 scope. New implementation, task generation, deployment and runtime gate execution are outside this planning refresh.
+- **Out of Scope / Deferred (`FR-INT-01`, D5/DEV-03)**: Cross-notebook search, federated indexing and multi-notebook synthesis. Sharing roles are v6 scope. Implementation, deployment and runtime gate execution remain outside this task-generation and analysis stage.
 
 ## Planning Refinements (2026-10-21; `NFR-PERF-01`, `C-02/C-03`)
 
 The benchmark uses 20 warm submissions with nearest-rank P95 (19th sorted latency), preserves submission-to-first-validated-answer receipt, classifies readiness before submission and reports every attempt. Wake-up delays have no blocking threshold under D17/DEV-05. A separate two-Owner/two-notebook concurrency diagnostic does not redefine acceptance. Existing scoped retrieval and strict history eligibility remain the starting point; complete original-evidence processing and qualified context capacity must be demonstrated on the integrated system. Persisted source, Guide and report state is now the baseline (D15/D16/specs/013; DEV-04 closed). Durable storage does not alone establish unattended dispatch, safe publication or performance after restart; integrated qualification must distinguish retained records, explicit interrupted-report retry and missing-Guide regeneration from remaining v3 recovery work. Runtime qualification remains UNAVAILABLE. These refinements flow into the package card and architecture; technical design and current-code evidence are in plan/research.
+
+## Task-analysis refinements (2026-10-22; `NFR-PERF-01`, `C-02/C-03`, `NFR-SEC-02`, `NFR-EVAL-04`)
+
+Context-cache metadata is process-local to the executing adapter instance; it stores no alternate source corpus and requires no database migration. Every provider cache creation sets an explicit finite expiry (record the configured TTL and provider-confirmed expires_at; reject missing, nonpositive or non-finite values). Revalidate exact scope, current authorization and revisions through C-02 before every use and publication. Invalidation immediately removes local eligibility and attempts idempotent provider deletion; cleanup failure never restores eligibility. On restart, do not discover or reattach orphan handles: treat them as misses and rebuild only from reauthorized original chunks. Provider expiry bounds orphan lifetime; it never grants access or replaces immediate application-side invalidation.
+
+JSON observations encode a missing/failed factual answer with client_first_validated_answer_ms=null, latency_ms=null and an explicit terminal failure/refusal/cancelled status. Derive positive infinity only inside aggregation, never serialize Infinity or NaN. A failed aggregate serializes p95_ms=null with result=FAIL and the retained failure observations; any valid warm failure fails acceptance regardless of rank. Unavailable readiness/sample prerequisites serialize result=UNAVAILABLE separately; neither null nor unavailable means zero latency.
