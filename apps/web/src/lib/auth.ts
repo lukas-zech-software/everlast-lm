@@ -39,43 +39,91 @@ function tokenExpired(token: string): boolean {
 }
 
 /**
- * Identity Platform sign-in method from the configured provider id (D6). `password` is the dev PoC method
- * (Identity Platform email/password, no external IdP); `saml.*` and other ids redirect to the OIDC/SAML provider.
+ * Identity Platform sign-in method for one provider id (D6). `google.com` (Google, owner decision 2026-10-22) and
+ * `password` (email/password, owner decision 2026-10-20) are the dev PoC methods; `saml.*` and other ids redirect
+ * to the OIDC/SAML provider.
  */
-export function signInMethod(providerId: string): "password" | "saml" | "oauth" {
+export function signInMethod(providerId: string): "google" | "password" | "saml" | "oauth" {
+  if (providerId === "google.com") return "google";
   if (providerId === "password") return "password";
   return providerId.startsWith("saml.") ? "saml" : "oauth";
 }
 
-/** Email/password form for Identity Platform (dev PoC): sign in, or create the account on first use. */
-function renderPasswordSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
+/** Sign-in methods for a comma-separated provider id list, in configured order (dev PoC: `google.com,password`). */
+export function signInMethods(providerIds: string): ReturnType<typeof signInMethod>[] {
+  return providerIds.split(",").map((id) => id.trim()).filter(Boolean).map(signInMethod);
+}
+
+function authErrorCode(error: unknown): string {
+  return String((error as { code?: unknown })?.code ?? "");
+}
+
+/**
+ * Sign-in page for the dev PoC methods: a "Sign in with Google" button and/or the email/password form (sign in, or
+ * create the account on first use). Google uses a popup rather than a redirect, because the redirect flow needs the
+ * auth domain (`<project>.firebaseapp.com`) to share storage with the app, which current browsers block.
+ */
+function renderInteractiveSignIn(root: HTMLElement, authModule: any, auth: unknown, methods: { google: boolean; password: boolean }): Promise<void> {
   return new Promise((resolve) => {
     clear(root);
-    const email = h("input", { type: "email", name: "email", placeholder: "you@example.com", required: true, "data-testid": "signin-email", autocomplete: "email" });
-    const password = h("input", { type: "password", name: "password", placeholder: "Password (min. 6 characters)", required: true, minlength: "6", "data-testid": "signin-password", autocomplete: "current-password" });
-    const message = h("p", { class: "muted", "data-testid": "signin-message", text: "Sign in, or create an account with a new email and password." });
-    const signIn = h("button", { class: "btn btn-primary", type: "submit", text: "Sign in" });
-    const signUp = h("button", { class: "btn", type: "button", "data-testid": "signup", text: "Create account" });
-    const form = h("form", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message, email, password, signIn, signUp);
-    const run = async (create: boolean) => {
-      if (!form.reportValidity()) return;
-      message.textContent = create ? "Creating account…" : "Signing in…";
-      try {
-        if (create) await authModule.createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
-        else await authModule.signInWithEmailAndPassword(auth, email.value.trim(), password.value);
-        resolve();
-      } catch (error) {
-        const code = String((error as { code?: unknown })?.code ?? "");
-        message.textContent =
-          code === "auth/email-already-in-use" ? "This email already has an account. Use Sign in." :
-          code === "auth/weak-password" ? "The password needs at least 6 characters." :
-          create ? "The account could not be created." : "Sign-in failed. Check email and password, or create an account.";
-      }
-    };
-    form.addEventListener("submit", (event) => { event.preventDefault(); void run(false); });
-    signUp.addEventListener("click", () => void run(true));
+    const message = h("p", {
+      class: "muted",
+      "data-testid": "signin-message",
+      text: methods.password ? "Sign in, or create an account with a new email and password." : "Sign in with your Google account.",
+    });
+    const form = h("form", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message);
+    let focusTarget: HTMLElement | null = null;
+
+    if (methods.google) {
+      const google = h("button", { class: methods.password ? "btn" : "btn btn-primary", type: "button", "data-testid": "signin-google", text: "Sign in with Google" });
+      google.addEventListener("click", async () => {
+        message.textContent = "Signing in…";
+        try {
+          await authModule.signInWithPopup(auth, new authModule.GoogleAuthProvider());
+          resolve();
+        } catch (error) {
+          const code = authErrorCode(error);
+          message.textContent =
+            code === "auth/popup-blocked" ? "The browser blocked the sign-in window. Allow pop-ups for this site and try again." :
+            code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request" ? "Sign-in was cancelled." :
+            "Google sign-in failed. Please try again.";
+        }
+      });
+      form.append(google);
+      focusTarget = google;
+      if (methods.password) form.append(h("p", { class: "muted", text: "or" }));
+    }
+
+    if (methods.password) {
+      const email = h("input", { type: "email", name: "email", placeholder: "you@example.com", required: true, "data-testid": "signin-email", autocomplete: "email" });
+      const password = h("input", { type: "password", name: "password", placeholder: "Password (min. 6 characters)", required: true, minlength: "6", "data-testid": "signin-password", autocomplete: "current-password" });
+      const signIn = h("button", { class: "btn btn-primary", type: "submit", text: "Sign in" });
+      const signUp = h("button", { class: "btn", type: "button", "data-testid": "signup", text: "Create account" });
+      form.append(email, password, signIn, signUp);
+      const run = async (create: boolean) => {
+        if (!form.reportValidity()) return;
+        message.textContent = create ? "Creating account…" : "Signing in…";
+        try {
+          if (create) await authModule.createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
+          else await authModule.signInWithEmailAndPassword(auth, email.value.trim(), password.value);
+          resolve();
+        } catch (error) {
+          const code = authErrorCode(error);
+          message.textContent =
+            code === "auth/email-already-in-use" ? "This email already has an account. Use Sign in." :
+            code === "auth/weak-password" ? "The password needs at least 6 characters." :
+            create ? "The account could not be created." : "Sign-in failed. Check email and password, or create an account.";
+        }
+      };
+      form.addEventListener("submit", (event) => { event.preventDefault(); void run(false); });
+      signUp.addEventListener("click", () => void run(true));
+      focusTarget = email;
+    } else {
+      form.addEventListener("submit", (event) => event.preventDefault());
+    }
+
     root.append(form);
-    email.focus();
+    focusTarget?.focus();
   });
 }
 
@@ -162,12 +210,16 @@ export async function startSession(root: HTMLElement): Promise<Session> {
       resolve(u);
     });
   });
-  if (!user && signInMethod(ip.providerId) === "password") {
-    await renderPasswordSignIn(root, authModule, auth);
+  const providerIds = ip.providerId.split(",").map((id) => id.trim()).filter(Boolean);
+  const methods = signInMethods(ip.providerId);
+  const interactive = { google: methods.includes("google"), password: methods.includes("password") };
+  if (!user && (interactive.google || interactive.password)) {
+    await renderInteractiveSignIn(root, authModule, auth, interactive);
     user = auth.currentUser;
   }
   if (!user) {
-    const provider = signInMethod(ip.providerId) === "saml" ? new authModule.SAMLAuthProvider(ip.providerId) : new authModule.OAuthProvider(ip.providerId);
+    const providerId = providerIds[0] ?? "";
+    const provider = signInMethod(providerId) === "saml" ? new authModule.SAMLAuthProvider(providerId) : new authModule.OAuthProvider(providerId);
     await authModule.signInWithRedirect(auth, provider);
     await new Promise(() => undefined); // navigation away
   }

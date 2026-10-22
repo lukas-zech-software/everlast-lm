@@ -27,4 +27,7 @@ module "v1_foundation" {
   deletion_protection      = var.deletion_protection
 
   enable_email_password_sign_in = var.enable_email_password_sign_in
+  enable_google_sign_in         = var.enable_google_sign_in
+  google_oauth_client_id        = var.google_oauth_client_id
+  google_oauth_client_secret    = var.google_oauth_client_secret
 }

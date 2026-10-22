@@ -156,6 +156,25 @@ variable "enable_email_password_sign_in" {
   default     = false
 }
 
+variable "enable_google_sign_in" {
+  description = "Enable Google sign-in as a web sign-in method; combines with email/password when both are on (dev PoC only)."
+  type        = bool
+  default     = false
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth 2.0 web client ID for the Google sign-in provider."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_secret" {
+  description = "OAuth 2.0 web client secret for the Google sign-in provider."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "identity_platform_provider_id" {
   description = "Identity Platform OIDC/SAML provider ID for corporate sign-in when email/password is off (D6)."
   type        = string

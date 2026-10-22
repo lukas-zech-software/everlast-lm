@@ -98,4 +98,17 @@ describe("Identity Platform sign-in method (FR-WM-04, D6, dev PoC)", () => {
     expect(signInMethod("oidc.corporate")).toBe("oauth");
     expect(signInMethod("saml.corp")).toBe("saml");
   });
+
+  it("WEB-AUTH-02: providerId 'google.com' selects Google sign-in (dev PoC, owner decision 2026-10-22)", async () => {
+    const { signInMethod } = await import("../src/lib/auth.ts");
+    expect(signInMethod("google.com")).toBe("google");
+  });
+
+  it("WEB-AUTH-03: a comma-separated providerId offers Google and email/password together (dev PoC)", async () => {
+    const { signInMethods } = await import("../src/lib/auth.ts");
+    expect(signInMethods("google.com,password")).toEqual(["google", "password"]);
+    expect(signInMethods(" password , google.com ")).toEqual(["password", "google"]);
+    expect(signInMethods("password")).toEqual(["password"]);
+    expect(signInMethods("oidc.corporate")).toEqual(["oauth"]);
+  });
 });

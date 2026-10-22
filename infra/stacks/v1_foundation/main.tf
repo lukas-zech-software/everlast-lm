@@ -33,6 +33,9 @@ module "iam_identity" {
   enable_model_armor       = var.enable_model_armor
 
   enable_email_password_sign_in = var.enable_email_password_sign_in
+  enable_google_sign_in         = var.enable_google_sign_in
+  google_oauth_client_id        = var.google_oauth_client_id
+  google_oauth_client_secret    = var.google_oauth_client_secret
 
   depends_on = [module.project_services]
 }
@@ -103,7 +106,7 @@ module "compute" {
   document_ai_layout_processor_name   = module.storage_secrets.document_ai_layout_processor_name
   secret_ids                          = module.storage_secrets.secret_ids
   identity_platform_api_key           = module.iam_identity.identity_platform_api_key
-  identity_platform_provider_id       = var.enable_email_password_sign_in ? "password" : var.identity_platform_provider_id
+  identity_platform_provider_id       = var.enable_google_sign_in || var.enable_email_password_sign_in ? join(",", compact([var.enable_google_sign_in ? "google.com" : "", var.enable_email_password_sign_in ? "password" : ""])) : var.identity_platform_provider_id
   mount_secrets                       = var.mount_secrets
   api_min_instances                   = var.api_min_instances
   api_max_instances                   = var.api_max_instances

@@ -11,6 +11,14 @@ authorized_domains = [
   "localhost",
 ]
 
+# Sign-in (dev PoC). Email/password is on by default. Google sign-in needs a client from Google Auth Platform →
+# Clients → Web application, with redirect URI https://<project_id>.firebaseapp.com/__/auth/handler.
+# With both on, the sign-in page shows "Sign in with Google" and the email/password form.
+enable_email_password_sign_in = true
+enable_google_sign_in      = false
+google_oauth_client_id     = "<client-id>.apps.googleusercontent.com"
+google_oauth_client_secret = "<client-secret>"
+
 cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000",
