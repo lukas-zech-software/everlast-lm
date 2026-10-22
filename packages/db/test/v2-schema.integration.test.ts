@@ -67,7 +67,9 @@ const count = async (table: string, nb: string) =>
 describe("DEV-04 / FR-013: v2 migrations 0005–0008", () => {
   it("applies 0005–0008 in order after 0004 and creates every v2 table", async () => {
     const versions = (await db.pool.query("SELECT version FROM schema_migrations ORDER BY version")).rows.map((r) => r.version);
-    expect(versions.slice(-5)).toEqual(["0004_note_sources.sql", "0005_v2_workspace.sql", "0006_v2_context.sql", "0007_notes.sql", "0008_studio_artifacts.sql"]);
+    // Later releases append migrations (0009+, specs/009); 0004–0008 must still apply in this exact order.
+    const from = versions.indexOf("0004_note_sources.sql");
+    expect(versions.slice(from, from + 5)).toEqual(["0004_note_sources.sql", "0005_v2_workspace.sql", "0006_v2_context.sql", "0007_notes.sql", "0008_studio_artifacts.sql"]);
     const tables = (await db.pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")).rows.map((r) => r.table_name);
     for (const t of V2_TABLES) expect(tables).toContain(t);
   });

@@ -29,7 +29,10 @@ export type AppErrorCode =
   | "InternalError"
   // Release v2 (FR-WM-02, FR-WM-03, FR-UI-02)
   | "InvalidPreference"
-  | "InvalidEmoji";
+  | "InvalidEmoji"
+  // Release v3 package 3.1 (FR-SI-01, FR-SI-05)
+  | "SyncAlreadyInProgress"
+  | "DelegatedAccessDenied";
 
 export class AppError extends Error {
   readonly code: AppErrorCode;

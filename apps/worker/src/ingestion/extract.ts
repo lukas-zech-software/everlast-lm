@@ -28,6 +28,11 @@ export interface CanonicalPage {
   text: string;
   /** Section boundaries as UTF-16 ranges [start, end) within `text`; chunks never cross them. */
   sections: [number, number][];
+  /** Article section selector (web, `dom_path` locators; specs/009). */
+  dom_selector?: string | undefined;
+  /** Transcript segment interval in integer ms (audio/video, `time_span` locators; specs/009). */
+  start_ms?: number | undefined;
+  end_ms?: number | undefined;
 }
 
 export interface CanonicalDocument {

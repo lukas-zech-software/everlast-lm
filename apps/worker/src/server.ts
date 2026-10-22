@@ -13,7 +13,8 @@ import {
   type ObjectStorage,
   type OcrEngine,
 } from "@everlast/cloud";
-import { processIngestJob } from "./ingestion/pipeline.ts";
+import { processIngestJob, type AdapterKey, type SourceAdapter } from "./ingestion/pipeline.ts";
+import type { ContentScreener } from "./ingestion/screening.ts";
 import { drainJobs, type JobHandler } from "./jobs.ts";
 import { processNotebookCleanup } from "./notebook-cleanup.ts";
 import type { JobKind } from "@everlast/db";
@@ -29,16 +30,20 @@ export interface WorkerDeps {
   embedder?: Embedder;
   ocr?: OcrEngine;
   handlers?: Partial<Record<JobKind, JobHandler>>;
+  /** v3 format adapters and external-content screening (specs/009). */
+  adapters?: Partial<Record<AdapterKey, SourceAdapter>>;
+  screener?: ContentScreener;
 }
 
 export function ingestHandler(deps: WorkerDeps): JobHandler {
   return async (job) => {
     if (!deps.embedder || !deps.ocr) return { kind: "retry", errorCode: "IngestionNotConfigured" };
     const outcome = await processIngestJob(
-      { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr },
-      { source_id: job.payload.source_id!, attempt_id: job.payload.attempt_id! },
+      { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr, adapters: deps.adapters, screener: deps.screener },
+      { source_id: job.payload.source_id!, attempt_id: job.payload.attempt_id!, operation_id: job.payload.operation_id },
       job.attempts
     );
+    if (outcome.status === "busy") return { kind: "defer", seconds: 30 };
     return outcome.status === "retry" ? { kind: "retry", errorCode: outcome.errorCode } : { kind: "done" };
   };
 }

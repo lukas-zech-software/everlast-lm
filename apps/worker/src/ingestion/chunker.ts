@@ -64,10 +64,70 @@ export function chunkDocument(
   revision: number,
   options: ChunkerOptions = {}
 ): UnifiedDocumentChunk[] {
+  return chunkDocumentAnchored(doc, sourceId, revision, options).map((c) => c.chunk);
+}
+
+export interface AnchoredChunk {
+  chunk: UnifiedDocumentChunk;
+  /** Viewer page (canonical `source_pages` row) the chunk is displayed on; database-only (specs/009). */
+  anchorPage: number;
+}
+
+/** Transcript policy (FR-SI-01, Gate v3.0 #1): segment-aligned chunks so every citation seeks to its own statement. */
+export const TRANSCRIPT_CHUNK_MAX_TOKENS = 120;
+export const TRANSCRIPT_CHUNK_MAX_MS = 60_000;
+
+/**
+ * Transcript chunking (C-01 `time_span`): consecutive segments are merged only while the merged chunk stays within
+ * TRANSCRIPT_CHUNK_MAX_TOKENS / TRANSCRIPT_CHUNK_MAX_MS and the previous segment did not end a sentence, so a cited
+ * statement starts its own chunk. Locators are the integer [start_ms, end_ms] of the merged segments.
+ */
+export function chunkTranscript(doc: CanonicalDocument, sourceId: string, revision: number): AnchoredChunk[] {
+  const out: AnchoredChunk[] = [];
+  let group: typeof doc.pages = [];
+  let tokens = 0;
+  const flush = () => {
+    if (group.length === 0) return;
+    const text = group.map((p) => p.text.trim()).join(" ");
+    out.push({
+      chunk: {
+        chunk_id: uuidv7(),
+        source_id: sourceId,
+        revision,
+        locator: { start_ms: group[0]!.start_ms!, end_ms: group.at(-1)!.end_ms! },
+        token_count: tokenizeRange(text, 0, text.length).length,
+        text,
+      },
+      anchorPage: group[0]!.page_number,
+    });
+    group = [];
+    tokens = 0;
+  };
+  for (const page of doc.pages) {
+    if (page.start_ms === undefined || page.end_ms === undefined) throw new Error("Transcript page without a time interval");
+    if (!page.text.trim()) continue;
+    const pageTokens = tokenizeRange(page.text, 0, page.text.length).length;
+    const last = group.at(-1);
+    const sentenceEnded = last ? /[.!?…]["')\]]?\s*$/.test(last.text) : false;
+    if (last && (sentenceEnded || tokens + pageTokens > TRANSCRIPT_CHUNK_MAX_TOKENS || page.end_ms - group[0]!.start_ms! > TRANSCRIPT_CHUNK_MAX_MS)) flush();
+    group.push(page);
+    tokens += pageTokens;
+  }
+  flush();
+  return out;
+}
+
+/** Page/section chunking with viewer anchors; article pages emit `dom_path` locators into their section. */
+export function chunkDocumentAnchored(
+  doc: CanonicalDocument,
+  sourceId: string,
+  revision: number,
+  options: ChunkerOptions = {}
+): AnchoredChunk[] {
+  const out: AnchoredChunk[] = [];
   const minTokens = options.minTokens ?? 300;
   const maxTokens = options.maxTokens ?? 600;
   const overlap = options.overlapTokens ?? 50;
-  const chunks: UnifiedDocumentChunk[] = [];
 
   for (const page of doc.pages) {
     const startCp = codePointCounter(page.text);
@@ -87,23 +147,30 @@ export function chunkDocument(
         }
         const start16 = tokens[first]!.start;
         const end16 = tokens[last]!.end;
-        chunks.push({
-          chunk_id: uuidv7(),
-          source_id: sourceId,
-          revision,
-          locator: {
-            page_number: page.page_number,
-            ...(page.physical_page !== undefined ? { physical_page: page.physical_page } : {}),
-            start_offset: startCp(start16),
-            end_offset: endCp(end16),
+        const startOffset = startCp(start16);
+        const endOffset = endCp(end16);
+        out.push({
+          chunk: {
+            chunk_id: uuidv7(),
+            source_id: sourceId,
+            revision,
+            locator: page.dom_selector
+              ? { selector: page.dom_selector, start_offset: startOffset, end_offset: endOffset }
+              : {
+                  page_number: page.page_number,
+                  ...(page.physical_page !== undefined ? { physical_page: page.physical_page } : {}),
+                  start_offset: startOffset,
+                  end_offset: endOffset,
+                },
+            token_count: last - first + 1,
+            text: page.text.slice(start16, end16),
           },
-          token_count: last - first + 1,
-          text: page.text.slice(start16, end16),
+          anchorPage: page.page_number,
         });
         if (last >= tokens.length - 1) break;
         first = Math.max(first + 1, last + 1 - overlap);
       }
     }
   }
-  return chunks;
+  return out;
 }
