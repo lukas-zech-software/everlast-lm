@@ -13,7 +13,7 @@
     "@everlast/db": "workspace:*",
     "@google/genai": "^2.30.0",
     "google-auth-library": "^9.15.1",
-    "pdfjs-dist": "^5.7.284"
+    "pdfjs-dist": "^6.4.299"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
