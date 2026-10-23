@@ -15,6 +15,12 @@ const UNIT = [
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",
   "packages/evals/test/response-length.test.ts",
+  // Package 3.2 (specs/010 T003): pure sandbox adapter/manifest/output/model tests (no database, no provider).
+  "apps/api/test/code-execution-runtime.test.ts",
+  "apps/api/test/code-execution-manifest.test.ts",
+  "apps/api/test/code-execution-output.test.ts",
+  "apps/api/test/code-execution-model.test.ts",
+  "packages/evals/test/code-execution-performance.test.ts",
 ];
 
 export default defineConfig({

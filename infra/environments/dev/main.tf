@@ -27,4 +27,8 @@ module "v1_foundation" {
   deletion_protection      = var.deletion_protection
 
   enable_email_password_sign_in = var.enable_email_password_sign_in
+
+  # Package 3.2 (FR-GC-08, specs/010): default off; dev is the only planned target.
+  enable_v3_code_execution        = var.enable_v3_code_execution
+  code_execution_reasoning_engine = var.code_execution_reasoning_engine
 }

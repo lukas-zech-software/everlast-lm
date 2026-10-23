@@ -140,3 +140,15 @@ variable "enable_email_password_sign_in" {
   type        = bool
   default     = true
 }
+
+variable "enable_v3_code_execution" {
+  description = "Owner-approval gate for the FR-GC-08 managed Code Execution sandbox (Agent Platform; specs/010)."
+  type        = bool
+  default     = false
+}
+
+variable "code_execution_reasoning_engine" {
+  description = "Owner-created parent Agent Platform runtime without agent code: projects/<p>/locations/europe-west4/reasoningEngines/<id>."
+  type        = string
+  default     = ""
+}

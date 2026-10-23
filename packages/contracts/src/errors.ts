@@ -32,7 +32,9 @@ export type AppErrorCode =
   | "InvalidEmoji"
   // Release v3 package 3.1 (FR-SI-01, FR-SI-05)
   | "SyncAlreadyInProgress"
-  | "DelegatedAccessDenied";
+  | "DelegatedAccessDenied"
+  // Release v3 package 3.2 (FR-GC-08)
+  | "ExecutionInProgress";
 
 export class AppError extends Error {
   readonly code: AppErrorCode;

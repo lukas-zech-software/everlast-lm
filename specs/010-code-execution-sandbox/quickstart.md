@@ -67,3 +67,18 @@ Use the workspace-selected Node 26 runtime. API infrastructure sets `MIGRATE_ON_
 ## Task-analysis command and timing corrections (FR-GC-08, CC-01/02)
 
 Task generation reserves 0010_code_execution.sql after predecessor 0009. New browser files belong in apps/web/test under the existing Playwright config. Future validation uses the exact task paths; the new eval/performance suites and scripts/eval-v3-code-execution.mjs are planned, not existing runners. Freeze cohort sample counts, fixtures and runtime configuration before collecting data; nearest-rank P95 uses ceil(0.95*N), any failed/timeout attempt fails its cohort, and missing declared samples are UNAVAILABLE. Record all attempts and retry totals; never drop failures/reset the submission clock or treat progress as answer TTFT. These are ordinary integration/release tests under D19.
+
+## Implementation prerequisites record (2026-10-23; [010-code-execution-sandbox] T001, T003)
+
+Recorded in [implementation-evidence.md](implementation-evidence.md#t001--preconditions-fr-gc-08-c-01c-02-gate-v30): Gate v2 owner override (limits retained), package 3.1 handoff consumed unchanged, D18/D19/D20 in force. UNAVAILABLE: the managed Agent Platform sandbox (no owner-approved parent runtime/configuration), judged evals (no authorized paid Vertex run), live latency cohorts.
+
+Exact commands (T003; unit and integration projects stay separate, Playwright `testDir` is `apps/web/test`):
+
+```sh
+export TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast   # pnpm db:test:up
+pnpm exec vitest run --project unit packages/contracts/test/package-v3-2.test.ts apps/api/test/code-execution-runtime.test.ts apps/api/test/code-execution-manifest.test.ts apps/api/test/code-execution-output.test.ts apps/api/test/code-execution-model.test.ts packages/evals/test/code-execution-performance.test.ts
+pnpm exec vitest run --project integration packages/db/test/code-execution.integration.test.ts packages/db/test/code-execution-recovery.integration.test.ts packages/db/test/code-execution-history.integration.test.ts apps/api/test/code-execution.test.ts apps/api/test/code-execution-retry.test.ts apps/api/test/code-execution-recovery.test.ts apps/api/test/code-execution-scope.test.ts apps/api/test/code-execution-v2-compatibility.test.ts apps/api/test/chat-charts.test.ts apps/web/test/code-execution.test.ts apps/web/test/code-execution-retry.test.ts packages/evals/test/code-execution.eval.test.ts
+pnpm exec vitest run --project integration apps/api/test/code-execution-runtime.integration.test.ts   # live sandbox; UNAVAILABLE unless CODE_EXECUTION_IT=1 + approved runtime
+pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium
+(cd infra/modules/code_execution && tofu init -backend=false && tofu test)
+```
