@@ -32,6 +32,8 @@ import {
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
   sweepOrphanedSourceGuides,
+  claimPendingPublicationEvents,
+  completePublicationEvent,
   listAllSnapshotChunks,
   listSnapshotChunks,
   listSources,
@@ -125,6 +127,12 @@ export interface V2Runtime {
   chatPreferences(userId: string, notebookId: string, browserLocale?: string): Promise<ResponsePreferences>;
   /** One watcher pass: dispatches Ready-source hooks for new `(source_id, active_revision)` Ready transitions. */
   pollReadySources(): Promise<number>;
+  /**
+   * Durable publication events (specs/009, FR-SI-02/05): runs the Ready-source hooks for every committed revision
+   * still Pending (imports and re-syncs) and completes an event only once its guide exists in a terminal state, so a
+   * restart never loses a new-revision guide and never needs a user reopen. Returns the number of completed events.
+   */
+  drainPublicationEvents(): Promise<number>;
   /** Stops background work (the Ready watcher). */
   close(): void;
 }
@@ -354,13 +362,48 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     }
     return dispatched;
   };
+  const drainPublicationEvents = async (): Promise<number> => {
+    let completed = 0;
+    for (const event of await claimPendingPublicationEvents(pool, 50)) {
+      const row = await pool.query<{ title: string; media_type: string; updated_at: Date; status: string; active_revision: number | null }>(
+        "SELECT title, media_type, updated_at, status, active_revision FROM sources WHERE id = $1 AND notebook_id = $2",
+        [event.source_id, event.notebook_id]
+      );
+      const source = row.rows[0];
+      const owner = await ownerOf(event.notebook_id);
+      if (!source || !owner || source.status !== "Ready" || source.active_revision !== event.revision || !options.generation) {
+        await completePublicationEvent(pool, event.id);
+        completed += 1;
+        continue;
+      }
+      await dispatchReady({
+        notebook_id: event.notebook_id,
+        source_id: event.source_id,
+        revision_id: event.revision,
+        title: source.title,
+        media_type: source.media_type,
+        ready_at: source.updated_at.toISOString(),
+      });
+      const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+      const guide = await getSourceGuide(event.notebook_id, event.source_id, event.revision, language);
+      if (guide && guide.status !== "GuidePending") {
+        await completePublicationEvent(pool, event.id);
+        completed += 1;
+      }
+    }
+    return completed;
+  };
+
   let readyTimer: ReturnType<typeof setInterval> | null = null;
   if (options.readyWatch && hooks.length > 0) {
     let running = false;
     readyTimer = setInterval(() => inScope(() => {
       if (running) return;
       running = true;
-      afterSweep(pollReadySources)
+      afterSweep(async () => {
+        await pollReadySources();
+        await drainPublicationEvents();
+      })
         .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 ready watcher: ${(err as Error).message}` })))
         .finally(() => (running = false));
     }), Math.max(10, options.readyWatch.intervalMs));
@@ -491,6 +534,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       };
     }),
     pollReadySources: () => afterSweep(pollReadySources),
+    drainPublicationEvents: () => afterSweep(drainPublicationEvents),
     close() {
       if (readyTimer) clearInterval(readyTimer);
       readyTimer = null;

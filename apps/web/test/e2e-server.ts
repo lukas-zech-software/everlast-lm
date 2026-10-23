@@ -12,7 +12,7 @@ import { createV2Runtime } from "@everlast/api/v2/runtime";
 import type { GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
 import { createWorkerHandler } from "@everlast/worker";
-import { e2eAdapters, e2eDelegationBroker, e2eScreener } from "./e2e-v3-doubles.ts";
+import { e2eAdapters, e2eDelegationBroker, e2eScreener, handleE2eControl } from "./e2e-v3-doubles.ts";
 
 /**
  * TEST-ONLY E2E server (FR-UI-01, FR-SI-01/03/04, FR-GC-01/02/03/06, Gate v1.0 #1/#3).
@@ -85,7 +85,12 @@ export async function startE2eServer(port: number) {
     notifyJobs,
     delegationBroker: e2eDelegationBroker,
   };
-  const server = http.createServer(createApp(deps));
+  const app = createApp(deps);
+  const server = http.createServer((req, res) => {
+    void handleE2eControl(req, res).then((handled) => {
+      if (!handled) app(req, res);
+    });
+  });
   await new Promise<void>((resolve) => server.listen(port, "127.0.0.1", resolve));
   const close = async () => {
     server.close();
