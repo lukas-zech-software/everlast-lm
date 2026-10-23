@@ -119,3 +119,26 @@ for this implementation run → **UNAVAILABLE**; task left open. No judged-per-P
 ## T052 — flow-back and re-analysis (2026-10-23)
 
 Implementation refinements were written to `spec.md`, `plan.md`, `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md` and `docs/solution-architecture.md` (Package 3.1 paragraph); no SRS scope change, no new `Dn`/`DEV` and no C-01 change were needed. `spec/requirements/README.md` needed no change (v3 ordering unchanged; 3.2/3.3 start at migration 0010). `/speckit-analyze` re-run: 0 CRITICAL, coverage 24/24; stale "no implementation" wording (I1/I2) corrected; open items are C1 (T049/T050 live evidence), U1 (Drive watch-channel creation needs a verified public callback domain — deployment follow-up), U2 (YouTube delegated captions not implemented), R1 (reviewer checklist 0/37).
+
+## T053 — quickstart and gate run (2026-10-23, HEAD after T052)
+
+| Command | Result |
+| :- | :- |
+| `node scripts/check-spec-integrity.mjs` | PASS (188 Markdown files, 55 SRS IDs, 39 feature artifacts CC-01/CC-02) |
+| `git diff --check origin/main` | PASS |
+| `pnpm install --frozen-lockfile` | PASS |
+| `pnpm typecheck` / `pnpm lint` / `pnpm build` | PASS / PASS / PASS |
+| `pnpm test:contract` | PASS 14 files / 238 tests |
+| `pnpm test:unit` | PASS 21 files / 298 tests |
+| `pnpm test:integration` | 98 files / 666 tests passed in every run. One run reported 2 unhandled `57P01 terminating connection due to administrator command` errors from the teardown (`DROP DATABASE … WITH (FORCE)`) of the pre-existing, unmodified `packages/db/test/workspace-preferences.pg.integration.test.ts` (exit 1); two immediate re-runs and three isolated runs of that file exited 0. Recorded as a pre-existing teardown flake, not claimed as fixed. |
+| `pnpm eval:deterministic` | PASS (citation precision 160/160, leakage 0; Studio Gate v2.0 #3 deterministic PASS) |
+| `pnpm test:e2e` | 50 passed, 1 skipped (pre-existing `test.fixme` GC-E04) |
+| `pnpm eval:judged` | **UNAVAILABLE / not run** — release-candidate-only judged run with paid Vertex calls; not authorized here (T049 open) |
+| `pnpm eval:v3-audio` | **UNAVAILABLE** (exit 2: Speech-to-Text V2 not configured; T050 open) |
+| `tofu validate` (dev/staging/prod), `tofu fmt -check`, `storage_secrets` `tofu test` | PASS / PASS / 4 of 4 |
+| Live Drive, Model Armor, LibreOffice job, YouTube | **UNAVAILABLE** (no approved API enablement, OAuth client or deployed render image) |
+
+Unresolved runtime limits for the handoff: the v3 release gate (Gate v3.0) is not certified; the ≤ 45 s P95 ASR target, judged
+NFR-EVAL-01/03, live delegated Drive, live Model Armor and the LibreOffice renderer have no runtime evidence; Drive watch
+channels are not created (webhook endpoint ready); deployment requires owner approval of `enable_v3_ingestion`
+(Speech, Drive, YouTube Data, Compute, Model Armor), a Model Armor template, an OAuth client + secret, and a render image.
