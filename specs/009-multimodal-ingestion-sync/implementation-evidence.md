@@ -44,3 +44,78 @@ C-02/C-03, NFR-SEC-01/02, NFR-EVAL-01..04, Gate v3.0 #1. Task references are qua
 | 7 | HIGH | Relationship elements in other namespaces skipped instead of failing closed | Every `.rels` root must be `Relationships` in the package relationship namespace, otherwise the document is rejected; `.rels` files are rebuilt from scratch from validated `Relationship` children only (foreign-namespace or unknown elements vanish). | `render-sanitize.test.ts` SAN-08, SAN-09 Red → Green |
 | 8 | HIGH | Part allowlist trusted attacker-declared content types | Output contains only parts reachable from `_rels/.rels` through an allowlist of relationship Types (officeDocument, styles, image, header/footer, theme, notes, slide/layout/master, numbering, settings, fontTable, webSettings, footnotes/endnotes, comments, charts/diagrams, core/extended properties …); dangerous part names (`embeddings/`, `activeX`, `externalLinks`, `customXml`, `vbaProject`, `oleObject`, `.bin`, executables) are denied regardless of type; images must pass a magic-byte check (PNG/JPEG/GIF/BMP/TIFF/EMF/WMF). Declared content types remain a necessary condition only. | SAN-10, SAN-11 Red → Green (RENDER-03b and SAN-01..05 fixtures updated to real relationship Types) |
 | 9 | MEDIUM | Web fetch had only a per-socket idle timeout | `guardedFetch` has one total wall-clock deadline (default 60 s) covering every redirect hop, headers and body streaming; on expiry the request is aborted (AbortSignal passed to the Node transport) and the response stream destroyed. | `ingestion-web-security.test.ts` SSRF-09 Red (60 s timeout) → Green |
+
+## T047 — Red → Green record (FR-SI-01/05, FR-NM-03, NFR-SEC-02, C-01/C-02, Gate v3.0 #1)
+
+Runner: Vitest 4.1.11 (`unit` + `integration` projects, real PostgreSQL 16 + pgvector), Playwright chromium against
+`apps/web/test/e2e-server.ts` (real API/PostgreSQL/worker; provider doubles labelled in `e2e-v3-doubles.ts`).
+
+| Task | Test file(s) | Red observed (requirement-related) | Green |
+| :- | :- | :- | :- |
+| T003 | `packages/contracts/test/package-v3-1.test.ts` | 14 failing (missing v3 DTOs, 200-point display title, media types); 5 C-01/copied-text regressions green | 19/19 |
+| T004 | `packages/db/test/source-sync-foundation.integration.test.ts` | module `source-sync.ts` / migration 0009 absent | 9/9 |
+| T005 | `packages/db/test/multimodal-scope.integration.test.ts`, `apps/api/test/multimodal-scope.test.ts` | module absent; v3 routes 405; empty-scope regressions green | 9/9, 4/4 |
+| T009 | `apps/render/test/render-config.test.ts` | `src/main.ts` absent | 8/8 (after security rounds) |
+| T010–T012 | `apps/worker/test/ingestion-office.test.ts`, `ingestion-drive.test.ts`, `apps/api/test/office-import.test.ts`, `apps/web/test/office-import.spec.ts` | adapters/routes absent | 9/9, 7/7, 7/7, 3/3 |
+| T018–T021 | `ingestion-web-security.test.ts`, `ingestion-web.test.ts`, `ingestion-screening.test.ts`, `apps/api/test/web-import.test.ts`, `apps/web/test/web-import.spec.ts` | `web.ts` / Model Armor / `sync.ts` absent | 10/10, 7/7, 6/6, 3/3, 2/2 |
+| T025–T028 | `ingestion-media.test.ts`, `apps/api/test/media-content.test.ts`, `apps/web/test/media-citations.spec.ts`, `packages/evals/test/audio-transcription-benchmark.test.ts` | `media.ts`, media proxy, benchmark module absent | 8/8, 5/5, 3/3, 6/6 |
+| T033 | `apps/api/test/source-rename.test.ts`, `apps/web/test/source-management.spec.ts` | Rename route Red was observed earlier in T005 SCOPE-A02 (PATCH → 405); the route was delivered by T016's `source-sync.ts`, so T033's own assertions passed on first run (recorded, not re-claimed as Red) | 4/4, SM-E01 |
+| T034, T035 | `packages/db/test/source-sync.integration.test.ts`, `apps/api/test/source-sync.test.ts` | Same situation: admission/fence/webhook code came from T007/T016 whose Red was observed in T004/T005; these story tests passed on first run | 6/6, 5/5 |
+| T036 | `packages/db/test/source-guide-sync.integration.test.ts`, `apps/worker/test/source-sync-recovery.test.ts`, `apps/api/test/source-guide-sync.test.ts` | stale Guide stored for a replaced revision; `drainPublicationEvents` absent | 2/2, 4/4, 2/2 |
+| T037 | `packages/db/test/source-lifecycle.integration.test.ts`, `apps/api/test/source-lifecycle.test.ts` | replaced-revision answer hidden instead of "Source updated" | 4/4, 3/3 |
+| T038 | `apps/web/test/source-management.spec.ts` | (UI written with T046) SM-E04 initially failed on the placeholder expectation, corrected to the specified hidden-answer behaviour | 4/4 |
+| Security review | `render-sanitize.test.ts`, SSRF-09, OFFICE-API-07, RENDER-03b/04/06/07 | see the security tables above | all green |
+
+Regressions intentionally updated (requirement changed, not weakened): `apps/api/test/sources.test.ts` SRC-03 and
+`apps/web/test/sources.spec.ts` SI-E04 used `.pptx` as the "unsupported" example — `.pptx` is now supported (FR-SI-01
+Subset B), so they use legacy `.ppt` and the new message; `packages/db/test/v2-schema.integration.test.ts` asserted the
+last five migrations — it now asserts 0004–0008 order wherever later migrations follow.
+
+Final full runs (2026-10-23): `pnpm test` 118 files / 962 tests passed (+ T048 file → 119/964, see T053);
+`pnpm test:e2e` 50 passed, 1 skipped (pre-existing `test.fixme` GC-E04 on main, not this package).
+
+## T048 — deterministic evals (FR-GC-02, NFR-EVAL-02/04)
+
+- `pnpm exec vitest run --project integration packages/evals/test/multimodal-deterministic.eval.test.ts`: 2/2 —
+  mixed-modality (DOCX page_span, web dom_path, MP3 time_span, re-synced web, removed web) citation-ID precision 1.0,
+  leakage 0; an adversarial model citing removed/replaced/deselected chunks is always refused (D13).
+- `pnpm eval:deterministic`: exit 0 — citation_precision 160/160 = 1, scoping_leakage_count 0; Gate v2.0 #3 Studio
+  deterministic PASS. Judged metrics in that report are UNAVAILABLE by design (no Vertex endpoint in this run).
+
+## T049 — judged release evals: NOT RUN (open)
+
+The fixed stratified 50-case judged run (NFR-EVAL-01/03, semantic support) belongs to an authorized v3 release
+candidate with the Vertex AI enterprise endpoint. No release candidate exists and no paid model call was authorized
+for this implementation run → **UNAVAILABLE**; task left open. No judged-per-PR obligation was added.
+
+## T050 — benchmark and integrated Gate v3.0 #1 scenario (partially done; open)
+
+- Integrated click scenario: `apps/web/test/media-citations.spec.ts` MEDIA-E01 passes — uploading `Interview.mp3`,
+  citation [1] → Inspector opens the transcript, the segment at 04:15 (`data-start-ms=255000`) is highlighted and in
+  view, the player seek target is 255000 ms; MEDIA-E02 seeks a playable WAV to 255 s. Speech-to-Text is a labelled
+  transcript double, so this proves the application path, not live ASR.
+- Live 30-minute benchmark: `pnpm eval:v3-audio` → `[UNAVAILABLE] … Speech-to-Text V2 is not configured`, exit 2.
+  Requires owner-approved Speech API enablement (`enable_v3_ingestion`), a declared plan file (N ≥ 20, fixture
+  hash/size/codec/language, provider/model/region, environment, concurrency) and the fixture. **≤ 45 s P95 is not
+  claimed.** Task left open.
+
+## T051 — migration 0009 rollout compatibility (FR-SI-01/05, C-01/C-02)
+
+- Additive only: new nullable columns/tables, widened CHECKs, `IF NOT EXISTS`; `runMigrations` second pass is a no-op
+  (SYNC-F01). Data written under 0001–0008 survives (SYNC-F01).
+- Previous API revision on the new schema: a detached checkout of `origin/main` (`c940355`) with only 0009 added ran
+  its own `packages/db`, `apps/api` and `apps/worker` integration suites: 393/394 passed; the single failure is
+  main's hard-coded "last five migrations" assertion (generalized on this branch), not a runtime incompatibility.
+- `MIGRATE_ON_START=true`: the advisory-locked runner applies 0009 once; failure rolls back that file and keeps the
+  new revision unready (existing runner behaviour, unchanged).
+- Rollout order/one instance: an old worker ignores `sync` jobs (it claims only `ingest`/`cleanup`) and would fail a
+  linked-import `ingest` job (no uploaded object) — deploy the new worker before (or with) the API that admits
+  linked imports; D16 single-API operation is unchanged.
+- IaC (no apply): `tofu init -backend=false` + `tofu validate` pass for dev/staging/prod; `tofu fmt -check` clean;
+  `infra/modules/storage_secrets` `tofu test` 4/4. New billable APIs (Speech, Drive, YouTube Data, Compute for the
+  isolated render VPC) and Model Armor stay behind `enable_v3_ingestion` (default false) pending recorded owner
+  approval; the render job is created only when `render_image` is set. **No deployment or apply was performed.**
+
+## T052 — flow-back and re-analysis (2026-10-23)
+
+Implementation refinements were written to `spec.md`, `plan.md`, `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md` and `docs/solution-architecture.md` (Package 3.1 paragraph); no SRS scope change, no new `Dn`/`DEV` and no C-01 change were needed. `spec/requirements/README.md` needed no change (v3 ordering unchanged; 3.2/3.3 start at migration 0010). `/speckit-analyze` re-run: 0 CRITICAL, coverage 24/24; stale "no implementation" wording (I1/I2) corrected; open items are C1 (T049/T050 live evidence), U1 (Drive watch-channel creation needs a verified public callback domain — deployment follow-up), U2 (YouTube delegated captions not implemented), R1 (reviewer checklist 0/37).
