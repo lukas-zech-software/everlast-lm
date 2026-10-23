@@ -1,5 +1,5 @@
 import { CanonicalNumberSchema, type CodeExecutionFailureCode, type ComputedResult } from "@everlast/contracts";
-import { neutralizeMarkers } from "../sanitize.ts";
+import { plainLabel } from "../sanitize.ts";
 import { OUTPUT_FILE_RE, type HarnessResult, type SandboxFile } from "./runtime.ts";
 
 /**
@@ -24,13 +24,7 @@ export class OutputError extends Error {
   }
 }
 
-const plain = (text: string, max: number) =>
-  neutralizeMarkers(text)
-    .replace(/[<>]/g, "")
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, max);
+const plain = plainLabel;
 
 export function validateComputedResults(results: HarnessResult[], supportingChunkIds: readonly string[]): ComputedResult[] {
   if (results.length === 0) throw new OutputError("InvalidOutput", "The code reported no result");

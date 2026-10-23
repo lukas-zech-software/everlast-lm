@@ -20,6 +20,7 @@ const UNIT = [
   "apps/api/test/code-execution-manifest.test.ts",
   "apps/api/test/code-execution-output.test.ts",
   "apps/api/test/code-execution-model.test.ts",
+  "apps/api/test/chat-sanitize.test.ts",
   "packages/evals/test/code-execution-performance.test.ts",
 ];
 

@@ -50,7 +50,7 @@ describe("T015 strict draft schema (FR-001, FR-014)", () => {
 describe("T015 verifier outcomes (FR-012, FR-014, D13)", () => {
   it("MOD-03: clarify yields a distinct non-computed clarification without citations (not a refusal, not an answer)", () => {
     const result = verifier.verifyDraft({ status: "clarify", sentences: [], clarification_question: "Sample or population [[1]]?" } as any, [jan]);
-    expect(result).toEqual({ kind: "clarification", content: "Sample or population [1]?" });
+    expect(result).toEqual({ kind: "clarification", content: "Sample or population ［［1］］?" });
   });
 
   it("MOD-04: compute yields the verified preamble and the computation; invalid preamble citations still refuse", () => {
