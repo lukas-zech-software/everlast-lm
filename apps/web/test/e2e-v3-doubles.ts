@@ -6,6 +6,8 @@ import type { ContentScreener } from "@everlast/worker/ingestion/screening";
 import { createWebAdapter, type Transport } from "@everlast/worker/ingestion/web";
 import { createAudioAdapter, createVideoAdapter, type Transcriber } from "@everlast/worker/ingestion/media";
 import type { ObjectStorage } from "@everlast/cloud";
+import type { RawExecution, SandboxFile, SandboxHandle, SandboxRuntime } from "@everlast/api/chat/execution/runtime";
+import { TINY_PNG_BASE64 } from "@everlast/testkit/code-execution-fixtures";
 import { articleHtml, driveSlidesExportFixture, interviewWords, PROMPT_INJECTION_TEXT, roadmapHtml } from "@everlast/testkit/multimodal-fixtures";
 
 /**
@@ -85,3 +87,46 @@ export async function handleE2eControl(req: import("node:http").IncomingMessage,
   res.writeHead(204).end();
   return true;
 }
+
+/**
+ * TEST DOUBLE (specs/010): stand-in for the managed Agent Platform sandbox in browser journeys. It never runs Python;
+ * it interprets the e2e fixture model's `# FIXTURE:<op>` programs over the scoped data.json and holds each run for
+ * `delayMs` so the truthful "Running code…" state is observable. Isolation/limits are the provider's (D20).
+ */
+export class E2eSandbox implements SandboxRuntime {
+  readonly id = "e2e-sandbox-test-double";
+  delayMs = 1_200;
+  async create(attemptId: string): Promise<SandboxHandle> {
+    return { name: `projects/e2e/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/${attemptId}` };
+  }
+  async execute(_handle: SandboxHandle, input: { code: string; files: SandboxFile[] }, signal: AbortSignal): Promise<RawExecution> {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, this.delayMs);
+      signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      }, { once: true });
+    });
+    const data = input.files.find((f) => f.name === "data.json");
+    const rows = data ? (JSON.parse(data.content.toString()) as { values: { value: number; chunk_id: string }[] }).values : [];
+    const nums = rows.map((r) => r.value);
+    const mean = nums.reduce((a, b) => a + b, 0) / Math.max(1, nums.length);
+    const ss = nums.reduce((a, b) => a + (b - mean) ** 2, 0);
+    const op = /# FIXTURE:(\w+)/.exec(input.code)?.[1];
+    const result = (label: string, value: number) => ({ status: "ok", results: [{ label, value: String(value), unit: "ms", sources: [...new Set(rows.map((r) => r.chunk_id))] }] });
+    if (op === "raise") {
+      return { stdout: "", stderr: "Traceback (most recent call last):\nZeroDivisionError: division by zero\n", files: [{ name: "everlast_result.json", content: Buffer.from(JSON.stringify({ status: "exception", exception_type: "ZeroDivisionError", results: [] })), mimeType: "application/json" }] };
+    }
+    const payload = op === "stdev" ? result("Sample standard deviation", Math.sqrt(ss / (nums.length - 1))) : result("Population standard deviation", Math.sqrt(ss / nums.length));
+    return {
+      stdout: `computed over ${nums.length} values\n`,
+      stderr: "",
+      files: [
+        { name: "everlast_result.json", content: Buffer.from(JSON.stringify(payload)), mimeType: "application/json" },
+        { name: "chart_1.png", content: Buffer.from(TINY_PNG_BASE64, "base64"), mimeType: "image/png" },
+      ],
+    };
+  }
+  async destroy(): Promise<void> {}
+}
+export const e2eSandbox = new E2eSandbox();

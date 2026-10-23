@@ -30,7 +30,8 @@ export class GroundedNoteAssistant implements NoteAssistantModel {
       const result = verifyDraft(await this.model.generate({ question: input.question, chunks: input.chunks, history: [] }), input.chunks);
       return result.kind === "answer"
         ? { kind: "answer", content: result.content, citations: result.citations }
-        : { kind: "refusal", content: result.content, citations: [] };
+        : // Note actions never run code or ask back (FR-NM-04); a compute/clarify draft becomes the verified refusal.
+          { kind: "refusal", content: result.kind === "refusal" ? result.content : REFUSAL_UNVERIFIED, citations: [] };
     } catch (err) {
       // An unavailable model publishes nothing (503); an unusable draft becomes the verified refusal.
       if (err instanceof ModelUnavailableError) throw err;

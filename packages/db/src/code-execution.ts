@@ -409,3 +409,19 @@ export async function getCodeExecution(db: Queryable, executionId: string): Prom
   const row = result.rows[0];
   return row ? { ...row, updated_at: toIso(row.updated_at) } : null;
 }
+
+/**
+ * Delivery-time provenance check (FR-011, NFR-EVAL-04): every captured (source_id, revision) of the chart must still
+ * be a Ready source of the notebook at that revision or a newer re-synced one (same rule as the history projection:
+ * deleted/revoked hides, merely deselected or updated stays viewable). Rechecked on every request, including ranges.
+ */
+export async function chartProvenanceAvailable(db: Queryable, notebookId: string, snapshot: SourceRevisionPair[]): Promise<boolean> {
+  if (snapshot.length === 0) return false;
+  const result = await db.query<{ ok: boolean }>(
+    `SELECT bool_and(s.id IS NOT NULL AND s.status = 'Ready' AND s.active_revision IS NOT NULL AND s.active_revision >= p.revision) AS ok
+       FROM unnest($2::uuid[], $3::int[]) AS p(source_id, revision)
+       LEFT JOIN sources s ON s.id = p.source_id AND s.notebook_id = $1`,
+    [notebookId, snapshot.map((p) => p.source_id), snapshot.map((p) => p.revision)]
+  );
+  return result.rows[0]?.ok === true;
+}

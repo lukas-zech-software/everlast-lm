@@ -21,14 +21,19 @@ export interface Citation {
   locator: AnyLocator | null;
 }
 
+export type { CodeExecutionTrace } from "@everlast/contracts";
+
 export interface ChatMessage {
   id: string;
   turn_id: string;
   role: "user" | "assistant";
-  kind: "question" | "answer" | "refusal";
+  /** `clarification` (FR-GC-08 FR-014): a focused follow-up question; never a computed or factual answer. */
+  kind: "question" | "answer" | "refusal" | "clarification";
   content: string | null;
   unavailable_reason: "source_deleted" | null;
   citations: Citation[];
+  /** FR-GC-08 (specs/010): ordered execution attempts; null/absent for legacy and clarification messages. */
+  code_execution_trace?: import("@everlast/contracts").CodeExecutionTrace | null;
   created_at: string;
 }
 

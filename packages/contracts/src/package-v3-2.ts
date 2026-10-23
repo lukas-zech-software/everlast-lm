@@ -83,7 +83,9 @@ export const CodeExecutionAttemptSchema = z
   })
   .strict()
   .superRefine((a, ctx) => {
-    if (a.terminal_reason !== null && a.terminal_reason !== "Succeeded" && a.terminal_reason !== "PythonException" && a.exit_code === 0) {
+    // Killed, unknown or never-finished runs have no exit code; a fabricated 0 is rejected (FR-007).
+    const killed = ["ExecutionTimeout", "MemoryLimitExceeded", "ExecutionOutcomeUnknown", "GenerationCancelled", "ProviderUnavailable", "PythonException"];
+    if (a.terminal_reason !== null && killed.includes(a.terminal_reason) && a.exit_code === 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "exit_code 0 cannot accompany a killed/failed attempt", path: ["exit_code"] });
     }
     if (a.terminal_reason === "Succeeded" && a.exit_code !== 0) {

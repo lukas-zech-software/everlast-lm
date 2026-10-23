@@ -1,10 +1,11 @@
-import { api, ApiError, postEventStream } from "../lib/api.ts";
+import { api, ApiError, authFetch, postEventStream } from "../lib/api.ts";
 import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { parseAnswer, splitBadgeGroup } from "../lib/badges.ts";
 import { sourcesLabel, type SelectionModel } from "../lib/selection.ts";
 import { validateMessage } from "../lib/text.ts";
 import type { ChatMessage, Citation } from "../lib/types.ts";
 import { NOTE_SOURCE_MEDIA_TYPE } from "../lib/v2-contracts.ts";
+import { renderCodeExecution, renderTextWithComputed, RUNNING_CODE_LABEL } from "./code-execution.ts";
 
 /**
  * Chat panel (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, FR-SI-03). Sends the explicit selection with every turn,
@@ -49,7 +50,16 @@ const PHASE_LABEL: Record<string, string> = {
   retrieving: "Searching your sources…",
   generating: "Writing a grounded answer…",
   verifying: "Verifying citations…",
+  // FR-GC-08 FR-004: shown only once code is actually submitted to the sandbox.
+  running_code: RUNNING_CODE_LABEL,
 };
+
+/** Authorized chart bytes (FR-GC-08): bearer-authenticated fetch, never a public or signed storage URL. */
+async function fetchChart(url: string): Promise<Blob> {
+  const res = await authFetch(url);
+  if (!res.ok) throw new ApiError(res.status, "ChartUnavailable", "Chart unavailable");
+  return res.blob();
+}
 const GENERATION_ERROR = "An error occurred while generating the response. Please try again.";
 
 let popover: HTMLElement | null = null;
@@ -139,7 +149,7 @@ export function renderAnswerContent(message: ChatMessage, onClick: (c: Citation)
   const byBadge = new Map(message.citations.map((c) => [c.badge_number, c]));
   for (const segment of parseAnswer(message.content)) {
     if (segment.type === "text") {
-      container.append(segment.text);
+      container.append(...renderTextWithComputed(segment.text));
       continue;
     }
     const group = h("span", { class: "badge-group" });
@@ -198,6 +208,8 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     if (message.role === "user") bubble.append(h("div", { class: "question-text", text: message.content ?? "" }));
     else {
       bubble.append(renderAnswerContent(message, options.onCitationClick));
+      const execution = renderCodeExecution(message, { fetchChart });
+      if (execution) bubble.append(execution);
       if (message.kind === "answer" && message.content !== null) options.decorateAnswer?.(bubble, message, fresh);
     }
     return bubble;
@@ -258,7 +270,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       input.value = draft;
       errorLine.hidden = false;
       errorLine.textContent =
-        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed"].includes(err.code)
+        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed", "ExecutionInProgress"].includes(err.code)
           ? err.message
           : GENERATION_ERROR;
       if (err instanceof ApiError && err.status === 404) options.onNotebookMissing();

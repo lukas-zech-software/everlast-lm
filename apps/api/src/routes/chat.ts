@@ -79,7 +79,10 @@ export function registerChatRoutes(router: Router, deps: AppDeps): void {
     try {
       for (let step = first; !step.done; step = await turn.next()) {
         const event = step.value;
-        if (event.type === "status") sse(res, "status", { phase: event.phase });
+        if (event.type === "status") {
+          // FR-GC-08 FR-004: running_code carries only its execution identity and attempt ordinal.
+          sse(res, "status", event.phase === "running_code" ? { phase: event.phase, execution_id: event.execution_id, attempt: event.attempt } : { phase: event.phase });
+        }
         else sse(res, "final", { messages: event.messages, replayed: event.replayed });
       }
     } catch (err) {

@@ -12,7 +12,7 @@ import { createV2Runtime } from "@everlast/api/v2/runtime";
 import type { GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
 import { createWorkerHandler } from "@everlast/worker";
-import { e2eAdapters, e2eDelegationBroker, e2eScreener, handleE2eControl } from "./e2e-v3-doubles.ts";
+import { e2eAdapters, e2eDelegationBroker, e2eSandbox, e2eScreener, handleE2eControl } from "./e2e-v3-doubles.ts";
 
 /**
  * TEST-ONLY E2E server (FR-UI-01, FR-SI-01/03/04, FR-GC-01/02/03/06, Gate v1.0 #1/#3).
@@ -27,7 +27,26 @@ const STOP = new Set(["what", "which", "does", "with", "that", "this", "from", "
 class FixtureModel implements GroundedModel {
   readonly id = "e2e-fixture-model";
 
-  async generate({ question, chunks }: GroundedModelInput): Promise<GroundedDraft> {
+  async generate({ question, chunks, history }: GroundedModelInput): Promise<GroundedDraft> {
+    // FR-GC-08 (specs/010): statistics are delegated to the sandbox; ambiguous sample/population intent is clarified.
+    const previous = history.at(-1)?.question ?? "";
+    const statistical = /standard deviation/i.test(question) || (/standard deviation/i.test(previous) && /population|sample/i.test(question));
+    if (statistical) {
+      const intent = /sample/i.test(question) ? "stdev" : /population/i.test(question) ? "pstdev" : null;
+      if (!intent) return { status: "clarify", sentences: [], clarification_question: "Should the 12 months be treated as the whole population or a sample?" };
+      const dataset = chunks.flatMap((c) => [...c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g)].map((m) => ({ label: `${m[1]} 2025`, value: m[2]!, unit: "ms", chunk_id: c.chunk_id })));
+      if (dataset.length > 0) {
+        return {
+          status: "compute",
+          sentences: [],
+          computation: {
+            intent: intent === "stdev" ? "sample standard deviation" : "population standard deviation",
+            dataset,
+            code: `# FIXTURE:${intent}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${intent === "stdev" ? "Sample" : "Population"} standard deviation', statistics.${intent}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`,
+          },
+        };
+      }
+    }
     const words = (question.toLowerCase().match(/[\p{L}\p{N}$.]{4,}/gu) ?? []).map((w) => w.replace(/[.?]+$/, "")).filter((w) => !STOP.has(w));
     const hits = chunks.filter((c) => words.some((w) => c.text.toLowerCase().includes(w)));
     if (hits.length === 0) return { status: "not_in_sources", missing_topic: question.replace(/[?.!]+$/, ""), sentences: [] };
@@ -78,6 +97,8 @@ export async function startE2eServer(port: number) {
       pool: db.pool,
       embedder,
       model: new FixtureModel(),
+      // FR-GC-08 (specs/010): labelled sandbox TEST DOUBLE; outputs still pass the real validation/publication path.
+      codeExecution: { runtime: e2eSandbox, storage },
       resolvePreferences: (owner, notebook, locale) => v2.chatPreferences(owner, notebook, locale),
     }),
     // Release v2 PoC stores (D16); no generation client, so Source Guide/overview/follow-ups report 503.
