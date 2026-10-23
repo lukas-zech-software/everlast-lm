@@ -214,6 +214,7 @@ export type TranscriptSegmentView = z.infer<typeof TranscriptSegmentViewSchema>;
 /** Player descriptor of the Source Inspector; media bytes are only served through the authorized proxy. */
 export const InspectorPlayerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("audio"), url: z.string().min(1), duration_ms: z.number().int().nonnegative().nullable() }).strict(),
+  z.object({ type: z.literal("video"), url: z.string().min(1), duration_ms: z.number().int().nonnegative().nullable() }).strict(),
   z.object({ type: z.literal("youtube"), video_id: z.string().regex(/^[A-Za-z0-9_-]{6,20}$/) }).strict(),
   z.object({ type: z.literal("link"), url: z.string().url() }).strict(),
 ]);

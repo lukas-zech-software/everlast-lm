@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DELEGATED_ACCESS_DENIED_MESSAGE, PPTX_MEDIA_TYPE } from "@everlast/contracts";
-import { admitLinkedImport, createDelegatedConnection, getSourceById, revokeDelegatedConnection } from "@everlast/db";
+import { admitLinkedImport, createDelegatedConnection, getSourceById, resolveSyncChannel, revokeDelegatedConnection } from "@everlast/db";
 import { driveDocsExportFixture, driveSlidesExportFixture } from "@everlast/testkit/multimodal-fixtures";
 import { createDriveAdapter, DriveApiError, type DelegatedTokenProvider, type DriveApi, type DriveFileMetadata } from "../src/ingestion/drive.ts";
 import { createOfficeAdapter } from "../src/ingestion/office.ts";
@@ -27,6 +27,13 @@ class FakeDrive implements DriveApi {
   exportError: Error | null = null;
   longRunning: Buffer | Error | null = null;
   metadataError: Error | null = null;
+  watches: { token: string; fileId: string; channel: { id: string; address: string; token: string; expiration: number } }[] = [];
+  watchError: Error | null = null;
+
+  async watch(token: string, fileId: string, channel: { id: string; address: string; token: string; expiration: number }): Promise<void> {
+    if (this.watchError) throw this.watchError;
+    this.watches.push({ token, fileId, channel });
+  }
 
   async getMetadata(token: string, fileId: string): Promise<DriveFileMetadata> {
     this.calls.push({ op: "metadata", token, fileId });
@@ -69,7 +76,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revoke?: boolean; maxBytes?: number } = {}) {
+async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revoke?: boolean; maxBytes?: number; webhookAddress?: string } = {}) {
   const nb = await h.newNotebook();
   const connection = await createDelegatedConnection(h.db.pool, { userId: h.ownerId, secretRef: "projects/p/secrets/delegated-x/versions/latest", scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
   const admitted = await admitLinkedImport(h.db.pool, h.ownerId, nb, { attempt_id: randomUUID(), kind: "drive", external_document_id: drive.meta.id, connection_id: connection.id });
@@ -84,7 +91,16 @@ async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revo
         storage: h.storage,
         embedder: h.embedder,
         ocr: new FixtureOcr(),
-        adapters: { drive: createDriveAdapter({ api: drive, tokens, office: {}, ...(options.maxBytes ? { maxBytes: options.maxBytes } : {}) }), office: createOfficeAdapter({}) },
+        adapters: {
+          drive: createDriveAdapter({
+            api: drive,
+            tokens,
+            office: {},
+            ...(options.maxBytes ? { maxBytes: options.maxBytes } : {}),
+            ...(options.webhookAddress ? { webhook: { address: options.webhookAddress, ttlMs: 86_400_000 } } : {}),
+          }),
+          office: createOfficeAdapter({}),
+        },
         screener: cleanScreener,
       },
       { source_id: admitted.source.id, attempt_id: admitted.source.attempt_id, operation_id: admitted.operation.operation_id },
@@ -179,5 +195,29 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     churns.versions = ["1", "2", "3", "4", "5", "6"];
     const failed = await importDrive(churns, new FakeTokens());
     expect(failed.source).toMatchObject({ status: "Failed", failure_code: "UpstreamChanged" });
+  });
+
+  it("DRIVE-08 (T054, FR-011): with a webhook address, a watch channel is created with the user's token and only its hash is stored", async () => {
+    const drive = new FakeDrive();
+    const { outcome, source } = await importDrive(drive, new FakeTokens(), { webhookAddress: "https://everlast.example.test/webhooks/google-drive" });
+    expect(outcome.status).toBe("ready");
+    expect(drive.watches).toHaveLength(1);
+    const w = drive.watches[0]!;
+    expect(w).toMatchObject({ token: TOKEN, fileId: "1SlidesFile", channel: { address: "https://everlast.example.test/webhooks/google-drive" } });
+    expect(w.channel.token.length).toBeGreaterThanOrEqual(32);
+    expect(w.channel.expiration).toBeGreaterThan(Date.now());
+    const stored = await h.db.pool.query("SELECT token_hash FROM source_sync_channels WHERE channel_id = $1", [w.channel.id]);
+    expect(stored.rows[0].token_hash).not.toBe(w.channel.token);
+    expect(await resolveSyncChannel(h.db.pool, w.channel.id, w.channel.token)).toMatchObject({ sourceId: source.id, notebookId: source.notebook_id, ownerId: h.ownerId });
+  });
+
+  it("DRIVE-09 (T054): no webhook address → no channel; a failing watch call never fails the import", async () => {
+    const plain = new FakeDrive();
+    await importDrive(plain, new FakeTokens());
+    expect(plain.watches).toEqual([]);
+    const failing = new FakeDrive();
+    failing.watchError = new DriveApiError(403, "push.webhookUrlUnauthorized");
+    const { outcome } = await importDrive(failing, new FakeTokens(), { webhookAddress: "https://everlast.example.test/webhooks/google-drive" });
+    expect(outcome.status).toBe("ready");
   });
 });

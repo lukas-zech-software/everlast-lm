@@ -231,4 +231,17 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     expect(((await (await api.fetch("/api/connections", { as })).json()) as any).connections).toEqual([]);
   });
 
+
+  it("OFFICE-API-08 (T055, FR-002): the picker is offered only when configured and exposes public identifiers only", async () => {
+    const as = "office-8";
+    await api.fetch("/api/notebooks", { as });
+    const off = (await (await api.fetch("/api/connections", { as })).json()) as any;
+    expect(off.picker).toBeNull();
+    api.deps.pickerConfig = { developerKey: "public-browser-key", appId: "123456789", clientId: "client.apps.example.test" };
+    const on = (await (await api.fetch("/api/connections", { as })).json()) as any;
+    expect(on.picker).toEqual({ developer_key: "public-browser-key", app_id: "123456789", client_id: "client.apps.example.test", scope: "https://www.googleapis.com/auth/drive.file" });
+    expect(JSON.stringify(on)).not.toMatch(/secret|refresh|secret_ref/i);
+    expect((await api.fetch("/api/connections")).status).toBe(401);
+    api.deps.pickerConfig = undefined;
+  });
 });

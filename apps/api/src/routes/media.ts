@@ -77,7 +77,9 @@ export async function handleMediaRequest(deps: AppDeps, req: IncomingMessage, re
   if (!deps.storage) throw new AppError("RetryableFailure", 503, "Storage is not configured");
   const meta = await deps.storage.stat(media.name);
   const size = meta && meta.generation === media.generation ? meta.size : (await deps.storage.read(media.name, media.generation)).length;
-  const headers = { "Content-Type": media.mediaType, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
+  // Stored streams of video sources keep their own content type; uploads use the source media type.
+  const contentType = meta?.contentType && meta.generation === media.generation ? meta.contentType : media.mediaType;
+  const headers = { "Content-Type": contentType, "Accept-Ranges": "bytes", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
   const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ""));
   if (range && (range[1] || range[2])) {
     let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));

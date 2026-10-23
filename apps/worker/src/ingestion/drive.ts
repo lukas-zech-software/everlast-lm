@@ -1,6 +1,7 @@
+import { randomBytes, randomUUID } from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 import { DELEGATED_ACCESS_DENIED_MESSAGE, DOCX_MEDIA_TYPE, MAX_SOURCE_BYTES, PPTX_MEDIA_TYPE } from "@everlast/contracts";
-import { getActiveDelegatedConnection, type DelegatedConnection } from "@everlast/db";
+import { getActiveDelegatedConnection, registerSyncChannel, type DelegatedConnection } from "@everlast/db";
 import { IngestionFailure } from "./extract.ts";
 import { normalizeOffice, type OfficeAdapterOptions } from "./office.ts";
 import { sourceObjectPrefix, type AdapterContext, type NormalizedSource, type SourceAdapter } from "./pipeline.ts";
@@ -45,6 +46,8 @@ export interface DriveApi {
   downloadLongRunning(token: string, fileId: string, mimeType: string): Promise<Buffer>;
   /** `alt=media` content of an uploaded (non-Google) DOCX/PPTX file. */
   downloadContent(token: string, fileId: string): Promise<Buffer>;
+  /** `files.watch` push channel to the app's webhook (FR-SI-05 webhook re-sync; specs/009 T054). */
+  watch?(token: string, fileId: string, channel: { id: string; address: string; token: string; expiration: number }): Promise<void>;
 }
 
 export interface DelegatedTokenProvider {
@@ -58,6 +61,8 @@ export interface DriveAdapterOptions {
   office: OfficeAdapterOptions;
   /** Inclusive application byte limit (defaults to 200,000,000). */
   maxBytes?: number;
+  /** Public HTTPS webhook (`/webhooks/google-drive`) for change notifications; absent → no channel is created. */
+  webhook?: { address: string; ttlMs?: number } | undefined;
 }
 
 const GOOGLE_DOC = "application/vnd.google-apps.document";
@@ -150,6 +155,17 @@ export function createDriveAdapter(options: DriveAdapterOptions): SourceAdapter 
       object = { name: written.name, generation: written.generation };
     }
     const doc = await normalizeOffice(bytes, mediaType, { renderer: options.office.renderer, ocr: ctx.deps.ocr, object, limits: options.office.limits });
+    if (options.webhook && options.api.watch) {
+      // Best effort: a channel lets provider notifications reach the same Owner-scoped sync admission. Only a hash of
+      // the random channel token is stored; failure to watch never fails the import or re-sync.
+      const channel = { id: randomUUID(), address: options.webhook.address, token: randomBytes(32).toString("base64url"), expiration: Date.now() + (options.webhook.ttlMs ?? 6 * 86_400_000) };
+      try {
+        await options.api.watch(token, fileId, channel);
+        await registerSyncChannel(ctx.deps.pool, { channelId: channel.id, notebookId: ctx.source.notebook_id, sourceId: ctx.source.id, token: channel.token, expiresAt: new Date(channel.expiration) });
+      } catch (err) {
+        console.error(JSON.stringify({ severity: "WARNING", source_id: ctx.source.id, error: (err as Error).name }));
+      }
+    }
     return { doc, viewerKind: "pages", byteSize: bytes.length, screen: true, title: meta.name, mediaType, upstreamVersion: meta.version };
   };
 }
@@ -224,6 +240,14 @@ export class GoogleDriveRestApi implements DriveApi {
     }
     if (!op.done || op.error || !op.response?.downloadUri) throw new DriveApiError(400, "longRunningExportUnsupported");
     return boundedBody(await driveFetch(token, op.response.downloadUri), this.maxBytes);
+  }
+
+  async watch(token: string, fileId: string, channel: { id: string; address: string; token: string; expiration: number }): Promise<void> {
+    await driveFetch(token, `${this.base}/files/${encodeURIComponent(fileId)}/watch?supportsAllDrives=true`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: channel.id, type: "web_hook", address: channel.address, token: channel.token, expiration: String(channel.expiration) }),
+    });
   }
 
   async downloadContent(token: string, fileId: string): Promise<Buffer> {

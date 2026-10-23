@@ -189,3 +189,21 @@ variable "google_oauth_client_id" {
   type        = string
   default     = ""
 }
+
+variable "google_picker_api_key" {
+  description = "Public browser API key restricted to the Google Picker API (specs/009 T055); not a model key."
+  type        = string
+  default     = ""
+}
+
+variable "google_picker_app_id" {
+  description = "Google Cloud project number used as the Picker app ID (specs/009 T055)."
+  type        = string
+  default     = ""
+}
+
+variable "drive_webhook_address" {
+  description = "Public HTTPS address of /webhooks/google-drive for Drive change channels (verified domain; specs/009 T054). Empty disables channels."
+  type        = string
+  default     = ""
+}

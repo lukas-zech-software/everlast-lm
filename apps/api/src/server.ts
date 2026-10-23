@@ -140,10 +140,15 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           projectId: (env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)!,
         })
       : undefined;
+  const pickerConfig =
+    env.GOOGLE_PICKER_API_KEY && env.GOOGLE_PICKER_APP_ID && env.GOOGLE_OAUTH_CLIENT_ID
+      ? { developerKey: env.GOOGLE_PICKER_API_KEY, appId: env.GOOGLE_PICKER_APP_ID, clientId: env.GOOGLE_OAUTH_CLIENT_ID }
+      : undefined;
   const deps: AppDeps = {
     pool,
     config,
     delegationBroker,
+    pickerConfig,
     verifier,
     localIssuer,
     storage,

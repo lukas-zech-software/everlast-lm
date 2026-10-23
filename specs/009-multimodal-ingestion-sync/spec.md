@@ -193,3 +193,9 @@ Discovered or decided during `/speckit-implement`; they refine existing requirem
 - **Dependencies:** `@mozilla/readability` (architecture-selected) with `jsdom` as its inert DOM host (worker, render sanitizer); loaded without leaking browser DOM types into other programs.
 - **Migration:** `0009_multimodal_ingestion_sync.sql` (also holds `oauth_states`). Packages 3.2/3.3 start at `0010`.
 - **Open runtime evidence:** live Speech V2 45-second P95 benchmark, judged release suite, live Drive/Model Armor/LibreOffice execution and the v3 release gate remain UNAVAILABLE (no approved API enablement or release candidate).
+
+### Convergence follow-up — 2026-10-23 (FR-SI-01/02/05, FR-GC-03; specs/009 T054–T056)
+
+- **Drive webhook channels (FR-SI-05):** with `DRIVE_WEBHOOK_ADDRESS` configured (verified public HTTPS domain), every successful Drive import or re-sync creates a `files.watch` channel with the user's delegated token; only a hash of the random channel token is stored; watch failures never fail the import. This supersedes the earlier "channel creation is a deployment follow-up" note; enabling it still needs the verified domain.
+- **Authorized picker (FR-SI-01, D11):** when `GOOGLE_PICKER_API_KEY`/`GOOGLE_PICKER_APP_ID` are configured, "Choose from Google Drive" opens Google Picker with the user's own short-lived browser `drive.file` token (never sent to the API); the picked file ID is imported through the same server-side delegated import.
+- **Video players (FR-SI-04, FR-GC-03):** a transcribed video stream is played through the authorized media proxy (`video` player; citations seek to `start_ms`); a captions-only video keeps a link to the original page, updated to the cited `#t=` timestamp.

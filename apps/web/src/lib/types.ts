@@ -64,5 +64,10 @@ export interface InspectorContent {
   } | null;
   next_cursor: string | null;
   transcript?: { page_number: number; start_ms: number; end_ms: number; display_time: string; text: string }[];
-  player?: { type: "audio"; url: string; duration_ms: number | null } | { type: "youtube"; video_id: string } | { type: "link"; url: string } | null;
+  player?:
+    | { type: "audio"; url: string; duration_ms: number | null }
+    | { type: "video"; url: string; duration_ms: number | null }
+    | { type: "youtube"; video_id: string }
+    | { type: "link"; url: string }
+    | null;
 }

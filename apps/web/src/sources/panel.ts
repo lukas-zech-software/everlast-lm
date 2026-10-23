@@ -3,6 +3,7 @@ import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { SelectionModel } from "../lib/selection.ts";
 import type { QuotaSummary, SourceDto } from "../lib/types.ts";
 import { KIND_ICONS, UPLOAD_ACCEPT, parseGoogleDocumentLink, sourceKind, validRenameTitle } from "../lib/v3-sources.ts";
+import { openDrivePicker, type PickerConfig } from "../lib/drive-picker.ts";
 
 /**
  * Sources panel (FR-SI-01, FR-SI-03, FR-SI-05, FR-WM-07): server-authoritative capacity, Add sources modal (file
@@ -339,8 +340,9 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
     clear(body);
     body.append(h("h3", { text: "Google Drive" }));
     let connections: Connection[] = [];
+    let picker: PickerConfig | null = null;
     try {
-      ({ connections } = await api<{ connections: Connection[] }>("/api/connections"));
+      ({ connections, picker } = await api<{ connections: Connection[]; picker: PickerConfig | null }>("/api/connections"));
     } catch {
       toast("Could not load Google Drive connections.");
     }
@@ -376,11 +378,23 @@ export function createSourcesPanel(options: SourcesPanelOptions): SourcesPanel {
       if (await importLinked({ kind: "drive", external_document_id: parsed.id, connection_id: connection.id })) dismiss();
       else submit.disabled = false;
     });
+    // T055 (FR-002): authorized picker selection, imported through the same delegated server import.
+    const pick = picker
+      ? h("button", { class: "btn", "data-testid": "drive-picker", text: "Choose from Google Drive" })
+      : null;
+    pick?.addEventListener("click", async () => {
+      try {
+        const chosen = await openDrivePicker(picker!);
+        if (chosen && (await importLinked({ kind: "drive", external_document_id: chosen.id, connection_id: connection.id }))) dismiss();
+      } catch (err) {
+        toast(err instanceof Error ? err.message : "Google Drive picker failed.");
+      }
+    });
     body.append(
       h("p", { class: "muted", text: `Connected as ${connection.account_label ?? "your Google account"}` }),
       input,
       error,
-      h("div", { class: "modal-actions" }, submit)
+      h("div", { class: "modal-actions" }, pick, submit)
     );
     input.focus();
   }

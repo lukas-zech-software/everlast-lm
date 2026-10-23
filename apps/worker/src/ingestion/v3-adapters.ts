@@ -38,6 +38,7 @@ export function createV3IngestionFromEnv(env: NodeJS.ProcessEnv, storage: Object
       api: new GoogleDriveRestApi(),
       tokens: new SecretManagerTokenProvider({ clientId: env.GOOGLE_OAUTH_CLIENT_ID, clientSecret: async () => clientSecret }),
       office: { renderer },
+      ...(env.DRIVE_WEBHOOK_ADDRESS ? { webhook: { address: env.DRIVE_WEBHOOK_ADDRESS } } : {}),
     });
   }
   const speech = speechConfigFromEnv(env, storage);

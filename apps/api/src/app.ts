@@ -45,6 +45,11 @@ export interface AppDeps {
   delegationBroker?: DelegationBroker | undefined;
   /** Signs OAuth `state` (bound to the initiating user); defaults to a per-process random key. */
   stateSigner?: ReturnType<typeof stateSigner> | undefined;
+  /**
+   * Google Picker (FR-SI-01/D11, specs/009 T055): public browser identifiers only. The picker runs with the user's own
+   * short-lived browser token; imports still use the stored delegation server-side.
+   */
+  pickerConfig?: { developerKey: string; appId: string; clientId: string } | undefined;
   /** Key for revision-bound media playback capabilities (specs/009 T030); defaults to a per-process random key. */
   mediaTokenKey?: Buffer | undefined;
 }

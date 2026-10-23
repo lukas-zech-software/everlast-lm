@@ -251,8 +251,8 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
       cursor: url.searchParams.get("cursor") ?? undefined,
     });
     // Audio playback goes through the authorized, revision-bound media proxy (specs/009 T030).
-    if (content.player?.type === "audio") {
-      content.player = { type: "audio", url: mediaUrlFor(deps, user.userId, params.id!, params.sourceId!, content.source.revision), duration_ms: content.source.media_duration_ms };
+    if (content.player?.type === "audio" || content.player?.type === "video") {
+      content.player = { type: content.player.type, url: mediaUrlFor(deps, user.userId, params.id!, params.sourceId!, content.source.revision), duration_ms: content.source.media_duration_ms };
     }
     sendJson(res, 200, content);
   });

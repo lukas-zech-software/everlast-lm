@@ -84,6 +84,8 @@ export async function startE2eServer(port: number) {
     v2,
     notifyJobs,
     delegationBroker: e2eDelegationBroker,
+    // T055: public test identifiers; Google's scripts are faked per test with network routes.
+    pickerConfig: { developerKey: "e2e-public-picker-key", appId: "000000000000", clientId: "e2e-client.apps.example.test" },
   };
   const app = createApp(deps);
   const server = http.createServer((req, res) => {

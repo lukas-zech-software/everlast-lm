@@ -101,7 +101,7 @@ export function createInspector(options: InspectorOptions): Inspector {
   let observer: IntersectionObserver | null = null;
   let loadingMore = false;
   let token = 0;
-  let audio: HTMLAudioElement | null = null;
+  let audio: HTMLMediaElement | null = null;
 
   const hide = () => {
     element.hidden = true;
@@ -121,6 +121,9 @@ export function createInspector(options: InspectorOptions): Inspector {
     if (!audio) {
       const frame = playerSlot.querySelector<HTMLIFrameElement>("iframe[data-video-id]");
       if (frame) frame.src = `https://www.youtube-nocookie.com/embed/${frame.dataset.videoId}?start=${Math.floor(ms / 1000)}`;
+      // Captions-only enterprise video (T056, FR-005): the link opens the original at the cited timestamp.
+      const link = playerSlot.querySelector<HTMLAnchorElement>("a[data-original-url]");
+      if (link) link.href = `${link.dataset.originalUrl}#t=${Math.floor(ms / 1000)}`;
       return;
     }
     const el = audio;
@@ -140,12 +143,15 @@ export function createInspector(options: InspectorOptions): Inspector {
     if (player.type === "audio") {
       audio = h("audio", { controls: true, preload: "metadata", src: player.url });
       playerSlot.append(audio);
+    } else if (player.type === "video") {
+      audio = h("video", { controls: true, preload: "metadata", src: player.url, playsinline: true });
+      playerSlot.append(audio);
     } else if (player.type === "youtube") {
       playerSlot.append(
         h("iframe", { "data-video-id": player.video_id, src: `https://www.youtube-nocookie.com/embed/${player.video_id}`, title: "Video player", allow: "encrypted-media", referrerpolicy: "no-referrer" })
       );
     } else {
-      playerSlot.append(h("a", { href: player.url, target: "_blank", rel: "noopener noreferrer", text: "Open the original video" }));
+      playerSlot.append(h("a", { href: player.url, "data-original-url": player.url, "data-testid": "original-video-link", target: "_blank", rel: "noopener noreferrer", text: "Open the original video" }));
     }
   };
 

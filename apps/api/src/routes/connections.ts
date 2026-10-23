@@ -65,6 +65,10 @@ export function registerConnectionRoutes(router: Router, deps: AppDeps): void {
     sendJson(res, 200, {
       connections: connections.map((c) => ({ id: c.id, provider: c.provider, account_label: c.account_label, scopes: c.scopes, created_at: c.created_at })),
       authorization_available: Boolean(deps.delegationBroker),
+      // T055 (FR-002): public picker identifiers; the picker only selects a file ID (scope drive.file in the browser).
+      picker: deps.pickerConfig
+        ? { developer_key: deps.pickerConfig.developerKey, app_id: deps.pickerConfig.appId, client_id: deps.pickerConfig.clientId, scope: "https://www.googleapis.com/auth/drive.file" }
+        : null,
     });
   });
 

@@ -184,6 +184,10 @@ describe("video URLs (FR-SI-01, NFR-SEC-02)", () => {
     const source = await importVideo("https://media.example.test/v/7", t, asr);
     expect(source.status).toBe("Ready");
     expect(asr.calls[0]!.object.name).toContain(`/sources/${source.id}/media/`);
+    // T056 (FR-005): the stored stream is the seekable player (served only through the authorized media proxy).
+    const rev = await h.db.pool.query("SELECT player, media_object_name FROM source_revisions WHERE source_id = $1", [source.id]);
+    expect(rev.rows[0].player).toEqual({ type: "video" });
+    expect(rev.rows[0].media_object_name).toBe(asr.calls[0]!.object.name);
   });
 
   it("MEDIA-08: no captions and no accessible audio — including public YouTube without delegated caption access — fails with the exact message", async () => {

@@ -122,4 +122,7 @@ module "compute" {
   enable_v3_ingestion                 = var.enable_v3_ingestion
   model_armor_template_id             = var.model_armor_template_id
   google_oauth_client_id              = var.google_oauth_client_id
+  google_picker_api_key               = var.google_picker_api_key
+  google_picker_app_id                = var.google_picker_app_id
+  drive_webhook_address               = var.drive_webhook_address
 }

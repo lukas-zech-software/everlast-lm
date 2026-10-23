@@ -32,7 +32,12 @@ locals {
     WORKER_INTERNAL_URL           = google_cloud_run_v2_service.worker.uri
     # The API applies pending packages/db migrations at startup (advisory-locked, each file once).
     MIGRATE_ON_START = "true"
-  })
+    }, var.enable_v3_ingestion ? {
+    # Package 3.1 delegated Drive (D11, specs/009): public OAuth/Picker identifiers only; secrets come from Secret Manager.
+    GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
+    GOOGLE_PICKER_API_KEY  = var.google_picker_api_key
+    GOOGLE_PICKER_APP_ID   = var.google_picker_app_id
+  } : {})
 
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"
@@ -47,6 +52,7 @@ locals {
     MODEL_ARMOR_TEMPLATE_ID     = var.model_armor_template_id
     GOOGLE_OAUTH_CLIENT_ID      = var.google_oauth_client_id
     DELEGATED_SECRET_PROJECT_ID = var.project_id
+    DRIVE_WEBHOOK_ADDRESS       = var.drive_webhook_address
   } : {})
 }
 

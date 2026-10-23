@@ -276,7 +276,8 @@ export function createVideoAdapter(options: VideoAdapterOptions): SourceAdapter 
       await ctx.progress("Transcribing");
       const object = { name: written.name, generation: written.generation };
       const { doc, durationMs } = await transcribeObject(options.transcriber, object, mediaType, mediaType === "audio/wav" ? wavDurationMs(bytes) : null, options.preprocessor);
-      return { doc, viewerKind: "transcript", byteSize: bytes.length, screen: true, title, player, mediaDurationMs: durationMs, mediaObject: object };
+      // T056 (FR-005): the stored stream is the seekable player, served only through the authorized media proxy.
+      return { doc, viewerKind: "transcript", byteSize: bytes.length, screen: true, title, player: { type: "video" }, mediaDurationMs: durationMs, mediaObject: object };
     };
 
     if (page.contentType.startsWith("text/vtt")) return captions(page.body);

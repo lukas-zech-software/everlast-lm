@@ -34,7 +34,7 @@ export const e2eScreener: ContentScreener = {
 };
 
 /** Mutable fixture "internet": the SSRF guard and Readability are real; only DNS and sockets are doubles. */
-export const e2eWebPages = new Map<string, { status: number; body: string; delayMs?: number }>([
+export const e2eWebPages = new Map<string, { status: number; body: string; delayMs?: number; contentType?: string }>([
   ["https://news.example.test/articles/depot-automation", { status: 200, body: articleHtml() }],
   ["https://news.example.test/forbidden", { status: 403, body: "Forbidden" }],
   ["https://intranet.example.test/roadmap", { status: 200, body: roadmapHtml("May") }],
@@ -44,7 +44,7 @@ const e2eTransport: Transport = {
   async request(req) {
     const page = e2eWebPages.get(req.url.toString()) ?? { status: 404, body: "Not found" };
     if (page.delayMs) await new Promise((r) => setTimeout(r, page.delayMs));
-    return { status: page.status, headers: { "content-type": "text/html; charset=utf-8" }, body: (async function* () { yield Buffer.from(page.body); })() };
+    return { status: page.status, headers: { "content-type": page.contentType ?? "text/html; charset=utf-8" }, body: (async function* () { yield Buffer.from(page.body); })() };
   },
 };
 
@@ -75,8 +75,13 @@ export async function handleE2eControl(req: import("node:http").IncomingMessage,
   if (req.method !== "POST" || req.url !== "/__e2e/web-page") return false;
   const chunks: Buffer[] = [];
   for await (const c of req) chunks.push(c as Buffer);
-  const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { url: string; status?: number; month?: "May" | "June"; html?: string; delayMs?: number };
-  e2eWebPages.set(body.url, { status: body.status ?? 200, body: body.html ?? (body.month ? roadmapHtml(body.month) : "Not found"), ...(body.delayMs ? { delayMs: body.delayMs } : {}) });
+  const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { url: string; status?: number; month?: "May" | "June"; html?: string; delayMs?: number; contentType?: string };
+  e2eWebPages.set(body.url, {
+    status: body.status ?? 200,
+    body: body.html ?? (body.month ? roadmapHtml(body.month) : "Not found"),
+    ...(body.delayMs ? { delayMs: body.delayMs } : {}),
+    ...(body.contentType ? { contentType: body.contentType } : {}),
+  });
   res.writeHead(204).end();
   return true;
 }

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { INTERVIEW_CITED_MS, interviewMp3, shortWav } from "@everlast/testkit/multimodal-fixtures";
+import { INTERVIEW_CITED_MS, VIDEO_CAPTIONS_VTT, interviewMp3, shortWav, videoPageHtml } from "@everlast/testkit/multimodal-fixtures";
 import { createNotebook, signIn, uniqueEmail } from "./helpers.ts";
 
 /**
@@ -60,4 +60,25 @@ test("MEDIA-E03: a video URL without accessible captions or audio fails with the
   await page.getByTestId("url-input").fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
   await page.getByTestId("url-import").click();
   await expect(page.getByTestId("source-error")).toHaveText("No transcript available for this video", { timeout: 30_000 });
+});
+
+test("MEDIA-E04 (T056): a captions-only enterprise video opens with a link that jumps to the clicked timestamp", async ({ page }) => {
+  const email = uniqueEmail("media-e04");
+  await signIn(page, email);
+  const id = await createNotebook(page.request, email);
+  const url = `https://media.example.test/v/${Date.now()}`;
+  await page.request.post("/__e2e/web-page", { data: { url, html: videoPageHtml(`${new URL(url).pathname}.vtt`) } });
+  await page.request.post("/__e2e/web-page", { data: { url: `${url}.vtt`, html: VIDEO_CAPTIONS_VTT, contentType: "text/vtt" } });
+  await page.goto(`/notebook/${id}`);
+  await page.getByTestId("add-source").click();
+  await page.getByTestId("add-video").click();
+  await page.getByTestId("url-input").fill(url);
+  await page.getByTestId("url-import").click();
+  const row = page.getByTestId("source-row");
+  await expect(row).toHaveAttribute("data-status", "Ready", { timeout: 30_000 });
+  await expect(row.locator('[data-testid="source-icon"][data-kind="video"]')).toHaveCount(1);
+  await row.getByTestId("source-title").click();
+  await page.locator('[data-start-ms="65000"]').getByTestId("transcript-time").click();
+  await expect(page.getByTestId("original-video-link")).toHaveAttribute("href", `${url}#t=65`);
+  await expect(page.getByTestId("media-player")).toHaveAttribute("data-seek-ms", "65000");
 });

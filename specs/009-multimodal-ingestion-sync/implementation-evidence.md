@@ -142,3 +142,17 @@ Unresolved runtime limits for the handoff: the v3 release gate (Gate v3.0) is no
 NFR-EVAL-01/03, live delegated Drive, live Model Armor and the LibreOffice renderer have no runtime evidence; Drive watch
 channels are not created (webhook endpoint ready); deployment requires owner approval of `enable_v3_ingestion`
 (Speech, Drive, YouTube Data, Compute, Model Armor), a Model Armor template, an OAuth client + secret, and a render image.
+
+## Convergence (Phase 8, T054–T056)
+
+`/speckit-converge` found 3 partial gaps (F1 FR-011 Drive watch channels never created; F2 FR-002 authorized picker missing; F3 FR-005 video citations not seekable) and appended T054–T056.
+
+| Task | Red observed | Green |
+| :- | :- | :- |
+| T054 | `ingestion-drive.test.ts` DRIVE-08: `expected [] to have a length of 1` | DRIVE-08/09 (9/9 file) |
+| T055 | `office-import.test.ts` OFFICE-API-08: `expected undefined to be null` | OFFICE-API-08; `apps/web/test/drive-picker.spec.ts` PICKER-E01 (Google Picker/Identity scripts faked via network routes; app integration, server import, DB and worker real) |
+| T056 | `video-player.test.ts` VIDEO-01 and `ingestion-media.test.ts` MEDIA-07: player was `link` | VIDEO-01/02, MEDIA-07; `media-citations.spec.ts` MEDIA-E04 (written after the API change; browser Red not separately observed) |
+
+IaC: picker identifiers and `DRIVE_WEBHOOK_ADDRESS` are wired behind `enable_v3_ingestion` (validate passes).
+
+Final gate run after convergence (2026-10-23): spec integrity, `git diff --check`, typecheck, lint, build, `pnpm test` (120 files / 969 tests), `pnpm eval:deterministic`, `pnpm test:e2e` (52 passed, 1 pre-existing fixme skipped) — all exit 0. A second `/speckit-converge` assessment found no further buildable gaps; only the environment-gated T049 (judged release run) and T050 (live ASR benchmark) remain open.
