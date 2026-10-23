@@ -1,4 +1,5 @@
 import { CanonicalNumberSchema, type CodeExecutionFailureCode, type ComputedResult } from "@everlast/contracts";
+import { neutralizeMarkers } from "../sanitize.ts";
 import { OUTPUT_FILE_RE, type HarnessResult, type SandboxFile } from "./runtime.ts";
 
 /**
@@ -24,9 +25,7 @@ export class OutputError extends Error {
 }
 
 const plain = (text: string, max: number) =>
-  text
-    .replace(/\[\[/g, "[")
-    .replace(/\]\]/g, "]")
+  neutralizeMarkers(text)
     .replace(/[<>]/g, "")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")

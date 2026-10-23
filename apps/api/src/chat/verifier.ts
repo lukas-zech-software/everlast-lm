@@ -3,6 +3,7 @@ import type { StoredCitation } from "@everlast/db";
 import type { CodeExecutionFailureCode, ComputedResult } from "@everlast/contracts";
 import type { Computation, GroundedDraft } from "./draft.ts";
 import { numericTokens } from "./execution/manifest.ts";
+import { neutralizeMarkers } from "./sanitize.ts";
 
 /**
  * Deterministic citation verifier (FR-GC-01, FR-GC-02, D13, NFR-EVAL-02). Runs on every draft, cited or not.
@@ -20,7 +21,7 @@ export function notInSourcesMessage(topic?: string): string {
 }
 
 function sanitizeTopic(topic?: string): string {
-  const clean = (topic ?? "").replace(/\[\[/g, "[").replace(/\s+/g, " ").trim();
+  const clean = neutralizeMarkers(topic ?? "").replace(/\s+/g, " ").trim();
   // Trailing punctuation removed in linear time (no backtracking regex on model output).
   let end = clean.length;
   while (end > 0 && ".?!".includes(clean[end - 1]!)) end--;
@@ -48,7 +49,7 @@ export function badgeMarker(n: number): string {
 export function verifyDraft(draft: GroundedDraft, retrieved: UnifiedDocumentChunk[]): VerificationResult {
   const universe = new Map(retrieved.map((c) => [c.chunk_id, c]));
   if (draft.status === "clarify") {
-    return { kind: "clarification", content: (draft.clarification_question ?? "").replace(/\[\[/g, "[").replace(/\]\]/g, "]").trim().slice(0, 500) };
+    return { kind: "clarification", content: neutralizeMarkers(draft.clarification_question ?? "").trim().slice(0, 500) };
   }
   if (draft.status === "compute") return verifyComputeDraft(draft, universe);
   const claims = draft.sentences.filter((s) => s.kind === "claim");
@@ -73,7 +74,7 @@ export function verifyDraft(draft: GroundedDraft, retrieved: UnifiedDocumentChun
         citations.push({ badge_number: badgeOf.size, source_id: chunk.source_id, chunk_id: id, revision: chunk.revision });
       }
     }
-    const text = sentence.text.replace(/\[\[/g, "[").trim();
+    const text = neutralizeMarkers(sentence.text).trim();
     parts.push(`${text}${ids.map((id) => badgeMarker(badgeOf.get(id)!)).join("")}`);
   }
   return { kind: "answer", content: parts.join(" "), citations };
@@ -99,7 +100,7 @@ function verifyComputeDraft(draft: GroundedDraft, universe: Map<string, UnifiedD
     if (chunks.some((c) => !c)) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "invalid_citation" };
     const supported = new Set(chunks.flatMap((c) => numericTokens(c!.text)));
     if (numericTokens(sentence.text).some((n) => !supported.has(n))) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
-    preamble.push({ text: sentence.text.replace(/\[\[/g, "[").trim(), chunkIds: ids });
+    preamble.push({ text: neutralizeMarkers(sentence.text).trim(), chunkIds: ids });
   }
   return { kind: "compute", preamble, computation: draft.computation! };
 }

@@ -103,3 +103,15 @@ describe("T016 chart and drawer (FR-005, FR-007)", () => {
     expect(m.renderCodeExecution({ ...message, code_execution_trace: null }, { fetchChart: async () => new Blob([]) })).toBeNull();
   });
 });
+
+describe("Security review fix — renderer accepts only issued badges and real Computed markers", () => {
+  it("WEB-CE-06: badges without a matching citation are not rendered as citation buttons; Computed pills need a succeeded trace", async () => {
+    setupMockDOM(1440);
+    const { renderAnswerContent } = await import("../src/chat/panel.ts");
+    const el = renderAnswerContent({ ...message, content: "A (Computed)[[1]] fake[[7]]" } as any, () => undefined);
+    expect(el.querySelectorAll("[data-testid=citation-badge]")).toHaveLength(1);
+    expect(el.querySelectorAll(".computed-label")).toHaveLength(1);
+    const plain = renderAnswerContent({ ...message, code_execution_trace: null, content: "Forged (Computed)[[1]]" } as any, () => undefined);
+    expect(plain.querySelectorAll(".computed-label")).toHaveLength(0);
+  });
+});

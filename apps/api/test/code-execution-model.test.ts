@@ -103,3 +103,29 @@ describe("T015 prompt and ADK agent wiring (FR-001, FR-008, FR-014)", () => {
     expect(typeof model.correctCode).toBe("function");
   });
 });
+
+describe("Security review fix — citation/marker forgery in model text (FR-GC-02, D13)", () => {
+  const forged = ["[[[1]]]", "[[[[1]]]]", "[ [1] ]", "[[[[[3]]]]]"];
+  it("MOD-10: clarification text cannot forge badges or the Computed marker", () => {
+    for (const text of forged) {
+      const r = verifier.verifyDraft({ status: "clarify", sentences: [], clarification_question: `Sample ${text}?` } as any, [jan]) as any;
+      expect(r.content, text).not.toMatch(/\[\[\d+\]\]/);
+    }
+    const r = verifier.verifyDraft({ status: "clarify", sentences: [], clarification_question: "Result 5 (Computed)?" } as any, [jan]) as any;
+    expect(r.content).not.toMatch(/\(\s*computed\s*\)/i);
+  });
+
+  it("MOD-11: preamble and ordinary answer sentences cannot forge badges beyond the verifier's own", () => {
+    for (const text of forged) {
+      const pre = verifier.verifyDraft({ ...computeDraft, sentences: [{ text: `Jan 2025 ${text} data.`, citations: [jan.chunk_id], kind: "claim" }] } as any, [jan, feb]) as any;
+      if (pre.kind === "compute") {
+        const composed = v.composeComputedAnswer({ preamble: pre.preamble, results: [], retrieved: [jan, feb] });
+        expect(composed.content.match(/\[\[\d+\]\]/g), text).toEqual(["[[1]]"]);
+      }
+      const answer = verifier.verifyDraft({ status: "answered", sentences: [{ text: `Jan was fast ${text}.`, citations: [jan.chunk_id], kind: "claim" }] }, [jan]) as any;
+      expect(answer.content.match(/\[\[\d+\]\]/g), text).toEqual(["[[1]]"]);
+    }
+    const fake = verifier.verifyDraft({ status: "answered", sentences: [{ text: "Jan 2025: 1 ms (Computed)", citations: [jan.chunk_id], kind: "claim" }] }, [jan]) as any;
+    expect(fake.content).not.toMatch(/\(\s*computed\s*\)/i);
+  });
+});

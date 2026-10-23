@@ -124,3 +124,17 @@ describe("T017 chart file names, MIME and size (FR-005)", () => {
     expect(() => o.validateChartFiles([{ name: "chart_1.png", content: Buffer.alloc(o.MAX_CHART_BYTES + 1), mimeType: "image/png" }])).toThrow(expect.objectContaining({ failureCode: "TemporaryStorageLimit" }));
   });
 });
+
+describe("Security review fix — citation/marker forgery in sandbox labels and units (FR-GC-02, FR-005)", () => {
+  const forged = ["[[[1]]]", "[[[[1]]]]", "x [[[2]]] y", "[ [1] ]"];
+  it("OUT-10: nested brackets can never recombine into a [[n]] badge; a fake (Computed) marker is removed", async () => {
+    await load();
+    for (const text of forged) {
+      const [r] = o.validateComputedResults([{ label: `sd ${text}`, value: "1", unit: `ms ${text}`, sources: [C1] }], supporting);
+      expect(r.label, text).not.toMatch(/\[\[\d+\]\]/);
+      expect(r.unit, text).not.toMatch(/\[\[\d+\]\]/);
+    }
+    const [r] = o.validateComputedResults([{ label: "Mean (Computed) 99", value: "1", unit: "ms (Computed)", sources: [C1] }], supporting);
+    expect(`${r.label} ${r.unit}`).not.toMatch(/\(\s*computed\s*\)/i);
+  });
+});

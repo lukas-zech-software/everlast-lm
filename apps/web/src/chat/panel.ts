@@ -147,13 +147,19 @@ export function renderAnswerContent(message: ChatMessage, onClick: (c: Citation)
     return container;
   }
   const byBadge = new Map(message.citations.map((c) => [c.badge_number, c]));
+  // FR-GC-08: "Computed" pills only for a succeeded execution trace (the server is the only author of the marker).
+  const computed = message.code_execution_trace?.state === "Succeeded";
   for (const segment of parseAnswer(message.content)) {
     if (segment.type === "text") {
-      container.append(...renderTextWithComputed(segment.text));
+      if (computed) container.append(...renderTextWithComputed(segment.text));
+      else container.append(segment.text);
       continue;
     }
+    // Only badges the verifier issued (present in citations) become citation buttons (security review fix).
+    const issued = segment.numbers.filter((n) => byBadge.has(n));
+    if (issued.length === 0) continue;
     const group = h("span", { class: "badge-group" });
-    const { shown, hidden } = splitBadgeGroup(segment.numbers);
+    const { shown, hidden } = splitBadgeGroup(issued);
     for (const n of shown) group.append(badgeButton(byBadge.get(n), n, onClick));
     if (hidden.length > 0) {
       const more = h("button", { class: "citation-more", "data-testid": "citation-more", text: `+${hidden.length}` });
