@@ -159,3 +159,13 @@ Full Gate v3.0 #2 evidence, cohort tables, and the 50-case stratified sample are
 | `pnpm eval:v3-code-execution` | **UNAVAILABLE** (exit `2`: live Agent Platform sandbox not configured) |
 | `pnpm eval:judged` | **UNAVAILABLE** (exit `2`: `VERTEX_PROJECT` / live Vertex release environment not configured) |
 | `(cd infra/modules/code_execution && tofu init -backend=false && tofu test)` | **PASS** (4/4) |
+
+
+## PR #159 review fixes (2026-10-24; FR-GC-08, NFR-SEC-02, D20)
+
+- Fixed SVG external-resource checks bypassed by XML character references and split style tokens. Decode before validation and reject ambiguous style token boundaries; retain safe local references and escaped labels.
+- Fixed premature cleanup confirmation: DELETE operation acceptance or an operation error no longer marks a sandbox destroyed. Poll to successful completion or keep cleanup pending.
+- Bounded deletion to 5 seconds, including stalled credential acquisition and response reads, so execution timeout reporting and reconciliation cannot hang on the provider delete call.
+- Red: new regression tests reproduced encoded resource acceptance, split style tokens, premature deletion confirmation, failed-operation acceptance, and stalled deletion. Green: 381 unit tests (28 files), 86 integration tests (12 files), and 6 Chromium journeys pass. Unit coverage includes the contract suites.
+- Build, lint/type checking, spec integrity (190 Markdown files / 55 SRS IDs / 39 feature artifacts), and whitespace checks pass. Deterministic eval: citation precision 160/160, scope leakage 0, adversarial out-of-prompt drafts published 0/60.
+- Live sandbox integration: UNAVAILABLE (11 tests skipped; no configured Agent Platform runtime). Judged Vertex metrics and live provider performance remain unverified; this review does not assert release-gate completion.

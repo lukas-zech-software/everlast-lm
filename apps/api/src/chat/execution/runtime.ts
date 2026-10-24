@@ -112,6 +112,7 @@ export interface AgentPlatformSandboxOptions {
   fetch?: typeof fetch;
   pollIntervalMs?: number;
   createTimeoutMs?: number;
+  destroyTimeoutMs?: number;
   ttlSeconds?: number;
 }
 
@@ -141,6 +142,7 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
     this.options = {
       pollIntervalMs: 250,
       createTimeoutMs: 20_000,
+      destroyTimeoutMs: 5_000,
       ttlSeconds: SANDBOX_TTL_SECONDS,
       ...options,
       fetch: options.fetch ?? fetch,
@@ -150,6 +152,7 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
 
   private async call(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
     const token = await this.options.accessToken();
+    signal?.throwIfAborted();
     return this.options.fetch(`${this.base}/${path}`, {
       method,
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -256,9 +259,36 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
   }
 
   async destroy(handle: SandboxHandle): Promise<void> {
-    const response = await this.call("DELETE", handle.name);
-    if (response.ok || response.status === 404) return;
-    throw new SandboxError("ProviderUnavailable", `delete returned ${response.status}`);
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new SandboxError("ProviderUnavailable", "sandbox deletion timed out");
+        controller.abort(error);
+        reject(error);
+      }, this.options.destroyTimeoutMs);
+    });
+    const remove = async () => {
+      const response = await this.call("DELETE", handle.name, undefined, controller.signal);
+      if (response.status === 404) return;
+      if (!response.ok) throw new SandboxError("ProviderUnavailable", `delete returned ${response.status}`);
+      let operation = (await response.json()) as { name?: string; done?: boolean; error?: unknown };
+      while (!operation.done) {
+        if (!operation.name) throw new SandboxError("ProviderUnavailable", "delete returned no operation");
+        await new Promise((resolve) => setTimeout(resolve, this.options.pollIntervalMs));
+        controller.signal.throwIfAborted();
+        const poll = await this.call("GET", operation.name, undefined, controller.signal);
+        if (!poll.ok) throw new SandboxError("ProviderUnavailable", `delete poll returned ${poll.status}`);
+        operation = (await poll.json()) as typeof operation;
+      }
+      if (operation.error) throw new SandboxError("ProviderUnavailable", "sandbox deletion failed");
+    };
+    try {
+      // Also bounds credential acquisition and response-body reads, not only fetch headers.
+      await Promise.race([remove(), deadline]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }
 
