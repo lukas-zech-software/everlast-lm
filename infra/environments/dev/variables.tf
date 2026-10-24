@@ -136,7 +136,26 @@ variable "deletion_protection" {
 }
 
 variable "enable_email_password_sign_in" {
-  description = "Dev PoC: Identity Platform email/password sign-in for stakeholders (owner decision 2026-10-20)."
+  description = "Dev PoC: Identity Platform email/password sign-in (owner decision 2026-10-20; kept alongside Google sign-in, 2026-10-22)."
   type        = bool
   default     = true
+}
+
+variable "enable_google_sign_in" {
+  description = "Dev PoC: Google sign-in for stakeholders (owner decision 2026-10-22). Needs the OAuth client ID and secret."
+  type        = bool
+  default     = false
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth 2.0 web client ID from Google Auth Platform (set in the gitignored tfvars)."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_secret" {
+  description = "OAuth 2.0 web client secret (set only in the gitignored tfvars)."
+  type        = string
+  default     = ""
+  sensitive   = true
 }
