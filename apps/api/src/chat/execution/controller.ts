@@ -109,111 +109,119 @@ export class CodeExecutionController {
     });
 
     let code = input.code;
-    for (let ordinal = 1 as 1 | 2; ordinal <= MAX_ATTEMPTS; ordinal = (ordinal + 1) as 1 | 2) {
-      if (input.signal.aborted) return terminal("GenerationCancelled");
-      const attemptId = randomUUID();
-      const startedAt = now();
-      await registerSandbox(pool, { attemptId, executionId, notebookId: input.thread.notebook_id });
-      const outcome: AttemptOutcome = await runAttempt({
-        runtime: this.deps.runtime,
-        attemptId,
-        code,
-        files: [...input.manifest.files],
-        signal: input.signal,
-        ...(this.deps.deadlineMs ? { deadlineMs: this.deps.deadlineMs } : {}),
-        onCreated: (handle) => markSandboxActive(pool, attemptId, handle.name),
-        onRunning: async () => {
-          const running: CodeExecutionAttempt = { attempt_id: attemptId, ordinal, code, stdout: "", stderr: "", exit_code: null, started_at: startedAt, ended_at: null, terminal_reason: null, artifacts: [] };
-          await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
-          input.onStatus({ type: "status", phase: "running_code", execution_id: executionId, attempt: ordinal });
-        },
-        onDestroyed: async ({ destroyed }) => {
-          if (destroyed) await markSandboxDestroyed(pool, attemptId);
-          else await markSandboxDestroyPending(pool, attemptId, "DeleteFailed");
-        },
-      });
+    try {
+      for (let ordinal = 1 as 1 | 2; ordinal <= MAX_ATTEMPTS; ordinal = (ordinal + 1) as 1 | 2) {
+        if (input.signal.aborted) return terminal("GenerationCancelled");
+        const attemptId = randomUUID();
+        const startedAt = now();
+        await registerSandbox(pool, { attemptId, executionId, notebookId: input.thread.notebook_id });
+        const outcome: AttemptOutcome = await runAttempt({
+          runtime: this.deps.runtime,
+          attemptId,
+          code,
+          files: [...input.manifest.files],
+          signal: input.signal,
+          ...(this.deps.deadlineMs ? { deadlineMs: this.deps.deadlineMs } : {}),
+          onCreated: (handle) => markSandboxActive(pool, attemptId, handle.name),
+          onRunning: async () => {
+            const running: CodeExecutionAttempt = { attempt_id: attemptId, ordinal, code, stdout: "", stderr: "", exit_code: null, started_at: startedAt, ended_at: null, terminal_reason: null, artifacts: [] };
+            await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
+            input.onStatus({ type: "status", phase: "running_code", execution_id: executionId, attempt: ordinal });
+          },
+          onDestroyed: async ({ destroyed }) => {
+            if (destroyed) await markSandboxDestroyed(pool, attemptId);
+            else await markSandboxDestroyPending(pool, attemptId, "DeleteFailed");
+          },
+        });
 
-      if (outcome.kind === "failed" && !outcome.submitted) {
-        // Nothing reached the provider in this attempt: no fabricated attempt, exit code or output.
-        return terminal(outcome.failureCode);
-      }
-      const record: CodeExecutionAttempt = {
-        attempt_id: attemptId,
-        ordinal,
-        code,
-        stdout: outcome.stdout,
-        stderr: outcome.stderr,
-        exit_code: outcome.exitCode,
-        started_at: outcome.startedAt,
-        ended_at: outcome.endedAt,
-        terminal_reason: outcome.kind === "completed" ? "Succeeded" : outcome.failureCode,
-        artifacts: [],
-      };
+        if (outcome.kind === "failed" && !outcome.submitted) {
+          // Nothing reached the provider in this attempt: no fabricated attempt, exit code or output.
+          return terminal(outcome.failureCode);
+        }
+        const record: CodeExecutionAttempt = {
+          attempt_id: attemptId,
+          ordinal,
+          code,
+          stdout: outcome.stdout,
+          stderr: outcome.stderr,
+          exit_code: outcome.exitCode,
+          started_at: outcome.startedAt,
+          ended_at: outcome.endedAt,
+          terminal_reason: outcome.kind === "completed" ? "Succeeded" : outcome.failureCode,
+          artifacts: [],
+        };
 
-      if (outcome.kind === "completed") {
-        try {
-          const results = validateComputedResults(outcome.results, input.manifest.supportingChunkIds);
-          const charts = validateChartFiles(outcome.files);
-          const artifactIds: string[] = [];
-          for (const chart of charts) {
-            const artifactId = randomUUID();
-            const key = `${notebookObjectPrefix(input.thread.notebook_id)}chat-charts/${artifactId}/${chart.name}`;
-            const meta = await this.deps.storage.write(key, chart.content, chart.mimeType);
-            await insertChartCandidate(pool, {
-              artifact_id: artifactId,
-              execution_id: executionId,
-              attempt_id: attemptId,
-              message_id: null,
-              notebook_id: input.thread.notebook_id,
-              user_id: input.thread.user_id,
-              object_key: key,
-              object_generation: meta.generation,
-              mime_type: chart.mimeType,
-              digest: createHash("sha256").update(chart.content).digest("hex"),
-              byte_size: chart.content.length,
-              source_snapshot: input.snapshot,
-              citation_chunk_ids: [...input.manifest.supportingChunkIds],
-              state: "candidate",
-            });
-            artifactIds.push(artifactId);
+        if (outcome.kind === "completed") {
+          try {
+            const results = validateComputedResults(outcome.results, input.manifest.supportingChunkIds);
+            const charts = validateChartFiles(outcome.files);
+            const artifactIds: string[] = [];
+            for (const chart of charts) {
+              const artifactId = randomUUID();
+              const key = `${notebookObjectPrefix(input.thread.notebook_id)}chat-charts/${artifactId}/${chart.name}`;
+              const meta = await this.deps.storage.write(key, chart.content, chart.mimeType);
+              await insertChartCandidate(pool, {
+                artifact_id: artifactId,
+                execution_id: executionId,
+                attempt_id: attemptId,
+                message_id: null,
+                notebook_id: input.thread.notebook_id,
+                user_id: input.thread.user_id,
+                object_key: key,
+                object_generation: meta.generation,
+                mime_type: chart.mimeType,
+                digest: createHash("sha256").update(chart.content).digest("hex"),
+                byte_size: chart.content.length,
+                source_snapshot: input.snapshot,
+                citation_chunk_ids: [...input.manifest.supportingChunkIds],
+                state: "candidate",
+              });
+              artifactIds.push(artifactId);
+            }
+            record.artifacts = artifactIds.map((id) => chartUrl(input.thread.notebook_id, input.messageId, id));
+            attempts.push(record);
+            return {
+              executionId,
+              leaseToken,
+              results,
+              publishArtifactIds: artifactIds,
+              trace: trace("Succeeded", { final_attempt_id: attemptId, published_artifact_ids: artifactIds, computed_results: results }),
+            };
+          } catch (err) {
+            if (!(err instanceof OutputError)) throw err;
+            // Invalid or unsafe outputs are terminal (no retry) and never published.
+            record.terminal_reason = err.failureCode;
+            attempts.push(record);
+            return terminal(err.failureCode);
           }
-          record.artifacts = artifactIds.map((id) => chartUrl(input.thread.notebook_id, input.messageId, id));
-          attempts.push(record);
-          return {
-            executionId,
-            leaseToken,
-            results,
-            publishArtifactIds: artifactIds,
-            trace: trace("Succeeded", { final_attempt_id: attemptId, published_artifact_ids: artifactIds, computed_results: results }),
-          };
-        } catch (err) {
-          if (!(err instanceof OutputError)) throw err;
-          // Invalid or unsafe outputs are terminal (no retry) and never published.
-          record.terminal_reason = err.failureCode;
-          attempts.push(record);
-          return terminal(err.failureCode);
+        }
+
+        attempts.push(record);
+        if (!isRetryableFailure(outcome.failureCode, ordinal) || !input.correct) return terminal(outcome.failureCode);
+        // Exactly one correction: same immutable manifest, same limits, fresh sandbox.
+        await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "CodeGenerating", trace: trace("CodeGenerating") });
+        try {
+          code = await input.correct({
+            question: input.question,
+            intent: input.intent,
+            values: input.manifest.values.map((v) => ({ ...v })),
+            failedCode: record.code,
+            stderr: record.stderr,
+            signal: input.signal,
+          });
+        } catch {
+          if (input.signal.aborted) return terminal("GenerationCancelled");
+          return terminal("PythonException");
         }
       }
-
-      attempts.push(record);
-      if (!isRetryableFailure(outcome.failureCode, ordinal) || !input.correct) return terminal(outcome.failureCode);
-      // Exactly one correction: same immutable manifest, same limits, fresh sandbox.
-      await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "CodeGenerating", trace: trace("CodeGenerating") });
-      try {
-        code = await input.correct({
-          question: input.question,
-          intent: input.intent,
-          values: input.manifest.values.map((v) => ({ ...v })),
-          failedCode: record.code,
-          stderr: record.stderr,
-          signal: input.signal,
-        });
-      } catch {
-        if (input.signal.aborted) return terminal("GenerationCancelled");
-        return terminal("PythonException");
-      }
+      return terminal("PythonException");
+    } catch (err) {
+      // Release the active execution lease on unexpected errors (e.g. storage write failure or Clear chat race)
+      // so the notebook is not locked in CodeGenerating/SandboxRunning until lease expiry.
+      const failure: CodeExecutionFailureCode = input.signal.aborted ? "GenerationCancelled" : "ProviderUnavailable";
+      await this.abandon(terminal(failure), failure);
+      throw err;
     }
-    return terminal("PythonException");
   }
 
   /** Unpublished terminal outcome (e.g. publication refused): end the execution under its lease. */

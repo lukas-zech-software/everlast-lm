@@ -5,7 +5,7 @@ import { sourcesLabel, type SelectionModel } from "../lib/selection.ts";
 import { validateMessage } from "../lib/text.ts";
 import type { ChatMessage, Citation } from "../lib/types.ts";
 import { NOTE_SOURCE_MEDIA_TYPE } from "../lib/v2-contracts.ts";
-import { renderCodeExecution, renderTextWithComputed, RUNNING_CODE_LABEL } from "./code-execution.ts";
+import { disposeCodeExecution, renderCodeExecution, renderTextWithComputed, RUNNING_CODE_LABEL } from "./code-execution.ts";
 
 /**
  * Chat panel (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, FR-SI-03). Sends the explicit selection with every turn,
@@ -34,6 +34,7 @@ export interface ChatPanelOptions {
 export interface ChatPanel {
   element: HTMLElement;
   load(): Promise<void>;
+  destroy(): void;
   updateSelection(): void;
   /**
    * Enables sending once the workspace has loaded its sources and this chat's history (FR-GC-01). Until then Send
@@ -201,6 +202,10 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   let inflight: AbortController | null = null;
   let ready = false;
 
+  const clearMessages = () => {
+    messages.querySelectorAll<HTMLElement>("[data-testid=code-execution]").forEach(disposeCodeExecution);
+    clear(messages);
+  };
   const scrollToEnd = () => {
     messages.scrollTop = messages.scrollHeight;
   };
@@ -302,7 +307,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     inflight?.abort();
     try {
       await api(`/api/notebooks/${options.notebookId}/chat`, { method: "DELETE" });
-      clear(messages);
+      clearMessages();
       results.hidden = true;
     } catch {
       toast("Could not clear the chat.");
@@ -345,9 +350,11 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   return {
     element,
     async load() {
+      // Remove old protected bytes immediately while fetching fresh authorization.
+      clearMessages();
       try {
         const { messages: list } = await api<{ messages: ChatMessage[] }>(`/api/notebooks/${options.notebookId}/chat`);
-        clear(messages);
+        clearMessages();
         appendMessages(list);
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) options.onNotebookMissing();
@@ -355,6 +362,11 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       updateSelection();
     },
     updateSelection,
+    destroy() {
+      inflight?.abort();
+      if (searchTimer) clearTimeout(searchTimer);
+      clearMessages();
+    },
     markReady() {
       ready = true;
       updateSelection();

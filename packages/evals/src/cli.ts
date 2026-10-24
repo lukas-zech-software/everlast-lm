@@ -74,6 +74,11 @@ const selected = onlyCases
 if (!process.env.TEST_DATABASE_URL) unavailable("TEST_DATABASE_URL is not set (start PostgreSQL with pnpm db:test:up)");
 if (mode === "release") {
   try {
+    vertexConfigFromEnv();
+  } catch (err) {
+    unavailable((err as Error).message);
+  }
+  try {
     await new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] }).getAccessToken();
   } catch (err) {
     unavailable(`no Application Default Credentials (${(err as Error).message.split("\n")[0]}); run gcloud auth application-default login`);

@@ -34,6 +34,7 @@ class FixtureModel implements GroundedModel {
     if (statistical) {
       const intent = /sample/i.test(question) ? "stdev" : /population/i.test(question) ? "pstdev" : null;
       if (!intent) return { status: "clarify", sentences: [], clarification_question: "Should the 12 months be treated as the whole population or a sample?" };
+      const op = /retry/i.test(question) ? "raise" : intent;
       const dataset = chunks.flatMap((c) => [...c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g)].map((m) => ({ label: `${m[1]} 2025`, value: m[2]!, unit: "ms", chunk_id: c.chunk_id })));
       if (dataset.length > 0) {
         return {
@@ -42,7 +43,7 @@ class FixtureModel implements GroundedModel {
           computation: {
             intent: intent === "stdev" ? "sample standard deviation" : "population standard deviation",
             dataset,
-            code: `# FIXTURE:${intent}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${intent === "stdev" ? "Sample" : "Population"} standard deviation', statistics.${intent}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`,
+            code: `# FIXTURE:${op}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${intent === "stdev" ? "Sample" : "Population"} standard deviation', statistics.${intent}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`,
           },
         };
       }
@@ -58,6 +59,12 @@ class FixtureModel implements GroundedModel {
         return { text: body.split(/(?<=[.!?])\s/)[0]!.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const };
       }),
     };
+  }
+
+  async correctCode(input: { intent: string }): Promise<string> {
+    const fn = /sample/i.test(input.intent) ? "stdev" : "pstdev";
+    const label = fn === "stdev" ? "Sample" : "Population";
+    return `# FIXTURE:${fn}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${label} standard deviation', statistics.${fn}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`;
   }
 }
 

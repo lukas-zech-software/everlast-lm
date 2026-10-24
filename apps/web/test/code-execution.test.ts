@@ -115,3 +115,25 @@ describe("Security review fix — renderer accepts only issued badges and real C
     expect(plain.querySelectorAll(".computed-label")).toHaveLength(0);
   });
 });
+
+// T040: disposed/revoked messages cannot retain or finish loading chart bytes (NFR-SEC-02, FR-GC-06/08).
+it("WEB-CE-06: disposal revokes loaded Blob URLs and rejects late chart results", async () => {
+  setupMockDOM(1440);
+  const m = await load();
+  const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test-chart");
+  const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+  try {
+    const el = m.renderCodeExecution(message, { fetchChart: async () => new Blob([]) });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(create).toHaveBeenCalledTimes(1);
+    m.disposeCodeExecution?.(el);
+    expect(revoke).toHaveBeenCalledWith("blob:test-chart");
+    expect(el.querySelectorAll("[data-testid=chart-download]")).toHaveLength(0);
+    let release!: (b: Blob) => void;
+    const late = m.renderCodeExecution(message, { fetchChart: () => new Promise<Blob>((r) => release = r) });
+    m.disposeCodeExecution?.(late);
+    release(new Blob([]));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(create).toHaveBeenCalledTimes(1);
+  } finally { create.mockRestore(); revoke.mockRestore(); }
+});

@@ -90,3 +90,27 @@ The interrupted package 3.2 increment is recovered on `feat/v3-010-recovery`.
 See [implementation evidence](implementation-evidence.md#partial-implementation-recovery-2026-10-24-fr-gc-08-fr-gc-06-nfr-eval-0204)
 for source provenance, Red/Green results, exact validation commands and remaining task boundaries.
 This checkpoint does not establish completion of package 3.2 or Gate v3.0.
+
+## US2, US3, and Phase 6 Verification Record (2026-10-24; [010-code-execution-sandbox] T031, T041, T045, T047)
+
+Executed on branch `feat/v3-010-complete` (`/private/tmp/everlast-impl-010-complete`) against PostgreSQL 16 + pgvector (`TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast`). Full Gate v3.0 #2 report is retained in [gate-v3-code-execution.md](evidence/gate-v3-code-execution.md).
+
+### US2 Verification (`[010-code-execution-sandbox] T031`; `FR-GC-08`, `NFR-SEC-01/02`; `SC-002`, `SC-004`, `SC-007`)
+
+- `pnpm exec vitest run apps/api/test/code-execution-retry.test.ts apps/api/test/code-execution-recovery.test.ts apps/web/test/code-execution-retry.test.ts packages/db/test/code-execution-recovery.integration.test.ts`: **PASS** (29/29 tests across 4 files).
+  - Verified: 1 automatic self-correction retry after a first Python exception in a fresh sandbox with byte-identical `data.json`; both attempts retained in execution order with only the final attempt published; 2nd exception is terminal without a 3rd attempt; 0 retries on 15.0 s deadline (`ExecutionTimeout`), `MemoryLimitExceeded`, `TemporaryStorageLimit`, `ExecutionOutcomeUnknown`, `InvalidOutput` (`NaN`), or `CitationInvalid`; controller `try/catch` abandons the lease on unexpected storage/runtime errors; startup/periodic reconciliation expires stale leases, destroys orphan sandboxes idempotently without Python replay, and purges invalidated chart blobs.
+- `pnpm exec vitest run apps/api/test/code-execution-runtime.integration.test.ts`: **UNAVAILABLE** (11/11 live provider tests skipped with warning `UNAVAILABLE: managed sandbox integration (set CODE_EXECUTION_IT=1 and CODE_EXECUTION_REASONING_ENGINE)`). Owner acceptance under D19 is not treated as measured runtime pass.
+
+### US3 Verification (`[010-code-execution-sandbox] T041`; `FR-GC-08`, `FR-GC-06`, `C-02`, `NFR-EVAL-02/04`; `SC-005`, `SC-007`)
+
+- `pnpm exec vitest run apps/api/test/code-execution-scope.test.ts packages/db/test/code-execution-history.integration.test.ts apps/api/test/chat-charts.test.ts apps/api/test/code-execution-v2-compatibility.test.ts apps/web/test/code-execution.test.ts`: **PASS** (32/32 tests across 5 files).
+  - Verified: empty scope rejected (`400`), foreign/unowned source scope rejected (`403`), unselected/removed/foreign decoys (`OBSIDIAN`) never enter retrieval, prompt, `data.json`, code, or response; mid-flight checkbox changes do not mutate the captured snapshot; mid-flight source re-sync or deletion aborts publication (`StaleSnapshot`) and invalidates candidate charts; synchronous `deleteSource` marks dependent `chart_artifacts` as `invalidated` (`410`) and hides historical messages/traces in `listVisibleMessages`; `DELETE /api/notebooks/:id` aborts in-flight executions; direct and byte-range (`206`/`416`) chart downloads enforce owner auth and `no-store`; saved-response note conversion strips `[[n]]` badges and never leaks Python code, stdout, stderr, or private chart URLs; two independent app DB pools have zero cross-pool visibility.
+- `E2E_PORT=4329 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium`: **PASS** (6/6 Chromium E2E tests: `CE-E01..03`, `CE-HIST-E01..03`).
+
+### Phase 6 Integrated Evaluation & Benchmark Verification (`[010-code-execution-sandbox] T045`, `T046`, `T047`)
+
+- `pnpm exec vitest run packages/evals/test/code-execution-performance.test.ts`: **PASS** (7/7 unit tests; Red observed on all 7 tests before implementing `packages/evals/src/code-execution-performance.ts`).
+- `pnpm exec vitest run packages/evals/test/code-execution.eval.test.ts`: **PASS** (4/4 integration eval tests: exact population/sample SD and two-source CAGR, decoy non-leakage, forged citation refusal, clarification + 2-attempt retry trace, golden dataset `v1.0.0` hash `35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29` and 50-case stratified sample).
+- `pnpm eval:deterministic`: **PASS** (exit `0`; `citation_precision = 1.0` `160/160`, `scoping_leakage_count = 0` including 60-draft adversarial pass; Studio Gate v2.0 #3 deterministic PASS).
+- `pnpm eval:v3-code-execution` (`node scripts/eval-v3-code-execution.mjs`): **UNAVAILABLE** (exit `2`: `[UNAVAILABLE] eval:v3-code-execution: Agent Platform Code Execution sandbox is not configured`).
+- `pnpm eval:judged`: **UNAVAILABLE** (exit `2`: `[UNAVAILABLE] eval:judged: VERTEX_PROJECT (or GCP_PROJECT_ID) is required for Vertex AI`). Fixed 50-case stratified sample IDs and category counts (`unanswerable: 25`, `deselection: 11`, `history: 4`, `synthesis: 14`) are recorded in [gate-v3-code-execution.md](evidence/gate-v3-code-execution.md).

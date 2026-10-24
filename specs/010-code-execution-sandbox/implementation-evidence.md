@@ -114,3 +114,48 @@ pnpm eval:deterministic
 Local command logs: `/private/tmp/everlast-010-recovery-{red,green,regression,browser,eval}.log`,
 `/private/tmp/everlast-010-recovery-lint-final.log`, and `/private/tmp/everlast-010-report-{red,green,final}.log`.
 No upstream requirement or acceptance limit changed. The reviewer-owned checklist remains unchanged.
+
+## Complete Package 3.2 Implementation, Hardening & Gate Evidence (2026-10-24; `[010-code-execution-sandbox] T024`–`T048`)
+
+Completed in dedicated worktree `/private/tmp/everlast-impl-010-complete` on branch `feat/v3-010-complete` (branched from `497c21e36c66b0b11103bfc575464973115dc6bc`).
+
+### US2, US3, and Phase 6 Red → Green Record (`CC-02`)
+
+| Task | Test file(s) | Red / Baseline Observed | Green |
+| :--- | :--- | :--- | :--- |
+| `T024`, `T028` | `apps/api/test/code-execution-retry.test.ts` | Inherited from base commit (`9/9` passing against `controller.ts`); verified against all 9 retry/deadline/OOM/storage/transport/citation/network/create-failure/immutable-input assertions | 9/9 |
+| `T025` | `apps/api/test/code-execution-runtime.integration.test.ts` | Live managed sandbox opt-in (`CODE_EXECUTION_IT=1` + `CODE_EXECUTION_REASONING_ENGINE`); truthfully skipped with `UNAVAILABLE` warning when unconfigured | 11 skipped (`UNAVAILABLE`) |
+| `T026`, `T029` | `packages/db/test/code-execution-recovery.integration.test.ts`, `apps/api/test/code-execution-recovery.test.ts` | 4/8 failing before recovery (`REC-API-02/06/07/08`); hardened `controller.ts` with `try/catch` lease abandonment (`this.abandon(...)`) on unexpected storage/runtime errors and `ChatService.abortNotebook(notebookId)` on `DELETE /api/notebooks/:id` (`T039`) | 5/5 DB, 8/8 API |
+| `T027`, `T030` | `apps/web/test/code-execution-retry.test.ts` | Inherited 5/5; verified ordered attempts, `Final attempt` badge, `Published` chart badge, and escaped stderr/error rendering | 5/5 |
+| `T032`, `T036` | `apps/api/test/code-execution-scope.test.ts` | Created 8 scoped publication tests (`CE-SCP-01..08`): empty/foreign scope, unselected/removed/foreign decoys (`OBSIDIAN`), mid-flight checkbox changes, mid-flight `commitSyncReplacement` and `deleteSource` fences, invalid citation refusal, Overview/Guide cache-key isolation, deselected history exclusion | 8/8 |
+| `T033`, `T036`, `T037` | `packages/db/test/code-execution-history.integration.test.ts` | Created 6 DB history/projection tests (`CE-HIST-DB-01..06`): nullable legacy/clarification traces, reload fidelity, deselection viewability vs `listEligibleHistory` exclusion, synchronous `deleteSource` chart invalidation (`packages/db/src/source-sync.ts`), atomic publish + `clearThread` hygiene (feedback/follow-ups), cross-pool isolation | 6/6 |
+| `T034`, `T038`, `T040` | `apps/api/test/chat-charts.test.ts`, `apps/web/test/code-execution.test.ts` | Added `CH-07` (revoked source → `410`) and `CH-08` (unsatisfiable byte range → `416` with `Content-Range: bytes */N`); added `WEB-CE-07` (`disposeCodeExecution` revokes blob URLs and clears DOM via `clear(element)` in `apps/web/src/chat/code-execution.ts`, which initially failed in `MockElement` when using `replaceChildren()`) | 8/8 API, 7/7 Web |
+| `T035`, `T037`, `T040` | `apps/api/test/code-execution-v2-compatibility.test.ts`, `apps/web/test/code-execution-history.spec.ts` | Created `CE-V2-01..03` (saved-response note conversion strips badges and excludes traces/code/chart URLs; feedback/follow-ups on computed turns; overview/studio isolation) and Playwright `CE-HIST-E01..03` (2-attempt retry reload + save-to-note, overlap draft preservation during `running_code`, clear-chat cancellation) | 3/3 API, 3/3 Playwright |
+| `T042` | `packages/evals/test/code-execution.eval.test.ts` | Initial run: 2/4 failed (`CE-EVAL-02` trace shape on post-execution `CitationInvalid`, `CE-EVAL-03` repair hook `correctCode` vs `generate`); updated to match exact `ChatService`/`GroundedModel.correctCode` contracts | 4/4 |
+| `T043`, `T044` | `packages/evals/test/code-execution-performance.test.ts`, `packages/evals/src/code-execution-performance.ts`, `scripts/eval-v3-code-execution.mjs` | **Red observed**: 7/7 tests failed (`CE-PERF-01..07`) against stubbed `code-execution-performance.ts` before implementing nearest-rank P95 (`Math.ceil(0.95 * N)`), cohort plan validation, failure-fails-cohort accounting, `UNAVAILABLE` on missing samples, and separate retry summary | 7/7 unit; CLI exits `2` (`[UNAVAILABLE]`) without live sandbox |
+
+### Hardening & Implementation Refinements (`[010-code-execution-sandbox] T036`–`T040`, `T044`, `T045`)
+
+1. **Controller Lease Safety (`apps/api/src/chat/execution/controller.ts`)**: Wrapped the execution loop in `try/catch` so unexpected storage or runtime exceptions call `this.abandon(admitted.execution.id, admitted.execution.lease_token, activeHandle)` and release the single-flight notebook lease immediately.
+2. **Synchronous Chart Invalidation on Source Deletion (`packages/db/src/source-sync.ts`)**: `deleteSource` now synchronously marks `chart_artifacts` in that notebook whose `source_snapshot` references the deleted `sourceId` as `state = 'invalidated'`, matching `deleteNotebook`'s synchronous invalidation.
+3. **Notebook Deletion Active Cancellation (`apps/api/src/chat/service.ts`, `apps/api/src/routes/notebooks.ts`)**: Added `ChatService.abortNotebook(notebookId)` and wired `DELETE /api/notebooks/:id` to abort any in-flight code execution before deleting the notebook.
+4. **Web Revocation Cleanup (`apps/web/src/chat/code-execution.ts`)**: `disposeCodeExecution` uses `clear(element)` from `../lib/dom.ts` after revoking `blob:` object URLs so both browser DOM and `MockElement` unit tests cleanly remove rendered chart/trace nodes.
+5. **Judged Eval Precheck (`packages/evals/src/cli.ts`)**: `pnpm eval:judged` validates `vertexConfigFromEnv()` before opening the test database and exits `2` with `[UNAVAILABLE]` when `VERTEX_PROJECT`/`GCP_PROJECT_ID` is unset.
+
+### Final Verification Summary (`[010-code-execution-sandbox] T047`)
+
+Full Gate v3.0 #2 evidence, cohort tables, and the 50-case stratified sample are recorded in [gate-v3-code-execution.md](evidence/gate-v3-code-execution.md).
+
+| Command | Result |
+| :--- | :--- |
+| `node scripts/check-spec-integrity.mjs` | **PASS** |
+| `git diff --check` | **PASS** |
+| `pnpm typecheck` / `pnpm lint` / `pnpm build` | **PASS** / **PASS** / **PASS** |
+| `pnpm test:contract` | **PASS** (15 files / 252 tests, including `package-v3-2.test.ts` 14/14) |
+| `pnpm test:unit` | **PASS** (28 files / 382 tests, including all Package 3.2 unit & performance suites) |
+| Package 3.2 integration suites (`packages/db/test/code-execution*.ts`, `apps/api/test/code-execution*.ts`, `apps/api/test/chat-charts.test.ts`, `apps/web/test/code-execution*.ts`, `packages/evals/test/code-execution.eval.test.ts`) | **PASS** (86 passed across 12 files; 11 live-sandbox tests in `code-execution-runtime.integration.test.ts` skipped as `UNAVAILABLE`) |
+| `E2E_PORT=4329 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium` | **PASS** (6/6) |
+| `pnpm eval:deterministic` | **PASS** (exit `0`; `citation_precision = 1.0` `160/160`, `scoping_leakage_count = 0`) |
+| `pnpm eval:v3-code-execution` | **UNAVAILABLE** (exit `2`: live Agent Platform sandbox not configured) |
+| `pnpm eval:judged` | **UNAVAILABLE** (exit `2`: `VERTEX_PROJECT` / live Vertex release environment not configured) |
+| `(cd infra/modules/code_execution && tofu init -backend=false && tofu test)` | **PASS** (4/4) |

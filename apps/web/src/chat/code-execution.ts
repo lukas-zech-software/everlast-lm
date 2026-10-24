@@ -1,4 +1,4 @@
-import { h } from "../lib/dom.ts";
+import { clear, h } from "../lib/dom.ts";
 import type { ChatMessage, CodeExecutionTrace } from "../lib/types.ts";
 
 /**
@@ -51,7 +51,15 @@ const REASON: Record<string, string> = {
   AccessRevoked: "Access revoked",
 };
 
-function renderChart(url: string, index: number, options: CodeExecutionRenderOptions): HTMLElement {
+const disposers = new WeakMap<HTMLElement, () => void>();
+/** FR-GC-06/08, NFR-SEC-02: invalidate loaded and pending charts on history replacement or navigation. */
+export function disposeCodeExecution(element: HTMLElement): void {
+  disposers.get(element)?.();
+  disposers.delete(element);
+  clear(element);
+}
+
+function renderChart(url: string, index: number, options: CodeExecutionRenderOptions, lifecycle: { disposed: boolean; urls: string[] }): HTMLElement {
   const figure = h("figure", { class: "computed-chart-figure" });
   const img = h("img", { class: "computed-chart", "data-testid": "computed-chart", alt: `Computed chart ${index + 1}` });
   const download = h("a", {
@@ -66,13 +74,17 @@ function renderChart(url: string, index: number, options: CodeExecutionRenderOpt
   void options
     .fetchChart(url)
     .then((blob) => {
+      if (lifecycle.disposed) return;
       const objectUrl = URL.createObjectURL(blob);
+      lifecycle.urls.push(objectUrl);
       img.setAttribute("src", objectUrl);
       download.setAttribute("href", objectUrl);
       download.setAttribute("download", `chart-${index + 1}.${blob.type === "image/svg+xml" ? "svg" : "png"}`);
     })
     .catch(() => {
-      figure.replaceChildren(h("em", { class: "muted", "data-testid": "chart-unavailable", text: "This chart is no longer available." }));
+      if (lifecycle.disposed) return;
+      clear(figure);
+      figure.append(h("em", { class: "muted", "data-testid": "chart-unavailable", text: "This chart is no longer available." }));
     });
   return figure;
 }
@@ -82,10 +94,16 @@ export function renderCodeExecution(message: ChatMessage, options: CodeExecution
   const trace: CodeExecutionTrace | null | undefined = message.code_execution_trace;
   if (!trace || message.content === null) return null;
   const container = h("div", { class: "code-execution", "data-testid": "code-execution", "data-state": trace.state });
+  const lifecycle = { disposed: false, urls: [] as string[] };
+  disposers.set(container, () => {
+    lifecycle.disposed = true;
+    lifecycle.urls.forEach((url) => URL.revokeObjectURL(url));
+    lifecycle.urls.length = 0;
+  });
   const final = trace.attempts.find((a) => a.attempt_id === trace.final_attempt_id);
   if (trace.state === "Succeeded" && final) {
     const published = final.artifacts.filter((url) => trace.published_artifact_ids.some((id) => url.endsWith(`/charts/${id}`)));
-    published.forEach((url, i) => container.append(renderChart(url, i, options)));
+    published.forEach((url, i) => container.append(renderChart(url, i, options, lifecycle)));
   }
   if (trace.attempts.length === 0) return container.childNodes.length > 0 ? container : null;
   const drawer = h("details", { class: "code-drawer", "data-testid": "code-drawer" });

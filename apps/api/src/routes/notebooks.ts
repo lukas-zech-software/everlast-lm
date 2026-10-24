@@ -79,6 +79,7 @@ export function registerNotebookRoutes(router: Router, deps: AppDeps): void {
 
   router.add("DELETE", "/api/notebooks/:id", async ({ res, user, params }) => {
     const { deletion_id } = await deleteNotebook(deps.pool, user.userId, params.id!);
+    deps.chat?.abortNotebook(params.id!);
     await deps.v2?.notebookDeleted(params.id!);
     deps.notifyJobs();
     sendJson(res, 202, { deletion_id, status: "Pending" });

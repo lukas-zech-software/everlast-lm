@@ -115,8 +115,9 @@ export function selectEligibleHistory(
 
 export class ChatService {
   private readonly deps: ChatServiceDeps;
-  /** Active generations per thread so "Clear chat" can abort them immediately on this instance. */
+  /** Active generations per thread so "Clear chat" or notebook deletion can abort them immediately on this instance. */
   private readonly active = new Map<string, Set<AbortController>>();
+  private readonly threadsByNotebook = new Map<string, Set<string>>();
 
   constructor(deps: ChatServiceDeps) {
     this.deps = deps;
@@ -124,6 +125,10 @@ export class ChatService {
 
   abortThread(threadId: string): void {
     for (const controller of this.active.get(threadId) ?? []) controller.abort(new AppError("GenerationCancelled", 409, "Chat cleared"));
+  }
+
+  abortNotebook(notebookId: string): void {
+    for (const threadId of this.threadsByNotebook.get(notebookId) ?? []) this.abortThread(threadId);
   }
 
   private async generate(input: GroundedModelInput, signal: AbortSignal): Promise<GroundedDraft | null> {
@@ -245,6 +250,9 @@ export class ChatService {
     const set = this.active.get(thread.id) ?? new Set();
     set.add(controller);
     this.active.set(thread.id, set);
+    const nbThreads = this.threadsByNotebook.get(request.notebookId) ?? new Set();
+    nbThreads.add(thread.id);
+    this.threadsByNotebook.set(request.notebookId, nbThreads);
 
     try {
       yield { type: "status", phase: "retrieving" };
@@ -326,7 +334,11 @@ export class ChatService {
     } finally {
       signal?.removeEventListener("abort", onAbort);
       set.delete(controller);
-      if (set.size === 0) this.active.delete(thread.id);
+      if (set.size === 0) {
+        this.active.delete(thread.id);
+        nbThreads.delete(thread.id);
+        if (nbThreads.size === 0) this.threadsByNotebook.delete(request.notebookId);
+      }
     }
   }
 }

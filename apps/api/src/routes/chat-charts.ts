@@ -25,6 +25,10 @@ export function registerChatChartRoutes(router: Router, deps: AppDeps): void {
     const bytes = await deps.storage.read(chart.object_key, chart.object_generation).catch(() => {
       throw NOT_FOUND();
     });
+    // FR-011: deletion/clear may commit while the object store is being read. Recheck before sending any bytes.
+    await requireOwnedNotebook(deps.pool, user.userId, params.id!);
+    if (!(await findPublishedChart(deps.pool, { ownerId: user.userId, notebookId: params.id!, messageId: params.messageId!, artifactId: params.artifactId! })) ||
+        !(await chartProvenanceAvailable(deps.pool, params.id!, chart.source_snapshot))) throw NOT_FOUND();
     // Integrity: the stored generation must still be exactly the validated, published bytes.
     if (createHash("sha256").update(bytes).digest("hex") !== chart.digest) throw NOT_FOUND();
     const extension = chart.mime_type === "image/png" ? "png" : "svg";

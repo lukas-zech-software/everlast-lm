@@ -147,3 +147,20 @@ describe("T034 private publication-only delivery (FR-005, NFR-SEC-02)", () => {
     expect((await api.fetch(pngUrl, { as: "ch06" })).headers.get("content-type")).toBe("image/png");
   });
 });
+
+// T034/T038: authorization is checked after asynchronous storage reads (FR-GC-08, NFR-SEC-02).
+it.each(["source", "chat"])("CH-07: %s revocation during object read prevents delivery, including ranges", async (target) => {
+  const a = await publishedChart(`ch07-${target}`);
+  const read = storage.read.bind(storage);
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>((r) => entered = r);
+  const gate = new Promise<void>((r) => release = r);
+  storage.read = async (key, generation) => { const bytes = await read(key, generation); entered(); await gate; return bytes; };
+  try {
+    const pending = api.fetch(a.url, { as: `ch07-${target}`, headers: { range: "bytes=0-7" } });
+    await started;
+    await api.fetch(target === "source" ? `/api/notebooks/${a.notebookId}/sources/${a.src.sourceId}` : `/api/notebooks/${a.notebookId}/chat`, { method: "DELETE", as: `ch07-${target}` });
+    release();
+    expect((await pending).status).toBe(404);
+  } finally { release(); storage.read = read; }
+});

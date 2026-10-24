@@ -603,6 +603,13 @@ export async function deleteSource(pool: Pool, ownerId: string, notebookId: stri
       [deletionId, notebookId, ownerId, sourceObjectPrefixOf(notebookId, sourceId), row.rows[0].upload_expires_at]
     );
     await enqueueJob(tx, "cleanup", { deletion_id: deletionId });
+    // FR-GC-08 (specs/010 T039): synchronously invalidate any chart artifacts whose provenance cites the removed source.
+    await tx.query(
+      `UPDATE chart_artifacts SET state = 'invalidated', updated_at = now()
+        WHERE notebook_id = $1 AND state <> 'invalidated'
+          AND EXISTS (SELECT 1 FROM jsonb_array_elements(source_snapshot) p WHERE (p ->> 'source_id')::uuid = $2)`,
+      [notebookId, sourceId]
+    );
     await tx.query("DELETE FROM sources WHERE notebook_id = $1 AND id = $2", [notebookId, sourceId]);
     await tx.query("UPDATE notebooks SET updated_at = greatest(clock_timestamp(), created_at) WHERE id = $1", [notebookId]);
     return { deletion_id: deletionId };

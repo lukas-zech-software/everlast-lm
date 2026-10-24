@@ -47,3 +47,8 @@ Migrations 0005–0008 are applied baseline, not future sandbox work. Add sandbo
 ## Pre-execution terminal result (FR-GC-08, FR-GC-06)
 
 A request rejected before allocation, including unresolved statistical intent, has no execution trace. Once an execution_id is allocated, a terminal code-generation/provider-creation failure before any actual execute attempt is Failed with attempts:[], final_attempt_id:null and published_artifact_ids:[]. No exit_code or fictitious success/attempt is invented. An execute accepted with unknown outcome is an actual attempt with nullable exit_code and requires reconciliation without replay.
+
+## Implementation flow-back (2026-10-24; `[010-code-execution-sandbox] T048`; FR-GC-08, FR-GC-06, NFR-SEC-02)
+
+- **Migration `0010_code_execution.sql` & orphan ledger**: Adds `code_execution_trace JSONB` to `chat_messages` (widening `kind` CHECK to include `'clarification'`), `code_executions` (with partial unique index `code_executions_one_active_per_notebook_idx` on `notebook_id WHERE state IN ('CodeGenerating', 'SandboxRunning')`), `code_execution_sandboxes` (intentionally without a foreign key to `code_executions(id)` so deleted notebooks/threads retain their `execution_id` on the sandbox ledger until remote provider destruction is confirmed), and `chart_artifacts` (`state IN ('candidate', 'published', 'invalidated')`).
+- **Synchronous source-deletion invalidation**: `deleteSource` (`packages/db/src/source-sync.ts`) synchronously updates `chart_artifacts SET state = 'invalidated'` whenever `source_snapshot @> jsonb_build_array(jsonb_build_object('source_id', sourceId))`, ensuring 0 ms chart staleness alongside `listVisibleMessages` redaction.
