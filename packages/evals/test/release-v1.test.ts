@@ -31,6 +31,19 @@ const ui = {
 };
 
 describe("Gate v1.0 lifecycle", () => {
+  it("FR-GC-08 / NFR-EVAL-02: a compute intent is reportable without inventing a computed answer", () => {
+    const result = run({ cases: [{
+      id: "COMPUTE-001", category: "synthesis", question: "Calculate", kind: "answer", response: "1 (Computed)",
+      citations: [], sentences: [], invalid_citations: 0,
+      leakage: { retrieved: 0, prompt: 0, response: 0, details: [] },
+      turns: [{ requestId: "request", snapshot: [], retrieved: [], modelInput: null, draft: null,
+        result: { kind: "compute", preamble: [], computation: { intent: "sum", code: "emit('sum', 1)", dataset: [] } } }],
+    }] });
+    const report = buildGateReport({ mode: "deterministic", commit: "abc", run: result, preflight: null, ui, dataset, models: {} });
+    expect(report.cases[0]!.turns).toEqual([{ kind: "compute", content: "", history_turns: 0, retrieved: 0 }]);
+    expect(report.cases[0]!.response).toBe("1 (Computed)");
+  });
+
   it("EVR-01: release run with all four metrics, upload/schema and citation navigation passing → GatePassed", () => {
     const report = buildGateReport({ mode: "release", commit: "abc", run: run(), preflight: passingPreflight, ui, dataset, models: {} });
     expect(report.state).toBe("GatePassed");

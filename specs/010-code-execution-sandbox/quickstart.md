@@ -82,3 +82,11 @@ pnpm exec vitest run --project integration apps/api/test/code-execution-runtime.
 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium
 (cd infra/modules/code_execution && tofu init -backend=false && tofu test)
 ```
+
+
+## Recovery checkpoint (2026-10-24; FR-GC-08, NFR-EVAL-02/04)
+
+The interrupted package 3.2 increment is recovered on `feat/v3-010-recovery`.
+See [implementation evidence](implementation-evidence.md#partial-implementation-recovery-2026-10-24-fr-gc-08-fr-gc-06-nfr-eval-0204)
+for source provenance, Red/Green results, exact validation commands and remaining task boundaries.
+This checkpoint does not establish completion of package 3.2 or Gate v3.0.

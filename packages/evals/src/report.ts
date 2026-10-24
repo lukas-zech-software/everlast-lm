@@ -108,7 +108,7 @@ export function buildGateReport(input: {
       citations: c.citations.length,
       leakage: c.leakage.retrieved + c.leakage.prompt + c.leakage.response,
       ...(c.judged ? { judged: c.judged } : {}),
-      turns: c.turns.map((t) => ({ kind: t.result.kind, content: t.result.content.slice(0, 600), history_turns: t.modelInput?.history.length ?? 0, retrieved: t.retrieved.length })),
+      turns: c.turns.map((t) => ({ kind: t.result.kind, content: t.result.kind === "compute" ? "" : t.result.content.slice(0, 600), history_turns: t.modelInput?.history.length ?? 0, retrieved: t.retrieved.length })),
       ...(c.error ? { error: c.error } : {}),
     })),
   };

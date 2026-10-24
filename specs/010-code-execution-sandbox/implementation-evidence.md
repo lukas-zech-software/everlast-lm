@@ -54,3 +54,63 @@ provider), Playwright chromium against `apps/web/test/e2e-server.ts`.
 | # | Severity | Finding | Resolution | Evidence |
 | :- | :- | :- | :- | :- |
 | 3 | HIGH | Deletion-order recombination: removing `(computed)` after bracket collapsing turned `"[(computed)[1](computed)]"` into `"[[1]]"`; `output.ts` stripped `<>` after the helper, so `"[<[1]>]"` became `"[[1]]"` | `neutralizeMarkers()` now only REPLACES (ASCII `[`/`]` → fullwidth `［`/`］`, `<`/`>` → `‹`/`›`, control chars → space, any `(computed)` → `computed`) inside one fixed-point loop; `output.ts` uses the shared `plainLabel()` (helper + whitespace fold + cap) instead of its own ordering. No ASCII bracket survives in model/sandbox text, so no later step can rebuild a badge. | `apps/api/test/chat-sanitize.test.ts` SAN-R2-01/02 Red (`'[(computed)[1](computed)]' → '[[1]]'`, `'sd [[1]]'`) → Green; SAN-R2-03 property test (2,000 generated strings): idempotent, never `/\[\[\d+\]\]/`, never `(Computed)`. The coordinator's literal `"[(computed)[1]]"` happened to be neutralized by the old order (`"[[1]"`), so the variant above was added to observe Red. Expectations of VER-08 and MOD-03 updated to the fullwidth mapping (stricter, requirement unchanged). |
+
+
+## Partial implementation recovery (2026-10-24; FR-GC-08, FR-GC-06, NFR-EVAL-02/04)
+
+Recovered from Claude's `feat/v3-010-code-execution-sandbox` at `b24e81b` into
+`feat/v3-010-recovery` (`/private/tmp/everlast-impl-010-recovery`). The feature pin is
+`specs/010-code-execution-sandbox`. The older detached Codex checkout was not the implementation base.
+The original Claude checkout and its uncommitted changes were preserved unchanged.
+
+Five uncommitted files were recovered byte-for-byte: API server wiring, DB terminal candidate invalidation,
+`apps/api/src/chat/execution/reconcile.ts`, API recovery tests and web retry tests. Their original hashes are
+recorded in [recovery-source-manifest.json](evidence/recovery-source-manifest.json).
+An additional exact local snapshot is `/private/tmp/everlast-010-claude-recovery-snapshot`.
+
+### Restored behavior and task status
+
+- [010-code-execution-sandbox] T029 is implemented: startup/periodic reconciliation ends expired executions,
+  destroys recorded child sandboxes without replay, retries failed deletions, and purges invalidated charts.
+  Configured API startup now supplies the managed runtime and storage to ChatService.
+- Recovered T026 API and T027 UI tests are retained. Four recovery assertions failed against `b24e81b`
+  before restoration (REC-API-02/06/07/08); all 13 recovered assertions pass afterward. The five UI tests
+  already passed against the inherited implementation; no new UI Red result is claimed.
+- Fixed inherited TypeScript errors: the operation-poll JSON uses the same operation type as creation;
+  eval reports explicitly represent a compute intent with empty observation content rather than treating
+  it as an executed answer. The published case response remains intact. A new FR-GC-08/NFR-EVAL-02
+  regression failed before the report fix (`undefined.content`/`.slice`) and passes afterward.
+- Other task markers retain their prior status. This is recovery of the unfinished increment, not a full
+  package implementation/convergence assessment. T024–T028, T030–T048 remain unchecked, including broader
+  history/scope coverage, benchmark/evaluation work and release evidence. Some code/tests already exist;
+  they require verification against those tasks before marking them complete. Package 3.3 remains paused.
+
+### Current verification
+
+Runtime: workspace Node 26.12.1, pnpm 12.0.0, Vitest 4.1.11; local PostgreSQL 16 + pgvector on port 54329.
+Model and sandbox in local application tests are test doubles. No cloud provisioning or paid model call.
+
+| Check | Result |
+| --- | --- |
+| Recovered API recovery and web retry suites | PASS: 13/13; baseline 4 failures / 9 passes |
+| Package contract/runtime/model/manifest/output/retry/recovery/DB/UI/chart/sanitization regression | PASS: 127 tests; 11 real-provider tests skipped as UNAVAILABLE |
+| Runtime adapter plus eval report unit regression | PASS: 28 tests (18 runtime, 10 report) |
+| `pnpm lint` (spec integrity + TypeScript) | PASS after the two inherited type errors were fixed |
+| Playwright `apps/web/test/code-execution.spec.ts --project=chromium` | PASS: 3/3; Chromium required execution outside the filesystem sandbox |
+| `pnpm eval:deterministic` | PASS deterministic assertions: citation precision 160/160 = 1.0, leakage 0; overall GatePending because judged evidence is unavailable |
+| Real managed sandbox / judged Vertex / live performance | UNAVAILABLE, not release acceptance |
+
+Commands use `TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast` for isolated test databases:
+
+```sh
+pnpm exec vitest run apps/api/test/code-execution-recovery.test.ts apps/web/test/code-execution-retry.test.ts
+pnpm exec vitest run packages/contracts/test/package-v3-2.test.ts apps/api/test/code-execution apps/api/test/chat-charts.test.ts apps/api/test/chat-sanitize.test.ts packages/db/test/code-execution apps/web/test/code-execution
+pnpm exec vitest run --project unit packages/evals/test/release-v1.test.ts apps/api/test/code-execution-runtime.test.ts
+pnpm lint
+E2E_PORT=4329 pnpm exec playwright test apps/web/test/code-execution.spec.ts --project=chromium
+pnpm eval:deterministic
+```
+
+Local command logs: `/private/tmp/everlast-010-recovery-{red,green,regression,browser,eval}.log`,
+`/private/tmp/everlast-010-recovery-lint-final.log`, and `/private/tmp/everlast-010-report-{red,green,final}.log`.
+No upstream requirement or acceptance limit changed. The reviewer-owned checklist remains unchanged.

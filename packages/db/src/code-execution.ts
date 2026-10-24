@@ -144,6 +144,8 @@ export async function finishCodeExecution(db: Queryable, executionId: string, le
     [executionId, leaseToken, terminal.state, terminal.failureCode, JSON.stringify(terminal.trace), terminal.messageId ?? null]
   );
   if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError();
+  // Unpublished terminal outcome: its private candidates can never be published and are purged.
+  await db.query(`UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`, [executionId]);
 }
 
 /** Locks the execution for publication inside the publishing transaction; lost lease → GenerationCancelled. */

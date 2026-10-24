@@ -1,0 +1,11 @@
+{
+  "base_commit": "b24e81b",
+  "source_worktree": "/Users/luke/Projects/claude/everlast/everlast-lm-worktrees/impl-010",
+  "sha256": {
+    "apps/api/src/server.ts": "750664b0adc26cf2424253c814fc0afd7aa9844a388137c6db9a2786a1eff148",
+    "packages/db/src/code-execution.ts": "da48a9a452a61c323dae17293936b134c55b738d65d777ea9464dc5645c6a07e",
+    "apps/api/src/chat/execution/reconcile.ts": "fb4aae0807397aa84f929ba60a9257a867092044b160542b98bff2f1fb15bb2e",
+    "apps/api/test/code-execution-recovery.test.ts": "92970de21115e5da2785c58d8028041f7cf47e07824cf75907789f981531541b",
+    "apps/web/test/code-execution-retry.test.ts": "01395ba2a73b7f37c6ac3f47c4557b4468e1a27c560dfb832be9978a84849a4a"
+  }
+}

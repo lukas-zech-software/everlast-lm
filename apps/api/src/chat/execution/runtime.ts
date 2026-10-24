@@ -186,7 +186,7 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
         throw new SandboxError("ProviderUnavailable", `operation poll failed: ${(err as Error).message}`);
       });
       if (!poll.ok) throw new SandboxError("ProviderUnavailable", `operation poll returned ${poll.status}`);
-      operation = await poll.json();
+      operation = (await poll.json()) as typeof operation;
     }
     if (operation.error || !operation.response?.name) throw new SandboxError("ProviderUnavailable", "sandbox creation failed");
     const handle = { name: String(operation.response.name) };

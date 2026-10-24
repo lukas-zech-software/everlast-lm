@@ -98,7 +98,7 @@
 
 - [ ] T028 [US2] Implement exception-only self-correction and all terminal/error mappings in apps/api/src/chat/execution/controller.ts and apps/api/src/chat/execution/runtime.ts, retaining 15.0s each attempt and managed controls; correction may not expand scope, change caps or retry again; depends on T024/T025 Red, T019 (FR-GC-08; FR-002, FR-003, FR-006, FR-007, SC-002, SC-004, SC-007).
 
-- [ ] T029 [US2] Implement durable unknown-outcome reconciliation and idempotent provider/artifact destruction in apps/api/src/chat/execution/reconcile.ts, packages/db/src/code-execution.ts and apps/api/src/server.ts; start reconciliation without model execution, retain handles privately until cleanup confirmed; depends on T026 Red, T028 (FR-GC-08, FR-GC-06, NFR-SEC-02; FR-006, FR-007, FR-010, FR-011).
+- [x] T029 [US2] Implement durable unknown-outcome reconciliation and idempotent provider/artifact destruction in apps/api/src/chat/execution/reconcile.ts, packages/db/src/code-execution.ts and apps/api/src/server.ts; start reconciliation without model execution, retain handles privately until cleanup confirmed; depends on T026 Red, T028 (FR-GC-08, FR-GC-06, NFR-SEC-02; FR-006, FR-007, FR-010, FR-011).
 
 - [ ] T030 [US2] Integrate terminal errors and both ordered attempts in apps/web/src/chat/code-execution.ts and apps/web/src/chat/panel.ts, escaping source/error text and hiding unpublished candidate bytes; depends on T027 Red, T028, T029 (FR-GC-08, NFR-SEC-02; FR-005, FR-006, FR-007).
 

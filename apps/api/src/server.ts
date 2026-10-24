@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
 import { createPool, runMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
-import { loadApiConfig } from "./config.ts";
+import { loadApiConfig, loadCodeExecutionConfig } from "./config.ts";
+import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
+import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
 import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
@@ -77,6 +79,26 @@ export function createV2ReportModel(env: NodeJS.ProcessEnv, modelConfigured: boo
   return modelConfigured ? createVertexReportModelFromEnv(env) : undefined;
 }
 
+/**
+ * FR-GC-08 managed sandbox (specs/010, D18/D19/D20): only with CODE_EXECUTION_ENABLED=true and an owner-created
+ * parent runtime in europe-west4. The API's own keyless identity (ADC) calls the provider; nothing is injected
+ * into the sandbox. Absent → computations answer 503 and nothing is pretended.
+ */
+export function createSandboxRuntime(env: NodeJS.ProcessEnv): SandboxRuntime | undefined {
+  const config = loadCodeExecutionConfig(env);
+  if (!config) return undefined;
+  const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  return new AgentPlatformSandboxRuntime({
+    reasoningEngine: config.reasoningEngine,
+    location: config.location,
+    accessToken: async () => {
+      const token = (await (await auth.getClient()).getAccessToken()).token;
+      if (!token) throw new Error("No access token for the API service identity");
+      return token;
+    },
+  });
+}
+
 export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}) {
   const config = loadApiConfig(env);
   const pool = createPool();
@@ -120,6 +142,9 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           notifyJobs,
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
+  const sandboxRuntime = createSandboxRuntime(env);
+  const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;
+  if (codeExecution) startCodeExecutionReconciler({ pool, ...codeExecution });
   const chat =
     extra.chat ??
     (embedder && model
@@ -127,6 +152,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           pool,
           embedder,
           model,
+          codeExecution,
           ...(v2 ? { resolvePreferences: (ownerId: string, notebookId: string, locale?: string) => v2.chatPreferences(ownerId, notebookId, locale) } : {}),
         })
       : undefined);
