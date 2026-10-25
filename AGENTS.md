@@ -58,3 +58,7 @@ Whenever an agent is tasked with `/speckit-specify` or other Spec Kit workflows 
 - **Independent Packages (Concurrent Subagent Execution)**:
   - **ONLY IF** the packages do not depend on each other and have no shared uncommitted prerequisites, the agent **MAY invoke the subagents at the same time** (each running in its own dedicated worktree and feature branch, with its context initialized as above).
 
+
+## Reusable package agents and refreshes
+
+Use the project-local [agent catalog](.codex/agents/README.md) and [existing-feature refresh procedure](docs/spec-kit-package-workflow.md) for controller-managed Spec Kit package work. The definitions embed the worktree, feature-pin, authority, question-relay, flow-back and evidence rules; live governance and installed skills still apply. For an update after main changes, preserve accepted intent, refresh only affected stages, and stop at the requested lifecycle boundary. No task generation, implementation or deployment is implied by a planning refresh.
