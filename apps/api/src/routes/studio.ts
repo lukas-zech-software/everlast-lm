@@ -27,7 +27,7 @@ const err = (res: ServerResponse, status: number, code: string, message: string)
 
 /**
  * Studio HTTP routes (FR-ST-08/09/10/11/18, FR-NM-03); Owner-only, authorization happens server-side.
- * Legacy reports have no cancel action (409 Conflict); `mindmap` and `data_table` support `/cancel`.
+ * Legacy reports have no cancel action (404 Not Found); `mindmap` and `data_table` support `/cancel`.
  */
 export async function handleStudioRoute(
   req: IncomingMessage,

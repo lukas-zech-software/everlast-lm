@@ -199,9 +199,9 @@ export class StudioService {
 
   async cancel(ownerId: string, notebookId: string, id: string) {
     const row = await this.owned(ownerId, notebookId, id);
-    // FR-017: Legacy v2 reports do not support cancellation (409 Conflict).
+    // FR-017: Legacy v2 reports do not support cancellation (404 Not Found per FR-ST-10 contract).
     if (row.plugin_type === "report") {
-      throw new StudioConflictError("Cancellation is not supported for report artifacts.");
+      throw new StudioNotFoundError("Cancellation is not supported for report artifacts.");
     }
     if (row.status !== "Queued" && row.status !== "Running") {
       throw new StudioConflictError("Only Queued or Running artifacts can be cancelled.");

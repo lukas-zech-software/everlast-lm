@@ -92,7 +92,7 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     expect([403, 404]).toContain((await n.call(OTHER, "DELETE", `${studio(nb)}/artifacts/${created.json.artifact.id}`)).status);
   });
 
-  it("supports cancelling a Queued/Running mindmap or data_table and retrying as attempt 2, while keeping report cancel unavailable (409)", async () => {
+  it("supports cancelling a Queued/Running mindmap or data_table and retrying as attempt 2, while keeping report cancel unavailable (404)", async () => {
     const nb = await n.notebook(OWNER);
     const owner = await n.userId(OWNER);
     const src = await seed(nb, "Vendors.txt", [
@@ -120,7 +120,7 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     expect(retried.json.artifact.attempt).toBe(2);
     expect(retried.json.artifact.retry_of).toBe(mapId);
 
-    // Legacy report cancel remains unavailable (409)
+    // Legacy report cancel remains unavailable (404 per FR-ST-10 card and apps/api/test/studio-artifacts.test.ts)
     const repId = crypto.randomUUID();
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot)
@@ -128,7 +128,7 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
       [repId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])]
     );
     const repCancel = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${repId}/cancel`, {});
-    expect(repCancel.status).toBe(409);
+    expect(repCancel.status).toBe(404);
   });
 
   it("redacts source-derived titles in list and hides payload in get when a captured source is deleted or replaced", async () => {
