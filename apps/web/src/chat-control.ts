@@ -184,7 +184,7 @@ export function formatChatConfigurationLabel(configuration: ChatConfig): string 
   return `Style: ${styles[configuration.style]} · Length: ${lengths[configuration.response_length]}`;
 }
 
-export function renderNotebookOverview(container: HTMLElement, input: { notebookTitle: string; notebookIcon?: string | undefined; sourceCount: number; overview: string; starterPrompts: string[]; onPrompt: (prompt: string) => void }): void {
+export function renderNotebookOverview(container: HTMLElement, input: { notebookTitle: string; notebookIcon?: string | undefined; sourceCount: number; overview: string; starterPrompts: string[]; onPrompt: (prompt: string) => void; onGenerateMindmap?: (() => void) | undefined }): void {
   container.innerHTML = "";
   const heading = document.createElement("h3");
   // FR-GC-04 / FR-006: the notebook's own icon (FR-WM-02), falling back to the default.
@@ -193,6 +193,18 @@ export function renderNotebookOverview(container: HTMLElement, input: { notebook
   const summary = document.createElement("p");
   summary.textContent = input.overview;
   container.appendChild(summary);
+  if (input.onGenerateMindmap) {
+    const mindmapBtn = document.createElement("button");
+    mindmapBtn.type = "button";
+    mindmapBtn.className = "btn btn-sm overview-mindmap-btn";
+    mindmapBtn.setAttribute("data-testid", "overview-generate-mindmap");
+    mindmapBtn.textContent = "🧠 Generate Mindmap";
+    mindmapBtn.disabled = input.sourceCount === 0;
+    mindmapBtn.addEventListener("click", () => {
+      if (input.sourceCount > 0) input.onGenerateMindmap?.();
+    });
+    container.appendChild(mindmapBtn);
+  }
   for (const prompt of input.starterPrompts) {
     const button = document.createElement("button");
     button.type = "button";

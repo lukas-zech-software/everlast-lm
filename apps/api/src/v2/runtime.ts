@@ -51,12 +51,13 @@ import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
 import type { TopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
-import { InlineStudioDispatcher } from "@everlast/worker/studio/dispatcher";
+import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
+import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
-import { ReportGeneratorPlugin } from "@everlast/worker/studio/reports/plugin";
-import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
+import type { MindmapModelClient } from "@everlast/worker/studio/mindmaps/model";
 import type { ReportModelClient, ReportSuggestionModel } from "@everlast/worker/studio/reports/model";
 import { ReportSuggestionService, structuredSuggestionModel } from "@everlast/worker/studio/reports/suggestions";
+import type { DataTableModelClient } from "@everlast/worker/studio/tables/model";
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
@@ -107,6 +108,8 @@ export interface V2RuntimeOptions {
    * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
    */
   reportModel?: ReportModelClient | undefined;
+  mindmapModel?: MindmapModelClient | undefined;
+  dataTableModel?: DataTableModelClient | undefined;
   /**
    * Dynamic report suggestions (FR-ST-11). Default: Flash-Lite through `generation` (Package 2.2 client); without
    * it suggestions are unavailable (owner default 2026-10-20). Tests may inject a deterministic model.
@@ -410,18 +413,20 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     readyTimer.unref?.();
   }
 
-  // ---- Package 2.4: Studio reports ----------------------------------------------------------------------
+  // ---- Package 2.4 & 3.3: Studio reports, mindmaps, and data tables -------------------------------------
   const repo = new PostgresStudioArtifactRepository(pool);
 
-  const registry = new StudioPluginRegistry();
-  const reportModel = new DeterministicReportModel();
-  registry.register(new ReportGeneratorPlugin(options.reportModel ?? reportModel));
+  const registry = createStudioPluginRegistry({
+    reportModel: options.reportModel,
+    mindmapModel: options.mindmapModel,
+    dataTableModel: options.dataTableModel,
+  });
   const access = { resolveSnapshot, verifySnapshot };
   // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
   // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
   const studioContext = {
-    async getScopedContext(notebookId: string, activeSourceIds: string[]): Promise<UnifiedDocumentChunk[]> {
-      const owner = await ownerOf(notebookId);
+    async getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]> {
+      const owner = ownerId ?? (await ownerOf(notebookId));
       if (!owner) throw new InvalidScopeError("Notebook is not available");
       return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
     },
@@ -461,7 +466,13 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     repo,
     registry,
     access,
-    dispatcher: new InlineStudioDispatcher(runAndTouch),
+    dispatcher: new DurableStudioDispatcher(pool, runAndTouch, { onNotify: options.notifyJobs }),
+    canceller: runner,
+    drilldown: {
+      readScope: (ownerId, notebookId, sourceIds) => assistantContext.read(ownerId, notebookId, sourceIds),
+      ...(options.model ? { answer: new GroundedNoteAssistant(options.model) } : {}),
+      publishTurn: (input) => assistantContext.publish(input),
+    },
     // FR-008 / FR-NM-03: report → cited note (NotesService, sanitized) → v1 note-source through the same admission
     // and ingestion as any note; verified markers are stripped and the citations kept as origin_citations.
     convertToSource: async (input) => {

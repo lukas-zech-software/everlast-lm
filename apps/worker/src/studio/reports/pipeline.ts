@@ -1,4 +1,4 @@
-import type { ReportSubtype, StudioFailureCode, StudioGenerationOutcome, StudioProgress } from "@everlast/contracts";
+import type { ReportSubtype, StudioFailureCode, StudioGenerationOutcome, StudioProgress, StudioReportPayload } from "@everlast/contracts";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import { batchChunks, type BatchLimits } from "./batching.ts";
 import type { Finding, ReportBlock, ReportModelClient } from "./model.ts";
@@ -18,7 +18,7 @@ export interface GenerateReportInput {
   reportProgress(stage: StudioProgress["stage"], percent: number): void;
 }
 
-const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome => ({ status: "refused", code, message });
+const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome<StudioReportPayload> => ({ status: "refused", code, message });
 const INSUFFICIENT = "The selected sources do not contain enough supported content for every required section of this report.";
 
 function sortEvents(block: ReportBlock): ReportBlock {
@@ -45,7 +45,7 @@ export const EXTRACT_CONCURRENCY = 4;
 const filled = (b: ReportBlock | undefined): boolean => !!b && (b.items.length > 0 || (b.table?.rows.length ?? 0) > 0);
 
 /** Map-reduce over bounded batches of ALL scoped chunks (D12); no agent loop, no sampling. */
-export async function generateReport(input: GenerateReportInput): Promise<StudioGenerationOutcome> {
+export async function generateReport(input: GenerateReportInput): Promise<StudioGenerationOutcome<StudioReportPayload>> {
   const { subtype, chunks, model, signal, output_language } = input;
   const guard = (): void => signal.throwIfAborted();
   const template = TEMPLATES[subtype];

@@ -4,35 +4,51 @@ import {
   SourceSnapshotInvalidError,
   type SourceRevisionPair,
   type StudioFailure,
+  type StudioPayloadJson,
   type StudioPluginRegistry,
+  type StudioPluginType,
   type StudioReportPayload,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import type { StudioArtifactRecord, StudioArtifactRepository } from "@everlast/db";
+import {
+  StudioLeaseFenceError,
+  type StudioArtifactRecord,
+  type StudioArtifactRepository,
+} from "@everlast/db";
+import { validateMindmapPayload } from "./mindmaps/validation.ts";
 import { splitSentences } from "./reports/sentences.ts";
 import { QUESTION_SECTIONS } from "./reports/templates.ts";
+import { validateDataTablePayload } from "./tables/validation.ts";
 
 /** Re-verifies owner access and source revisions (D12); throws InvalidScopeError / SourceSnapshotInvalidError. */
 export interface StudioAccessVerifier {
   verifySnapshot(ownerId: string, notebookId: string, snapshot: SourceRevisionPair[]): Promise<void>;
 }
 
-/** C-02 getScopedContext: the only read path for source content. */
+/** C-02 getScopedContext: the only read path for source content. Receives captured `ownerId` for owner-bound reads. */
 export interface StudioScopedContext {
-  getScopedContext(notebookId: string, activeSourceIds: string[]): Promise<UnifiedDocumentChunk[]>;
+  getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]>;
 }
+
+export type StudioPayloadValidator = (
+  payload: StudioPayloadJson,
+  chunks: UnifiedDocumentChunk[],
+  snapshot: SourceRevisionPair[],
+  subtype?: string
+) => string | null;
 
 export interface StudioJobRunnerDeps {
   repo: StudioArtifactRepository;
   registry: StudioPluginRegistry;
   scopedContext: StudioScopedContext;
   access: StudioAccessVerifier;
+  validators?: Partial<Record<StudioPluginType, StudioPayloadValidator>> | undefined;
+  leaseDurationSeconds?: number | undefined;
 }
 
 class CancelledSignal extends Error {}
 
 const MARKER = /\[(\d+)\]/g;
-
 const MARKER_SPLIT = /\[\d+\]/;
 const TRAILING_MARKER = /\[\d+\]$/;
 const LIST_PREFIX = /^(?:[-*>] |\d{1,4}\. )/;
@@ -121,10 +137,17 @@ export function validateReportPayload(
   return subtype === undefined ? null : validateReportSections(payload, subtype);
 }
 
+const DEFAULT_VALIDATORS: Record<StudioPluginType, StudioPayloadValidator> = {
+  report: (payload, chunks, snapshot, subtype) =>
+    validateReportPayload(payload as StudioReportPayload, chunks, snapshot, subtype),
+  mindmap: (payload, chunks, snapshot) => validateMindmapPayload(payload, chunks, snapshot),
+  data_table: (payload, chunks, snapshot) => validateDataTablePayload(payload, chunks, snapshot),
+};
+
 export class StudioJobRunner {
   private readonly controllers = new Map<string, AbortController>();
-
   private readonly deps: StudioJobRunnerDeps;
+
   constructor(deps: StudioJobRunnerDeps) {
     this.deps = deps;
   }
@@ -141,19 +164,51 @@ export class StudioJobRunner {
     const { repo, registry } = this.deps;
     const initial = await repo.getById(id);
     if (!initial) throw new Error(`Studio artifact ${id} not found`);
-    if (initial.status !== "Queued") return initial;
+    if (initial.status === "Completed" || initial.status === "Failed" || initial.status === "Cancelled") {
+      return initial;
+    }
+
+    let leaseToken: string | undefined;
+    let activeArtifact = initial;
+
+    if (initial.plugin_type !== "report" && repo.claimExecution) {
+      const claim = await repo.claimExecution(id, this.deps.leaseDurationSeconds ?? 120);
+      if (!claim) return (await repo.getById(id))!;
+      leaseToken = claim.leaseToken;
+      activeArtifact = claim.artifact;
+    } else {
+      if (initial.status !== "Queued") return initial;
+      activeArtifact = await repo.markRunning(id);
+    }
 
     const controller = new AbortController();
     this.controllers.set(id, controller);
     try {
-      await repo.markRunning(id);
-      const failure = await this.execute(initial, controller.signal, registry);
+      const failure = await this.execute(activeArtifact, controller.signal, registry, leaseToken);
       if (controller.signal.aborted) return (await repo.getById(id))!;
-      if (failure) return await repo.fail(id, failure);
+      if (failure) {
+        const current = await repo.getById(id);
+        if (current && (current.status === "Queued" || current.status === "Running")) {
+          return await repo.fail(id, failure);
+        }
+        return current!;
+      }
       return (await repo.getById(id))!;
     } catch (err) {
-      if (err instanceof CancelledSignal || controller.signal.aborted) return (await repo.getById(id))!;
-      return repo.fail(id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
+      if (err instanceof CancelledSignal || err instanceof StudioLeaseFenceError || controller.signal.aborted) {
+        return (await repo.getById(id))!;
+      }
+      const current = await repo.getById(id);
+      if (current && (current.status === "Queued" || current.status === "Running")) {
+        return repo.fail(id, {
+          code: "GenerationError",
+          message:
+            initial.plugin_type === "report"
+              ? "Report generation failed unexpectedly."
+              : "Studio generation failed unexpectedly.",
+        });
+      }
+      return current!;
     } finally {
       this.controllers.delete(id);
     }
@@ -163,7 +218,8 @@ export class StudioJobRunner {
   private async execute(
     artifact: StudioArtifactRecord,
     signal: AbortSignal,
-    registry: StudioPluginRegistry
+    registry: StudioPluginRegistry,
+    leaseToken?: string
   ): Promise<StudioFailure | null> {
     const { repo, access, scopedContext } = this.deps;
     const snapshot = artifact.source_revisions_snapshot;
@@ -186,7 +242,7 @@ export class StudioJobRunner {
     guard();
 
     const ids = snapshot.map((p) => p.source_id);
-    const chunks = await scopedContext.getScopedContext(artifact.notebook_id, ids);
+    const chunks = await scopedContext.getScopedContext(artifact.notebook_id, ids, artifact.owner_id);
     guard();
     const revisions = new Map(snapshot.map((p) => [p.source_id, p.revision]));
     for (const c of chunks) {
@@ -216,13 +272,19 @@ export class StudioJobRunner {
     guard();
     if (outcome.status === "refused") return { code: outcome.code, message: outcome.message };
 
-    const problem = validateReportPayload(outcome.payload, chunks, snapshot, artifact.subtype);
+    const validator = this.deps.validators?.[artifact.plugin_type] ?? DEFAULT_VALIDATORS[artifact.plugin_type];
+    const problem = validator(outcome.payload, chunks, snapshot, artifact.subtype);
     if (problem) return { code: "CitationValidationFailed", message: problem };
 
     const post = await verify();
     if (post) return post;
     guard();
-    await repo.complete(artifact.id, outcome.payload);
+
+    if (artifact.plugin_type !== "report" && repo.completeWithFence) {
+      await repo.completeWithFence(artifact.id, outcome.payload, { leaseToken });
+    } else {
+      await repo.complete(artifact.id, outcome.payload);
+    }
     return null;
   }
 }

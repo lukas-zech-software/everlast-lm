@@ -2,6 +2,23 @@ import { z } from "zod";
 import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.ts";
 import { OutputLanguageSchema } from "./package-v2-1.ts";
+import {
+  DataTableFocusPromptSchema,
+  DataTableSchemaIdSchema,
+  STUDIO_DATA_TABLE_PLUGIN_TYPE,
+  STUDIO_MINDMAP_PLUGIN_TYPE,
+  StudioDataTableParamsSchema,
+  StudioDataTablePayloadSchema,
+  StudioMindmapParamsSchema,
+  StudioMindmapPayloadSchema,
+  StudioPluginTypeSchema,
+  type DataTableSchemaId,
+  type StudioDataTableParams,
+  type StudioDataTablePayload,
+  type StudioMindmapParams,
+  type StudioMindmapPayload,
+  type StudioPluginType,
+} from "./package-v3-3.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).
@@ -55,6 +72,8 @@ export const StudioFailureCodeSchema = z.enum([
   "Unauthorized",
   "CitationValidationFailed",
   "InsufficientEvidence",
+  "OutputTooLarge",
+  "TableBoundsExceeded",
   "GenerationError",
   "Cancelled",
 ]);
@@ -157,16 +176,41 @@ export type StudioReportPayload = z.infer<typeof StudioReportPayloadSchema>;
 export const StudioReportParamsSchema = z.object({ custom_prompt: z.string().optional() }).strict();
 export type StudioReportParams = z.infer<typeof StudioReportParamsSchema>;
 
+export const StudioSubtypeSchema = z.enum([
+  "briefing_doc",
+  "study_guide",
+  "faq",
+  "timeline",
+  "dynamic",
+  "custom",
+  "default",
+]);
+export type StudioSubtype = z.infer<typeof StudioSubtypeSchema>;
+
+export const StudioParamsJsonSchema = z.union([
+  StudioReportParamsSchema,
+  StudioDataTableParamsSchema,
+  StudioMindmapParamsSchema,
+]);
+export type StudioParamsJson = StudioReportParams & StudioDataTableParams & StudioMindmapParams;
+
+export const StudioPayloadJsonSchema = z.union([
+  StudioReportPayloadSchema,
+  StudioMindmapPayloadSchema,
+  StudioDataTablePayloadSchema,
+]);
+export type StudioPayloadJson = StudioReportPayload | StudioMindmapPayload | StudioDataTablePayload;
+
 export const StudioArtifactSchema = z
   .object({
     id: z.string().uuid(),
     notebook_id: z.string().uuid(),
-    plugin_type: z.literal(STUDIO_REPORT_PLUGIN_TYPE),
-    subtype: ReportSubtypeSchema,
+    plugin_type: StudioPluginTypeSchema,
+    subtype: StudioSubtypeSchema,
     status: StudioJobStatusSchema,
     title: z.string().min(1),
-    params_json: StudioReportParamsSchema,
-    payload_json: StudioReportPayloadSchema.nullable(),
+    params_json: StudioParamsJsonSchema,
+    payload_json: z.unknown().nullable(),
     source_revisions_snapshot: z.array(SourceRevisionPairSchema).min(1),
     output_language: z.string().min(1).nullable(),
     progress: StudioProgressSchema.nullable(),
@@ -178,6 +222,22 @@ export const StudioArtifactSchema = z
   })
   .strict()
   .superRefine((artifact, ctx) => {
+    if (artifact.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
+      if (!ReportSubtypeSchema.safeParse(artifact.subtype).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subtype"],
+          message: `Invalid report subtype ${artifact.subtype}`,
+        });
+      }
+    } else if (artifact.subtype !== "default") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["subtype"],
+        message: `Plugin ${artifact.plugin_type} requires subtype "default"`,
+      });
+    }
+
     if ((artifact.status === "Completed") !== (artifact.payload_json !== null)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -185,15 +245,38 @@ export const StudioArtifactSchema = z
         message: "payload_json must be present if and only if status is Completed",
       });
     }
-    if (artifact.payload_json) {
-      const present = new Set(artifact.payload_json.sections.map((x) => x.key));
-      const missing = requiredReportSections(artifact.subtype).filter((key) => !present.has(key));
-      if (missing.length > 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["payload_json", "sections"],
-          message: `a completed ${artifact.subtype} report must carry the sections ${missing.join(", ")}`,
-        });
+    if (artifact.payload_json !== null) {
+      if (artifact.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
+        const parsed = StudioReportPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        } else {
+          const present = new Set(parsed.data.sections.map((x) => x.key));
+          const missing = requiredReportSections(artifact.subtype).filter((key) => !present.has(key));
+          if (missing.length > 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["payload_json", "sections"],
+              message: `a completed ${artifact.subtype} report must carry the sections ${missing.join(", ")}`,
+            });
+          }
+        }
+      } else if (artifact.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
+        const parsed = StudioMindmapPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
+      } else if (artifact.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
+        const parsed = StudioDataTablePayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
       }
     }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
@@ -213,7 +296,29 @@ export const StudioArtifactSchema = z
       });
     }
   });
-export type StudioArtifact = z.infer<typeof StudioArtifactSchema>;
+export type StudioCombinedPayload = StudioReportPayload &
+  Partial<StudioMindmapPayload> &
+  Partial<StudioDataTablePayload>;
+
+export interface StudioArtifact {
+  id: string;
+  notebook_id: string;
+  plugin_type: StudioPluginType;
+  subtype: StudioSubtype;
+  status: StudioJobStatus;
+  title: string;
+  params_json: StudioParamsJson;
+  /** Narrowed by `plugin_type` (`StudioReportPayload` for reports, `StudioMindmapPayload` for mindmaps, `StudioDataTablePayload` for tables); typed permissively so existing report consumers remain compatible. */
+  payload_json: StudioCombinedPayload | null;
+  source_revisions_snapshot: SourceRevisionPair[];
+  output_language: string | null;
+  progress: StudioProgress | null;
+  failure: StudioFailure | null;
+  attempt: number;
+  retry_of: string | null;
+  created_at: string;
+  updated_at: string;
+}
 
 const ActiveSourceIdsSchema = z
   .array(z.string().uuid("source ID must be a valid UUID"))
@@ -222,21 +327,69 @@ const ActiveSourceIdsSchema = z
 
 export const CreateStudioJobRequestSchema = z
   .object({
-    plugin_type: z.literal(STUDIO_REPORT_PLUGIN_TYPE),
-    subtype: ReportSubtypeSchema,
+    plugin_type: StudioPluginTypeSchema,
+    subtype: StudioSubtypeSchema,
     active_source_ids: ActiveSourceIdsSchema,
     custom_prompt: CustomReportPromptSchema.optional(),
+    focus_prompt: DataTableFocusPromptSchema.optional(),
+    schema_id: DataTableSchemaIdSchema.optional(),
     /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
     output_language: OutputLanguageSchema.optional(),
   })
   .strict()
   .superRefine((req, ctx) => {
-    if ((req.subtype === "dynamic" || req.subtype === "custom") && req.custom_prompt === undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["custom_prompt"],
-        message: `custom_prompt is required for subtype ${req.subtype}`,
-      });
+    if (req.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
+      if (!ReportSubtypeSchema.safeParse(req.subtype).success) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subtype"],
+          message: `Unknown report subtype ${req.subtype}`,
+        });
+      }
+      if ((req.subtype === "dynamic" || req.subtype === "custom") && req.custom_prompt === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["custom_prompt"],
+          message: `custom_prompt is required for subtype ${req.subtype}`,
+        });
+      }
+      if (req.focus_prompt !== undefined || req.schema_id !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "focus_prompt and schema_id are only valid for data_table requests",
+        });
+      }
+    } else if (req.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
+      if (req.subtype !== "default") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subtype"],
+          message: `Unknown mindmap subtype ${req.subtype}`,
+        });
+      }
+      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "mindmap/default accepts no custom_prompt, focus_prompt or schema_id parameters",
+        });
+      }
+    } else if (req.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
+      if (req.subtype !== "default") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subtype"],
+          message: `Unknown data_table subtype ${req.subtype}`,
+        });
+      }
+      if (req.custom_prompt !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["custom_prompt"],
+          message: "data_table/default uses focus_prompt rather than custom_prompt",
+        });
+      }
     }
   });
 export type CreateStudioJobRequest = z.output<typeof CreateStudioJobRequestSchema>;
@@ -342,21 +495,25 @@ export class StudioParamsError extends Error {
 export interface StudioJobRequest {
   notebook_id: string;
   subtype: string;
-  params: { custom_prompt?: string | undefined };
+  params: {
+    custom_prompt?: string | undefined;
+    focus_prompt?: string | undefined;
+    schema_id?: DataTableSchemaId | undefined;
+  };
   snapshot: SourceRevisionPair[];
   output_language?: string | undefined;
 }
 
 export interface StudioJobPlan {
   title: string;
-  params_json: StudioReportParams;
+  params_json: StudioParamsJson;
 }
 
 export interface StudioGenerationContext {
   artifact_id: string;
   notebook_id: string;
   subtype: string;
-  params_json: StudioReportParams;
+  params_json: StudioParamsJson;
   snapshot: SourceRevisionPair[];
   /** Chunks obtained exclusively through C-02 getScopedContext. */
   chunks: UnifiedDocumentChunk[];
@@ -365,8 +522,8 @@ export interface StudioGenerationContext {
   reportProgress(stage: StudioProgress["stage"], percent: number): void;
 }
 
-export type StudioGenerationOutcome =
-  | { status: "completed"; payload: StudioReportPayload }
+export type StudioGenerationOutcome<TPayload extends StudioPayloadJson = StudioPayloadJson> =
+  | { status: "completed"; payload: TPayload }
   | { status: "refused"; code: StudioFailureCode; message: string };
 
 export interface StudioGeneratorPlugin {

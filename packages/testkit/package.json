@@ -11,6 +11,9 @@
       "default": "./src/*.ts"
     }
   },
+  "dependencies": {
+    "@everlast/contracts": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "^5.8.2"

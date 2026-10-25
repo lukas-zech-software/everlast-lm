@@ -8,6 +8,7 @@ import {
   type ReportSuggestionsResult,
   type SourceRevisionPair,
   type StudioPluginRegistry,
+  type StudioPluginType,
 } from "@everlast/contracts";
 import {
   StudioRetryNotAllowedError,
@@ -15,6 +16,9 @@ import {
   type StudioArtifactRepository,
   type StudioArtifactSummary,
 } from "@everlast/db";
+import { executeMindmapDrilldown, StudioSupportingSourcesRequiredError, type StudioDrilldownPort } from "./drilldown.ts";
+import { buildMindmapExportScene } from "./map-export.ts";
+import { exportDataTableArtifact } from "./table-export.ts";
 
 /** Owner/scope authorization and snapshot verification (D12); worker and API share the same port. */
 export interface StudioAccess {
@@ -24,6 +28,10 @@ export interface StudioAccess {
 
 export interface StudioJobDispatcher {
   enqueue(artifactId: string, ownerId: string): Promise<void>;
+}
+
+export interface StudioJobCanceller {
+  cancel(artifactId: string): Promise<StudioArtifactRecord>;
 }
 
 export type ConvertToSource = (input: {
@@ -51,6 +59,8 @@ export interface StudioServiceDeps {
   registry: StudioPluginRegistry;
   access: StudioAccess;
   dispatcher: StudioJobDispatcher;
+  canceller?: StudioJobCanceller | undefined;
+  drilldown?: StudioDrilldownPort | undefined;
   convertToSource?: ConvertToSource;
   suggestions?: StudioSuggestionsPort;
   /** Effective output language (FR-UI-02: notebook > user > en-US) for requests that omit `output_language`. */
@@ -72,6 +82,22 @@ const publicView = <T extends { owner_id: string }>(row: T): Omit<T, "owner_id">
   const { owner_id: _owner, ...rest } = row;
   return rest;
 };
+
+function genericTitleForPlugin(pluginType: StudioPluginType): string {
+  if (pluginType === "mindmap") return "Mindmap";
+  if (pluginType === "data_table") return "Data Table";
+  return "Report";
+}
+
+function unavailableMessageForPlugin(pluginType: StudioPluginType): string {
+  if (pluginType === "mindmap") {
+    return "This mindmap is unavailable because its sources changed or are no longer accessible.";
+  }
+  if (pluginType === "data_table") {
+    return "This data table is unavailable because its sources changed or are no longer accessible.";
+  }
+  return "This report is unavailable because its sources changed or are no longer accessible.";
+}
 
 function requireScope(ids: unknown): void {
   if (!Array.isArray(ids) || ids.length === 0) {
@@ -103,13 +129,18 @@ export class StudioService {
     const plan = plugin.triggerJob({
       notebook_id: notebookId,
       subtype: req.subtype,
-      params: { custom_prompt: req.custom_prompt },
+      params: {
+        custom_prompt: req.custom_prompt,
+        focus_prompt: req.focus_prompt,
+        schema_id: req.schema_id,
+      },
       snapshot,
       output_language,
     });
     const row = await this.deps.repo.createQueued({
       notebook_id: notebookId,
       owner_id: ownerId,
+      plugin_type: req.plugin_type,
       subtype: req.subtype,
       title: plan.title,
       params_json: plan.params_json,
@@ -121,7 +152,24 @@ export class StudioService {
   }
 
   async list(ownerId: string, notebookId: string) {
-    return (await this.deps.repo.list(notebookId, ownerId)).map(publicView);
+    const rows = await this.deps.repo.list(notebookId, ownerId);
+    const results = await Promise.all(
+      rows.map(async (row) => {
+        try {
+          await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+          return publicView(row);
+        } catch (err) {
+          if (err instanceof SourceSnapshotInvalidError || err instanceof InvalidScopeError) {
+            return publicView({
+              ...row,
+              title: genericTitleForPlugin(row.plugin_type),
+            });
+          }
+          throw err;
+        }
+      })
+    );
+    return results;
   }
 
   async get(ownerId: string, notebookId: string, id: string) {
@@ -132,10 +180,14 @@ export class StudioService {
       } catch (err) {
         if (err instanceof SourceSnapshotInvalidError || err instanceof InvalidScopeError) {
           return {
-            artifact: publicView({ ...row, payload_json: null }),
+            artifact: publicView({
+              ...row,
+              title: row.plugin_type === "report" ? row.title : genericTitleForPlugin(row.plugin_type),
+              payload_json: null,
+            }),
             unavailable: {
               code: err instanceof InvalidScopeError ? ("Unauthorized" as const) : ("SourceChanged" as const),
-              message: "This report is unavailable because its sources changed or are no longer accessible.",
+              message: unavailableMessageForPlugin(row.plugin_type),
             },
           };
         }
@@ -143,6 +195,19 @@ export class StudioService {
       }
     }
     return { artifact: publicView(row) };
+  }
+
+  async cancel(ownerId: string, notebookId: string, id: string) {
+    const row = await this.owned(ownerId, notebookId, id);
+    // FR-017: Legacy v2 reports do not support cancellation (409 Conflict).
+    if (row.plugin_type === "report") {
+      throw new StudioConflictError("Cancellation is not supported for report artifacts.");
+    }
+    if (row.status !== "Queued" && row.status !== "Running") {
+      throw new StudioConflictError("Only Queued or Running artifacts can be cancelled.");
+    }
+    const cancelled = this.deps.canceller ? await this.deps.canceller.cancel(id) : await this.deps.repo.cancel(id);
+    return this.modified(notebookId, publicView(cancelled));
   }
 
   async retry(ownerId: string, notebookId: string, id: string, body: unknown) {
@@ -170,7 +235,12 @@ export class StudioService {
 
   async convert(ownerId: string, notebookId: string, id: string) {
     const row = await this.owned(ownerId, notebookId, id);
-    if (row.status !== "Completed" || !row.payload_json) throw new StudioConflictError("Only Completed artifacts can be converted.");
+    if (row.plugin_type !== "report") {
+      throw new StudioConflictError("Only report artifacts can be converted to a source.");
+    }
+    if (row.status !== "Completed" || !row.payload_json || !("content_md" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed artifacts can be converted.");
+    }
     if (!this.deps.convertToSource) throw new StudioNotImplementedError("Convert to source is not configured.");
     await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
     const converted = await this.deps.convertToSource({
@@ -205,6 +275,55 @@ export class StudioService {
       snapshot,
       output_language: await this.language(ownerId, notebookId, ids.output_language),
     });
+  }
+
+  async drilldown(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (row.plugin_type !== "mindmap" || row.status !== "Completed" || !row.payload_json || !("root_node" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed mindmap artifacts support node drilldown.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    if (!this.deps.drilldown) {
+      throw new StudioNotImplementedError("Mindmap drilldown is not configured.");
+    }
+    const res = await executeMindmapDrilldown({
+      ownerId,
+      notebookId,
+      payload: row.payload_json as unknown as import("@everlast/contracts").StudioMindmapPayload,
+      rawRequest: body,
+      port: this.deps.drilldown,
+    });
+    return this.modified(notebookId, res);
+  }
+
+  async exportMindmap(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (row.plugin_type !== "mindmap" || row.status !== "Completed" || !row.payload_json || !("root_node" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed mindmap artifacts support map export.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    return buildMindmapExportScene(
+      row.title,
+      row.payload_json as unknown as import("@everlast/contracts").StudioMindmapPayload,
+      body
+    );
+  }
+
+  async exportDataTable(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (row.plugin_type !== "data_table" || row.status !== "Completed" || !row.payload_json || !("rows" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed data_table artifacts support table export.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    return exportDataTableArtifact({
+      artifactId: row.id,
+      payload: row.payload_json as unknown as import("@everlast/contracts").StudioDataTablePayload,
+      body,
+    });
+  }
+
+  async ownedArtifact(ownerId: string, notebookId: string, id: string): Promise<StudioArtifactRecord> {
+    return this.owned(ownerId, notebookId, id);
   }
 
   private async owned(ownerId: string, notebookId: string, id: string): Promise<StudioArtifactRecord> {

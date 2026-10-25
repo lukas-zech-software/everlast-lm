@@ -114,7 +114,7 @@ export class ReportsModalController {
     this.prompt = s.prompt_template;
   }
 
-  private body(fields: Pick<CreateBody, "subtype"> & { custom_prompt?: string }): CreateBody {
+  private body(fields: { subtype: "briefing_doc" | "study_guide" | "faq" | "timeline" | "dynamic" | "custom"; custom_prompt?: string }): CreateBody {
     const ids = this.options.getActiveSourceIds();
     if (ids.length === 0) throw new Error("Select at least one source.");
     return {

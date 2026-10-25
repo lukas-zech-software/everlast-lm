@@ -326,3 +326,16 @@ input, textarea { font: inherit; color: inherit; }
 .code-source, .code-stdout, .code-stderr { margin: 2px 0; padding: 6px 8px; max-height: 260px; overflow: auto; font-size: 0.78rem; background: var(--code-bg, #f6f8fa); border-radius: 6px; white-space: pre-wrap; word-break: break-word; }
 .code-stderr { color: var(--danger, #b42318); }
 .code-label, .code-exit, .code-published, .code-unpublished { font-size: 0.75rem; }
+
+/* Package 3.3 (FR-ST-08/09/18, specs/011): Mindmaps and Data Tables */
+.mindmap-toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.mindmap-scene-host { position: relative; overflow: auto; min-height: 400px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.mindmap-node { position: absolute; display: flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); white-space: nowrap; }
+.mindmap-node-body { border: 0; background: transparent; padding: 0; font-size: 13px; text-align: left; cursor: pointer; color: var(--text); }
+.mindmap-node-toggle { border: 0; background: transparent; cursor: pointer; font-size: 11px; padding: 2px 4px; color: var(--muted); }
+.studio-data-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.studio-data-table th, .studio-data-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+.studio-table-scroll { overflow: auto; max-height: 70vh; margin-top: 8px; }
+.studio-table-controls { display: flex; gap: 6px; align-items: center; }
+.table-sort-btn { border: 0; background: transparent; font-weight: 600; cursor: pointer; font-size: 13px; padding: 2px; color: var(--text); }
+.table-conflict-value { margin-top: 4px; font-size: 12px; }

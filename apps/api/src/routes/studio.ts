@@ -13,6 +13,7 @@ import {
   StudioService,
   type StudioServiceDeps,
 } from "../studio/service.ts";
+import { StudioSupportingSourcesRequiredError } from "../studio/drilldown.ts";
 
 export type StudioRouteDeps = StudioServiceDeps;
 
@@ -25,8 +26,8 @@ const err = (res: ServerResponse, status: number, code: string, message: string)
 };
 
 /**
- * Studio HTTP routes (FR-ST-10, FR-ST-11, FR-NM-03); Owner-only, authorization happens server-side.
- * v2 has no cancel action (card FR-ST-10): `Cancelled` stays a C-03 state for later plugins.
+ * Studio HTTP routes (FR-ST-08/09/10/11/18, FR-NM-03); Owner-only, authorization happens server-side.
+ * Legacy reports have no cancel action (409 Conflict); `mindmap` and `data_table` support `/cancel`.
  */
 export async function handleStudioRoute(
   req: IncomingMessage,
@@ -36,7 +37,7 @@ export async function handleStudioRoute(
 ): Promise<boolean> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const match = url.pathname.match(
-    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|convert-to-source))?)?|report-suggestions)$/
+    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|cancel|convert-to-source|drilldown|export))?)?|report-suggestions)$/
   );
   if (!match) return false;
   const [, notebookId, target, artifactId, action] = match as unknown as [string, string, string, string | undefined, string | undefined];
@@ -64,15 +65,40 @@ export async function handleStudioRoute(
     } else if (artifactId && !action && method === "DELETE") {
       await service.remove(userId, notebookId, artifactId);
       res.writeHead(204).end();
+    } else if (artifactId && action === "cancel" && method === "POST") {
+      sendJson(res, 200, { artifact: await service.cancel(userId, notebookId, artifactId) });
     } else if (artifactId && action === "retry" && method === "POST") {
       sendJson(res, 202, { artifact: await service.retry(userId, notebookId, artifactId, body) });
     } else if (artifactId && action === "convert-to-source" && method === "POST") {
       sendJson(res, 201, await service.convert(userId, notebookId, artifactId));
+    } else if (artifactId && action === "drilldown" && method === "POST") {
+      sendJson(res, 200, await service.drilldown(userId, notebookId, artifactId, body));
+    } else if (artifactId && action === "export" && method === "POST") {
+      const row = await service.ownedArtifact(userId, notebookId, artifactId);
+      if (row.plugin_type === "mindmap") {
+        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
+        res.setHeader("Cache-Control", "private, no-store");
+        sendJson(res, 200, scene);
+      } else if (row.plugin_type === "data_table") {
+        const exported = await service.exportDataTable(userId, notebookId, artifactId, body);
+        res.writeHead(200, {
+          "Content-Type": exported.contentType,
+          "Content-Disposition": `attachment; filename="${exported.filename}"`,
+          "Cache-Control": "private, no-store",
+          "Content-Length": String(exported.bytes.byteLength),
+        });
+        res.end(Buffer.from(exported.bytes));
+      } else {
+        throw new StudioConflictError("Export is not supported for this artifact kind.");
+      }
     } else {
       return false;
     }
   } catch (e) {
     if (e instanceof EmptyScopeError) return err(res, 400, "EmptyScopeError", e.message);
+    if (e instanceof StudioSupportingSourcesRequiredError) {
+      return err(res, 409, "SupportingSourcesRequired", e.message);
+    }
     // FR-UI-02: an unsupported output language is a bad request (it would key caches and on-demand guide runs).
     if (isZodError(e) && e.issues.some((x) => x.path[0] === "output_language")) {
       return err(res, 400, "UnsupportedOutputLanguage", "Output language is not in the supported locale set.");

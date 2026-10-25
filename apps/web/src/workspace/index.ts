@@ -156,13 +156,21 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
       selection.markImported(sourceId);
       await sources.refresh();
     },
+    onAssistantMessages: (messages) => chat.append(messages),
+    onAskChat: (text) => chat.ask(text),
   });
   studioPanel = studio;
   shell.left.append(sources.element, inspector.element);
   shell.center.append(chat.element);
   shell.right.append(notes.element, studio.element);
 
-  features.bind({ ask: (text) => chat.ask(text), studio: shell.right, openCitation, onSavedNote: (note) => notes.showSavedNote(note) });
+  features.bind({
+    ask: (text) => chat.ask(text),
+    studio: shell.right,
+    openCitation,
+    onSavedNote: (note) => notes.showSavedNote(note),
+    onGenerateMindmap: () => void studio.generateMindmap(),
+  });
   await Promise.all([sources.refresh(), chat.load(), notes.refresh(), studio.refresh()]);
   chat.markReady();
   features.onSelectionChange(sources.sources(), selection.ids());

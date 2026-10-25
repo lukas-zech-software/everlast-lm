@@ -19,6 +19,8 @@ import { processSyncJob } from "./ingestion/sync.ts";
 import { createV3IngestionFromEnv } from "./ingestion/v3-adapters.ts";
 import { drainJobs, type JobHandler } from "./jobs.ts";
 import { processNotebookCleanup } from "./notebook-cleanup.ts";
+import { createStudioOutboxHandler } from "./studio/handler.ts";
+import type { StudioJobRunner } from "./studio/runner.ts";
 import type { JobKind } from "@everlast/db";
 
 /**
@@ -35,6 +37,8 @@ export interface WorkerDeps {
   /** v3 format adapters and external-content screening (specs/009). */
   adapters?: Partial<Record<AdapterKey, SourceAdapter>> | undefined;
   screener?: ContentScreener | undefined;
+  /** v3 durable Studio runner for mindmap/data_table outbox jobs (specs/011 T010). */
+  studioRunner?: Pick<StudioJobRunner, "run"> | undefined;
 }
 
 export function ingestHandler(deps: WorkerDeps): JobHandler {
@@ -84,6 +88,7 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
     cleanup: cleanupHandler(deps),
     ingest: ingestHandler(deps),
     sync: syncHandler(deps),
+    ...(deps.studioRunner ? { studio: createStudioOutboxHandler(deps.studioRunner, deps.pool) } : {}),
     ...deps.handlers,
   };
   let draining: Promise<unknown> | null = null;

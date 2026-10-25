@@ -58,12 +58,18 @@ describe("StudioArtifactListController (FR-ST-10, FR-008)", () => {
   });
 });
 
-/** [008-studio-text-reports] T046 — v2 has no cancel action (FR-ST-10 card, C-03). */
-describe("Studio web API has no cancel action", () => {
-  it("createStudioApi exposes no cancel method and the controller none either", () => {
-    const api = createStudioApi({ notebookId: "n", token: "t", fetch: async () => ({ status: 200, ok: true, json: async () => ({}) }) });
-    expect(Object.keys(api)).not.toContain("cancel");
-    const { ctl } = setup([]);
-    expect("cancel" in ctl).toBe(false);
+/** [008-studio-text-reports] T046 / [011-studio-mindmaps-data-tables] T021 — v2 reports have no cancel action (FR-ST-10 card, FR-017), while v3 mindmap/data_table rows are cancellable. */
+describe("Studio report rows have no cancel action while v3 kinds do", () => {
+  it("marks report rows non-cancellable and mindmap/data_table Queued/Running rows cancellable", async () => {
+    const { ctl } = setup([
+      mk({ id: "rep-1", plugin_type: "report", status: "Running" }),
+      mk({ id: "mm-1", plugin_type: "mindmap", subtype: "default", status: "Running" }),
+      mk({ id: "dt-1", plugin_type: "data_table", subtype: "default", status: "Queued" }),
+    ]);
+    await ctl.refresh();
+    const rows = ctl.rows();
+    expect(rows.find((r) => r.id === "rep-1")?.cancellable).toBe(false);
+    expect(rows.find((r) => r.id === "mm-1")?.cancellable).toBe(true);
+    expect(rows.find((r) => r.id === "dt-1")?.cancellable).toBe(true);
   });
 });

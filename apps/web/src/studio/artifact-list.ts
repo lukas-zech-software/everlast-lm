@@ -3,12 +3,16 @@ import { renderMarkdown } from "./markdown.ts";
 
 export interface StudioRow {
   id: string;
+  plugin_type: ArtifactDto["plugin_type"];
+  subtype: ArtifactDto["subtype"];
   status: ArtifactDto["status"];
   title: string;
   label: string;
   /** Queued or Running: the row shows a generating indicator (FR-ST-10 FR-006). */
   generating: boolean;
-  /** Failed (or C-03 Cancelled) explanation. */
+  /** True only for Queued/Running mindmaps and data tables (FR-017: v2 reports have no cancel action). */
+  cancellable: boolean;
+  /** Failed or Cancelled explanation. */
   failure: string | null;
 }
 
@@ -24,7 +28,7 @@ export interface ArtifactView {
 
 const isActive = (status: ArtifactDto["status"]): boolean => status === "Queued" || status === "Running";
 
-/** Studio artifact list and actions (FR-ST-10, FR-008). v2 has no cancel action (card FR-ST-10). */
+/** Studio artifact list and actions (FR-ST-08/10/18, FR-008, FR-017). */
 export class StudioArtifactListController {
   private artifacts: ArtifactDto[] = [];
 
@@ -33,7 +37,7 @@ export class StudioArtifactListController {
     this.options = options;
   }
 
-  /** Template buttons require at least one active source (FR-ST-10). */
+  /** Template and generation buttons require at least one active source (FR-ST-10, FR-001, FR-007). */
   templatesEnabled(activeSourceCount: number): boolean {
     return activeSourceCount > 0;
   }
@@ -54,12 +58,22 @@ export class StudioArtifactListController {
   rows(): StudioRow[] {
     return this.artifacts.map((a) => ({
       id: a.id,
+      plugin_type: a.plugin_type ?? "report",
+      subtype: a.subtype,
       status: a.status,
       title: a.title,
       generating: isActive(a.status),
+      cancellable: isActive(a.status) && (a.plugin_type === "mindmap" || a.plugin_type === "data_table"),
       failure: a.failure?.message ?? null,
       label: isActive(a.status) ? `Generating ${a.title}...` : a.failure ? `${a.title} — ${a.failure.message}` : a.title,
     }));
+  }
+
+  async cancel(id: string): Promise<ArtifactDto> {
+    if (!this.options.api.cancel) throw new Error("Cancel is not supported.");
+    const artifact = await this.options.api.cancel(id);
+    this.upsert(artifact);
+    return artifact;
   }
 
   /** Retry is a new attempt with the caller's current explicit scope (C-03, FR-013). */
@@ -94,7 +108,9 @@ export class StudioArtifactListController {
 
   private async markdown(id: string): Promise<string> {
     const { artifact, unavailable } = await this.options.api.get(id);
-    if (!artifact.payload_json) throw new Error(unavailable?.message ?? "Report is not available.");
+    if (!artifact.payload_json || !("content_md" in artifact.payload_json)) {
+      throw new Error(unavailable?.message ?? "Report is not available.");
+    }
     return artifact.payload_json.content_md;
   }
 }
