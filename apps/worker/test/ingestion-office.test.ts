@@ -3,6 +3,7 @@ import { ChunkLocatorSchema, DOCX_MEDIA_TYPE, PPTX_MEDIA_TYPE, UnifiedDocumentCh
 import { buildDocx, buildPptx, buildZip } from "@everlast/testkit/ooxml-builder";
 import { buildPdf, wrapLines } from "@everlast/testkit/pdf-builder";
 import { OFFICE_GOLDEN, docxFixture, pptxFixture } from "@everlast/testkit/multimodal-fixtures";
+import { ZipArchive } from "../src/ingestion/zip.ts";
 import { createOfficeAdapter, extractDocx, extractPptx, normalizeOffice, type OfficeRenderer } from "../src/ingestion/office.ts";
 import { createWorkerHarness, prose, type WorkerHarness } from "./support.ts";
 
@@ -156,3 +157,14 @@ describe("chunk structure and failures (FR-SI-01, C-01)", () => {
 });
 
 void wrapLines;
+
+// PR #160: declared ZIP sizes cannot bypass the worker's expansion limit (FR-SI-01, NFR-SEC-02).
+it.each([0, 8])("rejects forged uncompressed sizes for ZIP method %s", (method) => {
+  const zip = buildZip([{ name: "payload", data: Buffer.from("0123456789abcdefghijklmnopqrstuv") }]);
+  const central = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  zip.writeUInt16LE(method, 8);
+  zip.writeUInt16LE(method, central + 10);
+  zip.writeUInt32LE(1, 22);
+  zip.writeUInt32LE(1, central + 24);
+  expect(() => new ZipArchive(zip, { maxUncompressedBytes: method === 0 ? 8 : 64 }).read("payload")).toThrow();
+});

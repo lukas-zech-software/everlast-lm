@@ -1,3 +1,4 @@
+import { AppError } from "@everlast/contracts";
 import {
   claimSourceOperation,
   commitSyncReplacement,
@@ -91,7 +92,7 @@ export async function processSyncJob(deps: IngestionDeps, payload: { operation_i
     }
     return { status: "synced", revision: outcome.revision, changed: true };
   } catch (err) {
-    if (err instanceof IngestionFailure) return fail(err.code, err.message);
+    if (err instanceof IngestionFailure || (err instanceof AppError && err.code === "DelegatedAccessDenied")) return fail(err.code, err.message);
     const name = (err as Error).name;
     if (attempt >= MAX_JOB_ATTEMPTS || name === "AdapterUnavailableError") return fail(name === "AdapterUnavailableError" ? "AdapterUnavailable" : "SyncFailed", SYNC_FAILED_MESSAGE);
     console.error(JSON.stringify({ severity: "WARNING", operation_id: op.id, error: name }));
