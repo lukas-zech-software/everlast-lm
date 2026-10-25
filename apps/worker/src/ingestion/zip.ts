@@ -88,14 +88,18 @@ export class ZipArchive {
     const remaining = this.budget - this.inflated;
     if (entry.uncompressedSize > remaining) throw new ZipError("ZIP expands beyond the allowed size");
     let data: Buffer;
-    if (entry.method === 0) data = Buffer.from(this.buf.subarray(start, end));
+    if (entry.method === 0) {
+      if (entry.compressedSize !== entry.uncompressedSize) throw new ZipError("ZIP stored size mismatch");
+      data = Buffer.from(this.buf.subarray(start, end));
+    }
     else if (entry.method === 8) {
       try {
-        data = inflateRawSync(this.buf.subarray(start, end), { maxOutputLength: Math.max(1, remaining) });
+        data = inflateRawSync(this.buf.subarray(start, end), { maxOutputLength: Math.max(1, entry.uncompressedSize) });
       } catch {
         throw new ZipError("ZIP expands beyond the allowed size or is corrupt");
       }
     } else throw new ZipError("Unsupported ZIP compression");
+    if (data.length !== entry.uncompressedSize || data.length > remaining) throw new ZipError("ZIP size mismatch");
     this.inflated += data.length;
     return data;
   }

@@ -156,3 +156,10 @@ channels are not created (webhook endpoint ready); deployment requires owner app
 IaC: picker identifiers and `DRIVE_WEBHOOK_ADDRESS` are wired behind `enable_v3_ingestion` (validate passes).
 
 Final gate run after convergence (2026-10-23): spec integrity, `git diff --check`, typecheck, lint, build, `pnpm test` (120 files / 969 tests), `pnpm eval:deterministic`, `pnpm test:e2e` (52 passed, 1 pre-existing fixme skipped) — all exit 0. A second `/speckit-converge` assessment found no further buildable gaps; only the environment-gated T049 (judged release run) and T050 (live ASR benchmark) remain open.
+
+
+## PR #160 review (2026-10-25; FR-SI-01/04/05, NFR-SEC-02)
+
+Fixed three findings with requirement-derived failing regressions before implementation: buffered media delivery after deletion during storage I/O (full and ranged responses), Drive publication after local delegation revocation (initial import and changed/unchanged sync), and forged ZIP uncompressed-size fields accepted by the worker (stored and deflate methods). Publication now locks/rechecks the active owner grant, media reauthorizes immediately before sending, and ZIP output is size-verified and bounded. Spec, plan, and FR-card flow-back record the refinements.
+
+Verification at the reviewed changes: 120 test files / 976 tests PASS; focused regressions 4 files / 36 tests PASS; lint/typecheck, build, spec integrity (188 Markdown files / 55 SRS IDs / 39 feature artifacts), and diff whitespace PASS. Deterministic evaluation: citation precision 160/160, leakage 0, Studio deterministic gate PASS. Live provider and judged release evidence remains UNAVAILABLE as documented above; no release certification is implied.

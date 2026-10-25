@@ -76,7 +76,7 @@ afterAll(async () => {
   await h?.close();
 });
 
-async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revoke?: boolean; maxBytes?: number; webhookAddress?: string } = {}) {
+async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revoke?: boolean; maxBytes?: number; webhookAddress?: string; revokeBeforePublish?: boolean } = {}) {
   const nb = await h.newNotebook();
   const connection = await createDelegatedConnection(h.db.pool, { userId: h.ownerId, secretRef: "projects/p/secrets/delegated-x/versions/latest", scopes: ["https://www.googleapis.com/auth/drive.readonly"] });
   const admitted = await admitLinkedImport(h.db.pool, h.ownerId, nb, { attempt_id: randomUUID(), kind: "drive", external_document_id: drive.meta.id, connection_id: connection.id });
@@ -101,7 +101,10 @@ async function importDrive(drive: FakeDrive, tokens: FakeTokens, options: { revo
           }),
           office: createOfficeAdapter({}),
         },
-        screener: cleanScreener,
+        screener: options.revokeBeforePublish ? { name: "revoke-during-screening", screen: async (pages: string[]) => {
+          await revokeDelegatedConnection(h.db.pool, h.ownerId, connection.id);
+          return cleanScreener.screen(pages);
+        } } : cleanScreener,
       },
       { source_id: admitted.source.id, attempt_id: admitted.source.attempt_id, operation_id: admitted.operation.operation_id },
       8
@@ -220,4 +223,10 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     const { outcome } = await importDrive(failing, new FakeTokens(), { webhookAddress: "https://everlast.example.test/webhooks/google-drive" });
     expect(outcome.status).toBe("ready");
   });
+});
+
+it("refuses publication when delegation is revoked during screening (FR-SI-01, NFR-SEC-02)", async () => {
+  const result = await importDrive(new FakeDrive(), new FakeTokens(), { revokeBeforePublish: true });
+  expect(result.source).toMatchObject({ status: "Failed", failure_code: "DelegatedAccessDenied" });
+  expect((await h.db.pool.query("SELECT 1 FROM chunks WHERE source_id = $1", [result.source.id])).rowCount).toBe(0);
 });

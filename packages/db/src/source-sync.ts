@@ -30,6 +30,7 @@ import {
 } from "./quota.ts";
 import {
   fitDefaultTitle,
+  requirePublicationDelegation,
   insertRevisionContent,
   recordPublicationEvent,
   validateRevisionContent,
@@ -517,6 +518,7 @@ export async function commitSyncReplacement(pool: Pool, input: CommitSyncInput):
       return { published: false, reason: "revision_changed" };
     }
 
+    await requirePublicationDelegation(tx, source);
     await insertRevisionContent(tx, source.notebook_id, {
       ...input,
       revision,
@@ -551,6 +553,7 @@ export async function completeSyncUnchanged(
     if (!operation) return { published: false, reason: "fenced" };
     if (operation.state !== "Running" || operation.fencing_token !== input.fencingToken) return { published: false, reason: "stale_token" };
     if (source.active_revision !== input.expectedRevision) return { published: false, reason: "revision_changed" };
+    await requirePublicationDelegation(tx, source);
     await tx.query("UPDATE sources SET last_synced_at = now(), progress = NULL WHERE id = $1", [input.sourceId]);
     await tx.query(
       `UPDATE source_operations SET state = 'Succeeded', progress = NULL, committed_revision = $2, lease_expires_at = NULL,
