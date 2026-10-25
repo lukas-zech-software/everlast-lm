@@ -34,7 +34,8 @@ const shared = {
   LOCAL_STORAGE_SIGNING_KEY: randomBytes(32).toString("hex"),
   PUBLIC_BASE_URL: "http://localhost:8080",
   ...(project ? { VERTEX_PROJECT: project, VERTEX_LOCATION: process.env.VERTEX_LOCATION ?? "europe-west4" } : {}),
-  ...(offline ? { EVERLAST_DEV_TEST_EMBEDDER: "1" } : {}),
+  // Offline dev: lexical embeddings; web/synced content is screened by an explicit local pass-through (never on Cloud Run).
+  ...(offline ? { EVERLAST_DEV_TEST_EMBEDDER: "1", EVERLAST_DEV_SCREENING: "pass-through" } : {}),
 };
 // Developer API keys must never reach the services (NFR-SEC-01).
 for (const name of ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"]) delete shared[name];

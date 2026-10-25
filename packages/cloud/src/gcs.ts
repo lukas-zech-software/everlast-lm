@@ -27,6 +27,11 @@ export class GcsObjectStorage implements ObjectStorage {
     return contents;
   }
 
+  async readRange(name: string, generation: string, start: number, end: number): Promise<Buffer> {
+    const [contents] = await this.bucket.file(name, { generation: Number(generation) }).download({ start, end });
+    return contents;
+  }
+
   async stat(name: string): Promise<ObjectMetadata | null> {
     try {
       const [metadata] = await this.bucket.file(name).getMetadata();

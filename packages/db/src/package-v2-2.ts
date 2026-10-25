@@ -59,10 +59,12 @@ export async function saveSourceGuide(guide: SourceGuide): Promise<SourceGuide> 
   const validated = SourceGuideSchema.parse(guide);
   const pool = v2Pool();
   if (pool) {
-    // A guide of a source that was deleted meanwhile is dropped (no row is written for a missing source).
+    // A guide of a source that was deleted meanwhile is dropped (no row is written for a missing source). Since
+    // specs/009 (FR-SI-05) the same statement fences stale publication: only the source's current Ready revision
+    // can receive a guide, so a generation for a replaced revision finishing late is dropped atomically.
     await pool.query(
       `INSERT INTO source_guides (source_id, revision, output_language, notebook_id, status, record)
-       SELECT id, $2, $3, $4, $5, $6 FROM sources WHERE id = $1 AND notebook_id = $4
+       SELECT id, $2, $3, $4, $5, $6 FROM sources WHERE id = $1 AND notebook_id = $4 AND status = 'Ready' AND active_revision = $2
        ON CONFLICT (source_id, revision, output_language) DO UPDATE SET status = EXCLUDED.status, record = EXCLUDED.record, updated_at = now()`,
       [validated.source_id, validated.revision, validated.output_language, validated.notebook_id, validated.status, JSON.stringify(validated)]
     );

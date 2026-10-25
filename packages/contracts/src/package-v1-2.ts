@@ -1,5 +1,12 @@
 import { z } from "zod";
 import { UnifiedDocumentChunkSchema } from "./document-chunk.ts";
+import {
+  MAX_SOURCE_TITLE_CODE_POINTS,
+  SourceLinkKindSchema,
+  SourceProgressSchema,
+  SourceSyncStateSchema,
+  V3_MEDIA_TYPES,
+} from "./package-v3-1.ts";
 
 /**
  * Package 1.2 DTOs and Schemas (Text/PDF Ingestion & Inspector)
@@ -36,6 +43,8 @@ export const SourceMediaTypeSchema = z.enum([
   "copied_text",
   // FR-NM-03: notes converted to a source (owner decision 2026-10-20, D16); never accepted from uploads.
   "note_markdown",
+  // FR-SI-01 Subset B (v3, specs/009): DOCX, PPTX, MP3/WAV/M4A uploads, Web URL and Video URL sources.
+  ...V3_MEDIA_TYPES,
 ]);
 export type SourceMediaType = z.infer<typeof SourceMediaTypeSchema>;
 
@@ -115,12 +124,16 @@ export const SourceInspectorQuerySchema = z
   .strict();
 export type SourceInspectorQuery = z.infer<typeof SourceInspectorQuerySchema>;
 
-/** Public source DTO returned by the sources API (FR-SI-01, FR-SI-03); owner identity stays server-side. */
+/**
+ * Public source DTO returned by the sources API (FR-SI-01, FR-SI-03); owner identity stays server-side.
+ * v3 (FR-SI-05, specs/009): titles display up to 200 code points (rename), and linked-source, progress and sync
+ * fields are additive optional members. Delegated credentials and provider payloads are never part of it.
+ */
 export const SourceDtoSchema = z
   .object({
     id: z.string().uuid(),
     notebook_id: z.string().uuid(),
-    title: z.string().min(1),
+    title: z.string().min(1).refine((t) => Array.from(t).length <= MAX_SOURCE_TITLE_CODE_POINTS, "title exceeds 200 code points"),
     media_type: SourceMediaTypeSchema,
     status: SourceStatusSchema,
     byte_size: z.number().int().nonnegative(),
@@ -129,6 +142,12 @@ export const SourceDtoSchema = z
     error: z.object({ code: z.string(), message: z.string() }).strict().nullable(),
     created_at: z.string().datetime(),
     updated_at: z.string().datetime(),
+    link_kind: SourceLinkKindSchema.nullable().optional(),
+    external_url: z.string().nullable().optional(),
+    canonical_url: z.string().nullable().optional(),
+    progress: SourceProgressSchema.nullable().optional(),
+    last_synced_at: z.string().datetime().nullable().optional(),
+    sync: SourceSyncStateSchema.nullable().optional(),
   })
   .strict();
 export type SourceDto = z.infer<typeof SourceDtoSchema>;

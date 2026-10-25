@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { mkdir, readdir, readFile, rm, stat, writeFile, rename } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rm, stat, writeFile, rename } from "node:fs/promises";
 import { join, dirname } from "node:path";
 
 /**
@@ -34,6 +34,8 @@ export interface ObjectStorage {
   readonly kind: "gcs" | "local";
   write(name: string, data: Buffer, contentType: string): Promise<ObjectMetadata>;
   read(name: string, generation?: string): Promise<Buffer>;
+  /** Byte range [start, end] inclusive of one exact generation (media proxy range requests; specs/009). */
+  readRange?(name: string, generation: string, start: number, end: number): Promise<Buffer>;
   stat(name: string): Promise<ObjectMetadata | null>;
   listVersions(prefix: string): Promise<ObjectVersion[]>;
   /** Deletes exactly one generation; an already-absent generation counts as success. */
@@ -109,6 +111,20 @@ export class LocalObjectStorage implements ObjectStorage {
     const target = generation ?? index.live;
     if (!target || !index.versions.some((v) => v.generation === target)) throw new Error(`Object ${name} not found`);
     return readFile(join(this.dir(name), target));
+  }
+
+  async readRange(name: string, generation: string, start: number, end: number): Promise<Buffer> {
+    const index = await this.index(name);
+    if (!index.versions.some((v) => v.generation === generation)) throw new Error(`Object ${name} not found`);
+    const handle = await open(join(this.dir(name), generation), "r");
+    try {
+      const length = Math.max(0, end - start + 1);
+      const buffer = Buffer.alloc(length);
+      const { bytesRead } = await handle.read(buffer, 0, length, start);
+      return buffer.subarray(0, bytesRead);
+    } finally {
+      await handle.close();
+    }
   }
 
   async stat(name: string): Promise<ObjectMetadata | null> {

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `codex/v3-tasks-analysis-pr-20261022`
 **Created**: 2026-10-19
-**Status**: Draft
+**Status**: Implemented (2026-10-23); live provider, benchmark and release-gate evidence pending (see implementation-evidence.md)
 **Package Source**: `spec/requirements/v3/package_3_1_multimodal_ingestion_sync.md`
 **SRS IDs in Scope**: `FR-SI-01` Subset B, `FR-SI-05`, `C-01`; supporting `FR-SI-02/03/04`, `FR-GC-02/03`, `FR-WM-04/05/07`, `C-02/C-03`, `NFR-SEC-01/02`, `NFR-EVAL-01..04`
 **Release & Gate**: `v3.0` (`Gate v3.0 #1`)
@@ -175,3 +175,36 @@ The owner uses the source's three-dot menu to rename or confirm removal, or the 
 ## Task-analysis refinements (2026-10-22; FR-SI-01/05, C-01, CC-01/02)
 
 The `mm:ss` display value is derived transcript/view metadata, never a new strict C-01 locator field. For SC-002 predeclare N≥20 audio attempts; include every accepted attempt in nearest-rank P95, mapping failed/unfinished attempts to positive infinity and reporting their outcomes separately. No latency-based removal or cold/warm reclassification is allowed; the ≤45s threshold and accepted queue-inclusive clock remain unchanged. Concrete task files and reserved migration 0009 are implementation decomposition, not new feature scope.
+
+## Implementation refinements — 2026-10-23 (FR-SI-01/05, FR-SI-02/04, C-01/C-02, NFR-SEC-01/02; specs/009 implement)
+
+Discovered or decided during `/speckit-implement`; they refine existing requirements and add no scope. C-01 is unchanged.
+
+- **Transcript chunking (FR-SI-01, Gate v3.0 #1):** ASR words become transcript segments (sentence end, pause > 1.5 s, ≤ 40 words / 30 s); a caption cue is one segment. Each segment is a canonical `source_pages` row with integer `start_ms`/`end_ms`. Transcript chunks are segment-aligned (a sentence end starts a new chunk; ≤ 120 tokens, ≤ 60 s) so a citation seeks to its own statement; the 300–600-token target keeps applying to page and article text. Chunks carry a database-only `anchor_page`, never a C-01 field.
+- **Web (FR-SI-01, NFR-SEC-02):** article text is stored as sanitized sections addressed by `section:nth-of-type(n)` (`dom_path` selector); fewer than 10 extracted words counts as "no extractable article content". `http` and `https` URLs are accepted; private/ULA destinations only through the tenant policy (`WEB_PRIVATE_NETWORKS`, optional `WEB_PRIVATE_HOSTS`) for the notebook Owner. Each fetch has one 60-second wall-clock deadline across redirects, headers and body. A blocked destination fails with "This URL points to a network destination that cannot be imported" (`DestinationBlocked`).
+- **Video (FR-SI-01):** supported: direct WebVTT, enterprise pages with an accessible `<track kind=captions|subtitles>`, or an accessible audio/video stream (downloaded through the same guard, then ASR). A YouTube URL fails with "No transcript available for this video" without contacting YouTube, because public visibility does not grant caption/audio access; delegated YouTube caption access is not implemented in v3.
+- **Office (FR-SI-01):** with the `everlast-render` job configured, LibreOffice PDF pages are the viewer pages (input OOXML sanitized first; see the security review in `specs/009-multimodal-ingestion-sync/implementation-evidence.md`); without it, deterministic native OOXML pagination is used (explicit/Word-rendered page breaks, slide order). Speaker notes are a separate section of their slide page.
+- **Re-sync (FR-SI-05):** eligible link kinds are Web URL and Drive only (a video URL is not a mutable linked document). Byte-identical normalized content completes the sync without a new revision and updates `last_synced_at`. Previous revisions' rows are retained as historical evidence until the source is removed; C-02 reads only the active revision.
+- **History (FR-GC-03, FR-SI-05):** a citation of a replaced revision has status `updated` ("Source updated"): saved snippet, no locator, click opens the current source at the top; the answer stays visible and is excluded from new prompts by the exact-revision history filter. Removed sources keep the existing `deleted` behaviour (answer hidden).
+- **Media delivery (FR-SI-04/05):** the Inspector plays audio through `/media/{capability}` bound to user, notebook, source and revision (30-minute expiry); every request, including each Range request, re-checks ownership, Ready state and revision.
+- **Screening (Constitution VI):** quarantine message "Content was blocked by safety screening"; a missing, failing or slow screener fails closed. Only local offline development may opt into a pass-through screener (refused on Cloud Run/production).
+- **Delegated Drive (D11):** OAuth state is browser-bound (HttpOnly nonce cookie + single-use server row `oauth_states`) with PKCE; scope `drive.readonly`; the refresh token lives in Secret Manager. Provider push channels are accepted at `POST /webhooks/google-drive` (channel ID + token hash); creating Drive watch channels needs a verified public callback domain and is a deployment follow-up.
+- **Durable Guide trigger (FR-SI-02, D16):** every published revision writes a `source_publication_events` row; the API's v2 runtime drains it and completes it only when a terminal guide exists; guide writes are fenced to the source's current Ready revision.
+- **Dependencies:** `@mozilla/readability` (architecture-selected) with `jsdom` as its inert DOM host (worker, render sanitizer); loaded without leaking browser DOM types into other programs.
+- **Migration:** `0009_multimodal_ingestion_sync.sql` (also holds `oauth_states`). Packages 3.2/3.3 start at `0010`.
+- **Open runtime evidence:** live Speech V2 45-second P95 benchmark, judged release suite, live Drive/Model Armor/LibreOffice execution and the v3 release gate remain UNAVAILABLE (no approved API enablement or release candidate).
+
+### Convergence follow-up — 2026-10-23 (FR-SI-01/02/05, FR-GC-03; specs/009 T054–T056)
+
+- **Drive webhook channels (FR-SI-05):** with `DRIVE_WEBHOOK_ADDRESS` configured (verified public HTTPS domain), every successful Drive import or re-sync creates a `files.watch` channel with the user's delegated token; only a hash of the random channel token is stored; watch failures never fail the import. This supersedes the earlier "channel creation is a deployment follow-up" note; enabling it still needs the verified domain.
+- **Authorized picker (FR-SI-01, D11):** when `GOOGLE_PICKER_API_KEY`/`GOOGLE_PICKER_APP_ID` are configured, "Choose from Google Drive" opens Google Picker with the user's own short-lived browser `drive.file` token (never sent to the API); the picked file ID is imported through the same server-side delegated import.
+- **Video players (FR-SI-04, FR-GC-03):** a transcribed video stream is played through the authorized media proxy (`video` player; citations seek to `start_ms`); a captions-only video keeps a link to the original page, updated to the cited `#t=` timestamp.
+
+
+### PR #160 review refinements (2026-10-25; FR-SI-01/04/05, NFR-SEC-02)
+
+- Media delivery rechecks notebook ownership and the current source revision/object after storage reads and immediately before returning full or ranged bytes. Deletion or replacement during I/O invalidates the response.
+- Drive import publication and both changed/unchanged re-sync completion recheck the owner's active delegated connection inside the publishing transaction, holding a shared connection lock against revocation. Revoked grants fail with `DelegatedAccessDenied`; failed re-sync preserves the previous Ready revision.
+- The worker ZIP reader rejects stored-size mismatches and bounds deflate output by the declared uncompressed size, verifies the actual size, and enforces the remaining archive budget before accepting data.
+
+Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the existing inert HTML parser, decode entities exactly once, and retain text-only rendering in viewers. Never treat extracted caption text as sanitized HTML.

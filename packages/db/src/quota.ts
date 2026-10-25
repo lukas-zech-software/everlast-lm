@@ -9,6 +9,7 @@ import {
   SourceQuotaExceededError,
   SourceOversizedBytesError,
   SourceMediaTypeSchema,
+  UNSUPPORTED_UPLOAD_MESSAGE,
   type QuotaSummary,
   type SourceMediaType,
 } from "@everlast/contracts";
@@ -51,23 +52,35 @@ export interface SourceRecord {
   upload_expires_at: string | null;
   failure_code: string | null;
   failure_message: string | null;
+  /** v3 linked-source identity and sync metadata (FR-SI-01/05, specs/009); null for uploads and v1 rows. */
+  link_kind: "web" | "video" | "drive" | null;
+  external_url: string | null;
+  canonical_url: string | null;
+  external_document_id: string | null;
+  delegated_connection_id: string | null;
+  content_hash: string | null;
+  last_synced_at: string | null;
+  progress: "Fetching" | "Transcribing" | "Parsing" | "Syncing" | null;
   created_at: string;
   updated_at: string;
 }
 
-const SOURCE_COLUMNS = `id, notebook_id, attempt_id, title, media_type, status, declared_bytes, actual_bytes,
+export const SOURCE_COLUMNS = `id, notebook_id, attempt_id, title, media_type, status, declared_bytes, actual_bytes,
   word_count, active_revision, object_name, object_generation, upload_expires_at, failure_code,
-  failure_message, created_at, updated_at`;
+  failure_message, link_kind, external_url, canonical_url, external_document_id, delegated_connection_id,
+  content_hash, last_synced_at, progress, created_at, updated_at`;
 
-interface SourceRow extends Omit<SourceRecord, "created_at" | "updated_at" | "upload_expires_at"> {
+export interface SourceRow extends Omit<SourceRecord, "created_at" | "updated_at" | "upload_expires_at" | "last_synced_at"> {
   created_at: Date;
   updated_at: Date;
   upload_expires_at: Date | null;
+  last_synced_at: Date | null;
 }
 
-function toSourceRecord(row: SourceRow): SourceRecord {
+export function toSourceRecord(row: SourceRow): SourceRecord {
   return {
     ...row,
+    last_synced_at: row.last_synced_at ? toIso(row.last_synced_at) : null,
     upload_expires_at: row.upload_expires_at ? toIso(row.upload_expires_at) : null,
     created_at: toIso(row.created_at),
     updated_at: toIso(row.updated_at),
@@ -104,8 +117,9 @@ async function countOccupied(db: Queryable, notebookId: string): Promise<number>
 
 function validateEntry(entry: AdmissionEntry): { code: string; message: string } | null {
   if (!isUuid(entry.attempt_id)) return { code: "ValidationFailed", message: "attempt_id must be a UUID" };
-  if (!SourceMediaTypeSchema.safeParse(entry.media_type).success) {
-    return { code: "UnsupportedMediaType", message: "Only PDF, .txt, Markdown and copied text are supported" };
+  // Linked web/video types are admitted only through `admitLinkedImport` (specs/009), never as uploads.
+  if (!SourceMediaTypeSchema.safeParse(entry.media_type).success || entry.media_type === "text/html" || entry.media_type === "video_url") {
+    return { code: "UnsupportedMediaType", message: UNSUPPORTED_UPLOAD_MESSAGE };
   }
   if (!Number.isSafeInteger(entry.declared_bytes) || entry.declared_bytes < 0) {
     return { code: "ValidationFailed", message: "declared_bytes must be a non-negative integer" };
@@ -261,7 +275,7 @@ export async function failSource(
   input: { sourceId: string; attemptId: string; code: string; message: string }
 ): Promise<boolean> {
   const result = await db.query(
-    `UPDATE sources SET status = 'Failed', failure_code = $3, failure_message = $4, updated_at = now()
+    `UPDATE sources SET status = 'Failed', failure_code = $3, failure_message = $4, progress = NULL, updated_at = now()
      WHERE id = $1 AND attempt_id = $2 AND status IN ('Uploading', 'Processing')`,
     [input.sourceId, input.attemptId, input.code, input.message]
   );

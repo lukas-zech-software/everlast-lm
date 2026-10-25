@@ -58,8 +58,9 @@ test("SI-E04: unsupported and empty files never become usable sources", async ({
   const id = await createNotebook(page.request, email);
   await page.goto(`/notebook/${id}`);
   await page.getByTestId("add-source").click();
-  await page.getByTestId("file-input").setInputFiles([{ name: "deck.pptx", mimeType: "application/octet-stream", buffer: Buffer.from("x") }]);
-  await expect(page.getByTestId("toast").last()).toContainText("Only PDF, .txt and Markdown files are supported");
+  // .pptx/.docx/audio are supported since v3 (FR-SI-01 Subset B, specs/009); legacy .ppt stays unsupported.
+  await page.getByTestId("file-input").setInputFiles([{ name: "deck.ppt", mimeType: "application/octet-stream", buffer: Buffer.from("x") }]);
+  await expect(page.getByTestId("toast").last()).toContainText("Only PDF, .txt, Markdown, Word (.docx), PowerPoint (.pptx) and MP3/WAV/M4A audio files are supported");
   await page.getByTestId("add-source").click();
   await page.getByTestId("file-input").setInputFiles([{ name: "empty.txt", mimeType: "text/plain", buffer: Buffer.alloc(0) }]);
   await expect(page.getByTestId("source-error")).toHaveText("File is empty", { timeout: 20_000 });

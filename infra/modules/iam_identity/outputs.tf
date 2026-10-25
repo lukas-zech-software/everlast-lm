@@ -38,3 +38,8 @@ output "identity_platform_api_key" {
   value       = try(google_identity_platform_config.auth[0].client[0].api_key, "")
   sensitive   = true
 }
+
+output "render_service_account_email" {
+  description = "Email of the everlast-render job service account (specs/009)."
+  value       = google_service_account.render.email
+}

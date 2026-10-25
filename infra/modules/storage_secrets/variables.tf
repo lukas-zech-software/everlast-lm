@@ -45,3 +45,9 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+variable "render_service_account_email" {
+  description = "Service account email of the everlast-render job (specs/009); empty disables its bucket access."
+  type        = string
+  default     = ""
+}

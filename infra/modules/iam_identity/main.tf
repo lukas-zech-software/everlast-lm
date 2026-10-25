@@ -18,6 +18,13 @@ resource "google_service_account" "worker" {
   description  = "Runtime identity for everlast-worker Cloud Run service (C4, C7, C10)."
 }
 
+# everlast-render Cloud Run Job (FR-SI-01, specs/009): converts private source objects only; no database access.
+resource "google_service_account" "render" {
+  project      = var.project_id
+  account_id   = "${local.name_prefix}-render-sa"
+  display_name = "Everlast LM render job (${var.environment})"
+}
+
 resource "google_service_account" "tasks_invoker" {
   project      = var.project_id
   account_id   = "${local.name_prefix}-tasks-sa"
@@ -53,7 +60,7 @@ locals {
     "roles/logging.logWriter",     # Structured JSON logs (§5.3)
     "roles/cloudtrace.agent",      # OpenTelemetry trace export (§5.3)
     "roles/monitoring.metricWriter",
-  ], var.enable_model_armor ? ["roles/modelarmor.user"] : []))
+  ], var.enable_model_armor ? ["roles/modelarmor.user"] : [], var.enable_v3_ingestion ? ["roles/speech.client"] : []))
 }
 
 resource "google_project_iam_member" "api_roles" {
@@ -146,4 +153,18 @@ resource "google_service_account_iam_member" "github_wif_binding" {
   service_account_id = google_service_account.ci_deployer.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github[0].name}/attribute.repository/${var.github_repository}"
+}
+
+# The worker starts render executions that run as the render service account (specs/009 T013).
+resource "google_service_account_iam_member" "worker_act_as_render" {
+  service_account_id = google_service_account.render.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.worker.email}"
+}
+
+resource "google_project_iam_member" "render_roles" {
+  for_each = toset(["roles/logging.logWriter"])
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${google_service_account.render.email}"
 }

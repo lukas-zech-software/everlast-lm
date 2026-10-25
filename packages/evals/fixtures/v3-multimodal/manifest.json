@@ -1,0 +1,28 @@
+{
+  "version": "v3-multimodal-2026-10-22.1",
+  "synthetic": true,
+  "generator": "packages/evals/src/fixtures/multimodal-ingestion.ts",
+  "symbolic_ids": {
+    "chk_old_04": "0192a6b0-0000-7000-8000-000000000004",
+    "chk_new_01": "0192a6b0-0000-7000-8000-000000000101",
+    "chk_10": "0192a6b0-0000-7000-8000-000000000010",
+    "src_interview": "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a01",
+    "src_roadmap": "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a02"
+  },
+  "sha256": {
+    "docx/falcon.docx": "13f5b3d1ecb3f5c8935012dd326f4be68887782381b4b7e1c4e402b73259f987",
+    "pptx/falcon.pptx": "2a07e63b14c7be39f132b92a9cef4eb58fce78bf6f2a609421c15d0e396170ae",
+    "drive/slides-export.pptx": "7a3caaf70906a9f2b8199d33d5e40bb6d84a19927b195620e2dd9fe76d63a600",
+    "drive/docs-export.docx": "e448dd76f7331fe0f8a0c97d017973e8277acbfcf7ea99b5e930569255b22036",
+    "web/article.html": "b6e572f08d261856bfb1517a253b0ed50dbe8523ae8780cd7f6a07016b88413c",
+    "web/js-shell.html": "2ffeb4d2bf0cc5c0e878daa170eb702acdf294d44265326ee9526ab6ff715a47",
+    "web/empty.html": "284bf2106a11c8e2316211bc9bbcc9ade73aade9ad68b36585e6bfba104c25e4",
+    "web/roadmap-may.html": "9dc92bdb2134a3fb8f46b50c9d92509f68330a57d82eb3b8642fb5fbe11f0eec",
+    "web/roadmap-june.html": "14f81928779a72391d52208cea1801dd4eb42d37670e0179dd1e3d9e7e406b82",
+    "audio/interview-words.json": "551edf0ca2fd1841c2260768e2263cc2568d2431e1a4e607f2506af0a82d5bae",
+    "audio/interview.mp3": "b17e616bb2138d7f05be95d66b340f7fddf18800a8495271f3aa7df3545cf2cf",
+    "audio/short.wav": "1f9a9a27e445258f17fed9738b0e0b40a2db04a0999438f6eb2b68a3df4037cd",
+    "audio/clip.m4a": "61e13ced920208ed21594bbd956ab9147d4ce47fc7ce95adadee8613d8b06e71",
+    "video/captions.vtt": "1c7702e15690a25cbd4ed88e7cba7841d64961e3fc4c1016046d8a684014d769"
+  }
+}

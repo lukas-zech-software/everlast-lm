@@ -42,7 +42,11 @@ export interface HydratedCitation {
   badge_number: number;
   source_id: string;
   chunk_id: string;
-  status: "available" | "deleted";
+  /**
+   * `updated` (FR-SI-05, specs/009): the cited revision was replaced by a re-sync. The saved historical snippet stays
+   * readable for authorized viewers, but there is no exact-passage locator (never retargeted to new text).
+   */
+  status: "available" | "updated" | "deleted";
   source_title: string | null;
   /** Media type of the cited source; `note_markdown` marks a note-source (FR-NM-04 `Note` label). */
   source_media_type: string | null;
@@ -190,8 +194,10 @@ interface CurrentSourceRow {
 
 /**
  * Projects stored messages for display with current authorization: citations to sources that no longer exist
- * at the cited revision become "Source deleted" without snippet; assistant content whose provenance includes a
- * deleted source is hidden. Mere deselection does not hide anything.
+ * become "Source deleted" without snippet; assistant content whose provenance includes a deleted source is hidden.
+ * A source that is still Ready at a newer revision (re-sync, FR-SI-05) is "Source updated": the answer stays
+ * viewable with the saved historical snippet, the citation has no locator (no exact-passage jump) and the turn is
+ * excluded from new prompts by the exact-revision history filter. Mere deselection does not hide anything.
  */
 export async function projectVisibleMessages(
   db: Queryable,
@@ -227,12 +233,30 @@ export async function projectVisibleMessages(
     const s = sources.get(sourceId);
     return Boolean(s && s.status === "Ready" && s.active_revision === revision);
   };
+  // Replaced by a newer committed revision of the same, still accessible source (not deleted, not revoked).
+  const updated = (sourceId: string, revision: number) => {
+    const s = sources.get(sourceId);
+    return Boolean(s && s.status === "Ready" && s.active_revision !== null && s.active_revision > revision);
+  };
 
   return messages.map((m) => {
-    const dependsOnDeleted = m.role === "assistant" && m.provenance.some((p) => !available(p.source_id, p.revision));
+    const dependsOnDeleted = m.role === "assistant" && m.provenance.some((p) => !available(p.source_id, p.revision) && !updated(p.source_id, p.revision));
     const citations: HydratedCitation[] = m.citations.map((c) => {
       const chunk = chunks.get(c.chunk_id);
       const ok = !dependsOnDeleted && available(c.source_id, c.revision) && chunk && chunk.source_id === c.source_id && chunk.revision === c.revision;
+      const historical = !ok && !dependsOnDeleted && updated(c.source_id, c.revision) && chunk && chunk.source_id === c.source_id && chunk.revision === c.revision;
+      if (historical) {
+        return {
+          badge_number: c.badge_number,
+          source_id: c.source_id,
+          chunk_id: c.chunk_id,
+          status: "updated" as const,
+          source_title: sources.get(c.source_id)!.title,
+          source_media_type: sources.get(c.source_id)!.media_type,
+          snippet: chunk!.text,
+          locator: null,
+        };
+      }
       return ok
         ? {
             badge_number: c.badge_number,

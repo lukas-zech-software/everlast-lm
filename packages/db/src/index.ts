@@ -9,6 +9,8 @@ export * from "./cleanup.ts";
 export type { Pool, PoolClient } from "pg";
 export * from "./ingestion.ts";
 export * from "./scoped-context.ts";
+// Release v3 package 3.1 (specs/009): linked imports, durable re-sync operations, rename/removal.
+export * from "./source-sync.ts";
 export * from "./chat-history.ts";
 // Note-sources are v1 sources with provenance in PostgreSQL (owner decision 2026-10-20, D16).
 export * from "./note-sources.ts";

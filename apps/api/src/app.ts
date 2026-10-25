@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
 import type { Pool } from "@everlast/db";
@@ -13,6 +13,9 @@ import type { LocalIdentityIssuer, TokenVerifier } from "./auth/identity.ts";
 import { registerNotebookRoutes } from "./routes/notebooks.ts";
 import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
+import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
+import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
+import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
 import type { ChatService } from "./chat/service.ts";
 import type { V2Runtime } from "./v2/runtime.ts";
 
@@ -38,6 +41,17 @@ export interface AppDeps {
   extraRoutes?: ((router: Router, deps: AppDeps) => void)[];
   /** Release v2 features (D16, PostgreSQL since specs/013); their handlers run after notebook ownership is checked. */
   v2?: V2Runtime | undefined;
+  /** Delegated per-user Google access (D11, specs/009); absent → Drive import cannot be connected (503). */
+  delegationBroker?: DelegationBroker | undefined;
+  /** Signs OAuth `state` (bound to the initiating user); defaults to a per-process random key. */
+  stateSigner?: ReturnType<typeof stateSigner> | undefined;
+  /**
+   * Google Picker (FR-SI-01/D11, specs/009 T055): public browser identifiers only. The picker runs with the user's own
+   * short-lived browser token; imports still use the stored delegation server-side.
+   */
+  pickerConfig?: { developerKey: string; appId: string; clientId: string } | undefined;
+  /** Key for revision-bound media playback capabilities (specs/009 T030); defaults to a per-process random key. */
+  mediaTokenKey?: Buffer | undefined;
 }
 
 const MIME: Record<string, string> = {
@@ -84,8 +98,13 @@ async function serveStatic(deps: AppDeps, url: URL, res: ServerResponse): Promis
 
 export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResponse) => void {
   const router = new Router();
+  deps.stateSigner ??= stateSigner(randomBytes(32));
+  deps.mediaTokenKey ??= randomBytes(32);
   registerNotebookRoutes(router, deps);
+  registerSourceSyncRoutes(router, deps);
   registerSourceRoutes(router, deps);
+  registerConnectionRoutes(router, deps);
+  registerMediaRoutes(router, deps);
   registerChatRoutes(router, deps);
   for (const register of deps.extraRoutes ?? []) register(router, deps);
 
@@ -130,6 +149,24 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
       const body = await readBody(req, claims.maxBytes);
       await deps.storage.write(claims.name, body, claims.contentType);
       return sendNoContent(res);
+    }
+
+    // Source media (specs/009 T030): revision-bound capability, re-authorized on every request.
+    if (url.pathname.startsWith("/media/") && method === "GET") {
+      return handleMediaRequest(deps, req, res, url.pathname.slice("/media/".length));
+    }
+    // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
+    if (url.pathname === "/oauth/google/callback" && method === "GET") {
+      const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
+      res.writeHead(302, { Location: location, "Cache-Control": "no-store", "Set-Cookie": clearCookie }).end();
+      return;
+    }
+    // Provider push notifications for linked-source re-sync (FR-SI-05): authenticated by the channel token.
+    if (url.pathname === "/webhooks/google-drive" && method === "POST") {
+      const result = await handleDriveWebhook(deps, req.headers);
+      if (result.body) return sendJson(res, result.status, result.body);
+      res.writeHead(result.status, { "Cache-Control": "no-store" }).end();
+      return;
     }
 
     if (url.pathname.startsWith("/api/")) {

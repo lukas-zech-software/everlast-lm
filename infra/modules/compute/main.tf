@@ -32,12 +32,28 @@ locals {
     WORKER_INTERNAL_URL           = google_cloud_run_v2_service.worker.uri
     # The API applies pending packages/db migrations at startup (advisory-locked, each file once).
     MIGRATE_ON_START = "true"
-  })
+    }, var.enable_v3_ingestion ? {
+    # Package 3.1 delegated Drive (D11, specs/009): public OAuth/Picker identifiers only; secrets come from Secret Manager.
+    GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
+    GOOGLE_PICKER_API_KEY  = var.google_picker_api_key
+    GOOGLE_PICKER_APP_ID   = var.google_picker_app_id
+  } : {})
 
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"
     POSTGRES_USER = var.worker_db_iam_username
-  })
+    }, var.render_image == "" ? {} : {
+    # Package 3.1 (specs/009): Office/audio normalization runs as everlast-render executions.
+    RENDER_JOB_NAME     = "${local.name_prefix}-render"
+    RENDER_JOB_LOCATION = var.region
+    }, var.enable_v3_ingestion ? {
+    SPEECH_LOCATION             = var.region # Chirp 2, europe-west4 (D3); no silent region fallback
+    MODEL_ARMOR_LOCATION        = var.region
+    MODEL_ARMOR_TEMPLATE_ID     = var.model_armor_template_id
+    GOOGLE_OAUTH_CLIENT_ID      = var.google_oauth_client_id
+    DELEGATED_SECRET_PROJECT_ID = var.project_id
+    DRIVE_WEBHOOK_ADDRESS       = var.drive_webhook_address
+  } : {})
 }
 
 # 1. everlast-worker: Internal-only Cloud Run Service (Cloud Tasks Target, §3.3 & §5.1)
@@ -207,4 +223,89 @@ resource "google_cloud_run_v2_service_iam_member" "api_public_invoker" {
   name     = google_cloud_run_v2_service.api.name
   role     = "roles/run.invoker"
   member   = "allUsers"
+}
+
+# 3. everlast-render: Cloud Run Job (C8; FR-SI-01 Subset B, specs/009 T013). One execution per conversion, started
+#    by the worker with RENDER_* overrides; jobs have no idle instances, so it costs nothing while unused.
+resource "google_cloud_run_v2_job" "render" {
+  count               = var.render_image == "" ? 0 : 1
+  project             = var.project_id
+  name                = "${local.name_prefix}-render"
+  location            = var.region
+  deletion_protection = var.deletion_protection
+  labels              = var.labels
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = var.render_service_account_email
+      timeout         = "600s"
+      max_retries     = 0
+
+      # Security review 2026-10-23: all egress goes into an isolated VPC without Cloud NAT, so the converters
+      # cannot reach the internet or internal hosts; Google APIs (Cloud Storage) stay reachable via Private
+      # Google Access.
+      vpc_access {
+        egress = "ALL_TRAFFIC"
+        network_interfaces {
+          network    = google_compute_network.render_isolated[0].id
+          subnetwork = google_compute_subnetwork.render_isolated[0].id
+        }
+      }
+
+      containers {
+        name  = "render"
+        image = var.render_image
+
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "4Gi"
+          }
+        }
+
+        env {
+          name  = "GCS_WORKSPACE_BUCKET"
+          value = var.workspace_bucket_name
+        }
+        env {
+          name  = "NODE_ENV"
+          value = var.environment == "prod" ? "production" : "development"
+        }
+      }
+    }
+  }
+}
+
+# Isolated network for everlast-render: no Cloud NAT and no other hosts, so a converted document cannot reach the
+# internet or internal services; Private Google Access keeps Cloud Storage reachable. A deny-all firewall plus a
+# private googleapis.com DNS zone was rejected: the zone adds fixed idle cost (CC-08) and NAT-less egress already
+# has no internet path.
+resource "google_compute_network" "render_isolated" {
+  count                   = var.render_image == "" ? 0 : 1
+  project                 = var.project_id
+  name                    = "${local.name_prefix}-render-isolated"
+  auto_create_subnetworks = false
+}
+
+resource "google_compute_subnetwork" "render_isolated" {
+  count                    = var.render_image == "" ? 0 : 1
+  project                  = var.project_id
+  name                     = "${local.name_prefix}-render-isolated"
+  region                   = var.region
+  network                  = google_compute_network.render_isolated[0].id
+  ip_cidr_range            = "10.250.0.0/26"
+  private_ip_google_access = true
+}
+
+# The worker may start executions with per-run overrides (input/output object references) and nothing else.
+resource "google_cloud_run_v2_job_iam_member" "worker_render_executor" {
+  count    = var.render_image == "" ? 0 : 1
+  project  = var.project_id
+  location = google_cloud_run_v2_job.render[0].location
+  name     = google_cloud_run_v2_job.render[0].name
+  role     = "roles/run.jobsExecutorWithOverrides"
+  member   = "serviceAccount:${var.worker_service_account_email}"
 }

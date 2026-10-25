@@ -65,7 +65,14 @@ function showPopover(anchor: HTMLElement, citation: Citation): void {
   const body =
     citation.status === "available"
       ? [h("div", { class: "popover-title", text: `${citation.source_media_type === NOTE_SOURCE_MEDIA_TYPE ? "Note · " : ""}${citation.source_title ?? ""}` }), h("div", { class: "popover-snippet", text: citation.snippet ?? "" })]
-      : [h("div", { class: "popover-title", text: "Source deleted" })];
+      : citation.status === "updated"
+        ? // FR-SI-05: the cited revision was replaced by a re-sync; the saved snippet is historical, not the current text.
+          [
+            h("div", { class: "popover-title", text: `Source updated · ${citation.source_title ?? ""}` }),
+            h("div", { class: "popover-snippet", text: citation.snippet ?? "" }),
+            h("div", { class: "popover-action muted", text: "Click to open the current source" }),
+          ]
+        : [h("div", { class: "popover-title", text: "Source deleted" })];
   popover = h("div", { class: "citation-popover", "data-testid": "citation-popover", role: "tooltip" }, ...body);
   document.body.append(popover);
   const rect = anchor.getBoundingClientRect();
@@ -94,11 +101,15 @@ function badgeButton(citation: Citation | undefined, n: number, onClick: (c: Cit
   const button = h(
     "button",
     {
-      class: `citation-badge${deleted ? " deleted" : ""}${note ? " citation-note" : ""}`,
+      class: `citation-badge${deleted ? " deleted" : ""}${citation?.status === "updated" ? " updated" : ""}${note ? " citation-note" : ""}`,
       "data-testid": "citation-badge",
       "data-badge": n,
       "data-chunk-id": citation?.chunk_id ?? "",
-      "aria-label": deleted ? `Citation ${n}: source deleted` : `Citation ${n}: ${note ? "Note · " : ""}${citation!.source_title}`,
+      "aria-label": deleted
+        ? `Citation ${n}: source deleted`
+        : citation!.status === "updated"
+          ? `Citation ${n}: source updated — open the current version of ${citation!.source_title}`
+          : `Citation ${n}: ${note ? "Note · " : ""}${citation!.source_title}`,
       "aria-disabled": deleted ? "true" : "false",
     },
     String(n),

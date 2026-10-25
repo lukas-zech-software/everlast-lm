@@ -159,3 +159,51 @@ variable "tasks_location" {
   type        = string
   default     = "europe-west1"
 }
+
+variable "render_image" {
+  description = "Container image of the everlast-render job (specs/009); empty skips the job (Office/audio adapters then fail clearly)."
+  type        = string
+  default     = ""
+}
+
+variable "render_service_account_email" {
+  description = "Service account the everlast-render job runs as."
+  type        = string
+  default     = ""
+}
+
+variable "enable_v3_ingestion" {
+  description = "Wires Speech-to-Text V2, Model Armor and delegated Drive configuration into the worker (owner approval; specs/009)."
+  type        = bool
+  default     = false
+}
+
+variable "model_armor_template_id" {
+  description = "Model Armor template ID in the region (fail-closed prompt-injection screening of external content)."
+  type        = string
+  default     = ""
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth client ID for delegated per-user Drive access (D11); the client secret is a Secret Manager secret."
+  type        = string
+  default     = ""
+}
+
+variable "google_picker_api_key" {
+  description = "Public browser API key restricted to the Google Picker API (specs/009 T055); not a model key."
+  type        = string
+  default     = ""
+}
+
+variable "google_picker_app_id" {
+  description = "Google Cloud project number used as the Picker app ID (specs/009 T055)."
+  type        = string
+  default     = ""
+}
+
+variable "drive_webhook_address" {
+  description = "Public HTTPS address of /webhooks/google-drive for Drive change channels (verified domain; specs/009 T054). Empty disables channels."
+  type        = string
+  default     = ""
+}

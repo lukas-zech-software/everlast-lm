@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createTestDatabase, createTestUser, type TestDatabase } from "@everlast/db/testing";
 import { acceptReceivedSource, createNotebook, getSourceById, reserveSources, type SourceRecord } from "@everlast/db";
 import { HashingTestEmbedder, LocalObjectStorage, type OcrEngine } from "@everlast/cloud";
-import { processIngestJob, type IngestOutcome } from "../src/ingestion/pipeline.ts";
+import { processIngestJob, type IngestionDeps, type IngestOutcome } from "../src/ingestion/pipeline.ts";
 
 /**
  * TEST-ONLY harness: real PostgreSQL, versioned local storage, deterministic lexical embedder and an OCR
@@ -33,7 +33,15 @@ export interface WorkerHarness {
   ownerId: string;
   notebookId: string;
   newNotebook(): Promise<string>;
-  ingest(input: { name: string; bytes: Buffer; mediaType: string; ocr?: OcrEngine; notebookId?: string }): Promise<{ outcome: IngestOutcome; source: SourceRecord }>;
+  ingest(input: {
+    name: string;
+    bytes: Buffer;
+    mediaType: string;
+    ocr?: OcrEngine;
+    notebookId?: string;
+    /** v3 adapters / screener (specs/009). */
+    deps?: Partial<Pick<IngestionDeps, "adapters" | "screener" | "chunker">>;
+  }): Promise<{ outcome: IngestOutcome; source: SourceRecord }>;
   close(): Promise<void>;
 }
 
@@ -52,7 +60,7 @@ export async function createWorkerHarness(): Promise<WorkerHarness> {
     ownerId,
     notebookId,
     newNotebook,
-    async ingest({ name, bytes, mediaType, ocr, notebookId: nb }) {
+    async ingest({ name, bytes, mediaType, ocr, notebookId: nb, deps }) {
       const target = nb ?? notebookId;
       const attemptId = randomUUID();
       const [admitted] = await reserveSources(db.pool, ownerId, target, [
@@ -73,7 +81,7 @@ export async function createWorkerHarness(): Promise<WorkerHarness> {
         return { outcome: { status: "failed", code: received.outcome, message: "receipt" }, source: (await getSourceById(db.pool, source.id))! };
       }
       const outcome = await processIngestJob(
-        { pool: db.pool, storage, embedder, ocr: ocr ?? new FixtureOcr() },
+        { pool: db.pool, storage, embedder, ocr: ocr ?? new FixtureOcr(), ...deps },
         { source_id: source.id, attempt_id: attemptId }
       );
       return { outcome, source: (await getSourceById(db.pool, source.id))! };

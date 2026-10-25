@@ -17,7 +17,10 @@ module "project_services" {
 
   project_id              = var.project_id
   enable_project_services = var.enable_project_services
-  enable_model_armor      = var.enable_model_armor
+  # Model Armor is mandatory from v3 for web/synced content (Constitution VI, specs/009 T023).
+  enable_model_armor = var.enable_model_armor || var.enable_v3_ingestion
+  # Package 3.1 ingestion APIs stay disabled until the project owner records approval (specs/009).
+  enable_v3_ingestion_apis = var.enable_v3_ingestion
 }
 
 module "iam_identity" {
@@ -30,7 +33,8 @@ module "iam_identity" {
   enable_github_wif        = var.enable_github_wif
   github_repository        = var.github_repository
   authorized_domains       = var.authorized_domains
-  enable_model_armor       = var.enable_model_armor
+  enable_model_armor       = var.enable_model_armor || var.enable_v3_ingestion
+  enable_v3_ingestion      = var.enable_v3_ingestion
 
   enable_email_password_sign_in = var.enable_email_password_sign_in
 
@@ -46,6 +50,7 @@ module "storage_secrets" {
   api_service_account_email         = module.iam_identity.api_service_account_email
   worker_service_account_email      = module.iam_identity.worker_service_account_email
   ci_deployer_service_account_email = module.iam_identity.ci_deployer_service_account_email
+  render_service_account_email      = module.iam_identity.render_service_account_email
   cors_allowed_origins              = var.cors_allowed_origins
   force_destroy_bucket              = !var.deletion_protection
   labels                            = local.common_labels
@@ -112,4 +117,12 @@ module "compute" {
   max_notebooks_per_user              = var.max_notebooks_per_user
   deletion_protection                 = var.deletion_protection
   labels                              = local.common_labels
+  render_image                        = var.render_image
+  render_service_account_email        = module.iam_identity.render_service_account_email
+  enable_v3_ingestion                 = var.enable_v3_ingestion
+  model_armor_template_id             = var.model_armor_template_id
+  google_oauth_client_id              = var.google_oauth_client_id
+  google_picker_api_key               = var.google_picker_api_key
+  google_picker_app_id                = var.google_picker_app_id
+  drive_webhook_address               = var.drive_webhook_address
 }
