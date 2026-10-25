@@ -199,3 +199,12 @@ Discovered or decided during `/speckit-implement`; they refine existing requirem
 - **Drive webhook channels (FR-SI-05):** with `DRIVE_WEBHOOK_ADDRESS` configured (verified public HTTPS domain), every successful Drive import or re-sync creates a `files.watch` channel with the user's delegated token; only a hash of the random channel token is stored; watch failures never fail the import. This supersedes the earlier "channel creation is a deployment follow-up" note; enabling it still needs the verified domain.
 - **Authorized picker (FR-SI-01, D11):** when `GOOGLE_PICKER_API_KEY`/`GOOGLE_PICKER_APP_ID` are configured, "Choose from Google Drive" opens Google Picker with the user's own short-lived browser `drive.file` token (never sent to the API); the picked file ID is imported through the same server-side delegated import.
 - **Video players (FR-SI-04, FR-GC-03):** a transcribed video stream is played through the authorized media proxy (`video` player; citations seek to `start_ms`); a captions-only video keeps a link to the original page, updated to the cited `#t=` timestamp.
+
+
+### PR #160 review refinements (2026-10-25; FR-SI-01/04/05, NFR-SEC-02)
+
+- Media delivery rechecks notebook ownership and the current source revision/object after storage reads and immediately before returning full or ranged bytes. Deletion or replacement during I/O invalidates the response.
+- Drive import publication and both changed/unchanged re-sync completion recheck the owner's active delegated connection inside the publishing transaction, holding a shared connection lock against revocation. Revoked grants fail with `DelegatedAccessDenied`; failed re-sync preserves the previous Ready revision.
+- The worker ZIP reader rejects stored-size mismatches and bounds deflate output by the declared uncompressed size, verifies the actual size, and enforces the remaining archive budget before accepting data.
+
+Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the existing inert HTML parser, decode entities exactly once, and retain text-only rendering in viewers. Never treat extracted caption text as sanitized HTML.

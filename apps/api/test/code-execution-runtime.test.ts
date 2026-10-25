@@ -337,3 +337,32 @@ describe.skipIf(!python)("T006 harness script (local CPython self-check; UNAVAIL
     expect(run("import json\nemit('n', len(json.load(open('data.json'))['values']))").results[0].value).toBe("3");
   });
 });
+
+// PR #159: cleanup must confirm the provider outcome and cannot hang (FR-GC-08 FR-006, D20).
+describe("bounded confirmed sandbox deletion", () => {
+  it("polls an accepted delete until the operation completes", async () => {
+    await load();
+    const calls: string[] = [];
+    const sandbox = client(fakeAgentPlatform(), { fetch: async (_url: string, init: RequestInit) => {
+      calls.push(init.method!);
+      return new Response(JSON.stringify(init.method === "DELETE"
+        ? { name: `${ENGINE}/operations/delete`, done: false }
+        : { name: `${ENGINE}/operations/delete`, done: true }));
+    } });
+    await sandbox.destroy({ name: SANDBOX });
+    expect(calls).toEqual(["DELETE", "GET"]);
+  });
+  it("does not confirm a failed delete operation", async () => {
+    await load();
+    const sandbox = client(fakeAgentPlatform(), { fetch: async () => new Response(JSON.stringify({ done: true, error: { code: 13 } })) });
+    await expect(sandbox.destroy({ name: SANDBOX })).rejects.toThrow();
+  });
+  it("bounds stalled deletion including credential acquisition", async () => {
+    await load();
+    vi.useFakeTimers();
+    const sandbox = client(fakeAgentPlatform(), { accessToken: () => new Promise(() => undefined), destroyTimeoutMs: 50 });
+    const assertion = expect(sandbox.destroy({ name: SANDBOX })).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(51);
+    await assertion;
+  });
+});

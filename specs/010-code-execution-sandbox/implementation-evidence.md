@@ -159,3 +159,29 @@ Full Gate v3.0 #2 evidence, cohort tables, and the 50-case stratified sample are
 | `pnpm eval:v3-code-execution` | **UNAVAILABLE** (exit `2`: live Agent Platform sandbox not configured) |
 | `pnpm eval:judged` | **UNAVAILABLE** (exit `2`: `VERTEX_PROJECT` / live Vertex release environment not configured) |
 | `(cd infra/modules/code_execution && tofu init -backend=false && tofu test)` | **PASS** (4/4) |
+
+
+## PR #159 review fixes (2026-10-24; FR-GC-08, NFR-SEC-02, D20)
+
+- Fixed SVG external-resource checks bypassed by XML character references and split style tokens. Decode before validation and reject ambiguous style token boundaries; retain safe local references and escaped labels.
+- Fixed premature cleanup confirmation: DELETE operation acceptance or an operation error no longer marks a sandbox destroyed. Poll to successful completion or keep cleanup pending.
+- Bounded deletion to 5 seconds, including stalled credential acquisition and response reads, so execution timeout reporting and reconciliation cannot hang on the provider delete call.
+- Red: new regression tests reproduced encoded resource acceptance, split style tokens, premature deletion confirmation, failed-operation acceptance, and stalled deletion. Green: 381 unit tests (28 files), 86 integration tests (12 files), and 6 Chromium journeys pass. Unit coverage includes the contract suites.
+- Build, lint/type checking, spec integrity (190 Markdown files / 55 SRS IDs / 39 feature artifacts), and whitespace checks pass. Deterministic eval: citation precision 160/160, scope leakage 0, adversarial out-of-prompt drafts published 0/60.
+- Live sandbox integration: UNAVAILABLE (11 tests skipped; no configured Agent Platform runtime). Judged Vertex metrics and live provider performance remain unverified; this review does not assert release-gate completion.
+
+## PR #159 code review fixes, round 2 (2026-10-25; FR-GC-01/02/08, NFR-SEC-02)
+
+Each fix started from a failing regression test (`apps/api/test/code-execution-pr159-{review,lease,db}.test.ts`):
+
+- **Compute only when a sandbox exists.** Rules 9–10 and the `compute`/`clarify` schema options are offered only when `CODE_EXECUTION_ENABLED=true`. Without the sandbox, numeric questions get the v2 prompt and schema again, instead of a 503 or a refusal.
+- **Lease heartbeat.** The controller renews the execution lease every lease/3 until it returns, so a slow correction call plus a second sandbox creation can no longer be reconciled mid-flight.
+- **numpy integers** are emitted as exact integers (`numbers.Integral`); numpy bools are rejected.
+- **Source number matching:** a hyphen after a letter or digit is a separator (`FY2023-2024`, `10-20`), and decimal-comma formats (`1.234,5`, `3,75`) are recognised.
+- **Admission:** reusing the `request_id` of an ended, unpublished execution returns `409 RequestAlreadyHandled`, not "already running".
+- **Chart write race:** when the chart row cannot be inserted (Clear chat FK race), the written object is deleted and the turn reports `GenerationCancelled`, not `InternalError`.
+- **Prose neutralization** now only touches badge-shaped brackets (`[[n]]`, `[n]`), so `p < 0.05` and `[0, 1]` stay intact. Sandbox labels and units remain fully neutralized.
+- **Memory classification** matches whole memory signals only (`room_count` and `zoom` are no longer memory errors).
+- **Deferred (efficiency, not correctness):** the periodic `invalidateChartsOfUnavailableSources` scan. Source deletion already invalidates charts synchronously, and the chart route re-checks provenance on each request. Narrowing the scan is a follow-up.
+
+Gates: build, lint/typecheck and spec integrity PASS; `pnpm test` 1159 passed / 11 skipped (live sandbox UNAVAILABLE); `eval:deterministic` citation precision 160/160, leakage 0, adversarial 0/60 published.

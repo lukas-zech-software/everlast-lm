@@ -17,6 +17,7 @@ import {
   type SourceRecord,
 } from "@everlast/db";
 import {
+  AppError,
   CONTENT_QUARANTINED_MESSAGE,
   MAX_SOURCE_BYTES,
   MAX_SOURCE_WORDS,
@@ -285,7 +286,7 @@ export async function processIngestJob(
     }
     return { status: "ready", revision: outcome.revision, chunks: prepared.chunks.length, words: prepared.words };
   } catch (err) {
-    if (err instanceof IngestionFailure) return fail(err.code, err.message);
+    if (err instanceof IngestionFailure || (err instanceof AppError && err.code === "DelegatedAccessDenied")) return fail(err.code, err.message);
     const name = (err as Error).name;
     const errorCode = name === "OcrUnavailableError" ? "OcrUnavailable" : name === "AdapterUnavailableError" ? "AdapterUnavailable" : "ProcessingError";
     if (errorCode === "OcrUnavailable" || attempt >= MAX_JOB_ATTEMPTS) {

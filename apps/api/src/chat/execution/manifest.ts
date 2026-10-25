@@ -50,14 +50,25 @@ export interface InputManifest {
 
 const UNSAFE = /(?:[a-z][a-z0-9+.-]*:\/\/|\.\.[/\\]|^[/\\]|bearer\s|ya29\.|AIza[0-9A-Za-z_-]{10,}|-----BEGIN|password|secret)/i;
 
-/** Numeric literals in source text, separators removed ("1,200" → 1200, "$1.2B" → 1.2, "-3.5%" → -3.5). */
+/**
+ * Numeric literals in source text, as every reading a careful copier could make ("1,200" → 1200, "$1.2B" → 1.2,
+ * "-3.5%" → -3.5, "1.234,5" → 1234.5, "3,75" → 3.75). A hyphen counts as a minus sign only when it does not follow a
+ * letter or digit, so ranges and IDs ("10-20", "FY2023-2024") keep both numbers positive.
+ */
 export function numericTokens(text: string): number[] {
-  const out: number[] = [];
-  for (const match of text.matchAll(/-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?/g)) {
-    const value = Number(match[0].replace(/,/g, ""));
-    if (Number.isFinite(value)) out.push(value);
+  const out = new Set<number>();
+  const add = (literal: string) => {
+    const value = Number(literal);
+    if (Number.isFinite(value)) out.add(value);
+  };
+  const SIGN = "(?:(?<![\\p{L}\\p{N}])-)?";
+  // Dot-decimal with optional comma thousands.
+  for (const m of text.matchAll(new RegExp(`${SIGN}(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)`, "gu"))) add(m[0].replace(/,/g, ""));
+  // Comma-decimal with optional dot thousands ("1.234,5", "3,75"); a single comma before exactly three digits stays a thousands separator.
+  for (const m of text.matchAll(new RegExp(`${SIGN}(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+,(?:\\d{1,2}|\\d{4,})(?!\\d))`, "gu"))) {
+    add(m[0].replace(/\./g, "").replace(",", "."));
   }
-  return out;
+  return [...out];
 }
 
 function deepFreeze<T>(value: T): T {

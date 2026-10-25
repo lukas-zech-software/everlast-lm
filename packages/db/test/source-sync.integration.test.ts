@@ -118,3 +118,16 @@ describe("fences (FR-SI-05, C-02)", () => {
     expect(again.replayed).toBe(false);
   });
 });
+
+it.each([false, true])("fences Drive publication after delegation revocation (unchanged=%s; FR-SI-05, NFR-SEC-02)", async (unchanged) => {
+  const { nb, sourceId } = await linked();
+  const connection = await sync.createDelegatedConnection(db.pool, { userId: owner, secretRef: "projects/p/secrets/test/versions/1", scopes: ["drive.readonly"] });
+  await db.pool.query("UPDATE sources SET link_kind = 'drive', external_document_id = 'test-drive-file', delegated_connection_id = $2 WHERE id = $1", [sourceId, connection.id]);
+  const op = await claimed(nb, sourceId);
+  await sync.revokeDelegatedConnection(db.pool, owner, connection.id);
+  await expect(unchanged
+    ? sync.completeSyncUnchanged(db.pool, { ...op, sourceId, expectedRevision: 1 })
+    : sync.commitSyncReplacement(db.pool, input(op, sourceId, "June")))
+    .rejects.toMatchObject({ code: "DelegatedAccessDenied" });
+  expect((await getSourceById(db.pool, sourceId))!.active_revision).toBe(1);
+});

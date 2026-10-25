@@ -281,7 +281,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       input.value = draft;
       errorLine.hidden = false;
       errorLine.textContent =
-        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed", "ExecutionInProgress"].includes(err.code)
+        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed", "ExecutionInProgress", "RequestAlreadyHandled"].includes(err.code)
           ? err.message
           : GENERATION_ERROR;
       if (err instanceof ApiError && err.status === 404) options.onNotebookMissing();

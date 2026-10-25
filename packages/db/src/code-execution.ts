@@ -90,6 +90,10 @@ export async function admitCodeExecution(pool: Pool, input: AdmitCodeExecutionIn
     );
     if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError("The chat changed before the calculation started");
   } catch (err) {
+    if (isUniqueViolation(err) && err.constraint === "code_executions_thread_request_key") {
+      // The permanent (thread, request) key: this request already ran and ended without an answer (PR #159 review).
+      throw new AppError("RequestAlreadyHandled", 409, "This request already ended without an answer. Send the question again.");
+    }
     if (isUniqueViolation(err)) throw new ExecutionInProgressError();
     throw err;
   }
@@ -126,6 +130,16 @@ export async function recordCodeExecutionProgress(db: Queryable, executionId: st
     ]
   );
   if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError();
+}
+
+/** Fenced lease renewal without a state change (heartbeat while the model or the provider is slow). */
+export async function renewCodeExecutionLease(db: Queryable, executionId: string, leaseToken: string, leaseMs: number = EXECUTION_LEASE_MS): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE code_executions SET lease_expires_at = now() + ($3::int * interval '1 millisecond')
+      WHERE id = $1 AND lease_token = $2 AND state IN ('CodeGenerating', 'SandboxRunning')`,
+    [executionId, leaseToken, leaseMs]
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 export interface ExecutionTerminal {

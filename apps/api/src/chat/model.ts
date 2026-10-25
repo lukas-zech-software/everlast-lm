@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import type { Schema } from "@google/genai";
-import { GROUNDED_DRAFT_RESPONSE_SCHEMA, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
-import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, GROUNDING_INSTRUCTION, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
+import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
+import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
@@ -61,6 +61,8 @@ export interface AdkModelConfig {
   location: string;
   model: string;
   timeoutMs?: number;
+  /** FR-GC-08: offer compute/clarify only when a sandbox runtime is configured (default false). */
+  codeExecution?: boolean;
 }
 
 export class AdkGroundedModel implements GroundedModel {
@@ -79,8 +81,8 @@ export class AdkGroundedModel implements GroundedModel {
       name: "grounded_chat",
       description: "Answers strictly from scoped source chunks with chunk-level citations.",
       model: this.llm,
-      instruction: GROUNDING_INSTRUCTION,
-      outputSchema: GROUNDED_DRAFT_RESPONSE_SCHEMA as unknown as Schema,
+      instruction: groundingInstruction({ codeExecution: config.codeExecution ?? false }),
+      outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as Schema,
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
@@ -177,5 +179,6 @@ export function createGroundedModelFromEnv(env: NodeJS.ProcessEnv = process.env)
     project,
     location: env.VERTEX_LOCATION ?? env.VERTEX_AI_LOCATION ?? "europe-west4",
     model: env.CHAT_MODEL ?? "gemini-2.5-flash",
+    codeExecution: env.CODE_EXECUTION_ENABLED === "true",
   });
 }

@@ -9,7 +9,13 @@ const DatasetValueSchema = z
     label: z.string().min(1).max(200),
     /** Copied exactly as written in the cited chunk (verified against its text before execution). */
     value: z.string().min(1).max(64),
-    unit: z.string().min(1).max(40).nullable().optional(),
+    /** An empty unit from the model means unitless (Gemini returns "" for a nullable STRING). */
+    unit: z
+      .string()
+      .max(40)
+      .nullable()
+      .optional()
+      .transform((u) => (u === "" ? null : u)),
     chunk_id: z.string(),
   })
   .strict();
@@ -100,3 +106,14 @@ export const GROUNDED_DRAFT_RESPONSE_SCHEMA = {
   required: ["status", "sentences"],
   propertyOrdering: ["status", "missing_topic", "clarification_question", "sentences", "computation"],
 } as const;
+
+/** Response schema for the configured runtime: without a sandbox the model cannot choose compute/clarify (FR-GC-08). */
+export function groundedDraftResponseSchema(options: { codeExecution: boolean }): Record<string, unknown> {
+  if (options.codeExecution) return GROUNDED_DRAFT_RESPONSE_SCHEMA;
+  const { computation: _c, clarification_question: _q, ...properties } = GROUNDED_DRAFT_RESPONSE_SCHEMA.properties;
+  return {
+    ...GROUNDED_DRAFT_RESPONSE_SCHEMA,
+    properties: { ...properties, status: { type: "STRING", enum: ["answered", "not_in_sources"] } },
+    propertyOrdering: ["status", "missing_topic", "sentences"],
+  };
+}

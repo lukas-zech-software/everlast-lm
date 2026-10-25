@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { MAX_SOURCE_BYTES, MAX_SOURCE_WORDS, UnifiedDocumentChunkSchema, type UnifiedDocumentChunk } from "@everlast/contracts";
+import { AppError, DELEGATED_ACCESS_DENIED_MESSAGE, MAX_SOURCE_BYTES, MAX_SOURCE_WORDS, UnifiedDocumentChunkSchema, type UnifiedDocumentChunk } from "@everlast/contracts";
 import { withTransaction, type Queryable } from "./transaction.ts";
-import { lockSourceForTransition } from "./quota.ts";
+import { lockSourceForTransition, type SourceRecord } from "./quota.ts";
 
 /**
  * Atomic Ready publication (FR-SI-01, FR-WM-07, C-01, D1, D15). Revision, canonical pages, chunks, embeddings and
@@ -164,6 +164,17 @@ export function fitDefaultTitle(title: string): string {
   return cps.length <= 200 ? trimmed : `${cps.slice(0, 199).join("")}…`;
 }
 
+/** FR-SI-01/05, NFR-SEC-02: serialize publication with local delegation revocation. */
+export async function requirePublicationDelegation(tx: Queryable, source: SourceRecord): Promise<void> {
+  if (source.link_kind !== "drive") return;
+  const grant = await tx.query(
+    `SELECT c.id FROM delegated_connections c JOIN notebooks n ON n.owner_id = c.user_id
+      WHERE n.id = $1 AND c.id = $2 AND c.revoked_at IS NULL FOR SHARE OF c`,
+    [source.notebook_id, source.delegated_connection_id]
+  );
+  if (grant.rowCount !== 1) throw new AppError("DelegatedAccessDenied", 403, DELEGATED_ACCESS_DENIED_MESSAGE);
+}
+
 export async function publishReadySource(pool: Pool, input: PublishInput): Promise<PublishOutcome> {
   validateRevisionContent(input);
 
@@ -183,6 +194,7 @@ export async function publishReadySource(pool: Pool, input: PublishInput): Promi
       if (row.state !== "Running" || Number(row.fencing_token) !== input.operation.fencingToken) return { published: false, reason: "stale_token" };
     }
 
+    await requirePublicationDelegation(tx, source);
     const notebookId = source.notebook_id;
     await insertRevisionContent(tx, notebookId, input);
     const m = input.manifest ?? {};

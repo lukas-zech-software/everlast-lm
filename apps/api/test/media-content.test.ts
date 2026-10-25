@@ -123,3 +123,25 @@ describe("authorized media proxy (FR-SI-05, NFR-SEC-02)", () => {
     expect([403, 404, 410]).toContain((await api.fetch(url)).status);
   });
 });
+
+// PR #160: storage I/O must not outlive source authorization (FR-SI-05, NFR-SEC-02).
+it.each([false, true])("revokes buffered media after source deletion during storage read (range=%s)", async (ranged) => {
+  const as = `media-race-${ranged}`;
+  const { nb, sourceId } = await audioSource(as);
+  const { url } = await (await api.fetch(`/api/notebooks/${nb}/sources/${sourceId}/media`, { as })).json() as any;
+  const storage = api.deps.storage!;
+  const method = ranged ? "readRange" : "read";
+  const original = storage[method]!;
+  (storage as any)[method] = async (...args: any[]) => {
+    const bytes = await (original as any).apply(storage, args);
+    await api.db.pool.query("DELETE FROM sources WHERE id = $1", [sourceId]);
+    return bytes;
+  };
+  try {
+    const response = await api.fetch(url, ranged ? { headers: { range: "bytes=0-3" } } : {});
+    expect([403, 404, 410]).toContain(response.status);
+    expect(response.headers.get("content-type")).not.toBe("audio/wav");
+  } finally {
+    (storage as any)[method] = original;
+  }
+});

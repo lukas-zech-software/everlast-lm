@@ -72,7 +72,7 @@ export interface ChatServiceDeps {
   retrievalLimit?: number;
   observer?: (observation: TurnObservation) => void;
   /** FR-GC-08 managed sandbox (specs/010); absent → computations fail safely with 503, nothing is pretended. */
-  codeExecution?: { runtime: SandboxRuntime; storage: ObjectStorage; deadlineMs?: number } | undefined;
+  codeExecution?: { runtime: SandboxRuntime; storage: ObjectStorage; deadlineMs?: number; leaseMs?: number } | undefined;
   /** Release v2 response preferences of the caller (style, length, languages). */
   resolvePreferences?: (ownerId: string, notebookId: string, browserLocale?: string) => Promise<ResponsePreferences>;
 }

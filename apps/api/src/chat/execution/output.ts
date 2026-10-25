@@ -107,13 +107,27 @@ const ENTITY = /&(?!(?:lt|gt|amp|quot|apos|#\d{1,7}|#x[0-9a-fA-F]{1,6});)/;
 
 function unsafeCss(text: string): boolean {
   const lowered = text.toLowerCase();
+  if (lowered.includes("/*") || lowered.includes("*/")) return true;
   if (/@import|@font-face|expression\s*\(|javascript:|behavior\s*:|-moz-binding|\\/.test(lowered)) return true;
   for (const match of lowered.matchAll(/url\s*\(\s*(['"]?)([^)'"]*)\1\s*\)/g)) if (!match[2]!.startsWith("#")) return true;
   return /url\s*\(/.test(lowered.replace(/url\s*\(\s*(['"]?)#[^)'"]*\1\s*\)/g, ""));
 }
 
+/** Decode once, as XML does, before checking CSS and references. */
+function decodeXml(value: string): string {
+  if (ENTITY.test(value)) reject("entity reference");
+  return value.replace(/&(?:lt|gt|amp|quot|apos|#\d{1,7}|#x[0-9a-fA-F]{1,6});/g, (entity) => {
+    const named: Record<string, string> = { "&lt;": "<", "&gt;": ">", "&amp;": "&", "&quot;": '"', "&apos;": "'" };
+    if (named[entity]) return named[entity]!;
+    const point = entity.startsWith("&#x") ? parseInt(entity.slice(3, -1), 16) : Number(entity.slice(2, -1));
+    if (!(point === 9 || point === 10 || point === 13 || (point >= 32 && point <= 0xd7ff) ||
+      (point >= 0xe000 && point <= 0xfffd) || (point >= 0x10000 && point <= 0x10ffff))) reject("invalid XML character");
+    return String.fromCodePoint(point);
+  });
+}
+
 function escapeAttr(value: string): string {
-  return value.replace(/&(?!(?:lt|gt|amp|quot|apos|#\d+|#x[0-9a-fA-F]+);)/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function reject(message: string): never {
@@ -134,11 +148,12 @@ export function sanitizeSvg(input: string): string {
     if (m.index !== i) reject("unparsable content");
     i = token.lastIndex;
     const raw = m[0];
-    if (raw.startsWith("<!--")) continue;
-    if (raw.startsWith("<![CDATA[")) {
-      if (stack.at(-1) !== "style" || unsafeCss(m[1] ?? "")) reject("CDATA outside a safe style");
-      if (dropDepth === 0) out.push(raw);
+    if (raw.startsWith("<!--")) {
+      if (stack.at(-1) === "style") reject("comment inside style");
       continue;
+    }
+    if (raw.startsWith("<![CDATA[")) {
+      reject("CDATA is not supported");
     }
     if (raw.startsWith("<!")) reject("DOCTYPE/declaration");
     if (raw.startsWith("<?")) {
@@ -154,6 +169,7 @@ export function sanitizeSvg(input: string): string {
       continue;
     }
     if (m[3]) {
+      if (stack.at(-1) === "style") reject("element inside style");
       const name = m[3];
       const selfClosing = m[5] === "/";
       if (!sawRoot && name !== "svg") reject("root element must be svg");
@@ -169,9 +185,8 @@ export function sanitizeSvg(input: string): string {
       const attrs: string[] = [];
       for (const a of (m[4] ?? "").matchAll(/\s+([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
         const attr = a[1]!;
-        const value = a[2] ?? a[3] ?? "";
+        const value = decodeXml(a[2] ?? a[3] ?? "");
         if (!/^[A-Za-z_][\w:.-]*$/.test(attr) || /^on/i.test(attr)) reject(`attribute ${attr}`);
-        if (ENTITY.test(value)) reject("entity reference");
         if (attr.startsWith("xmlns")) {
           if (ALLOWED_NAMESPACES.get(attr) !== value) reject(`namespace ${attr}`);
         } else if (attr === "href" || attr.endsWith(":href")) {
@@ -189,7 +204,7 @@ export function sanitizeSvg(input: string): string {
     // Text node.
     if (dropDepth > 0) continue;
     if (ENTITY.test(raw)) reject("entity reference");
-    if (stack.at(-1) === "style" && unsafeCss(raw)) reject("unsafe style");
+    if (stack.at(-1) === "style" && unsafeCss(decodeXml(raw))) reject("unsafe style");
     if (!sawRoot && raw.trim()) reject("text before root");
     out.push(raw);
   }

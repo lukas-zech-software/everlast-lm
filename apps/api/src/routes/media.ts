@@ -75,6 +75,13 @@ export async function handleMediaRequest(deps: AppDeps, req: IncomingMessage, re
   if (media === null) throw new AppError("NotFound", 404, "Media not found");
   if (media === "gone") throw new AppError("NotFound", 410, "This media version is no longer available");
   if (!deps.storage) throw new AppError("RetryableFailure", 503, "Storage is not configured");
+  const reauthorize = async () => {
+    await requireOwnedNotebook(deps.pool, claims.u, claims.n);
+    const current = await currentMedia(deps.pool, claims);
+    if (!current || current === "gone" || current.name !== media.name || current.generation !== media.generation) {
+      throw new AppError("NotFound", 410, "This media version is no longer available");
+    }
+  };
   const meta = await deps.storage.stat(media.name);
   const size = meta && meta.generation === media.generation ? meta.size : (await deps.storage.read(media.name, media.generation)).length;
   // Stored streams of video sources keep their own content type; uploads use the source media type.
@@ -93,10 +100,12 @@ export async function handleMediaRequest(deps: AppDeps, req: IncomingMessage, re
     const body = deps.storage.readRange
       ? await deps.storage.readRange(media.name, media.generation, start, end)
       : (await deps.storage.read(media.name, media.generation)).subarray(start, end + 1);
+    await reauthorize();
     res.writeHead(206, { ...headers, "Content-Range": `bytes ${start}-${end}/${size}`, "Content-Length": body.length }).end(body);
     return;
   }
   const body = await deps.storage.read(media.name, media.generation);
+  await reauthorize();
   res.writeHead(200, { ...headers, "Content-Length": body.length }).end(body);
 }
 

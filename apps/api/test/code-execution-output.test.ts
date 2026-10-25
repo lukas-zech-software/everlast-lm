@@ -138,3 +138,24 @@ describe("Security review fix — citation/marker forgery in sandbox labels and 
     expect(`${r.label} ${r.unit}`).not.toMatch(/\(\s*computed\s*\)/i);
   });
 });
+
+// PR #159: inspect the CSS that the SVG consumer actually parses (FR-GC-08, NFR-SEC-02).
+describe("encoded SVG resource references", () => {
+  it.each([
+    '<svg><path fill="u&#114;l(https://example.invalid/chart)"/></svg>',
+    '<svg><style>path { fill: u&#x72;l(https://example.invalid/chart) }</style></svg>',
+    '<svg><style>@im<!-- split -->port "https://example.invalid/chart";</style></svg>',
+    '<svg><style>@im<title/>port "https://example.invalid/chart";</style></svg>',
+    '<svg><style>@im<![CDATA[port]]> "https://example.invalid/chart";</style></svg>',
+    '<svg><style>@import/**/"https://example.invalid/chart";</style></svg>',
+  ])("rejects hidden external resources: %s", async (svg) => {
+    await load();
+    expect(() => o.sanitizeSvg(svg)).toThrow();
+  });
+  it("preserves escaped text and safe encoded local references", async () => {
+    await load();
+    const clean = o.sanitizeSvg('<svg><text>A &amp; B</text><path fill="u&#114;l(#local)"/></svg>');
+    expect(clean).toContain('A &amp; B');
+    expect(clean).toContain('fill="url(#local)"');
+  });
+});
