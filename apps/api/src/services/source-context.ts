@@ -1,5 +1,5 @@
 import type { Pool } from "@everlast/db";
-import { captureScopeSnapshot, retrieveScopedChunks, type ScopeSnapshot, type RetrievedChunk } from "@everlast/db";
+import { captureScopeSnapshot, listSnapshotChunks, retrieveScopedChunks, type ScopeSnapshot, type RetrievedChunk } from "@everlast/db";
 import {
   InvalidScopeError,
   type ScopedContextProvider,
@@ -56,5 +56,18 @@ export class RequestScopedContextProvider implements ScopedContextProvider {
       limit: this.limit,
     });
     return this.lastRetrieved.map(({ score: _score, ...chunk }) => chunk);
+  }
+
+  /**
+   * Complete evidence for whole-table calculations (FR-GC-08, specs/010): every chunk of the SAME captured snapshot
+   * through the same hard notebook/(source_id, revision) filter, bounded by `limit`. Never a newer revision.
+   */
+  async readCompleteSnapshot(limit: number): Promise<UnifiedDocumentChunk[]> {
+    return listSnapshotChunks(this.pool, this.snapshot, limit);
+  }
+
+  /** Makes the complete snapshot the citation universe for this answer (only chunks actually supplied). */
+  useCompleteSnapshot(chunks: UnifiedDocumentChunk[]): void {
+    this.lastRetrieved = chunks.map((c) => ({ ...c, score: 0 }));
   }
 }

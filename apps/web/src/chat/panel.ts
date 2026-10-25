@@ -1,10 +1,11 @@
-import { api, ApiError, postEventStream } from "../lib/api.ts";
+import { api, ApiError, authFetch, postEventStream } from "../lib/api.ts";
 import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { parseAnswer, splitBadgeGroup } from "../lib/badges.ts";
 import { sourcesLabel, type SelectionModel } from "../lib/selection.ts";
 import { validateMessage } from "../lib/text.ts";
 import type { ChatMessage, Citation } from "../lib/types.ts";
 import { NOTE_SOURCE_MEDIA_TYPE } from "../lib/v2-contracts.ts";
+import { disposeCodeExecution, renderCodeExecution, renderTextWithComputed, RUNNING_CODE_LABEL } from "./code-execution.ts";
 
 /**
  * Chat panel (FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06, FR-SI-03). Sends the explicit selection with every turn,
@@ -33,6 +34,7 @@ export interface ChatPanelOptions {
 export interface ChatPanel {
   element: HTMLElement;
   load(): Promise<void>;
+  destroy(): void;
   updateSelection(): void;
   /**
    * Enables sending once the workspace has loaded its sources and this chat's history (FR-GC-01). Until then Send
@@ -49,7 +51,16 @@ const PHASE_LABEL: Record<string, string> = {
   retrieving: "Searching your sources…",
   generating: "Writing a grounded answer…",
   verifying: "Verifying citations…",
+  // FR-GC-08 FR-004: shown only once code is actually submitted to the sandbox.
+  running_code: RUNNING_CODE_LABEL,
 };
+
+/** Authorized chart bytes (FR-GC-08): bearer-authenticated fetch, never a public or signed storage URL. */
+async function fetchChart(url: string): Promise<Blob> {
+  const res = await authFetch(url);
+  if (!res.ok) throw new ApiError(res.status, "ChartUnavailable", "Chart unavailable");
+  return res.blob();
+}
 const GENERATION_ERROR = "An error occurred while generating the response. Please try again.";
 
 let popover: HTMLElement | null = null;
@@ -137,13 +148,19 @@ export function renderAnswerContent(message: ChatMessage, onClick: (c: Citation)
     return container;
   }
   const byBadge = new Map(message.citations.map((c) => [c.badge_number, c]));
+  // FR-GC-08: "Computed" pills only for a succeeded execution trace (the server is the only author of the marker).
+  const computed = message.code_execution_trace?.state === "Succeeded";
   for (const segment of parseAnswer(message.content)) {
     if (segment.type === "text") {
-      container.append(segment.text);
+      if (computed) container.append(...renderTextWithComputed(segment.text));
+      else container.append(segment.text);
       continue;
     }
+    // Only badges the verifier issued (present in citations) become citation buttons (security review fix).
+    const issued = segment.numbers.filter((n) => byBadge.has(n));
+    if (issued.length === 0) continue;
     const group = h("span", { class: "badge-group" });
-    const { shown, hidden } = splitBadgeGroup(segment.numbers);
+    const { shown, hidden } = splitBadgeGroup(issued);
     for (const n of shown) group.append(badgeButton(byBadge.get(n), n, onClick));
     if (hidden.length > 0) {
       const more = h("button", { class: "citation-more", "data-testid": "citation-more", text: `+${hidden.length}` });
@@ -185,6 +202,10 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   let inflight: AbortController | null = null;
   let ready = false;
 
+  const clearMessages = () => {
+    messages.querySelectorAll<HTMLElement>("[data-testid=code-execution]").forEach(disposeCodeExecution);
+    clear(messages);
+  };
   const scrollToEnd = () => {
     messages.scrollTop = messages.scrollHeight;
   };
@@ -198,6 +219,8 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     if (message.role === "user") bubble.append(h("div", { class: "question-text", text: message.content ?? "" }));
     else {
       bubble.append(renderAnswerContent(message, options.onCitationClick));
+      const execution = renderCodeExecution(message, { fetchChart });
+      if (execution) bubble.append(execution);
       if (message.kind === "answer" && message.content !== null) options.decorateAnswer?.(bubble, message, fresh);
     }
     return bubble;
@@ -258,7 +281,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       input.value = draft;
       errorLine.hidden = false;
       errorLine.textContent =
-        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed"].includes(err.code)
+        err instanceof ApiError && ["EmptyScope", "InvalidScope", "SourceNotReady", "SourceSnapshotInvalid", "ValidationFailed", "ExecutionInProgress", "RequestAlreadyHandled"].includes(err.code)
           ? err.message
           : GENERATION_ERROR;
       if (err instanceof ApiError && err.status === 404) options.onNotebookMissing();
@@ -284,7 +307,7 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
     inflight?.abort();
     try {
       await api(`/api/notebooks/${options.notebookId}/chat`, { method: "DELETE" });
-      clear(messages);
+      clearMessages();
       results.hidden = true;
     } catch {
       toast("Could not clear the chat.");
@@ -327,9 +350,11 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
   return {
     element,
     async load() {
+      // Remove old protected bytes immediately while fetching fresh authorization.
+      clearMessages();
       try {
         const { messages: list } = await api<{ messages: ChatMessage[] }>(`/api/notebooks/${options.notebookId}/chat`);
-        clear(messages);
+        clearMessages();
         appendMessages(list);
       } catch (err) {
         if (err instanceof ApiError && err.status === 404) options.onNotebookMissing();
@@ -337,6 +362,11 @@ export function createChatPanel(options: ChatPanelOptions): ChatPanel {
       updateSelection();
     },
     updateSelection,
+    destroy() {
+      inflight?.abort();
+      if (searchTimer) clearTimeout(searchTimer);
+      clearMessages();
+    },
     markReady() {
       ready = true;
       updateSelection();

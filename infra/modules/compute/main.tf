@@ -37,7 +37,7 @@ locals {
     GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
     GOOGLE_PICKER_API_KEY  = var.google_picker_api_key
     GOOGLE_PICKER_APP_ID   = var.google_picker_app_id
-  } : {})
+  } : {}, var.code_execution_env_vars) # Package 3.2 (FR-GC-08, specs/010): public sandbox identifiers only
 
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"

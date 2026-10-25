@@ -168,6 +168,7 @@ export async function renderWorkspace(options: WorkspaceRouteOptions): Promise<(
   features.onSelectionChange(sources.sources(), selection.ids());
   if (options.openAddSources) sources.openAddSources();
   return () => {
+    chat.destroy();
     studio.destroy();
     shell.destroy();
   };

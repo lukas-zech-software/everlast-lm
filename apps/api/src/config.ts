@@ -56,3 +56,25 @@ export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
     checkRevocation: env.IDENTITY_CHECK_REVOCATION !== "false",
   };
 }
+
+/**
+ * FR-GC-08 managed Code Execution sandbox (specs/010, D18/D19/D20). Off unless CODE_EXECUTION_ENABLED=true; then the
+ * owner-created parent runtime must be in europe-west4 (D3) or startup fails. No credential is configured here:
+ * the API calls the provider with its keyless runtime identity (ADC).
+ */
+export interface CodeExecutionConfig {
+  reasoningEngine: string;
+  location: string;
+}
+
+export function loadCodeExecutionConfig(env: NodeJS.ProcessEnv = process.env): CodeExecutionConfig | undefined {
+  if (env.CODE_EXECUTION_ENABLED !== "true") return undefined;
+  const reasoningEngine = env.CODE_EXECUTION_REASONING_ENGINE ?? "";
+  const location = env.CODE_EXECUTION_LOCATION ?? "europe-west4";
+  const match = /^projects\/[a-z0-9-]+\/locations\/([a-z0-9-]+)\/reasoningEngines\/\d+$/.exec(reasoningEngine);
+  if (!match) throw new Error("CODE_EXECUTION_REASONING_ENGINE must be projects/<p>/locations/<region>/reasoningEngines/<id>");
+  if (location !== "europe-west4" || match[1] !== location) {
+    throw new Error("Code execution must run in europe-west4 (D3); no region exception is approved");
+  }
+  return { reasoningEngine, location };
+}

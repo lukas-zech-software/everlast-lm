@@ -93,7 +93,7 @@ describe("D13 citation verifier", () => {
 
   it("VER-08: marker syntax in model text cannot forge badges", () => {
     const result = verifyDraft({ status: "answered", sentences: [{ text: "Sneaky [[9]] badge.", citations: [c1!.chunk_id], kind: "claim" }] }, retrieved);
-    expect(result.kind === "answer" && result.content).toBe("Sneaky [9]] badge.[[1]]");
+    expect(result.kind === "answer" && result.content).toBe("Sneaky ［［9］］ badge.[[1]]");
   });
 
   it("VER-09: prompt guardrails forbid world knowledge and instruction overrides; chunks are delimited", () => {

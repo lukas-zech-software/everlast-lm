@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { AppError, type ChunkLocator, type SourceRevisionPair } from "@everlast/contracts";
+import { AppError, type ChunkLocator, type CodeExecutionTrace, type SourceRevisionPair } from "@everlast/contracts";
 import { toIso, withTransaction, type Queryable } from "./transaction.ts";
 import { requireOwnedNotebook } from "./notebooks.ts";
 import { verifyScopeSnapshot, type ScopeSnapshot } from "./scope-guard.ts";
+import { completeExecutionPublication, invalidateThreadCodeExecutions, lockExecutionForPublication } from "./code-execution.ts";
 
 /**
  * Persistent single thread per (notebook, user) with complete provenance (FR-GC-06, FR-GC-01, NFR-EVAL-04).
@@ -31,12 +32,17 @@ export interface StoredMessage {
   turn_id: string;
   request_id: string;
   role: "user" | "assistant";
-  kind: "question" | "answer" | "refusal";
+  kind: MessageKind;
   content: string;
   provenance: SourceRevisionPair[];
   citations: StoredCitation[];
+  /** FR-GC-08 (specs/010): ordered execution attempts; null for legacy, ordinary and clarification messages. */
+  code_execution_trace: CodeExecutionTrace | null;
   created_at: string;
 }
+
+/** `clarification` (FR-GC-08 FR-014): a focused follow-up question; never a factual or computed answer. */
+export type MessageKind = "question" | "answer" | "refusal" | "clarification";
 
 export interface HydratedCitation {
   badge_number: number;
@@ -58,11 +64,13 @@ export interface VisibleMessage {
   id: string;
   turn_id: string;
   role: "user" | "assistant";
-  kind: "question" | "answer" | "refusal";
+  kind: MessageKind;
   /** null when the generated content depends on a deleted/revoked source (hidden, not cached). */
   content: string | null;
   unavailable_reason: "source_deleted" | null;
   citations: HydratedCitation[];
+  /** Hidden (null) together with the content: code/stdout/charts may contain source data (FR-011). */
+  code_execution_trace: CodeExecutionTrace | null;
   created_at: string;
 }
 
@@ -78,10 +86,10 @@ interface MessageRow extends Omit<StoredMessage, "created_at" | "seq"> {
   created_at: Date;
 }
 
-const MESSAGE_COLUMNS = "id, seq, turn_id, request_id, role, kind, content, provenance, citations, created_at";
+const MESSAGE_COLUMNS = "id, seq, turn_id, request_id, role, kind, content, provenance, citations, code_execution_trace, created_at";
 
 function toStored(row: MessageRow): StoredMessage {
-  return { ...row, seq: Number(row.seq), created_at: toIso(row.created_at) };
+  return { ...row, seq: Number(row.seq), code_execution_trace: row.code_execution_trace ?? null, created_at: toIso(row.created_at) };
 }
 
 export async function getOrCreateThread(db: Queryable, ownerId: string, notebookId: string): Promise<ChatThreadRecord> {
@@ -116,7 +124,16 @@ export interface PublishTurnInput {
   snapshot: ScopeSnapshot;
   requestId: string;
   question: string;
-  answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
+  answer: {
+    /** Pre-assigned assistant message ID (chart URLs embed it); generated when absent. */
+    id?: string;
+    kind: "answer" | "refusal" | "clarification";
+    content: string;
+    citations: StoredCitation[];
+    trace?: CodeExecutionTrace | null;
+  };
+  /** Present for computed turns: the execution lease is re-verified and its outputs commit atomically (FR-GC-08). */
+  execution?: { executionId: string; leaseToken: string; publishArtifactIds: string[] };
 }
 
 /**
@@ -136,16 +153,17 @@ export async function publishTurn(pool: Pool, input: PublishTurnInput): Promise<
     }
     const existing = await findTurnByRequest(tx, input.thread.id, input.requestId);
     if (existing.length > 0) return existing;
+    if (input.execution) await lockExecutionForPublication(tx, input.execution.executionId, input.execution.leaseToken);
 
     const turnId = randomUUID();
     const provenance = JSON.stringify(input.snapshot.sources);
-    const insert = async (role: "user" | "assistant", kind: string, content: string, citations: StoredCitation[]) => {
+    const insert = async (role: "user" | "assistant", kind: string, content: string, citations: StoredCitation[], id: string = randomUUID(), trace: CodeExecutionTrace | null = null) => {
       const row = await tx.query<MessageRow>(
-        `INSERT INTO chat_messages (id, thread_id, notebook_id, user_id, turn_id, request_id, role, kind, content, provenance, citations, generation_epoch)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        `INSERT INTO chat_messages (id, thread_id, notebook_id, user_id, turn_id, request_id, role, kind, content, provenance, citations, generation_epoch, code_execution_trace)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          RETURNING ${MESSAGE_COLUMNS}`,
         [
-          randomUUID(),
+          id,
           input.thread.id,
           input.thread.notebook_id,
           input.thread.user_id,
@@ -157,12 +175,21 @@ export async function publishTurn(pool: Pool, input: PublishTurnInput): Promise<
           provenance,
           JSON.stringify(citations),
           input.thread.generation_epoch,
+          trace ? JSON.stringify(trace) : null,
         ]
       );
       return toStored(row.rows[0]!);
     };
     const question = await insert("user", "question", input.question, []);
-    const answer = await insert("assistant", input.answer.kind, input.answer.content, input.answer.citations);
+    const answer = await insert("assistant", input.answer.kind, input.answer.content, input.answer.citations, input.answer.id, input.answer.trace ?? null);
+    if (input.execution && input.answer.trace) {
+      await completeExecutionPublication(tx, {
+        executionId: input.execution.executionId,
+        messageId: answer.id,
+        trace: input.answer.trace,
+        publishArtifactIds: input.execution.publishArtifactIds,
+      });
+    }
     await tx.query("UPDATE chat_threads SET updated_at = now() WHERE id = $1", [input.thread.id]);
     return [question, answer];
   });
@@ -176,6 +203,8 @@ export async function clearThread(pool: Pool, ownerId: string, notebookId: strin
       "UPDATE chat_threads SET generation_epoch = generation_epoch + 1, updated_at = now() WHERE id = $1 RETURNING generation_epoch",
       [thread.id]
     );
+    // FR-GC-08 (specs/010): revoke chart delivery and drop execution traces before the messages go.
+    await invalidateThreadCodeExecutions(tx, { threadId: thread.id, notebookId, userId: ownerId });
     await tx.query("DELETE FROM chat_messages WHERE thread_id = $1", [thread.id]);
     // CC-04 / specs/013: feedback and follow-ups belong to the cleared messages; one thread per (owner, notebook).
     await tx.query("DELETE FROM message_feedback WHERE notebook_id = $1 AND user_id = $2", [notebookId, ownerId]);
@@ -278,6 +307,7 @@ export async function projectVisibleMessages(
       content: dependsOnDeleted ? null : m.content,
       unavailable_reason: dependsOnDeleted ? "source_deleted" : null,
       citations,
+      code_execution_trace: dependsOnDeleted ? null : m.code_execution_trace,
       created_at: m.created_at,
     };
   });

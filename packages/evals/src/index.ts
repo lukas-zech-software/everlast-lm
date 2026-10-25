@@ -7,3 +7,4 @@ export * from "./report.ts";
 export * from "./security-preflight.ts";
 export * from "./deterministic-models.ts";
 export * from "./response-length.ts";
+export * from "./code-execution-performance.ts";

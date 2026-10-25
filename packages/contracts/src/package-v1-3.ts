@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ChunkLocatorSchema } from "./document-chunk.ts";
+import { CodeExecutionTraceSchema } from "./package-v3-2.ts";
 
 /**
  * Package 1.3 DTOs and Schemas (Grounded Chat & Citation Engine)
@@ -62,6 +63,8 @@ export const ChatMessageSchema = z
     content: z.string(),
     active_source_revisions_snapshot: z.array(ActiveSourceRevisionRecordSchema),
     citations: z.array(CitationSchema).optional().default([]),
+    /** FR-GC-08 (specs/010): ordered execution attempts; absent/null for legacy and clarification-only messages. */
+    code_execution_trace: CodeExecutionTraceSchema.nullable().optional(),
     created_at: z.string().datetime("created_at must be a valid ISO datetime"),
   })
   .strict();

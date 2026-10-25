@@ -125,3 +125,16 @@ A rejected request before execution allocation has no trace. An allocated execut
 ## Requirements follow the managed sandbox (2026-10-22; FR-GC-08, D20)
 
 The project owner decided that, for now, the managed sandbox defines the FR-GC-08 limits. Use what Google documents for Agent Platform Code Execution: default 2 vCPU / 1.5 GB RAM, no network, a provider-limited file system and at most 100 MB of input/output files per request or response. Scoped inputs are file copies in a fresh sandbox, so stored sources cannot be changed. The 64 MB `/tmp` cap is dropped. The provider documents no execution timeout, so the application enforces 15.0 s per attempt by deleting the sandbox and discarding late results. Network tests check that calls from executed code fail; packet capture is not required. Scope, citation, retry, cleanup and residency rules are unchanged.
+
+## Implementation flow-back (2026-10-24; `[010-code-execution-sandbox] T048`; FR-GC-08, FR-GC-02/06, FR-SI-05, C-01/C-02, NFR-SEC-01/02, NFR-EVAL-01..04)
+
+- **Schema & lifecycle (`0010_code_execution.sql`)**: Persists `code_execution_trace` on `chat_messages` (with `'clarification'` message kind), single-flight per-notebook admission in `code_executions`, FK-free orphan cleanup ledger in `code_execution_sandboxes`, and private candidate/published/invalidated chart metadata in `chart_artifacts`.
+- **Exact numeric output & marker sanitization**: Published values preserve the sandbox's exact `repr()` string with `(Computed)` and validated `[n]` badges; `neutralizeMarkers()` prevents model or sandbox text from forging `[[n]]` badges or `(Computed)` pills.
+- **Synchronous revocation & cancellation**: `deleteSource` synchronously marks dependent `chart_artifacts` as `invalidated` (`410 Gone`), `clearThread` and `deleteNotebook` fence and invalidate active/published artifacts and abort in-flight executions (`ChatService.abortNotebook`), and saved-response note conversion strips badges and excludes `code_execution_trace` internals.
+- **Gate v3.0 #2 status**: Deterministic contract, unit, DB, API, Playwright E2E, OpenTofu (`enable_v3_code_execution`), and evaluation checks pass (`citation_precision = 1.0`, `scoping_leakage_count = 0`); live Agent Platform sandbox execution (`CODE_EXECUTION_IT=1`), live cold/warm latency cohorts (`pnpm eval:v3-code-execution`), and the 50-case Vertex AI judged run (`pnpm eval:judged`) report `UNAVAILABLE` (exit `2`) until executed with an approved cloud runtime.
+
+
+### PR #159 review refinements (2026-10-24; FR-GC-08, NFR-SEC-02, D20)
+
+- SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
+- Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.

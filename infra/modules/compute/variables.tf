@@ -207,3 +207,9 @@ variable "drive_webhook_address" {
   type        = string
   default     = ""
 }
+
+variable "code_execution_env_vars" {
+  description = "FR-GC-08 managed sandbox identifiers for the API (module code_execution; empty while disabled, specs/010)."
+  type        = map(string)
+  default     = {}
+}

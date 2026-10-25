@@ -86,6 +86,18 @@ module "async_tasks" {
   depends_on = [module.project_services]
 }
 
+# Package 3.2 (FR-GC-08, specs/010): managed Code Execution sandbox wiring, off until the owner approves it.
+module "code_execution" {
+  source = "../../modules/code_execution"
+
+  project_id                = var.project_id
+  environment               = var.environment
+  region                    = var.region
+  api_service_account_email = module.iam_identity.api_service_account_email
+  enable                    = var.enable_v3_code_execution
+  reasoning_engine_name     = var.code_execution_reasoning_engine
+}
+
 module "compute" {
   source = "../../modules/compute"
 
@@ -125,4 +137,5 @@ module "compute" {
   google_picker_api_key               = var.google_picker_api_key
   google_picker_app_id                = var.google_picker_app_id
   drive_webhook_address               = var.drive_webhook_address
+  code_execution_env_vars             = module.code_execution.api_env_vars
 }

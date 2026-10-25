@@ -90,3 +90,18 @@ The managed runtime is accepted under D19, not empirically requalified here. Cur
 ## Next actions and handoff
 
 Use `[010-code-execution-sandbox] T001` onward after normal review/prerequisite checks. MVP is foundation plus US1 resolved calculation/clarification/inspection; US2 completes retry/isolation acceptance and US3 completes protected publication/history. Record expected Red→Green→Refactor and actual evidence as tasks execute. Flow any discovery upstream and rerun analyze before completion. Next package branches from this completed commit and reserves 0011+; never collide with predecessor 0009 or own 0010 migration. No further remediation request is needed because the user already authorized resolving findings and final analysis is clean.
+
+## Post-implementation re-analysis and convergence (2026-10-24; `[010-code-execution-sandbox] T048`)
+
+Re-executed read-only cross-artifact analysis (`check-prerequisites.sh --json --require-spec --require-tasks --include-tasks`) after completing `[010-code-execution-sandbox] T001`–`T048` and flowing implementation refinements back into `spec.md`, `plan.md`, `data-model.md`, `contracts/interfaces.md`, `quickstart.md`, `implementation-evidence.md`, `evidence/gate-v3-code-execution.md`, `spec/requirements/v3/package_3_2_code_execution_sandbox.md`, and `docs/solution-architecture.md`.
+
+| ID | Category | Severity | Location(s) | Summary | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `I3` | Inconsistency (resolved) | LOW | `plan.md` §Task-generation integration refinements vs `packages/testkit/src/code-execution-fixtures.ts` | Initial plan draft named `packages/evals/src/fixtures/code-execution.ts`, whereas T002 implemented the shared synthetic fixtures in `packages/testkit/src/code-execution-fixtures.ts` (`@everlast/testkit/code-execution-fixtures`). | **RESOLVED** — recorded in `plan.md` §Implementation flow-back; `tasks.md` T002 and all test imports match `packages/testkit/src/code-execution-fixtures.ts`. |
+| `E1` | Environment Gate (non-blocking for local implementation) | INFO | `evidence/gate-v3-code-execution.md`, `quickstart.md`, `implementation-evidence.md` | Live Agent Platform sandbox execution (`CODE_EXECUTION_IT=1`), live cold/warm latency cohorts (`pnpm eval:v3-code-execution`), and the once-per-release Vertex AI 50-case judged evaluation (`pnpm eval:judged`) require an owner-approved cloud runtime / Vertex release environment and report `UNAVAILABLE` (exit `2`) locally. | **RECORDED** — all deterministic contract, unit, DB, API, browser E2E, OpenTofu (`enable_v3_code_execution`), and evaluation suites pass; `UNAVAILABLE` is reported truthfully without fabricating cloud passes. |
+| `R1` | Reviewer Checklist | INFO | `checklists/sandbox.md` | Custom reviewer checklist remains `0/37` checked as directed by the orchestrating handoff (`checklists/requirements.md` is `16/16` checked). | **RECORDED** — preserved unchanged per `implementation-evidence.md`. |
+
+- **Requirements Coverage**: `21/21` (`100%` — `FR-001`..`FR-014`, `SC-001`..`SC-007`).
+- **Tasks Completed**: `48/48` (`[x] T001`..`T048` in `tasks.md`).
+- **Critical / High / Medium / Ambiguity / Duplication Findings**: `0`.
+- **Convergence Status**: **CONVERGED** for Package 3.2 local implementation, deterministic verification, and documentation flow-back. Next package (`specs/011-studio-structure-extraction`) branches cleanly from this completed branch and starts migrations at `0011`.

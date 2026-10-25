@@ -13,6 +13,7 @@ import type { LocalIdentityIssuer, TokenVerifier } from "./auth/identity.ts";
 import { registerNotebookRoutes } from "./routes/notebooks.ts";
 import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
+import { registerChatChartRoutes } from "./routes/chat-charts.ts";
 import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
 import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
 import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
@@ -106,6 +107,7 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
   registerConnectionRoutes(router, deps);
   registerMediaRoutes(router, deps);
   registerChatRoutes(router, deps);
+  registerChatChartRoutes(router, deps);
   for (const register of deps.extraRoutes ?? []) register(router, deps);
 
   async function authenticate(req: IncomingMessage): Promise<AuthUser> {
