@@ -22,6 +22,16 @@ const UNIT = [
   "apps/api/test/code-execution-model.test.ts",
   "apps/api/test/chat-sanitize.test.ts",
   "packages/evals/test/code-execution-performance.test.ts",
+  // Package 3.3 (specs/011 T003): pure mindmap/table pipeline, viewer layout, eval and performance aggregation tests.
+  "apps/worker/test/mindmap.test.ts",
+  "apps/worker/test/studio-evidence.test.ts",
+  "apps/worker/test/data-table.test.ts",
+  "apps/web/test/studio-mindmap.test.ts",
+  "apps/web/test/mindmap-viewer.test.ts",
+  "apps/web/test/mindmap-performance.test.ts",
+  "apps/web/test/studio-table.test.ts",
+  "packages/evals/test/studio-structure.eval.test.ts",
+  "packages/evals/test/studio-structure-performance.test.ts",
 ];
 
 export default defineConfig({

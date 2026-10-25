@@ -8,3 +8,5 @@ export * from "./security-preflight.ts";
 export * from "./deterministic-models.ts";
 export * from "./response-length.ts";
 export * from "./code-execution-performance.ts";
+export * from "./studio-structure-performance.ts";
+export * from "./studio-structure-eval.ts";

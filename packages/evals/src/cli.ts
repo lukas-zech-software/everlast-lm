@@ -13,6 +13,7 @@ import { runSecurityPreflight } from "./security-preflight.ts";
 import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence } from "./report.ts";
 import { renderStudioGate, runStudioReportsGate, runStudioReportsReleaseGate } from "./studio-gate.ts";
 import { renderSourceGuideGate, runSourceGuideReleaseGate } from "./source-guide-gate.ts";
+import { runStudioStructureDeterministicEval } from "./studio-structure-eval.ts";
 
 /**
  * `pnpm eval:deterministic` — every PR: Precision_ID and leakage with test doubles (no cloud), incl. an
@@ -179,6 +180,15 @@ try {
     if (!studio.result.passed) exitCode = 1;
   } else {
     log(`[UNAVAILABLE] Gate v2.0 #3 Studio reports (Vertex Flash): ${studio.reason}`);
+  }
+
+  // Gate v3.0 #3 (FR-ST-08/09/18, NFR-EVAL-02/04): Studio Mindmap & Data Table deterministic grounding & scoping gate.
+  if (mode === "deterministic") {
+    const studioV3 = await runStudioStructureDeterministicEval();
+    log(
+      `Gate v3.0 #3 Studio structure (Mindmap & Data Table): ${studioV3.passed ? "PASS" : "FAIL"} (precision=${studioV3.citation_precision.toFixed(3)}, leakage=${studioV3.leakage_count}, late_fact=${studioV3.late_fact_retained})`
+    );
+    if (!studioV3.passed) exitCode = 1;
   }
 
   // Gate v2.0 #1 (FR-SI-02): Source Guide < 10 s P95 from Ready, release-only on Vertex AI Flash-Lite.

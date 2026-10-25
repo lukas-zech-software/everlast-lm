@@ -55,6 +55,8 @@ export interface WorkspaceFeatures {
     openCitation(sourceId: string, chunkId: string): void;
     /** The Package 2.3 notes pinboard receives the saved note (FR-NM-02); without it the note is rendered inline. */
     onSavedNote?(note: SavedResponseNote): void;
+    /** Package 3.3 (FR-ST-08): triggers mindmap generation from the Notebook Overview button. */
+    onGenerateMindmap?(): void;
   }): void;
 }
 
@@ -64,6 +66,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
   let studio: HTMLElement | null = null;
   let openCitation: (sourceId: string, chunkId: string) => void = () => undefined;
   let savedNoteHandler: ((note: SavedResponseNote) => void) | null = null;
+  let generateMindmapHandler: (() => void) | null = null;
   let revisions: SourceRevision[] = [];
   // Current browser-local selection (C-02, FR-SI-02): topic chips send only for selected sources.
   let selectedSourceIds = new Set<string>();
@@ -174,6 +177,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
           overview: overview.overview_md,
           starterPrompts: overview.starter_prompts,
           onPrompt: (prompt) => controls.submitStarterPrompt(prompt),
+          onGenerateMindmap: generateMindmapHandler ?? undefined,
         });
         chatIntro.hidden = false;
       } catch {
@@ -281,6 +285,7 @@ export function createWorkspaceFeatures(options: WorkspaceFeaturesOptions): Work
       studio = input.studio;
       openCitation = input.openCitation;
       savedNoteHandler = input.onSavedNote ?? null;
+      generateMindmapHandler = input.onGenerateMindmap ?? null;
     },
   };
 }

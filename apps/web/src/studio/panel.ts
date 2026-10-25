@@ -1,9 +1,13 @@
-import type { ReportCitation } from "@everlast/contracts";
+import type { DataTableSchemaId, ReportCitation, StudioDataTablePayload, StudioMindmapPayload } from "@everlast/contracts";
+import type { ChatMessage } from "../lib/types.ts";
 import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { createStudioApi, StudioApiError, type ArtifactDto } from "./api.ts";
 import { StudioArtifactListController, type ArtifactView, type StudioRow } from "./artifact-list.ts";
 import { renderMarkdownNodes } from "./markdown.ts";
+import { downloadMindmapScene, revokePendingExportUrls, triggerBlobDownload } from "./mindmap-export.ts";
+import { createMindmapViewer } from "./mindmap-viewer.ts";
 import { CUSTOM_PROMPT_MAX, promptCodePoints, REPORT_TEMPLATES, ReportsModalController } from "./reports-modal.ts";
+import { createDataTableViewer } from "./table-viewer.ts";
 
 /**
  * Studio in the Right Panel (FR-ST-10, FR-ST-11; FR-001, FR-006, FR-008..FR-012, FR-018). A Reports tile opens the
@@ -24,6 +28,10 @@ export interface StudioPanelOptions {
   openCitation(sourceId: string, chunkId: string): void;
   /** Convert to source created a source: add it to this browser's selection and refresh the Left Panel. */
   onSourceCreated(sourceId: string): Promise<void> | void;
+  /** Appends persisted chat messages from a mindmap node drilldown turn (FR-ST-09). */
+  onAssistantMessages?(messages: ChatMessage[]): void;
+  /** Fallback chat submission when drilldown delegates to chat panel. */
+  onAskChat?(prompt: string): void;
   confirm?: (options: { title: string; body: string; confirm: string; danger?: boolean }) => Promise<boolean>;
   notify?: (message: string, kind?: "error" | "info") => void;
   clipboard?: { writeText(text: string): Promise<void> };
@@ -40,6 +48,8 @@ export interface StudioPanel {
   refresh(): Promise<void>;
   /** Re-evaluates the actions that depend on the Left Panel selection. */
   updateSourceSelection(): void;
+  /** Starts a mindmap generation job using the current explicit source selection (FR-ST-08). */
+  generateMindmap(): Promise<void>;
   destroy(): void;
 }
 
@@ -52,6 +62,16 @@ const PROMPT_PLACEHOLDER =
 
 const messageOf = (error: unknown): string =>
   error instanceof StudioApiError || error instanceof Error ? error.message : "The request failed. Please try again.";
+
+/** Data Table schemas offered in the modal; exactly the contract's DataTableSchemaIdSchema values (FR-ST-18). */
+export const DATA_TABLE_SCHEMA_OPTIONS: readonly { value: string; text: string }[] = [
+  { value: "auto", text: "Auto-detect attributes" },
+  { value: "vendor_comparison", text: "Vendor Comparison" },
+  { value: "feature_matrix", text: "Feature Matrix" },
+  { value: "timeline_events", text: "Timeline Events" },
+  { value: "findings_methodology", text: "Findings & Methodology" },
+  { value: "key_metrics", text: "Key Metrics" },
+];
 
 export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   const api = createStudioApi({ notebookId: options.notebookId, fetch: options.fetcher });
@@ -75,6 +95,35 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     h("span", { class: "studio-tile-label", text: "Reports" })
   );
   tile.addEventListener("click", () => openModal());
+  const mindmapTile = h(
+    "button",
+    {
+      class: "studio-tile",
+      type: "button",
+      "data-testid": "studio-mindmap-tile",
+      disabled: !hasScope(),
+      title: hasScope() ? "Generate a grounded Mindmap from selected sources" : "Select at least one source to generate a mindmap.",
+    },
+    h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "🧠" }),
+    h("span", { class: "studio-tile-label", text: "Mindmap" })
+  ) as HTMLButtonElement;
+  mindmapTile.addEventListener("click", () => void generateMindmap());
+
+  const dataTableTile = h(
+    "button",
+    {
+      class: "studio-tile",
+      type: "button",
+      "data-testid": "studio-data-table-tile",
+      "aria-haspopup": "dialog",
+      disabled: !hasScope(),
+      title: hasScope() ? "Generate a grounded Data Table from selected sources" : "Select at least one source to generate a data table.",
+    },
+    h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📊" }),
+    h("span", { class: "studio-tile-label", text: "Data Table" })
+  ) as HTMLButtonElement;
+  dataTableTile.addEventListener("click", () => openDataTableModal());
+
   const status = h("p", { class: "studio-status muted", "data-testid": "studio-status", role: "status", "aria-live": "polite" });
   const listEl = h("ul", { class: "studio-artifacts", "data-testid": "studio-artifacts" });
   const empty = h("p", { class: "studio-empty muted", "data-testid": "studio-empty", text: "Generated reports will appear here." });
@@ -83,26 +132,58 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     "section",
     { class: "studio-panel", "data-testid": "studio-panel", "aria-label": "Studio" },
     h("div", { class: "studio-header" }, h("h2", { text: "Studio" })),
-    h("div", { class: "studio-tiles" }, tile),
+    h("div", { class: "studio-tiles" }, tile, mindmapTile, dataTableTile),
     status,
     empty,
     listEl,
     viewerHost
   );
 
+  async function generateMindmap(): Promise<void> {
+    const ids = options.selectedSourceIds();
+    if (ids.length === 0) return;
+    try {
+      const artifact = await api.create({
+        plugin_type: "mindmap",
+        subtype: "default",
+        active_source_ids: ids,
+      });
+      jobCreated(artifact);
+    } catch (error) {
+      status.textContent = messageOf(error);
+    }
+  }
+
   // ---- Artifact list (FR-006) ----------------------------------------------------------------------------------
   function renderRow(row: StudioRow): HTMLElement {
+    const iconText = row.plugin_type === "mindmap" ? "🧠" : row.plugin_type === "data_table" ? "📊" : "📄";
     const label = h("span", { class: "studio-artifact-label", "data-testid": "studio-artifact-label", text: row.generating ? `Generating ${row.title}...` : row.title });
-    const item = h("li", { class: "studio-artifact-row", "data-testid": "studio-artifact-row", "data-status": row.status, "data-artifact-id": row.id });
+    const item = h("li", {
+      class: "studio-artifact-row",
+      "data-testid": "studio-artifact-row",
+      "data-status": row.status,
+      "data-plugin-type": row.plugin_type,
+      "data-artifact-id": row.id,
+    });
     if (row.status === "Completed") {
       const open = h("button", { class: "studio-artifact-open", type: "button", "data-testid": "studio-artifact-open", "aria-label": `Open ${row.title}` }, label);
-      open.addEventListener("click", () => void openViewer(row.id, row.title));
-      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: "📄" }), open);
+      open.addEventListener("click", () => void openViewer(row.id, row.title, row.plugin_type));
+      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: iconText }), open);
     } else {
       item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: row.generating ? "" : "⚠" }), label);
     }
     if (row.generating) {
       item.append(h("span", { class: "studio-generating", "data-testid": "studio-generating", role: "progressbar", "aria-label": `Generating ${row.title}` }));
+      if (row.cancellable) {
+        const cancelBtn = h("button", {
+          class: "btn btn-sm",
+          type: "button",
+          "data-testid": "studio-cancel",
+          text: "Cancel",
+        });
+        cancelBtn.addEventListener("click", () => void cancelRow(row.id));
+        item.append(cancelBtn);
+      }
     }
     if (row.failure !== null) {
       const retry = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-retry", text: "Retry" }) as HTMLButtonElement;
@@ -161,9 +242,20 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     }
   }
 
+  async function cancelRow(id: string): Promise<void> {
+    try {
+      const cancelled = await list.cancel(id);
+      list.upsert(cancelled);
+      renderList();
+    } catch (error) {
+      status.textContent = messageOf(error);
+    }
+  }
+
   // ---- Viewer (FR-008) -----------------------------------------------------------------------------------------
   function closeViewer(): void {
     viewing = null;
+    revokePendingExportUrls();
     clear(viewerHost);
     renderList();
   }
@@ -188,22 +280,68 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   }
 
   function sectionKeys(view: ArtifactView): (heading: string) => string | undefined {
-    const unused = [...(view.artifact.payload_json?.sections ?? [])];
+    const payload = view.artifact.payload_json;
+    const sections = payload && "sections" in payload ? payload.sections : [];
+    const unused = [...sections];
     return (heading) => {
       const index = unused.findIndex((s) => s.heading === heading.trim());
       return index >= 0 ? unused.splice(index, 1)[0]!.key : undefined;
     };
   }
 
-  async function openViewer(id: string, title: string): Promise<void> {
+  function renderMindmapInitialCanvas(article: HTMLElement, id: string, title: string, payload: StudioMindmapPayload): void {
+    clear(viewerHost);
+    const mv = createMindmapViewer({
+      artifactId: id,
+      title,
+      payload,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onDrilldown: async (nodeId) => {
+        const activeIds = options.selectedSourceIds();
+        if (activeIds.length === 0) {
+          status.textContent = "Select supporting sources in the Left Panel before asking about this node.";
+          return;
+        }
+        try {
+          if (!api.drilldownMindmap) throw new Error("Mindmap drilldown is not available.");
+          const res = await api.drilldownMindmap(id, { node_id: nodeId, active_source_ids: activeIds });
+          if (options.onAssistantMessages && Array.isArray(res.messages) && res.messages.length > 0) {
+            options.onAssistantMessages(res.messages as ChatMessage[]);
+          } else if (options.onAskChat) {
+            options.onAskChat(res.prompt);
+          }
+          status.textContent = `Asked in chat: ${res.node_label}`;
+        } catch (err) {
+          status.textContent = messageOf(err);
+        }
+      },
+      onExport: async (format, expandedNodeIds) => {
+        try {
+          if (!api.exportMindmap) throw new Error("Mindmap export is not available.");
+          const scene = await api.exportMindmap(id, { format, expanded_node_ids: expandedNodeIds });
+          if (viewing !== id) return;
+          await downloadMindmapScene(scene);
+          status.textContent = `Exported ${format.toUpperCase()}`;
+        } catch (err) {
+          status.textContent = messageOf(err);
+        }
+      },
+    });
+    viewerHost.append(mv.element);
+  }
+
+  async function openViewer(id: string, title: string, pluginType: ArtifactDto["plugin_type"] = "report"): Promise<void> {
     viewing = id;
     renderList();
     clear(viewerHost);
-    const close = h("button", { class: "icon-btn", type: "button", "data-testid": "studio-viewer-close", "aria-label": "Close report", text: "←" });
+    const close = h("button", { class: "icon-btn", type: "button", "data-testid": "studio-viewer-close", "aria-label": "Close viewer", text: "←" });
     close.addEventListener("click", closeViewer);
+    const viewerTestId = pluginType === "mindmap" ? "studio-mindmap-viewer" : pluginType === "data_table" ? "studio-table-viewer" : "studio-report-viewer";
     const article = h(
       "article",
-      { class: "studio-report-viewer", "data-testid": "studio-report-viewer", "data-artifact-id": id },
+      { class: viewerTestId, "data-testid": viewerTestId, "data-artifact-id": id },
       h("div", { class: "studio-viewer-head" }, close, h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: title }))
     );
     viewerHost.append(article);
@@ -211,20 +349,60 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     try {
       view = await list.view(id);
     } catch (error) {
-      article.append(h("p", { class: "studio-report-unavailable muted", "data-testid": "studio-report-unavailable", text: messageOf(error) }));
-      return;
-    }
-    if (viewing !== id) return;
-    const payload = view.artifact.payload_json;
-    if (!payload) {
+      const msg = messageOf(error);
       article.append(
         h("p", {
           class: "studio-report-unavailable muted",
-          "data-testid": "studio-report-unavailable",
-          text: view.unavailable?.message ?? "This report is not available.",
-        }),
-        h("div", { class: "studio-viewer-actions" }, deleteButton(id, title))
+          "data-testid": pluginType === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
+          text: msg,
+        })
       );
+      return;
+    }
+    if (viewing !== id) return;
+    const actualPlugin = view.artifact.plugin_type ?? pluginType;
+    const payload = view.artifact.payload_json;
+    if (!payload) {
+      const unavailMsg = view.unavailable?.message ?? "This artifact is not available.";
+      const unavailEl = h("p", {
+        class: "studio-report-unavailable muted",
+        "data-testid": actualPlugin === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
+        text: unavailMsg,
+      });
+      // For backward compatibility if tests query studio-report-unavailable or studio-artifact-unavailable
+      article.append(unavailEl, h("div", { class: "studio-viewer-actions" }, deleteButton(id, title)));
+      return;
+    }
+    if (actualPlugin === "mindmap" || ("root_node" in (payload as object))) {
+      renderMindmapInitialCanvas(article, id, title, payload as StudioMindmapPayload);
+      return;
+    }
+    if (actualPlugin === "data_table" || ("rows" in (payload as object))) {
+      clear(viewerHost);
+      const tv = createDataTableViewer({
+        artifactId: id,
+        title,
+        payload: payload as StudioDataTablePayload,
+        onClose: closeViewer,
+        actions: [deleteButton(id, title)],
+        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+        onExport: async (format, orderedRowIds) => {
+          try {
+            if (!api.exportDataTable) throw new Error("Data table export is not available.");
+            const exported = await api.exportDataTable(id, { format, ordered_row_ids: orderedRowIds });
+            if (viewing !== id) return;
+            const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
+            triggerBlobDownload(blob, exported.filename);
+            status.textContent = `Exported ${format.toUpperCase()}`;
+          } catch (err) {
+            status.textContent = messageOf(err);
+          }
+        },
+      });
+      viewerHost.append(tv.element);
+      return;
+    }
+    if (!("content_md" in payload)) {
       return;
     }
     const content = h("div", { class: "studio-report-content", "data-testid": "studio-report-content" });
@@ -485,12 +663,102 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     void loadSuggestions();
   }
 
+  let tableModal: { root: HTMLElement; close(): void } | null = null;
+
+  function openDataTableModal(): void {
+    if (tableModal || !hasScope()) return;
+    let open = true;
+    let busy = false;
+
+    const closeBtn = h("button", { class: "icon-btn", type: "button", "data-testid": "data-table-modal-close", "aria-label": "Close", text: "✕" });
+    const schemaSelect = h(
+      "select",
+      { class: "form-select", "data-testid": "data-table-schema-select", "aria-label": "Table schema" },
+      ...DATA_TABLE_SCHEMA_OPTIONS.map((o) => h("option", { value: o.value, text: o.text }))
+    ) as HTMLSelectElement;
+
+    const focusPrompt = h("textarea", {
+      class: "report-prompt",
+      "data-testid": "data-table-focus-prompt",
+      rows: 4,
+      "aria-label": "Focus prompt (optional)",
+      placeholder: "Optional: specify which items or attributes to compare (up to 2,000 characters).",
+    }) as HTMLTextAreaElement;
+
+    const errorEl = h("p", { class: "chat-error", "data-testid": "data-table-modal-error", role: "alert", hidden: true });
+    const generateBtn = h("button", { class: "btn btn-primary", type: "button", "data-testid": "data-table-generate", text: "Generate" }) as HTMLButtonElement;
+
+    function close(): void {
+      if (!open) return;
+      open = false;
+      root.remove();
+      tableModal = null;
+      dataTableTile.focus();
+    }
+
+    closeBtn.addEventListener("click", close);
+    generateBtn.addEventListener("click", async () => {
+      if (busy) return;
+      const ids = options.selectedSourceIds();
+      if (ids.length === 0) {
+        errorEl.hidden = false;
+        errorEl.textContent = "Select at least one source.";
+        return;
+      }
+      const trimmedPrompt = focusPrompt.value.trim();
+      if (Array.from(trimmedPrompt).length > 2000) {
+        errorEl.hidden = false;
+        errorEl.textContent = "Focus prompt must not exceed 2,000 characters.";
+        return;
+      }
+      busy = true;
+      generateBtn.disabled = true;
+      try {
+        const artifact = await api.create({
+          plugin_type: "data_table",
+          subtype: "default",
+          active_source_ids: ids,
+          ...(trimmedPrompt ? { focus_prompt: trimmedPrompt } : {}),
+          schema_id: (schemaSelect.value || "auto") as DataTableSchemaId,
+        });
+        close();
+        jobCreated(artifact);
+      } catch (err) {
+        errorEl.hidden = false;
+        errorEl.textContent = messageOf(err);
+      } finally {
+        busy = false;
+        if (open) generateBtn.disabled = false;
+      }
+    });
+
+    const dialog = h(
+      "div",
+      { class: "modal data-table-modal", "data-testid": "data-table-modal", role: "dialog", "aria-modal": "true", "aria-label": "Create data table" },
+      h("div", { class: "modal-head" }, h("h2", { text: "Create Data Table" }), closeBtn),
+      h("div", { class: "modal-body" }, h("label", { text: "Schema" }), schemaSelect, h("label", { text: "Focus Prompt (Optional)" }), focusPrompt, errorEl),
+      h("div", { class: "modal-foot" }, generateBtn)
+    );
+    const root = h("div", { class: "modal-backdrop" }, dialog);
+    tableModal = { root, close };
+    document.body.append(root);
+  }
+
   return {
     element,
     refresh,
+    generateMindmap,
     updateSourceSelection() {
       modal?.sync();
       modal?.rescope();
+      mindmapTile.disabled = !hasScope();
+      mindmapTile.title = hasScope()
+        ? "Generate a grounded Mindmap from selected sources"
+        : "Select at least one source to generate a mindmap.";
+      dataTableTile.disabled = !hasScope();
+      dataTableTile.title = hasScope()
+        ? "Generate a grounded Data Table from selected sources"
+        : "Select at least one source to generate a data table.";
       for (const button of listEl.querySelectorAll("[data-testid=studio-retry]")) {
         (button as HTMLButtonElement).disabled = !hasScope();
         (button as HTMLButtonElement).title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
@@ -500,6 +768,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       destroyed = true;
       if (listTimer) clearTimeout(listTimer);
       modal?.close();
+      tableModal?.close();
     },
   };
 }

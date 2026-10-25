@@ -6,8 +6,8 @@ import type { Queryable } from "./transaction.ts";
  * so a crash between commit and dispatch is recovered by the next drain. Payloads carry identifiers only.
  */
 
-/** `sync` (specs/009): re-sync operations ride the same outbox; the payload carries the operation ID only. */
-export type JobKind = "ingest" | "cleanup" | "sync";
+/** `sync` (specs/009) and `studio` (specs/011): ride the same outbox; payloads carry identifiers only. */
+export type JobKind = "ingest" | "cleanup" | "sync" | "studio";
 
 export interface JobRecord {
   id: string;

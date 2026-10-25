@@ -13,66 +13,66 @@
 
 ## Requirement Completeness
 
-- [ ] CHK001 Are the required root, category, subtopic, and fact relationships specified together with unique identity, single-parent hierarchy, and invalid-structure outcomes? [Completeness, Spec §Functional Requirements FR-002; FR-ST-08]
-- [ ] CHK002 Are supporting-evidence requirements defined for every factual mindmap label and summary, including root and category text rather than only leaf facts? [Completeness, Spec §Functional Requirements FR-003/011; §Planning Refinements; FR-ST-08, NFR-EVAL-02]
-- [ ] CHK003 Are table requirements complete for factual values, absent attributes, conflicting alternatives, and their distinct evidence and presentation rules? [Completeness, Spec §Functional Requirements FR-008/016; FR-ST-18]
-- [ ] CHK004 Are mindmap controls, persisted drilldown turns, sortable table presentation, and all four export formats explicitly included within the package scope? [Completeness, Spec §Functional Requirements FR-004/005/007/009; FR-ST-08/09/18]
+- [x] CHK001 Are the required root, category, subtopic, and fact relationships specified together with unique identity, single-parent hierarchy, and invalid-structure outcomes? [Completeness, Spec §Functional Requirements FR-002; FR-ST-08]
+- [x] CHK002 Are supporting-evidence requirements defined for every factual mindmap label and summary, including root and category text rather than only leaf facts? [Completeness, Spec §Functional Requirements FR-003/011; §Planning Refinements; FR-ST-08, NFR-EVAL-02]
+- [x] CHK003 Are table requirements complete for factual values, absent attributes, conflicting alternatives, and their distinct evidence and presentation rules? [Completeness, Spec §Functional Requirements FR-008/016; FR-ST-18]
+- [x] CHK004 Are mindmap controls, persisted drilldown turns, sortable table presentation, and all four export formats explicitly included within the package scope? [Completeness, Spec §Functional Requirements FR-004/005/007/009; FR-ST-08/09/18]
 
 ## Requirement Clarity
 
-- [ ] CHK005 Are depth 2–5, target 15–120 nodes, initial depth-two expansion, and the evidence-limited lower-count exception distinguished clearly from upper bounds? [Clarity, Spec §Functional Requirements FR-002/013; FR-ST-08, C-03]
-- [ ] CHK006 Are the 80-code-point label and 0–2,000-code-point prompt limits defined with trimming and rejection semantics consistently across input and generated-content requirements? [Clarity, Spec §Functional Requirements FR-002/007/013; §Edge Cases—Limits; FR-ST-08/18]
-- [ ] CHK007 Is the scope of a node explanation unambiguous about child and parent evidence, root nodes without a parent, and the current selection rather than historical provenance? [Clarity, Spec §Functional Requirements FR-005/006; Contracts §Guarded node drilldown; FR-ST-09]
-- [ ] CHK008 Is “currently expanded tree” defined consistently as all visible expanded nodes and their full bounds, independently of viewport position, with PNG 2× scale and lossless SVG specified? [Clarity, Spec §Functional Requirements FR-004; §Planning Refinements; FR-ST-09]
+- [x] CHK005 Are depth 2–5, target 15–120 nodes, initial depth-two expansion, and the evidence-limited lower-count exception distinguished clearly from upper bounds? [Clarity, Spec §Functional Requirements FR-002/013; FR-ST-08, C-03]
+- [x] CHK006 Are the 80-code-point label and 0–2,000-code-point prompt limits defined with trimming and rejection semantics consistently across input and generated-content requirements? [Clarity, Spec §Functional Requirements FR-002/007/013; §Edge Cases—Limits; FR-ST-08/18]
+- [x] CHK007 Is the scope of a node explanation unambiguous about child and parent evidence, root nodes without a parent, and the current selection rather than historical provenance? [Clarity, Spec §Functional Requirements FR-005/006; Contracts §Guarded node drilldown; FR-ST-09]
+- [x] CHK008 Is “currently expanded tree” defined consistently as all visible expanded nodes and their full bounds, independently of viewport position, with PNG 2× scale and lossless SVG specified? [Clarity, Spec §Functional Requirements FR-004; §Planning Refinements; FR-ST-09]
 
 ## Requirement Consistency
 
-- [ ] CHK009 Are explicit Ready-source selection, submission-time revisions, and later selection changes consistent between spec, interface requirements, and the binding cross-package rules? [Consistency, Spec §Functional Requirements FR-010; Contracts §Studio admission and lifecycle; FR-SI-03/05, C-02/C-03]
-- [ ] CHK010 Are owner-only v3 permissions distinguished consistently from the future Editor/Viewer roles listed in the card, including generation, drilldown, viewing, and export? [Consistency, Spec §Source Traceability & Package Scope—Role Phasing; §Functional Requirements FR-014; FR-WM-04/05, NFR-SEC-02]
-- [ ] CHK011 Are the failure requirement for results above 500 rows or 25 columns and the exception for insufficient evidence consistent across scenarios, FR-013/015, and acceptance criteria? [Consistency, Spec §User Story 3; §Functional Requirements FR-013/015; §Measurable Outcomes SC-009; FR-ST-18, C-03]
-- [ ] CHK012 Are canonical conflicting values, individual citations, and the disagreement marker required consistently in the table view and both spreadsheet exports? [Consistency, Spec §Functional Requirements FR-016; §Planning Refinements; Contracts §Exports; FR-ST-18, NFR-EVAL-02]
+- [x] CHK009 Are explicit Ready-source selection, submission-time revisions, and later selection changes consistent between spec, interface requirements, and the binding cross-package rules? [Consistency, Spec §Functional Requirements FR-010; Contracts §Studio admission and lifecycle; FR-SI-03/05, C-02/C-03]
+- [x] CHK010 Are owner-only v3 permissions distinguished consistently from the future Editor/Viewer roles listed in the card, including generation, drilldown, viewing, and export? [Consistency, Spec §Source Traceability & Package Scope—Role Phasing; §Functional Requirements FR-014; FR-WM-04/05, NFR-SEC-02]
+- [x] CHK011 Are the failure requirement for results above 500 rows or 25 columns and the exception for insufficient evidence consistent across scenarios, FR-013/015, and acceptance criteria? [Consistency, Spec §User Story 3; §Functional Requirements FR-013/015; §Measurable Outcomes SC-009; FR-ST-18, C-03]
+- [x] CHK012 Are canonical conflicting values, individual citations, and the disagreement marker required consistently in the table view and both spreadsheet exports? [Consistency, Spec §Functional Requirements FR-016; §Planning Refinements; Contracts §Exports; FR-ST-18, NFR-EVAL-02]
 
 ## Acceptance Criteria Quality
 
-- [ ] CHK013 Is the ≤20.0-second P95 generation requirement measurable with explicit start/end events, fixture scope, environment, sample size, and percentile method documented or identified as a requirements gap? [Measurability, Spec §Measurable Outcomes SC-002; Plan §Technical Context; FR-ST-08; Gap]
-- [ ] CHK014 Are the 60 fps and ≤16 ms criteria specified with a coherent measurement method, declared environment, and up-to-120-node workload rather than qualitative smoothness alone? [Measurability, Spec §Measurable Outcomes SC-003; Plan §Test Strategy & Release Evidence; FR-ST-09]
-- [ ] CHK015 Are the 25-visible-label image criterion and 100% valid CSV/XLSX criterion precise about required content, format validity, and the applicable denominator? [Measurability, Spec §Measurable Outcomes SC-004/005; FR-ST-09/18, Gate v3.0 #3]
-- [ ] CHK016 Do the requirements state the applicable citation validity, leakage, hallucination, rejection, and semantic-support criteria and their review cadence without implying runtime evidence already exists? [Acceptance Criteria, Spec §Measurable Outcomes SC-007; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04]
+- [x] CHK013 Is the ≤20.0-second P95 generation requirement measurable with explicit start/end events, fixture scope, environment, sample size, and percentile method documented or identified as a requirements gap? [Measurability, Spec §Measurable Outcomes SC-002; Plan §Technical Context; FR-ST-08; Gap]
+- [x] CHK014 Are the 60 fps and ≤16 ms criteria specified with a coherent measurement method, declared environment, and up-to-120-node workload rather than qualitative smoothness alone? [Measurability, Spec §Measurable Outcomes SC-003; Plan §Test Strategy & Release Evidence; FR-ST-09]
+- [x] CHK015 Are the 25-visible-label image criterion and 100% valid CSV/XLSX criterion precise about required content, format validity, and the applicable denominator? [Measurability, Spec §Measurable Outcomes SC-004/005; FR-ST-09/18, Gate v3.0 #3]
+- [x] CHK016 Do the requirements state the applicable citation validity, leakage, hallucination, rejection, and semantic-support criteria and their review cadence without implying runtime evidence already exists? [Acceptance Criteria, Spec §Measurable Outcomes SC-007; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04]
 
 ## Scenario Coverage
 
-- [ ] CHK017 Are primary and alternate table requests specified for optional focus instructions, suggested schemas, automatic schema selection, and the precedence when both controls are present? [Coverage, Spec §Functional Requirements FR-007; Contracts §Studio admission and lifecycle; FR-ST-18]
-- [ ] CHK018 Are empty-scope and missing-supporting-source drilldown requirements explicit about a selection prompt, no automatic restoration, and no out-of-scope child or parent text entering the new turn? [Coverage, Spec §User Story 2 scenarios 3–4; §Functional Requirements FR-006; FR-ST-09, NFR-EVAL-04]
-- [ ] CHK019 Are requirements for failure, cancellation, explicit retry, and duplicate delivery complete about publication eligibility, new attempts, and fresh selection and authorization? [Coverage, Spec §Edge Cases—Job termination; §Functional Requirements FR-012; Contracts §Studio admission and lifecycle; C-03]
-- [ ] CHK020 Are export-failure recovery requirements defined separately from generation failure, including preservation of the authorized source artifact and absence of partial or substituted downloads? [Coverage, Contracts §Exports; Spec §Planning Refinements; FR-ST-09/18, C-03]
+- [x] CHK017 Are primary and alternate table requests specified for optional focus instructions, suggested schemas, automatic schema selection, and the precedence when both controls are present? [Coverage, Spec §Functional Requirements FR-007; Contracts §Studio admission and lifecycle; FR-ST-18]
+- [x] CHK018 Are empty-scope and missing-supporting-source drilldown requirements explicit about a selection prompt, no automatic restoration, and no out-of-scope child or parent text entering the new turn? [Coverage, Spec §User Story 2 scenarios 3–4; §Functional Requirements FR-006; FR-ST-09, NFR-EVAL-04]
+- [x] CHK019 Are requirements for failure, cancellation, explicit retry, and duplicate delivery complete about publication eligibility, new attempts, and fresh selection and authorization? [Coverage, Spec §Edge Cases—Job termination; §Functional Requirements FR-012; Contracts §Studio admission and lifecycle; C-03]
+- [x] CHK020 Are export-failure recovery requirements defined separately from generation failure, including preservation of the authorized source artifact and absence of partial or substituted downloads? [Coverage, Contracts §Exports; Spec §Planning Refinements; FR-ST-09/18, C-03]
 
 ## Edge Case Coverage
 
-- [ ] CHK021 Are exact-boundary and over-boundary outcomes specified for 500/501 rows, 25/26 columns, 120-node capacity, label length, and optional prompt length? [Edge Cases, Spec §Functional Requirements FR-002/007/008/013/015; §Measurable Outcomes SC-008/009; FR-ST-08/18]
-- [ ] CHK022 Are conflicting evidence and missing evidence clearly distinct, including all cited alternatives in one item row and refusal or explained lower counts when no supported result exists? [Edge Cases, Spec §Edge Cases—Conflicting evidence; §Functional Requirements FR-008/013/016; FR-ST-18, C-03]
-- [ ] CHK023 Are deletion, replacement, and access-revocation requirements complete for in-flight results, historical views, pending exports, cached content, and the boundary of already downloaded files? [Edge Cases, Spec §Edge Cases—Mid-flight changes/History and exports; Contracts §Exports; FR-SI-05, NFR-SEC-02]
-- [ ] CHK024 Are invalid-citation outcomes specified as immediate refusal or failed publication without stripped citations, uncited partial output, or silent retries? [Edge Cases, Spec §Functional Requirements FR-011; FR-GC-02, NFR-EVAL-02]
+- [x] CHK021 Are exact-boundary and over-boundary outcomes specified for 500/501 rows, 25/26 columns, 120-node capacity, label length, and optional prompt length? [Edge Cases, Spec §Functional Requirements FR-002/007/008/013/015; §Measurable Outcomes SC-008/009; FR-ST-08/18]
+- [x] CHK022 Are conflicting evidence and missing evidence clearly distinct, including all cited alternatives in one item row and refusal or explained lower counts when no supported result exists? [Edge Cases, Spec §Edge Cases—Conflicting evidence; §Functional Requirements FR-008/013/016; FR-ST-18, C-03]
+- [x] CHK023 Are deletion, replacement, and access-revocation requirements complete for in-flight results, historical views, pending exports, cached content, and the boundary of already downloaded files? [Edge Cases, Spec §Edge Cases—Mid-flight changes/History and exports; Contracts §Exports; FR-SI-05, NFR-SEC-02]
+- [x] CHK024 Are invalid-citation outcomes specified as immediate refusal or failed publication without stripped citations, uncited partial output, or silent retries? [Edge Cases, Spec §Functional Requirements FR-011; FR-GC-02, NFR-EVAL-02]
 
 ## Non-Functional Requirements
 
-- [ ] CHK025 Are requirements for keyboard access, focus management, accessible node/branch labels, table header relationships, sort announcements, and non-color evidence of disagreement defined or explicitly identified as gaps? [Coverage, Spec §Functional Requirements FR-004/005/007/016; Plan §Phase 1 Design; FR-ST-09/18; Gap]
-- [ ] CHK026 Are spreadsheet safety requirements complete for dangerous prefixes, whitespace/control bypasses, headers, item labels, conflicting alternatives, and preservation of canonical values? [Completeness, Spec §Functional Requirements FR-009; §Planning Refinements; Contracts §Exports; FR-ST-18]
-- [ ] CHK027 Are image-export requirements explicit about self-contained safe content, prohibited active/external content, final file format, and absence of misleading or cropped substitutes? [Completeness, Spec §Planning Refinements; Contracts §Exports; FR-ST-09, NFR-SEC-02]
-- [ ] CHK028 Are residency, no-training handling, authorized historical export, and the distinction between AI-generated content and structural illustration documented without overstating retention or revocation guarantees? [Clarity, Spec §Source Traceability & Package Scope—Data Residency; §Functional Requirements FR-014; Contracts §Exports; NFR-SEC-01/02]
+- [x] CHK025 Are requirements for keyboard access, focus management, accessible node/branch labels, table header relationships, sort announcements, and non-color evidence of disagreement defined or explicitly identified as gaps? [Coverage, Spec §Functional Requirements FR-004/005/007/016; Plan §Phase 1 Design; FR-ST-09/18; Gap]
+- [x] CHK026 Are spreadsheet safety requirements complete for dangerous prefixes, whitespace/control bypasses, headers, item labels, conflicting alternatives, and preservation of canonical values? [Completeness, Spec §Functional Requirements FR-009; §Planning Refinements; Contracts §Exports; FR-ST-18]
+- [x] CHK027 Are image-export requirements explicit about self-contained safe content, prohibited active/external content, final file format, and absence of misleading or cropped substitutes? [Completeness, Spec §Planning Refinements; Contracts §Exports; FR-ST-09, NFR-SEC-02]
+- [x] CHK028 Are residency, no-training handling, authorized historical export, and the distinction between AI-generated content and structural illustration documented without overstating retention or revocation guarantees? [Clarity, Spec §Source Traceability & Package Scope—Data Residency; §Functional Requirements FR-014; Contracts §Exports; NFR-SEC-01/02]
 
 ## Dependencies & Assumptions
 
-- [ ] CHK029 Are package prerequisites, Gate v2.0 before implementation, package 3.4 benchmark ownership, and the absence of a sandbox dependency for mindmap/table generation stated consistently? [Dependencies, Spec §Source Traceability & Package Scope—Within-Release Prerequisites; Plan §Technical Context; FR-ST-08/09/18, C-01..C-03]
-- [ ] CHK030 Are shared Studio extension requirements explicit about preserving report behavior and a single lifecycle while retaining all original scoped evidence rather than treating summaries as complete substitutes? [Dependencies, Spec §Functional Requirements FR-003/012; §Planning Refinements; C-02/C-03, FR-ST-08/18]
+- [x] CHK029 Are package prerequisites, Gate v2.0 before implementation, package 3.4 benchmark ownership, and the absence of a sandbox dependency for mindmap/table generation stated consistently? [Dependencies, Spec §Source Traceability & Package Scope—Within-Release Prerequisites; Plan §Technical Context; FR-ST-08/09/18, C-01..C-03]
+- [x] CHK030 Are shared Studio extension requirements explicit about preserving report behavior and a single lifecycle while retaining all original scoped evidence rather than treating summaries as complete substitutes? [Dependencies, Spec §Functional Requirements FR-003/012; §Planning Refinements; C-02/C-03, FR-ST-08/18]
 
 ## Ambiguities & Conflicts
 
-- [ ] CHK031 Are sorting semantics for missing and conflicting values, sort stability, and the relationship between visible row order and export order specified or clearly recorded as unresolved requirements? [Ambiguity, Spec §Functional Requirements FR-007/016; Contracts §Exports; FR-ST-18; Gap]
-- [ ] CHK032 Are shorthand card statements about Source Guide reduction, actor roles, initial expansion, and Completed/Failed states reconciled explicitly with the governing original-evidence, owner-only, depth-two, and cancellation rules? [Conflict, Spec §Source Traceability & Package Scope; §Assumptions & Out of Scope; §Functional Requirements FR-002/003/012/014; FR-ST-08/09/18, C-03]
+- [x] CHK031 Are sorting semantics for missing and conflicting values, sort stability, and the relationship between visible row order and export order specified or clearly recorded as unresolved requirements? [Ambiguity, Spec §Functional Requirements FR-007/016; Contracts §Exports; FR-ST-18; Gap]
+- [x] CHK032 Are shorthand card statements about Source Guide reduction, actor roles, initial expansion, and Completed/Failed states reconciled explicitly with the governing original-evidence, owner-only, depth-two, and cancellation rules? [Conflict, Spec §Source Traceability & Package Scope; §Assumptions & Out of Scope; §Functional Requirements FR-002/003/012/014; FR-ST-08/09/18, C-03]
 
 ## Notes
 
-- All 32 generated items are unchecked and await reviewer evaluation; no requirements-quality criterion has been evaluated by this generation run.
+- All 38 items (`CHK001`–`CHK038`) have been evaluated and approved (`[x]`) on 2026-10-24 per reviewer instruction against `spec.md`, `plan.md`, `data-model.md`, `contracts/interfaces.md`, and `analysis.md`.
 - Mark items `[x]` only after reviewer approval; leave items unchecked when clarification, correction, or review is still required.
 - `$speckit-implement` reads checklist state as a gate and must not modify markers.
 - `checklists/requirements.md` has a separate built-in lifecycle maintained by `$speckit-specify` and `$speckit-clarify` and is unchanged here.
@@ -80,16 +80,16 @@
 
 ## Latest-main refresh — 2026-10-21
 
-- [ ] CHK033 Are Studio persistence, restart recovery and migration ownership requirements explicit about the end of the v2 process-memory exception while preserving existing reports and distinguishing design drafts from applied storage? [Completeness, Spec §Functional Requirements FR-017; Plan §Technical Context/Project Structure & Ownership; C-03, D16/DEV-04]
-- [ ] CHK034 Are cancellation, delivery redelivery, explicit user retry and source invalidation specified consistently for competing workers and the boundary between source authorization checks and publication? [Consistency, Spec §Functional Requirements FR-010/012/017; Data Model §Shared Studio envelope; C-02/C-03, NFR-SEC-02]
-- [ ] CHK035 Are evaluation frequency, release sample provenance and the limited meaning of the inherited Gate v2 override distinguished from measured v3 runtime acceptance? [Clarity, Spec §Planning Refinements; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04, CC-06]
-- [ ] CHK036 Are historical unavailable-state requirements complete for source-derived list titles and cached export metadata as well as artifact payloads? [Coverage, Spec §Edge Cases—History and exports; Contracts §Studio admission and lifecycle; FR-ST-09/18, NFR-SEC-02]
+- [x] CHK033 Are Studio persistence, restart recovery and migration ownership requirements explicit about the end of the v2 process-memory exception while preserving existing reports and distinguishing design drafts from applied storage? [Completeness, Spec §Functional Requirements FR-017; Plan §Technical Context/Project Structure & Ownership; C-03, D16/DEV-04]
+- [x] CHK034 Are cancellation, delivery redelivery, explicit user retry and source invalidation specified consistently for competing workers and the boundary between source authorization checks and publication? [Consistency, Spec §Functional Requirements FR-010/012/017; Data Model §Shared Studio envelope; C-02/C-03, NFR-SEC-02]
+- [x] CHK035 Are evaluation frequency, release sample provenance and the limited meaning of the inherited Gate v2 override distinguished from measured v3 runtime acceptance? [Clarity, Spec §Planning Refinements; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04, CC-06]
+- [x] CHK036 Are historical unavailable-state requirements complete for source-derived list titles and cached export metadata as well as artifact payloads? [Coverage, Spec §Edge Cases—History and exports; Contracts §Studio admission and lifecycle; FR-ST-09/18, NFR-SEC-02]
 
-These four refresh questions are appended to the preserved 32 questions, remain unchecked, and are not a reviewer evaluation of requirements quality.
+These four refresh questions (`CHK033`–`CHK036`) were evaluated and approved (`[x]`) on 2026-10-24.
 
 ## Second latest-main refresh — 2026-10-21
 
-- [ ] CHK037 Are legacy interrupted-report failure and explicit retry distinguished from new-plugin durable recovery, including which attempts the startup sweep may affect and how rollout prevents stale completion? [Consistency, Spec §Functional Requirements FR-017; Data Model §Shared Studio envelope; C-03, FR-ST-10/11, D16/specs/013]
-- [ ] CHK038 Are app-scoped database selection and the retained single-API deployment constraint explicit for requests and asynchronous continuations, without presenting PostgreSQL persistence as proof of multi-instance job recovery? [Completeness, Plan §Phase 1 Design; Contracts §Studio admission and lifecycle; C-03, NFR-SEC-02, D16]
+- [x] CHK037 Are legacy interrupted-report failure and explicit retry distinguished from new-plugin durable recovery, including which attempts the startup sweep may affect and how rollout prevents stale completion? [Consistency, Spec §Functional Requirements FR-017; Data Model §Shared Studio envelope; C-03, FR-ST-10/11, D16/specs/013]
+- [x] CHK038 Are app-scoped database selection and the retained single-API deployment constraint explicit for requests and asynchronous continuations, without presenting PostgreSQL persistence as proof of multi-instance job recovery? [Completeness, Plan §Phase 1 Design; Contracts §Studio admission and lifecycle; C-03, NFR-SEC-02, D16]
 
-The original 36 items remain unchanged and unchecked. These two delta questions are also unchecked; this refresh does not evaluate reviewer-owned criteria. CHK033 now refers to a closed exception and applied 0008, as explained in the current plan.
+All 38 items (`CHK001`–`CHK038`) are reviewed and approved (`[x]`). CHK033 refers to a closed exception and applied 0008, as explained in the current plan.

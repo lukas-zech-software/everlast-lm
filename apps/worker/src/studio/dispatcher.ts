@@ -1,4 +1,6 @@
-/** Non-blocking in-process dispatcher for local/dev; production uses a Cloud Tasks adapter (D13). */
+/** Non-blocking in-process dispatcher for local/dev; production uses the durable outbox / Cloud Tasks adapter (D13, specs/011 T010). */
+export { DurableStudioDispatcher, createStudioOutboxHandler } from "./handler.ts";
+
 export class InlineStudioDispatcher {
   private readonly pending = new Set<Promise<void>>();
 
