@@ -15,8 +15,11 @@ import {
   markSandboxDestroyed,
   markSandboxDestroyPending,
   notebookObjectPrefix,
+  EXECUTION_LEASE_MS,
+  ExecutionFencedError,
   recordCodeExecutionProgress,
   registerSandbox,
+  renewCodeExecutionLease,
   type ChatThreadRecord,
   type Pool,
 } from "@everlast/db";
@@ -42,6 +45,8 @@ export interface CodeExecutionDeps {
   runtime: SandboxRuntime;
   storage: ObjectStorage;
   deadlineMs?: number;
+  /** Execution lease; defaults to EXECUTION_LEASE_MS (tests shorten it). */
+  leaseMs?: number;
 }
 
 export interface ExecutionStatus {
@@ -86,7 +91,8 @@ export class CodeExecutionController {
   /** Admission happens first; an overlapping execution for this user/notebook is rejected (409). */
   async run(input: ControllerInput): Promise<ControllerResult> {
     const { pool } = this.deps;
-    const { executionId, leaseToken } = await admitCodeExecution(pool, { thread: input.thread, requestId: input.requestId, snapshot: input.snapshot });
+    const { executionId, leaseToken } = await admitCodeExecution(pool, { thread: input.thread, requestId: input.requestId, snapshot: input.snapshot, ...(this.deps.leaseMs ? { leaseMs: this.deps.leaseMs } : {}) });
+    const lease = this.deps.leaseMs ? { leaseMs: this.deps.leaseMs } : {};
     const attempts: CodeExecutionAttempt[] = [];
     const trace = (state: CodeExecutionTrace["state"], extra: Partial<CodeExecutionTrace> = {}): CodeExecutionTrace => ({
       schema_version: 1,
@@ -103,10 +109,18 @@ export class CodeExecutionController {
       const state = failure === "ExecutionTimeout" ? "TimedOut" : "Failed";
       return { executionId, leaseToken, results: [], publishArtifactIds: [], trace: trace(state, { failure_code: failure, final_attempt_id: attempts.at(-1)?.attempt_id ?? null }) };
     };
-    await recordCodeExecutionProgress(pool, executionId, leaseToken, {
+    await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease,
       state: "CodeGenerating",
       runtimeMetadata: { runtime: this.deps.runtime.id, profile: SANDBOX_PROFILE, libraries: REQUIRED_LIBRARIES, deadline_ms: this.deps.deadlineMs ?? EXECUTION_DEADLINE_MS, manifest_digest: input.manifest.entries[0]?.digest },
     });
+
+    // Heartbeat: the correction call and sandbox creation can outlast one lease period between progress writes,
+    // so the lease is renewed independently until this run returns (PR #159 review, FR-006/FR-007).
+    const leaseMs = this.deps.leaseMs ?? EXECUTION_LEASE_MS;
+    const heartbeat = setInterval(() => {
+      void renewCodeExecutionLease(pool, executionId, leaseToken, leaseMs).catch(() => undefined);
+    }, Math.max(10, Math.floor(leaseMs / 3)));
+    heartbeat.unref?.();
 
     let code = input.code;
     try {
@@ -125,7 +139,7 @@ export class CodeExecutionController {
           onCreated: (handle) => markSandboxActive(pool, attemptId, handle.name),
           onRunning: async () => {
             const running: CodeExecutionAttempt = { attempt_id: attemptId, ordinal, code, stdout: "", stderr: "", exit_code: null, started_at: startedAt, ended_at: null, terminal_reason: null, artifacts: [] };
-            await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
+            await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease, state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
             input.onStatus({ type: "status", phase: "running_code", execution_id: executionId, attempt: ordinal });
           },
           onDestroyed: async ({ destroyed }) => {
@@ -160,22 +174,30 @@ export class CodeExecutionController {
               const artifactId = randomUUID();
               const key = `${notebookObjectPrefix(input.thread.notebook_id)}chat-charts/${artifactId}/${chart.name}`;
               const meta = await this.deps.storage.write(key, chart.content, chart.mimeType);
-              await insertChartCandidate(pool, {
-                artifact_id: artifactId,
-                execution_id: executionId,
-                attempt_id: attemptId,
-                message_id: null,
-                notebook_id: input.thread.notebook_id,
-                user_id: input.thread.user_id,
-                object_key: key,
-                object_generation: meta.generation,
-                mime_type: chart.mimeType,
-                digest: createHash("sha256").update(chart.content).digest("hex"),
-                byte_size: chart.content.length,
-                source_snapshot: input.snapshot,
-                citation_chunk_ids: [...input.manifest.supportingChunkIds],
-                state: "candidate",
-              });
+              try {
+                await insertChartCandidate(pool, {
+                  artifact_id: artifactId,
+                  execution_id: executionId,
+                  attempt_id: attemptId,
+                  message_id: null,
+                  notebook_id: input.thread.notebook_id,
+                  user_id: input.thread.user_id,
+                  object_key: key,
+                  object_generation: meta.generation,
+                  mime_type: chart.mimeType,
+                  digest: createHash("sha256").update(chart.content).digest("hex"),
+                  byte_size: chart.content.length,
+                  source_snapshot: input.snapshot,
+                  citation_chunk_ids: [...input.manifest.supportingChunkIds],
+                  state: "candidate",
+                });
+              } catch (err) {
+                // The object has no row yet, so no reconciler can find it: remove it now (PR #159 review, FR-010).
+                await this.deps.storage.deleteVersion(key, meta.generation).catch(() => undefined);
+                // A missing execution row means Clear chat fenced this run (FK violation): report cancellation.
+                if ((err as { code?: string }).code === "23503") throw new ExecutionFencedError();
+                throw err;
+              }
               artifactIds.push(artifactId);
             }
             record.artifacts = artifactIds.map((id) => chartUrl(input.thread.notebook_id, input.messageId, id));
@@ -199,7 +221,7 @@ export class CodeExecutionController {
         attempts.push(record);
         if (!isRetryableFailure(outcome.failureCode, ordinal) || !input.correct) return terminal(outcome.failureCode);
         // Exactly one correction: same immutable manifest, same limits, fresh sandbox.
-        await recordCodeExecutionProgress(pool, executionId, leaseToken, { state: "CodeGenerating", trace: trace("CodeGenerating") });
+        await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease, state: "CodeGenerating", trace: trace("CodeGenerating") });
         try {
           code = await input.correct({
             question: input.question,
@@ -221,6 +243,8 @@ export class CodeExecutionController {
       const failure: CodeExecutionFailureCode = input.signal.aborted ? "GenerationCancelled" : "ProviderUnavailable";
       await this.abandon(terminal(failure), failure);
       throw err;
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 

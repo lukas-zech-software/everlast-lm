@@ -70,15 +70,15 @@ export interface HarnessResult {
  */
 export function buildHarness(userCode: string): string {
   return [
-    "import json as _everlast_json, math as _everlast_math, os as _everlast_os, traceback as _everlast_tb",
+    "import json as _everlast_json, math as _everlast_math, numbers as _everlast_numbers, os as _everlast_os, traceback as _everlast_tb",
     "_everlast_os.environ['MPLBACKEND'] = 'Agg'",
     "_EVERLAST = {'status': 'ok', 'results': []}",
     "def emit(label, value, unit=None, sources=None):",
-    "    if isinstance(value, bool):",
+    "    if isinstance(value, bool) or type(value).__name__ in ('bool_', 'bool'):",
     "        raise TypeError('emit() needs a real number, not a bool')",
-    "    if isinstance(value, int) or (hasattr(value, '__index__') and not hasattr(value, 'is_integer')):",
+    "    if isinstance(value, _everlast_numbers.Integral):",
     "        text = str(int(value))",
-    "    elif isinstance(value, float) or hasattr(value, '__float__'):",
+    "    elif isinstance(value, _everlast_numbers.Real) or hasattr(value, '__float__'):",
     "        number = float(value)",
     "        if not _everlast_math.isfinite(number):",
     "            raise ValueError('emit() value must be finite')",
@@ -125,8 +125,9 @@ function decodeAttribute(value: unknown): string {
   return decoded.toString("base64") === value.replace(/\s/g, "") ? decoded.toString("utf8") : value;
 }
 
-function looksLikeMemory(text: string): boolean {
-  return /memory|oom|MemoryError|Killed/i.test(text);
+/** Memory signals as whole words only ("room_count" or "zoom" are not memory errors). */
+export function looksLikeMemory(text: string): boolean {
+  return /\bMemoryError\b|\bout of memory\b|\bOOM\b|\bOOM-?killed\b|\bKilled\b|\bmemory limit\b/i.test(text);
 }
 
 export class AgentPlatformSandboxRuntime implements SandboxRuntime {

@@ -34,7 +34,8 @@ export type AppErrorCode =
   | "SyncAlreadyInProgress"
   | "DelegatedAccessDenied"
   // Release v3 package 3.2 (FR-GC-08)
-  | "ExecutionInProgress";
+  | "ExecutionInProgress"
+  | "RequestAlreadyHandled";
 
 export class AppError extends Error {
   readonly code: AppErrorCode;
