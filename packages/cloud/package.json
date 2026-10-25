@@ -23,7 +23,7 @@
   },
   "dependencies": {
     "@everlast/contracts": "workspace:*",
-    "@google-cloud/storage": "^7.15.2",
+    "@google-cloud/storage": "^8.4.0",
     "@google/genai": "^2.30.0",
     "google-auth-library": "^9.15.1"
   },
