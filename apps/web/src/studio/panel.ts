@@ -63,6 +63,16 @@ const PROMPT_PLACEHOLDER =
 const messageOf = (error: unknown): string =>
   error instanceof StudioApiError || error instanceof Error ? error.message : "The request failed. Please try again.";
 
+/** Data Table schemas offered in the modal; exactly the contract's DataTableSchemaIdSchema values (FR-ST-18). */
+export const DATA_TABLE_SCHEMA_OPTIONS: readonly { value: string; text: string }[] = [
+  { value: "auto", text: "Auto-detect attributes" },
+  { value: "vendor_comparison", text: "Vendor Comparison" },
+  { value: "feature_matrix", text: "Feature Matrix" },
+  { value: "timeline_events", text: "Timeline Events" },
+  { value: "findings_methodology", text: "Findings & Methodology" },
+  { value: "key_metrics", text: "Key Metrics" },
+];
+
 export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   const api = createStudioApi({ notebookId: options.notebookId, fetch: options.fetcher });
   const confirm = options.confirm ?? confirmDialog;
@@ -664,10 +674,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     const schemaSelect = h(
       "select",
       { class: "form-select", "data-testid": "data-table-schema-select", "aria-label": "Table schema" },
-      h("option", { value: "auto", text: "Auto-detect attributes" }),
-      h("option", { value: "vendor_comparison", text: "Vendor Comparison" }),
-      h("option", { value: "feature_matrix", text: "Feature Matrix" }),
-      h("option", { value: "metric_summary", text: "Metric Summary" })
+      ...DATA_TABLE_SCHEMA_OPTIONS.map((o) => h("option", { value: o.value, text: o.text }))
     ) as HTMLSelectElement;
 
     const focusPrompt = h("textarea", {

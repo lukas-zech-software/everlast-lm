@@ -87,6 +87,9 @@ function canonicalItemKey(label: string): string {
  * - Preserves conflicting values from different chunks in the same cell with `disagreement: true` and individual citations
  * - Marks absent cells with literal `"N/A (Not in sources)"` and empty citations (`FR-008`)
  */
+/** Catch-all attribute for sentences that match no specific attribute. */
+const SUMMARY_ATTRIBUTE_ID = "summary";
+
 export class DeterministicDataTableModel implements DataTableModelClient {
   async extract(req: DataTableExtractRequest): Promise<TableObservation[]> {
     req.signal.throwIfAborted();
@@ -199,7 +202,7 @@ export class DeterministicDataTableModel implements DataTableModelClient {
         if (!matchedSpecific) {
           out.push({
             item_label: itemLabel,
-            attribute_id: "summary",
+            attribute_id: SUMMARY_ATTRIBUTE_ID,
             attribute_label: "Key Finding",
             value_text: sentence.trim(),
             chunk_id: chunk.chunk_id,
@@ -339,8 +342,12 @@ export class DeterministicDataTableModel implements DataTableModelClient {
             disagreement: false,
             values: [],
           };
-        } else if (valuesMap.size === 1) {
-          const [text, valCites] = [...valuesMap.entries()][0]!;
+        } else if (valuesMap.size === 1 || col.id === SUMMARY_ATTRIBUTE_ID) {
+          // Free-text Key Findings are separate facts, not competing values: one supported cell that keeps every
+          // sentence and citation (PR #161 review, FR-008). Only specific attributes can disagree.
+          const entries = [...valuesMap.entries()];
+          const text = entries.map(([t]) => t).join(" ");
+          const valCites = entries.flatMap(([, c]) => c);
           cells[col.id] = {
             state: "supported",
             display_text: text,

@@ -153,23 +153,29 @@ export class StudioService {
 
   async list(ownerId: string, notebookId: string) {
     const rows = await this.deps.repo.list(notebookId, ownerId);
-    const results = await Promise.all(
-      rows.map(async (row) => {
-        try {
-          await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
-          return publicView(row);
-        } catch (err) {
-          if (err instanceof SourceSnapshotInvalidError || err instanceof InvalidScopeError) {
-            return publicView({
-              ...row,
-              title: genericTitleForPlugin(row.plugin_type),
-            });
-          }
-          throw err;
-        }
-      })
+    // PR #161 review: reports keep their title as in v2 and get(); new kinds whose captured sources are no longer
+    // available show a generic title. One check per distinct snapshot, and any failed check fails closed for that
+    // row only, so the panel's polling list never turns into a 500.
+    const checks = new Map<string, Promise<boolean>>();
+    const available = (snapshot: SourceRevisionPair[]) => {
+      const key = JSON.stringify(snapshot);
+      let check = checks.get(key);
+      if (!check) {
+        check = this.deps.access.verifySnapshot(ownerId, notebookId, snapshot).then(
+          () => true,
+          () => false
+        );
+        checks.set(key, check);
+      }
+      return check;
+    };
+    return Promise.all(
+      rows.map(async (row) =>
+        row.plugin_type === "report" || (await available(row.source_revisions_snapshot))
+          ? publicView(row)
+          : publicView({ ...row, title: genericTitleForPlugin(row.plugin_type) })
+      )
     );
-    return results;
   }
 
   async get(ownerId: string, notebookId: string, id: string) {

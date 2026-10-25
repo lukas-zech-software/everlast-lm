@@ -17,6 +17,8 @@ import {
  */
 
 const NODE_WIDTH = 220;
+/** About what fits in NODE_WIDTH minus padding at 13px. */
+const MAX_LABEL_CHARS = 24;
 const NODE_HEIGHT = 48;
 const LEVEL_X_GAP = 280;
 const ROW_Y_GAP = 64;
@@ -149,10 +151,15 @@ export function buildMindmapExportScene(
       const stroke = n.depth <= 1 ? "#0f172a" : "#94a3b8";
       const textX = n.x + 14;
       const textY = n.y + 29;
+      // Labels stay inside their fixed-width box: shortened with an ellipsis and kept whole in a <title>
+      // (PR #161 review, FR-ST-09). No clipPath: exports must not contain url() references.
+      const chars = [...n.label];
+      const shown = chars.length > MAX_LABEL_CHARS ? `${chars.slice(0, MAX_LABEL_CHARS - 1).join("").trimEnd()}…` : n.label;
       return [
         `    <g class="mm-node" data-node-id="${escapeXml(n.id)}" data-depth="${n.depth}">`,
+        `      <title>${escapeXml(n.label)}</title>`,
         `      <rect x="${n.x}" y="${n.y}" width="${n.width}" height="${n.height}" rx="8" ry="8" fill="${fill}" stroke="${stroke}" stroke-width="1.5" />`,
-        `      <text x="${textX}" y="${textY}" fill="${textFill}" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500">${escapeXml(n.label)}</text>`,
+        `      <text x="${textX}" y="${textY}" fill="${textFill}" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500">${escapeXml(shown)}</text>`,
         `    </g>`,
       ].join("\n");
     })

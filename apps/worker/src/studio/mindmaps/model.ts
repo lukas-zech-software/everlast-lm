@@ -191,6 +191,21 @@ export class DeterministicMindmapModel implements MindmapModelClient {
         });
       }
     } else {
+      // Share the node budget fairly (PR #161 review, FR-ST-08): every source gets its branch, then concept nodes
+      // are water-filled across sources so one long source cannot crowd out the others; detail nodes use what is left.
+      const available = MINDMAP_MAX_NODES - 1 - sourceEntries.length;
+      const plan = sourceEntries.map(() => 0);
+      for (let left = available, progressed = true; left > 0 && progressed; ) {
+        progressed = false;
+        for (let k = 0; k < sourceEntries.length && left > 0; k++) {
+          if (plan[k]! < sourceEntries[k]![1].length) {
+            plan[k]! += 1;
+            left -= 1;
+            progressed = true;
+          }
+        }
+      }
+      let spare = available - plan.reduce((a, b) => a + b, 0);
       for (let bIdx = 0; bIdx < sourceEntries.length && totalNodes < MINDMAP_MAX_NODES; bIdx++) {
         const [, group] = sourceEntries[bIdx]!;
         const branchLead = group[0]!;
@@ -198,7 +213,7 @@ export class DeterministicMindmapModel implements MindmapModelClient {
         totalNodes += 1;
         const branchChildren: MindmapNode[] = [];
 
-        for (let i = 0; i < group.length && totalNodes < MINDMAP_MAX_NODES; i++) {
+        for (let i = 0; i < plan[bIdx]! && totalNodes < MINDMAP_MAX_NODES; i++) {
           const f = group[i]!;
           const c = issueCitation(f);
           totalNodes += 1;
@@ -206,11 +221,12 @@ export class DeterministicMindmapModel implements MindmapModelClient {
 
           // Add depth-3 detail node when we have room and want rich multi-level structure (depth 3..4)
           const words = f.detail.split(/\s+/).filter(Boolean);
-          if (words.length >= 6 && totalNodes < MINDMAP_MAX_NODES && sourceEntries.length <= 10) {
+          if (words.length >= 6 && spare > 0 && totalNodes < MINDMAP_MAX_NODES && sourceEntries.length <= 10) {
             const half = Math.ceil(words.length / 2);
             const phrase = cleanLabel(words.slice(half, half + 6).join(" "));
             if (phrase && phrase !== f.subtopic) {
               totalNodes += 1;
+              spare -= 1;
               leafChildren.push({
                 id: nextId("detail"),
                 label: phrase,

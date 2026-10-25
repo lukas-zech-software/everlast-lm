@@ -183,33 +183,42 @@ export class StudioJobRunner {
 
     const controller = new AbortController();
     this.controllers.set(id, controller);
+    // Heartbeat (PR #161 review, FR-017): renew the lease while the attempt runs; a lost lease stops this run.
+    const leaseSeconds = this.deps.leaseDurationSeconds ?? 120;
+    const heartbeat =
+      leaseToken && repo.renewLease
+        ? setInterval(() => {
+            void repo.renewLease!(id, leaseToken!, leaseSeconds).then(
+              (kept) => {
+                if (!kept) controller.abort();
+              },
+              () => undefined
+            );
+          }, Math.max(50, Math.floor((leaseSeconds * 1000) / 3)))
+        : null;
+    heartbeat?.unref?.();
+    // A leased attempt may only be failed by its current lease owner (never a stale run after takeover).
+    const failAttempt = async (failure: StudioFailure): Promise<StudioArtifactRecord> => {
+      if (leaseToken && repo.failWithFence) return (await repo.failWithFence(id, failure, leaseToken)) ?? (await repo.getById(id))!;
+      const current = await repo.getById(id);
+      if (current && (current.status === "Queued" || current.status === "Running")) return repo.fail(id, failure);
+      return current!;
+    };
     try {
       const failure = await this.execute(activeArtifact, controller.signal, registry, leaseToken);
       if (controller.signal.aborted) return (await repo.getById(id))!;
-      if (failure) {
-        const current = await repo.getById(id);
-        if (current && (current.status === "Queued" || current.status === "Running")) {
-          return await repo.fail(id, failure);
-        }
-        return current!;
-      }
+      if (failure) return await failAttempt(failure);
       return (await repo.getById(id))!;
     } catch (err) {
       if (err instanceof CancelledSignal || err instanceof StudioLeaseFenceError || controller.signal.aborted) {
         return (await repo.getById(id))!;
       }
-      const current = await repo.getById(id);
-      if (current && (current.status === "Queued" || current.status === "Running")) {
-        return repo.fail(id, {
-          code: "GenerationError",
-          message:
-            initial.plugin_type === "report"
-              ? "Report generation failed unexpectedly."
-              : "Studio generation failed unexpectedly.",
-        });
-      }
-      return current!;
+      return failAttempt({
+        code: "GenerationError",
+        message: initial.plugin_type === "report" ? "Report generation failed unexpectedly." : "Studio generation failed unexpectedly.",
+      });
     } finally {
+      if (heartbeat) clearInterval(heartbeat);
       this.controllers.delete(id);
     }
   }

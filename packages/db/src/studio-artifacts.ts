@@ -80,6 +80,10 @@ export interface StudioArtifactRepository {
     options?: { leaseToken?: string | undefined }
   ): Promise<StudioArtifactRecord>;
   fail(id: string, failure: StudioFailure): Promise<StudioArtifactRecord>;
+  /** Extends an active lease; false when the lease was lost (cancelled, reclaimed or terminal) (FR-017). */
+  renewLease?(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean>;
+  /** Fails the attempt only while `leaseToken` still owns it; null when another owner or a terminal state won. */
+  failWithFence?(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null>;
   cancel(id: string, message?: string): Promise<StudioArtifactRecord>;
   delete(notebookId: string, ownerId: string, id: string): Promise<boolean>;
   deleteForNotebook(notebookId: string): Promise<void>;
@@ -187,6 +191,19 @@ export class InMemoryStudioArtifactRepository implements StudioArtifactRepositor
   fail(id: string, failure: StudioFailure): Promise<StudioArtifactRecord> {
     this.leases.delete(id);
     return this.transition(id, "Failed", () => ({ failure, progress: null }));
+  }
+
+  async renewLease(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean> {
+    const lease = this.leases.get(id);
+    if (!lease || lease.token !== leaseToken || this.rows.get(id)?.status !== "Running") return false;
+    lease.expiresAt = Date.now() + leaseDurationSeconds * 1000;
+    return true;
+  }
+
+  async failWithFence(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null> {
+    const lease = this.leases.get(id);
+    if (!lease || lease.token !== leaseToken || this.rows.get(id)?.status !== "Running") return null;
+    return this.fail(id, failure);
   }
 
   cancel(id: string, message = "Cancelled by the owner."): Promise<StudioArtifactRecord> {
@@ -567,6 +584,27 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
 
   fail(id: string, failure: StudioFailure): Promise<StudioArtifactRecord> {
     return this.transition(id, "Failed", { failure_json: failure, progress_json: null });
+  }
+
+  async renewLease(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean> {
+    const { rowCount } = await this.pool.query(
+      `UPDATE studio_artifacts SET lease_expires_at = now() + make_interval(secs => $3)
+        WHERE id = $1 AND lease_token = $2 AND status = 'Running'`,
+      [id, leaseToken, leaseDurationSeconds]
+    );
+    return (rowCount ?? 0) > 0;
+  }
+
+  async failWithFence(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null> {
+    const { rows } = await this.pool.query<StudioRow>(
+      `UPDATE studio_artifacts
+          SET status = 'Failed', failure_json = $3, progress_json = NULL, lease_token = NULL, lease_expires_at = NULL,
+              version = version + 1, updated_at = now()
+        WHERE id = $1 AND lease_token = $2 AND status = 'Running'
+        RETURNING ${STUDIO_COLUMNS}`,
+      [id, leaseToken, JSON.stringify(failure)]
+    );
+    return rows[0] ? toRecord(rows[0]) : null;
   }
 
   cancel(id: string, message = "Cancelled by the owner."): Promise<StudioArtifactRecord> {

@@ -284,3 +284,12 @@ describe("[011-studio-mindmaps-data-tables] T041: Studio Data Table tile, modal 
     });
   });
 });
+
+/** PR #161 review — every schema the Data Table modal offers is one the API accepts (FR-ST-18). */
+describe("[011-studio-mindmaps-data-tables] review: Data Table schema options", () => {
+  it("offers exactly the contract's schema IDs", async () => {
+    const { DataTableSchemaIdSchema } = await import("@everlast/contracts");
+    const { DATA_TABLE_SCHEMA_OPTIONS } = await import("../src/studio/panel.ts");
+    expect(DATA_TABLE_SCHEMA_OPTIONS.map((o: { value: string }) => o.value)).toEqual(DataTableSchemaIdSchema.options);
+  });
+});
