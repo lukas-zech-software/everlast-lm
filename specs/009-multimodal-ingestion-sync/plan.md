@@ -121,3 +121,5 @@ Discovered or decided during `/speckit-implement`; they refine existing requirem
 - Media delivery rechecks notebook ownership and the current source revision/object after storage reads and immediately before returning full or ranged bytes. Deletion or replacement during I/O invalidates the response.
 - Drive import publication and both changed/unchanged re-sync completion recheck the owner's active delegated connection inside the publishing transaction, holding a shared connection lock against revocation. Revoked grants fail with `DelegatedAccessDenied`; failed re-sync preserves the previous Ready revision.
 - The worker ZIP reader rejects stored-size mismatches and bounds deflate output by the declared uncompressed size, verifies the actual size, and enforces the remaining archive budget before accepting data.
+
+Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the existing inert HTML parser, decode entities exactly once, and retain text-only rendering in viewers. Never treat extracted caption text as sanitized HTML.

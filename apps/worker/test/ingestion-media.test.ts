@@ -164,6 +164,11 @@ describe("video URLs (FR-SI-01, NFR-SEC-02)", () => {
     expect(cues[3]).toEqual({ start_ms: 72_000, end_ms: 74_500, text: "Use the green exit." });
   });
 
+  it("FR-SI-01 / NFR-SEC-02: caption entities decode exactly once and markup is parsed inertly", () => {
+    const cues = parseWebVtt("WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n<b>Text</b> &amp;lt;script&amp;gt; &lt;literal&gt; &amp; &nbsp; end");
+    expect(cues[0]?.text).toBe("Text &lt;script&gt; <literal> & end");
+  });
+
   it("MEDIA-06: an enterprise page with an accessible caption track becomes Ready with time_span chunks and a link player", async () => {
     const t = site({
       "https://media.example.test/v/42": { type: "text/html", body: videoPageHtml("/v/42/captions.vtt") },

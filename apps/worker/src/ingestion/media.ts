@@ -129,13 +129,9 @@ export function parseWebVtt(text: string): { start_ms: number; end_ms: number; t
     const start = vttTime(from!);
     const end = vttTime(to!.trim().split(/\s+/)[0]!);
     if (end < start) throw invalidTiming();
-    const cueText = lines
-      .slice(timing + 1)
-      .join(" ")
-      .replace(/<[^>]*>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
+    // Inert parsing decodes entities exactly once. This is plain transcript text, not safe HTML;
+    // viewers must continue rendering it as text (FR-SI-01, NFR-SEC-02).
+    const cueText = String(parseHtml(lines.slice(timing + 1).join(" ")).body.textContent ?? "")
       .replace(/\s+/g, " ")
       .trim();
     if (cueText) cues.push({ start_ms: start, end_ms: end, text: cueText });
