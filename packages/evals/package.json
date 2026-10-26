@@ -33,7 +33,7 @@
     "google-auth-library": "^9.15.1"
   },
   "devDependencies": {
-    "typescript": "^5.8.2"
+    "typescript": "^7.0.2"
   },
   "bin": {
     "everlast-eval": "./src/cli.ts"
