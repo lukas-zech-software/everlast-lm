@@ -7,6 +7,7 @@ import { defineConfig } from "vitest/config";
  * Playwright journeys (*.spec.ts) run separately via `pnpm test:e2e`.
  */
 const UNIT = [
+  "packages/evals/test/v3-scale.eval.test.ts",
   "packages/contracts/test/**/*.test.ts",
   "apps/api/test/identity.test.ts",
   "apps/api/test/chat-verifier.test.ts",

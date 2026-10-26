@@ -54,3 +54,31 @@ The current API deployment enables `MIGRATE_ON_START=true`; numbered SQL runs un
 ## Task-analysis regression cases (`NFR-PERF-01`, `C-02/C-03`, `NFR-EVAL-04`)
 
 Test process-local cache restart, no orphan reattachment, required finite positive TTL/confirmed expiry, deletion failure and per-use authorization. Failure JSON must round-trip with explicit terminal status and null timing/p95; positive infinity exists only in aggregation. Tests T010/T015 and T023/T028 own these cases. Tasks remain unexecuted; this document supplies validation instructions only.
+
+## Implementation checkpoint 2026-10-26 (NFR-PERF-01, C-02/C-03, CC-02)
+
+Worktree `impl-012`, branch `codex/package-3-4-implementation`, checklist approval
+`fa987c0`. Base includes packages 3.1–3.3 (#160/#159/#161). Node 26/pnpm 12 and
+isolated local PostgreSQL 16+pgvector are available. Gate v2 owner override remains
+authority, not a measured pass. No cloud resources or IAM were changed.
+
+[012-long-context-latency-scaling] T001–T009: shared internal schemas, deterministic
+fixture recipe, canonical page token ledger and backpressured C-02 chunk iterator.
+Existing array consumers remain compatible. The ledger retains metadata only;
+the original text is read one canonical page at a time (a single page still obeys
+source admission limits). Page token counts use an injected qualified tokenizer;
+local word-tokenizer fixtures are test doubles, not deployed model qualification.
+
+Red: initial three suites failed on missing package-v3-4/scoped-corpus/fixture modules;
+expanded tests failed on absent envelope/coverage/sample functions and missing
+original locators. Green: 22 suites / 291 tests passed across contracts, new scale
+tests, existing scoped retrieval, Studio structure persistence and evidence helpers.
+Commands: `TEST_DATABASE_URL=<local disposable test database> node
+node_modules/vitest/vitest.mjs run packages/contracts
+packages/db/test/scoped-context-scale.integration.test.ts
+packages/db/test/scoped-context.integration.test.ts
+packages/db/test/studio-structure.integration.test.ts
+packages/evals/test/v3-scale.eval.test.ts apps/worker/test/studio-evidence.test.ts`.
+Type checking found a cross-package test import and draft-status spelling, corrected
+before the next check. Full deployment/latency/cache/memory and judged evidence
+remain UNAVAILABLE. No Gate v3 pass or product completion is claimed.

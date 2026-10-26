@@ -172,12 +172,15 @@ export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot,
  * model work with batches). Each page is hard-filtered on notebook and (source_id, revision) and passes the shared
  * membership check. Chat, Source Guide and Note Assistant keep their bounded `listSnapshotChunks` reads.
  */
-export async function listAllSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, pageSize = 500): Promise<UnifiedDocumentChunk[]> {
-  if (snapshot.sources.length === 0) return [];
+export async function* streamSnapshotChunks(db: Queryable, captured: ScopeSnapshot, pageSize = 500): AsyncGenerator<UnifiedDocumentChunk[], void, unknown> {
+  // Freeze caller-owned arrays before the first read; never prefetch ahead of the consumer.
+  const snapshot: ScopeSnapshot = { ...captured, sources: captured.sources.map(p => ({ ...p })) };
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 500) throw new RangeError("pageSize must be 1..500");
+  await verifyScopeSnapshot(db, snapshot);
   const size = Math.max(1, Math.floor(pageSize));
-  const out: UnifiedDocumentChunk[] = [];
   let cursor: { source_id: string; sequence: number } | null = null;
   for (;;) {
+    await verifyScopeSnapshot(db, snapshot);
     const result: { rows: (ChunkRow & { sequence: number })[] } = await db.query<ChunkRow & { sequence: number }>(
       `SELECT c.chunk_id, c.source_id, c.revision, c.locator, c.token_count, c.text, c.sequence, 0::float8 AS score
        FROM chunks c JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
@@ -194,12 +197,21 @@ export async function listAllSnapshotChunks(db: Queryable, snapshot: ScopeSnapsh
         size,
       ]
     );
-    out.push(...filterScopedChunks(snapshot.sources, result.rows.map(toChunk)));
+    await verifyScopeSnapshot(db, snapshot);
+    const page = filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
+    if (page.length) yield page;
     const last = result.rows.at(-1);
     if (!last || result.rows.length < size) break;
     cursor = { source_id: last.source_id, sequence: last.sequence };
   }
-  return out;
+  await verifyScopeSnapshot(db, snapshot);
+}
+
+/** C-02 compatibility adapter. Consumers requiring bounded memory use streamSnapshotChunks. */
+export async function listAllSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, pageSize = 500): Promise<UnifiedDocumentChunk[]> {
+  const chunks: UnifiedDocumentChunk[] = [];
+  for await (const page of streamSnapshotChunks(db, snapshot, pageSize)) chunks.push(...page);
+  return chunks;
 }
 
 export interface InspectorPage {
