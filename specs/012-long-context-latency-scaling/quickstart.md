@@ -82,3 +82,14 @@ packages/evals/test/v3-scale.eval.test.ts apps/worker/test/studio-evidence.test.
 Type checking found a cross-package test import and draft-status spelling, corrected
 before the next check. Full deployment/latency/cache/memory and judged evidence
 remain UNAVAILABLE. No Gate v3 pass or product completion is claimed.
+
+## Usage-limit checkpoint (2026-10-26; NFR-PERF-01, CC-02/06)
+
+Implementation stopped near the user's usage threshold; see [handoff.md](handoff.md).
+Partial US1 adds fixed-cohort aggregation, bounded final-SSE receipt and opt-in private
+chat observations. T010–T050 remain unchecked. Full unit: 43 suites / 430 tests PASS;
+targeted chat/benchmark: 5 suites / 29 tests PASS. Typecheck, lint/spec integrity and
+whitespace PASS. Deterministic eval with local TEST_DATABASE_URL: citation precision
+160/160, leakage 0 over 222 cases, plus 60 adversarial drafts with zero publication.
+Scripted report and Studio structure checks pass. Judged/UI evidence stays UNAVAILABLE,
+release state GatePending. No deployed latency, memory, cache or completion claim.

@@ -1,3 +1,4 @@
+import type { PrivateBenchmarkRecorder } from "../observability/benchmark.ts";
 import { randomUUID } from "node:crypto";
 import { AppError, isTurnProvenanceEligible } from "@everlast/contracts";
 import {
@@ -70,6 +71,8 @@ export interface ChatServiceDeps {
   embedder: Embedder;
   model: GroundedModel;
   retrievalLimit?: number;
+  /** NFR-PERF-01: private, explicitly approved synthetic observations only. */
+  benchmark?: PrivateBenchmarkRecorder;
   observer?: (observation: TurnObservation) => void;
   /** FR-GC-08 managed sandbox (specs/010); absent → computations fail safely with 503, nothing is pretended. */
   codeExecution?: { runtime: SandboxRuntime; storage: ObjectStorage; deadlineMs?: number; leaseMs?: number } | undefined;
@@ -224,6 +227,28 @@ export class ChatService {
   }
 
   async *runTurn(request: TurnRequest, signal?: AbortSignal): AsyncGenerator<TurnEvent> {
+    const span = this.deps.benchmark?.begin(request.notebookId, request.requestId);
+    try {
+      for await (const event of this.runTurnCore(request, signal, span)) {
+        if (event.type === "status") {
+          if (event.phase === "retrieving") span?.stage("retrieval");
+          else if (event.phase === "generating") span?.stage("generation");
+          else if (event.phase === "verifying") span?.stage("verification");
+        } else {
+          const assistant = event.messages.find(m => m.role === "assistant");
+          span?.finish(event.replayed ? "replayed" : assistant?.code_execution_trace ? "computed" : assistant?.kind ?? "missing");
+        }
+        yield event;
+      }
+    } catch (error) {
+      span?.finish(signal?.aborted ? "cancelled" : "error");
+      throw error;
+    } finally {
+      span?.finish("cancelled");
+    }
+  }
+
+  private async *runTurnCore(request: TurnRequest, signal?: AbortSignal, span?: ReturnType<PrivateBenchmarkRecorder["begin"]>): AsyncGenerator<TurnEvent> {
     const { pool } = this.deps;
     const question = normalizeMessage(request.message);
     // Submission snapshot: owner, explicit non-empty Ready selection, exact revisions (CP-01).
@@ -318,6 +343,7 @@ export class ChatService {
         }
       }
 
+      span?.stage("publication");
       const stored = await publishTurn(pool, {
         thread,
         snapshot: provider.snapshot,
