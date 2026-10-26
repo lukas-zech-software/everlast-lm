@@ -40,6 +40,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 20 });
+  pool.on("error", () => {});
   await runMigrations(pool);
 
   return {
