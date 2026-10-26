@@ -148,14 +148,15 @@ function pageTextFromItems(items: PdfTextItem[]): string {
 
 export async function extractPdf(bytes: Buffer, ocr: OcrEngine): Promise<CanonicalDocument> {
   if (bytes.length === 0) throw new IngestionFailure("EmptyFile", MSG_EMPTY);
+  const loadingTask = getDocument({
+    data: new Uint8Array(bytes),
+    useSystemFonts: false,
+    disableFontFace: true,
+    verbosity: 0,
+  });
   let pdf;
   try {
-    pdf = await getDocument({
-      data: new Uint8Array(bytes),
-      useSystemFonts: false,
-      disableFontFace: true,
-      verbosity: 0,
-    }).promise;
+    pdf = await loadingTask.promise;
   } catch {
     // PasswordException, InvalidPDFException and any malformed structure share the card's message.
     throw new IngestionFailure("Unreadable", MSG_UNREADABLE);
@@ -177,6 +178,6 @@ export async function extractPdf(bytes: Buffer, ocr: OcrEngine): Promise<Canonic
     });
     return { pages: pages.filter((p) => p.text.length > 0), pageCount: pdf.numPages, ocrPages: [...recognized.keys()] };
   } finally {
-    await pdf.destroy();
+    await loadingTask.destroy();
   }
 }
