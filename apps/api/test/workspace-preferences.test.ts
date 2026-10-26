@@ -244,7 +244,7 @@ describe("Content writes advance the notebook updated_at (FR-WM-02, FR-004, US1 
     });
     const item = admitted.data.items[0];
     expect(item.admitted).toBe(true);
-    const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: bytes });
+    const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: new Uint8Array(bytes) });
     expect(put.status).toBe(204);
     const done = await request(owner, `/api/notebooks/${notebookId}/sources/${item.source.id}/complete`, {
       method: "POST",
