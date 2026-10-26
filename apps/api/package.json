@@ -22,7 +22,7 @@
   "devDependencies": {
     "@everlast/testkit": "workspace:*",
     "@types/node": "^26.6.5",
-    "typescript": "^5.8.2"
+    "typescript": "^7.0.2"
   },
   "types": "./src/server.ts",
   "exports": {

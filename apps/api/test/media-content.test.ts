@@ -48,7 +48,7 @@ async function audioSource(as: string) {
   const attempt = randomUUID();
   const admitted = await api.fetch(`/api/notebooks/${nb}/sources/uploads`, { method: "POST", as, json: { files: [{ attempt_id: attempt, file_name: "Interview.wav", declared_bytes: bytes.length }] } });
   const item = ((await admitted.json()) as any).items[0];
-  await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: bytes });
+  await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: new Uint8Array(bytes) });
   await api.fetch(`/api/notebooks/${nb}/sources/${item.source.id}/complete`, { method: "POST", as, json: { attempt_id: attempt } });
   for (let i = 0; i < 200; i++) {
     await drain();

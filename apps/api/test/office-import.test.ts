@@ -94,7 +94,7 @@ async function upload(as: string, nb: string, fileName: string, bytes: Buffer) {
   const item = ((await res.json()) as any).items[0];
   expect(item.admitted, JSON.stringify(item)).toBe(true);
   expect(item.upload.headers["content-type"]).toBe(item.source.media_type);
-  const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: bytes });
+  const put = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: new Uint8Array(bytes) });
   expect(put.status).toBe(204);
   const done = await api.fetch(`/api/notebooks/${nb}/sources/${item.source.id}/complete`, { method: "POST", as, json: { attempt_id: attempt } });
   expect(done.status).toBe(200);
