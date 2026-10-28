@@ -18,6 +18,7 @@ import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sy
 import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
 import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
 import type { ChatService } from "./chat/service.ts";
+import type { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
 import type { V2Runtime } from "./v2/runtime.ts";
 
 /**
@@ -38,6 +39,8 @@ export interface AppDeps {
   embedder?: Embedder | undefined;
   /** Grounded chat (absent when no enterprise model endpoint is configured → 503). */
   chat?: ChatService | undefined;
+  /** NFR-PERF-01 private benchmark recorder for approved synthetic observations. */
+  benchmark?: PrivateBenchmarkRecorder | undefined;
   /** Feature route registrations added by later packages (sources, chat). */
   extraRoutes?: ((router: Router, deps: AppDeps) => void)[];
   /** Release v2 features (D16, PostgreSQL since specs/013); their handlers run after notebook ownership is checked. */

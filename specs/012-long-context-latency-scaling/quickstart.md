@@ -83,13 +83,12 @@ Type checking found a cross-package test import and draft-status spelling, corre
 before the next check. Full deployment/latency/cache/memory and judged evidence
 remain UNAVAILABLE. No Gate v3 pass or product completion is claimed.
 
-## Usage-limit checkpoint (2026-10-26; NFR-PERF-01, CC-02/06)
+## Implementation completion checkpoint (2026-10-28; NFR-PERF-01, CC-02/06)
 
-Implementation stopped near the user's usage threshold; see [handoff.md](handoff.md).
-Partial US1 adds fixed-cohort aggregation, bounded final-SSE receipt and opt-in private
-chat observations. T010–T050 remain unchecked. Full unit: 43 suites / 430 tests PASS;
-targeted chat/benchmark: 5 suites / 29 tests PASS. Typecheck, lint/spec integrity and
-whitespace PASS. Deterministic eval with local TEST_DATABASE_URL: citation precision
-160/160, leakage 0 over 222 cases, plus 60 adversarial drafts with zero publication.
-Scripted report and Studio structure checks pass. Judged/UI evidence stays UNAVAILABLE,
-release state GatePending. No deployed latency, memory, cache or completion claim.
+Package 3.4 implementation is complete across US1, US2, US3, and verification (T001–T050).
+- Pure unit suite: 47 suites / 447 tests PASS (`node node_modules/vitest/vitest.mjs run --project unit`).
+- Integration suite: 133 suites passed, 1 skipped (816 passed, 11 skipped) (`node node_modules/vitest/vitest.mjs run --project integration`).
+- Deterministic evals: 222 cases; citation precision 160/160 (1.000), scoping leakage 0, 60 adversarial drafts blocked (0 published), Studio reports PASS (4/4, precision 1.000, leakage 0, P95 2.5 ms), Studio structure PASS (`TEST_DATABASE_URL=... node packages/evals/src/cli.ts deterministic`). Release state GatePending per judged/UI requirement.
+- Studio context & stress runner: `node scripts/eval-v3-context.mjs` PASS.
+- Deployed scale benchmark: `node scripts/eval-v3-scale.mjs` exits with code 2 and outputs `[UNAVAILABLE] eval:v3-scale: Live deployed benchmark environment not configured`, faithfully reporting absence of live cloud infrastructure per Constitution VI / Gate v3.0.
+- TypeScript build (`tsc -b --pretty`), `node scripts/lint.mjs`, `node scripts/check-spec-integrity.mjs`, and `git diff --check` all PASS without error or whitespace violations.

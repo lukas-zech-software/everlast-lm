@@ -10,6 +10,11 @@ describe('NFR-PERF-01 D17 prospective serving-instance readiness',()=>{
   expect(classifyReadiness(evidence,{...request,instance_boot_id:'other'})).toBe('invalid_environment');
   expect(classifyReadiness(evidence,{...request,clock_uncertainty_ms:NaN})).toBe('invalid_environment');
   expect(classifyReadiness({...evidence,dependencies:{...evidence.dependencies,model:false}},request)).toBe('invalid_environment');
+  expect(classifyReadiness({...evidence,dependencies:{...evidence.dependencies,migrations:false}},request)).toBe('invalid_environment');
+  expect(classifyReadiness({...evidence,dependencies:{...evidence.dependencies,recovery:false}},request)).toBe('invalid_environment');
+  expect(classifyReadiness({...evidence,dependencies:{...evidence.dependencies,retrieval:false,cache:false}},request)).toBe('invalid_environment');
+  expect(classifyReadiness({...evidence,ready_at_ms:null},request)).toBe('invalid_environment');
+  expect(classifyReadiness(evidence,{...request,clock_uncertainty_ms:-1})).toBe('invalid_environment');
  });
  it('records identifiers/stages only for approved synthetic scopes; never raw content or secrets',()=>{
   const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:['approved'],revision:'rev',sink:()=>{}});

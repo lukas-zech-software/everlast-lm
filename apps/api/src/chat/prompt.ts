@@ -110,15 +110,20 @@ export function buildUserPayload(
   question: string,
   chunks: UnifiedDocumentChunk[],
   history: HistoryTurn[],
-  preferences?: ResponsePreferences
+  preferences?: ResponsePreferences,
+  guides?: import("@everlast/contracts").SourceGuide[]
 ): string {
   const sources = chunks
     .map((c) => `<chunk id="${c.chunk_id}" source_id="${c.source_id}">\n${c.text.replace(/<\/chunk>/g, "<\\/chunk>")}\n</chunk>`)
     .join("\n");
+  const guideLines = guides && guides.length > 0
+    ? guides.map((g) => `<guide source_id="${g.source_id}">\nSummary: ${g.summary_md}\nTopics: ${g.key_topics.join(", ")}\n</guide>`).join("\n")
+    : "";
   const turns = history.map((t, i) => `Turn ${i + 1} question: ${t.question}\nTurn ${i + 1} answer: ${t.answer}`).join("\n\n");
   return [
     "SOURCE CHUNKS:",
     sources || "(none)",
+    ...(guideLines ? ["", "SOURCE GUIDES (overview only, claims must cite SOURCE CHUNKS):", guideLines] : []),
     "",
     "PREVIOUS ELIGIBLE TURNS (context only, not evidence):",
     turns || "(none)",

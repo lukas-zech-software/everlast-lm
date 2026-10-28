@@ -1,5 +1,5 @@
 import type { PrivateBenchmarkRecorder } from "../observability/benchmark.ts";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { AppError, isTurnProvenanceEligible } from "@everlast/contracts";
 import {
   findTurnByRequest,
@@ -13,6 +13,7 @@ import {
 } from "@everlast/db";
 import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import { RequestScopedContextProvider } from "../services/source-context.ts";
+import { classifyQuery, planChatContext } from "./context-plan.ts";
 import type { HistoryTurn, ResponsePreferences } from "./prompt.ts";
 import { ModelUnavailableError, UnverifiableDraftError, type GroundedModel, type GroundedModelInput } from "./model.ts";
 import type { GroundedDraft } from "./draft.ts";
@@ -72,7 +73,7 @@ export interface ChatServiceDeps {
   model: GroundedModel;
   retrievalLimit?: number;
   /** NFR-PERF-01: private, explicitly approved synthetic observations only. */
-  benchmark?: PrivateBenchmarkRecorder;
+  benchmark?: PrivateBenchmarkRecorder | undefined;
   observer?: (observation: TurnObservation) => void;
   /** FR-GC-08 managed sandbox (specs/010); absent → computations fail safely with 503, nothing is pretended. */
   codeExecution?: { runtime: SandboxRuntime; storage: ObjectStorage; deadlineMs?: number; leaseMs?: number } | undefined;
@@ -234,6 +235,7 @@ export class ChatService {
           if (event.phase === "retrieving") span?.stage("retrieval");
           else if (event.phase === "generating") span?.stage("generation");
           else if (event.phase === "verifying") span?.stage("verification");
+          else if ((event.phase as string) === "running_code") span?.stage("generation");
         } else {
           const assistant = event.messages.find(m => m.role === "assistant");
           span?.finish(event.replayed ? "replayed" : assistant?.code_execution_trace ? "computed" : assistant?.kind ?? "missing");
@@ -249,6 +251,7 @@ export class ChatService {
   }
 
   private async *runTurnCore(request: TurnRequest, signal?: AbortSignal, span?: ReturnType<PrivateBenchmarkRecorder["begin"]>): AsyncGenerator<TurnEvent> {
+    if (signal?.aborted) throw signal.reason ?? new Error("Aborted");
     const { pool } = this.deps;
     const question = normalizeMessage(request.message);
     // Submission snapshot: owner, explicit non-empty Ready selection, exact revisions (CP-01).
@@ -293,7 +296,28 @@ export class ChatService {
       } else {
         yield { type: "status", phase: "generating" };
         const preferences = await this.deps.resolvePreferences?.(request.ownerId, request.notebookId, request.browserLocale);
-        modelInput = { question, chunks, history, signal: controller.signal, ...(preferences ? { preferences } : {}) };
+        const queryClass = classifyQuery(question);
+        let guides: import("@everlast/contracts").SourceGuide[] | undefined;
+        if (queryClass === "broad") {
+          guides = await provider.readScopedGuides(preferences?.output_language);
+        }
+        planChatContext({
+          requestId: request.requestId,
+          scopeManifestHash: createHash("sha256").update(provider.snapshot.sources.map(s => `${s.source_id}:${s.revision}`).sort().join(",")).digest("hex"),
+          question,
+          model: this.deps.model.id,
+          modelVersion: "1",
+          inputLimit: 1_000_000,
+          outputReserve: 4096,
+          instructionTokens: 500,
+          historyTokens: Math.min(1000, 100 * history.length),
+          guideTokens: Math.round((guides ?? []).reduce((acc, g) => acc + g.summary_md.length / 4, 0)),
+          chunkMarkerTokens: 50 * chunks.length,
+          evidenceTokens: chunks.reduce((acc, c) => acc + c.token_count, 0),
+          requiredGuideIds: (guides ?? []).map(g => g.source_id),
+          detailChunkIds: chunks.map(c => c.chunk_id),
+        });
+        modelInput = { question, chunks, history, signal: controller.signal, ...(preferences ? { preferences } : {}), ...(guides ? { guides } : {}) };
         draft = await this.generate(modelInput, controller.signal);
         yield { type: "status", phase: "verifying" };
         result = draft ? verifyDraft(draft, provider.lastRetrieved) : { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };

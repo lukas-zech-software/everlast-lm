@@ -62,4 +62,12 @@ it('NFR-PERF-01 records approved stages only after fenced publication, preservin
  expect(JSON.stringify(captured)).not.toContain('142.8 bar');
  for await(const _event of service.runTurn(request)){};
  expect(captured[1]).toMatchObject({terminal_status:'replayed'});
+
+ const abortController = new AbortController();
+ const abortReq = { ...request, requestId: randomUUID() };
+ abortController.abort();
+ await expect(async () => {
+  for await (const _ of service.runTurn(abortReq, abortController.signal)) {}
+ }).rejects.toThrow();
+ expect(captured[2]).toMatchObject({ terminal_status: 'cancelled', request_id: abortReq.requestId });
 });

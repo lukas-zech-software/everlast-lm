@@ -19,4 +19,15 @@ describe('NFR-PERF-01 D13 monotonic validated final receipt',()=>{
   await expect(collectFreshFinal(response(['event: final\ndata: {bad}\n\n']),0,()=>1)).rejects.toThrow();
   await expect(collectFreshFinal(response(['x'.repeat(2000001)]),0,()=>1)).rejects.toThrow();
  });
+ it('correctly parses CRLF line endings and verifies monotonic timing',async()=>{
+  const crlfEvent = `event: final\r\ndata: ${JSON.stringify({messages:[{role:'assistant',kind:'answer',content:'142.8 bar',citations:[{chunk_id:'needle'}],code_execution_trace:null}],replayed:false})}\r\n\r\n`;
+  const result = await collectFreshFinal(response([crlfEvent]), 100, () => 350);
+  expect(result).toMatchObject({
+   terminal_status: 'answer',
+   client_first_validated_answer_ms: 350,
+   latency_ms: 250,
+   answer: '142.8 bar',
+   cited_chunk_ids: ['needle']
+  });
+ });
 });

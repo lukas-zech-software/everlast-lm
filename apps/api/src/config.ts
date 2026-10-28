@@ -78,3 +78,21 @@ export function loadCodeExecutionConfig(env: NodeJS.ProcessEnv = process.env): C
   }
   return { reasoningEngine, location };
 }
+
+/**
+ * NFR-PERF-01 benchmark instrumentation config.
+ * Active only when approved synthetic notebook IDs are declared in the environment.
+ */
+export interface BenchmarkConfig {
+  approvedNotebookIds: string[];
+  revision: string;
+}
+
+export function loadBenchmarkConfig(env: NodeJS.ProcessEnv = process.env): BenchmarkConfig | undefined {
+  const raw = env.BENCHMARK_APPROVED_NOTEBOOKS ?? env.SCALE_BENCHMARK_NOTEBOOK_IDS;
+  if (!raw) return undefined;
+  const approvedNotebookIds = raw.split(",").map(s => s.trim()).filter(Boolean);
+  if (!approvedNotebookIds.length) return undefined;
+  const revision = env.K_REVISION ?? env.COMMIT_SHA ?? "dev";
+  return { approvedNotebookIds, revision };
+}
