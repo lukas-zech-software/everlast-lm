@@ -55,6 +55,41 @@ export async function getSourceGuide(notebookId: string, sourceId: string, revis
   return candidates.find((g) => g.status === "GuideReady") ?? candidates[0] ?? null;
 }
 
+/**
+ * NFR-PERF-01, FR-SI-02: Scoped guide evidence reads bound to the captured snapshot.
+ */
+export async function getScopedSourceGuides(
+  pool: Pool | null,
+  notebookId: string,
+  sources: readonly { source_id: string; revision: number }[],
+  outputLanguage?: string
+): Promise<SourceGuide[]> {
+  const p = pool ?? v2Pool();
+  if (p && sources.length > 0) {
+    const { rows } = await p.query<{ record: unknown }>(
+      `SELECT g.record
+       FROM source_guides g
+       JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
+         ON s.source_id = g.source_id AND s.revision = g.revision
+       WHERE g.notebook_id = $1 AND g.status = 'GuideReady'
+         AND ($4::text IS NULL OR g.output_language = $4)
+       ORDER BY g.source_id`,
+      [notebookId, sources.map(s => s.source_id), sources.map(s => s.revision), outputLanguage ?? null]
+    );
+    return rows.map((r) => SourceGuideSchema.parse(r.record));
+  }
+  const scopeSet = new Map(sources.map((s) => [s.source_id, s.revision]));
+  const results: SourceGuide[] = [];
+  for (const g of guideStore.values()) {
+    if (g.notebook_id === notebookId && g.status === "GuideReady" && scopeSet.get(g.source_id) === g.revision) {
+      if (!outputLanguage || g.output_language === outputLanguage) {
+        results.push(g);
+      }
+    }
+  }
+  return results;
+}
+
 export async function saveSourceGuide(guide: SourceGuide): Promise<SourceGuide> {
   const validated = SourceGuideSchema.parse(guide);
   const pool = v2Pool();

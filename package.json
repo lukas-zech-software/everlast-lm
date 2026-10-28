@@ -56,7 +56,9 @@
     "db:test:up": "node scripts/db-test.mjs up",
     "db:test:down": "node scripts/db-test.mjs down",
     "eval:v3-audio": "node scripts/eval-v3-audio.mjs",
-    "eval:v3-code-execution": "node scripts/eval-v3-code-execution.mjs"
+    "eval:v3-code-execution": "node scripts/eval-v3-code-execution.mjs",
+    "eval:v3-scale": "node scripts/eval-v3-scale.mjs",
+    "eval:v3-context": "node scripts/eval-v3-context.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",

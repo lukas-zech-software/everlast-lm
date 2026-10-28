@@ -10,3 +10,8 @@ export * from "./response-length.ts";
 export * from "./code-execution-performance.ts";
 export * from "./studio-structure-performance.ts";
 export * from "./studio-structure-eval.ts";
+export * from "./latency.ts";
+export * from "./v3-scale-fixture.ts";
+export * from "./v3-scale-client.ts";
+export * from "./retrieval-calibration.ts";
+export * from "./v3-scale.ts";
