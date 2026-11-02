@@ -7,6 +7,10 @@ import { defineConfig } from "vitest/config";
  * Playwright journeys (*.spec.ts) run separately via `pnpm test:e2e`.
  */
 const UNIT = [
+  "packages/evals/test/latency.test.ts",
+  "packages/evals/test/v3-scale-client.test.ts",
+  "apps/api/test/benchmark-readiness.test.ts",
+  "packages/evals/test/v3-scale.eval.test.ts",
   "packages/contracts/test/**/*.test.ts",
   "apps/api/test/identity.test.ts",
   "apps/api/test/chat-verifier.test.ts",
@@ -32,6 +36,11 @@ const UNIT = [
   "apps/web/test/studio-table.test.ts",
   "packages/evals/test/studio-structure.eval.test.ts",
   "packages/evals/test/studio-structure-performance.test.ts",
+  // Package 3.4 (specs/012): unit tests for context plan, cache lifecycle and reduction.
+  "apps/api/test/chat-context-plan.test.ts",
+  "apps/worker/test/studio-context-cache.test.ts",
+  "apps/worker/test/studio-context-plan.test.ts",
+  "apps/worker/test/studio-reduction.test.ts",
 ];
 
 export default defineConfig({

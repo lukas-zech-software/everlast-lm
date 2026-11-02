@@ -17,6 +17,7 @@ export interface GroundedModelInput {
   history: HistoryTurn[];
   signal?: AbortSignal | undefined;
   preferences?: ResponsePreferences | undefined;
+  guides?: import("@everlast/contracts").SourceGuide[] | undefined;
 }
 
 /** Input of the single permitted correction after a first-attempt Python exception (FR-GC-08 FR-006). */
@@ -151,7 +152,7 @@ export class AdkGroundedModel implements GroundedModel {
       for await (const event of this.runner.runAsync({
         userId,
         sessionId: session.id,
-        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history, input.preferences) }] },
+        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history, input.preferences, input.guides) }] },
         abortSignal: controller.signal,
       })) {
         if (event.errorCode) throw new ModelUnavailableError(`Model error ${event.errorCode}`);

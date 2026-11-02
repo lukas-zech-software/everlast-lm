@@ -70,4 +70,12 @@ export class RequestScopedContextProvider implements ScopedContextProvider {
   useCompleteSnapshot(chunks: UnifiedDocumentChunk[]): void {
     this.lastRetrieved = chunks.map((c) => ({ ...c, score: 0 }));
   }
+
+  /**
+   * NFR-PERF-01, FR-SI-02: Reads all ready source guides within the captured snapshot.
+   */
+  async readScopedGuides(outputLanguage?: string): Promise<import("@everlast/contracts").SourceGuide[]> {
+    const { getScopedSourceGuides } = await import("@everlast/db");
+    return getScopedSourceGuides(this.pool, this.snapshot.notebook_id, this.snapshot.sources, outputLanguage);
+  }
 }
