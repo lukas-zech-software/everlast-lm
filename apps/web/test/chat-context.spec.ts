@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addTextSource, createNotebook, signIn, uniqueEmail } from "./helpers.ts";
+import { addTextSource, createNotebook, signIn, uniqueEmail, waitReady } from "./helpers.ts";
 
 /**
  * NFR-PERF-01 / FR-SI-02 / C-02: broad theme synthesis browser journey,
@@ -13,6 +13,7 @@ test("CONTEXT-UI-01: broad synthesis includes themes across sources; detailed fo
 
   await addTextSource(page.request, email, id, "Theme Alpha: Core safety protocols. Reactor coolant pressure must be 142.8 bar.");
   await addTextSource(page.request, email, id, "Theme Beta: Operational monitoring and turbine efficiency standards.");
+  await waitReady(page.request, email, id, 2);
 
   await page.goto(`/notebook/${id}`);
   await expect(page.getByTestId("chat-input")).toBeVisible();

@@ -49,14 +49,20 @@ class FixtureModel implements GroundedModel {
       }
     }
     const words = (question.toLowerCase().match(/[\p{L}\p{N}$.]{4,}/gu) ?? []).map((w) => w.replace(/[.?]+$/, "")).filter((w) => !STOP.has(w));
-    const hits = chunks.filter((c) => words.some((w) => c.text.toLowerCase().includes(w)));
+    const matchWord = (text: string, w: string) => {
+      const lower = text.toLowerCase();
+      return lower.includes(w) || (w.endsWith("s") && lower.includes(w.slice(0, -1))) || lower.includes(`${w}s`);
+    };
+    const hits = chunks.filter((c) => words.some((w) => matchWord(c.text, w)));
     if (hits.length === 0) return { status: "not_in_sources", missing_topic: question.replace(/[?.!]+$/, ""), sentences: [] };
     return {
       status: "answered",
-      // First sentence of the chunk's body text; Markdown heading lines (e.g. a converted note's title) are skipped.
+      // First sentence matching keywords or first sentence of the chunk's body text; Markdown heading lines (e.g. a converted note's title) are skipped.
       sentences: hits.slice(0, 8).map((c) => {
         const body = c.text.split("\n").filter((line) => !line.startsWith("#")).join("\n").trim() || c.text;
-        return { text: body.split(/(?<=[.!?])\s/)[0]!.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const };
+        const candidateSentences = body.split(/(?<=[.!?])\s/);
+        const matchingSentence = candidateSentences.find((s) => words.some((w) => matchWord(s, w))) ?? candidateSentences[0]!;
+        return { text: matchingSentence.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const };
       }),
     };
   }

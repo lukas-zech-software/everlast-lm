@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addTextSource, createNotebook, signIn, uniqueEmail } from "./helpers.ts";
+import { addTextSource, createNotebook, signIn, token as getToken, uniqueEmail } from "./helpers.ts";
 
 /**
  * NFR-PERF-01 / C-02: browser regression test for chat scale timing,
@@ -36,7 +36,9 @@ test("SCALE-UI-01: send is enabled only when sources are ready; final SSE respon
   await expect(badge).toBeVisible();
 
   // Ensure no public tuning or benchmark endpoint exists
-  const token = await page.evaluate(() => localStorage.getItem("everlast:id_token"));
+  const token =
+    (await page.evaluate(() => localStorage.getItem("everlast.localToken") ?? localStorage.getItem("everlast:id_token"))) ??
+    (await getToken(page.request, email));
   const tuningRes = await page.request.get(`/api/notebooks/${id}/chat/tuning`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
