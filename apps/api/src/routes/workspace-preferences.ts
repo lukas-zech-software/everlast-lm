@@ -7,8 +7,9 @@ import { NotebookPreferenceScopeError } from "@everlast/db";
 import { parseJsonBody, sendJson } from "../http.ts";
 import type { WorkspacePreferencesService as WorkspaceService } from "../services/workspace-preferences.ts";
 
-function invalidPreferenceMessage(error: { errors: { message: string }[] }): string {
-  return error.errors.map(({ message }) => message).join("; ");
+function invalidPreferenceMessage(error: { issues?: { message: string }[]; errors?: { message: string }[] }): string {
+  const issues = error.issues ?? error.errors ?? [];
+  return issues.map(({ message }) => message).join("; ");
 }
 
 export async function handleWorkspacePreferencesRoute(
