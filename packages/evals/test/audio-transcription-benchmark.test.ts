@@ -4,6 +4,8 @@ import {
   evaluateBenchmark,
   nearestRankP95,
   validatePlan,
+  validateExecutionPlan,
+  collectAudioBenchmark,
   type BenchmarkObservation,
   type BenchmarkPlan,
 } from "../src/audio-transcription-benchmark.ts";
@@ -86,5 +88,62 @@ describe("benchmark evaluation (FR-SI-01)", () => {
   it("BENCH-06: a threshold exactly at 45 s passes (inclusive); 45,001 ms fails", () => {
     expect(evaluateBenchmark(plan, obs(20, () => 45_000)).pass).toBe(true);
     expect(evaluateBenchmark(plan, obs(20, () => 45_001)).pass).toBe(false);
+  });
+});
+
+// [009-multimodal-ingestion-sync] T057 — FR-SI-01 / SC-002: evidence must describe the actual declared run.
+describe("benchmark evidence integrity (FR-SI-01, SC-002)", () => {
+  it("rejects duplicate, out-of-range and missing attempt identities", () => {
+    const duplicate = obs(20, () => 1000);
+    duplicate[19]!.attempt = 1;
+    expect(() => evaluateBenchmark(plan, duplicate)).toThrow(/attempt/i);
+    const outside = obs(20, () => 1000);
+    outside[19]!.attempt = 21;
+    expect(() => evaluateBenchmark(plan, outside)).toThrow(/attempt/i);
+  });
+
+  it("rejects invalid, reversed and post-hoc clocks rather than passing negative latency", () => {
+    for (const patch of [
+      { acceptedAt: "invalid" },
+      { transcriptAvailableAt: "2026-10-23T08:59:59.000Z" },
+      { uploadCompletedAt: "2026-10-23T09:00:01.000Z" },
+      { indexedAt: "2026-10-23T09:00:00.000Z" },
+    ]) {
+      const samples = obs(20, () => 1000);
+      Object.assign(samples[0]!, patch);
+      expect(() => evaluateBenchmark(plan, samples)).toThrow(/time|clock/i);
+    }
+    expect(() => validatePlan({ ...plan, declaredAt: "invalid" })).toThrow(/declared/i);
+    expect(() => evaluateBenchmark({ ...plan, declaredAt: "2026-10-23T09:00:00.001Z" }, obs(20, () => 1000))).toThrow(/declared/i);
+  });
+
+  it("rejects unsupported or mismatching live execution settings before calls", () => {
+    const runtime = { region: "europe-west4", model: "chirp_2", languageCodes: ["en-US"] };
+    expect(validateExecutionPlan(plan, runtime)).toBe(true);
+    expect(() => validateExecutionPlan({ ...plan, concurrency: 2 }, runtime)).toThrow(/serial|concurrency/i);
+    expect(() => validateExecutionPlan(plan, { ...runtime, region: "europe-west1" })).toThrow(/region/i);
+    expect(() => validateExecutionPlan(plan, { ...runtime, languageCodes: ["auto"] })).toThrow(/language/i);
+    expect(() => validateExecutionPlan({ ...plan, fixture: { ...plan.fixture, codec: "mp3" } }, runtime)).toThrow(/FLAC/i);
+    expect(() => validateExecutionPlan({ ...plan, provider: { ...plan.provider, model: "other" } }, runtime)).toThrow(/model/i);
+    expect(() => validateExecutionPlan({ ...plan, provider: { ...plan.provider, service: "other" } }, runtime)).toThrow(/service/i);
+  });
+
+  it("checkpoints unfinished acceptance before provider work and retains failures plus cleanup errors", async () => {
+    const checkpoints: BenchmarkObservation[][] = [];
+    let calls = 0;
+    const observations = await collectAudioBenchmark(plan, {
+      upload: async (attempt) => attempt,
+      transcribe: async () => {
+        calls++;
+        expect(checkpoints.at(-1)?.at(-1)?.outcome).toBe("unfinished");
+        if (calls <= 2) throw new Error("provider failure");
+      },
+      cleanup: async () => { throw new Error("cleanup failure"); },
+      checkpoint: (items) => checkpoints.push(structuredClone(items)),
+    });
+    expect(observations).toHaveLength(20);
+    expect(observations.slice(0, 2).every((item) => item.outcome === "failed" && item.error === "Error")).toBe(true);
+    expect(observations.every((item) => item.cleanup === "failed")).toBe(true);
+    expect(evaluateBenchmark(plan, observations).pass).toBe(false);
   });
 });

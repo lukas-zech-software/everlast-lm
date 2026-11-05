@@ -167,3 +167,23 @@ Verification at the reviewed changes: 120 test files / 976 tests PASS; focused r
 ### CodeQL follow-up (2026-10-25)
 
 FR-SI-01 / NFR-SEC-02: the caption regression reproduced double entity decoding, then passed after replacing regex stripping and sequential replacements with the existing inert parser. Caption suite: 9 tests passed; lint/typecheck/spec integrity passed. CodeQL alerts 12/13 addressed. Alerts 14/15 were reviewed and dismissed as false positives with evidence: the callback sets an empty expired cookie, and SHA-256 hashes a random 256-bit OAuth nonce rather than a password.
+
+## Pre-v4 execution — 2026-11-05 (FR-SI-01/04/05, SC-002, NFR-EVAL-01..04)
+
+Baseline: `c8502da` (application baseline `af30d56`). Package worktree: `/private/tmp/everlast-lm-pre-v4-package-3-1-20261105`, branch `codex/pre-v4-package-3-1-20261105`; feature pin `specs/009-multimodal-ingestion-sync`. This checkpoint supersedes stale planning-only language without changing historical results.
+
+Convergence found partial audio evidence integrity and runtime/plan-binding gaps. T057 records four new requirement-derived tests failing before implementation (duplicate IDs and reversed clocks were accepted; execution validator and checkpointed collector were absent). T058 now rejects malformed evidence/configuration, binds the actual language/model/region/codec/concurrency, checkpoints accepted attempts before provider work, preserves failure and cleanup outcomes, validates transcript word offsets and records source/runtime/plan/fixture provenance. Failed/unfinished attempts remain positive infinity in the unchanged full-sample P95; the serialized report records `"Infinity"` rather than JSON `null`. This is local harness verification, not measured Speech latency.
+
+| Check | Result | Evidence / limit |
+| :--- | :--- | :--- |
+| `pnpm install --frozen-lockfile` | PASS | Node 26 / pnpm 12 locked workspace dependencies |
+| `pnpm exec vitest run packages/evals/test/audio-transcription-benchmark.test.ts` | PASS | 10 tests, including four new Red→Green evidence safeguards |
+| `pnpm typecheck` | PASS | TypeScript project build |
+| `pnpm lint` | PASS | Spec integrity and TypeScript; 193 Markdown files / 55 requirement IDs / 39 feature artifacts |
+| `node scripts/eval-v3-audio.mjs` | UNAVAILABLE (exit 2) | `SPEECH_LOCATION`, project and workspace bucket are not configured in this worktree; no provider call attempted |
+| `pnpm exec vitest run packages/evals/test/audio-transcription-benchmark.test.ts apps/worker/test/ingestion-media.test.ts` | UNAVAILABLE for media suite | Audio 10 tests pass; media beforeAll requires the disposable `TEST_DATABASE_URL` (9 tests not executed) |
+| Live Speech / Model Armor | UNAVAILABLE | Controller read-only inventory: APIs not enabled, no new enablement approved |
+| Live Drive / renderer / real timestamp-click evidence | NOT_RUN | Requires the approved delegated account, render deployment and matching candidate/fixtures |
+| Judged 50-case release sample | NOT_RUN | T049 belongs to the integrated release candidate and common release report |
+
+T049 and T050 stay open. Synthetic fixture metadata and labelled transcript doubles are not real ASR evidence. No cloud resources, APIs, paid evaluations or deployments were changed. The owner-directed pre-v4 implementation authorization covers independent local repairs; reviewer-owned ingestion checklist remains untouched (0/37). The extension hooks for analyze/implement offer optional `speckit.git.commit`; the package uses an explicit scoped commit for the sequential handoff. No mandatory hooks are registered for converge/analyze/implement.

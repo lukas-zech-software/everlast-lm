@@ -123,3 +123,7 @@ Discovered or decided during `/speckit-implement`; they refine existing requirem
 - The worker ZIP reader rejects stored-size mismatches and bounds deflate output by the declared uncompressed size, verifies the actual size, and enforces the remaining archive budget before accepting data.
 
 Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the existing inert HTML parser, decode entities exactly once, and retain text-only rendering in viewers. Never treat extracted caption text as sanitized HTML.
+
+### Benchmark evidence validation — 2026-11-05 (FR-SI-01, SC-002, Gate v3.0 #1)
+
+The declared plan must precede every acceptance timestamp. Observations have exactly the predeclared unique attempt IDs 1..N and finite chronological upload/acceptance/transcript/index clocks; malformed or reversed clocks cannot produce a passing latency. The runner validates that its supported serial FLAC/Chirp 2 regional execution matches the declared codec, language, model and region before any provider request; unsupported execution plans are UNAVAILABLE rather than silently measured under different settings. Accepted attempts are checkpointed as unfinished before transcription, then updated with outcome/error and cleanup status, so interruption or provider failure cannot erase the denominator. Runtime, source commit and plan/fixture hashes accompany the report. These safeguards do not replace the real 30-minute benchmark or the integrated timestamp click scenario.

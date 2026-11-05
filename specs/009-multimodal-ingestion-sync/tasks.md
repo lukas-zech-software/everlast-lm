@@ -163,3 +163,9 @@ Every local `FR-001`–`FR-016` and `SC-001`–`SC-008` is cited in the tasks ab
 - [X] T054 Register a Drive files.watch channel (delegated user token, hashed channel token, expiry) after each successful Drive import/re-sync when a webhook address is configured, so provider notifications reach the existing webhook admission, with failing tests first in apps/worker/test/ingestion-drive.test.ts per FR-011 (partial)
 - [X] T055 Add a configuration-gated authorized Google Picker entry that imports the picked Docs/Slides file ID through the same delegated server import without exposing the stored delegation to the browser, with failing tests first per FR-002 (partial)
 - [X] T056 Provide a seekable player for video sources (stored stream through the authorized media proxy; captions-only links carry the cited `#t=` timestamp) so media citations seek to start_ms, with failing tests first per FR-005 (partial)
+
+## Phase 9: Convergence
+
+- [X] [009-multimodal-ingestion-sync] T057 Write failing benchmark evidence tests rejecting duplicate/missing attempt IDs, invalid/reversed clocks, post-hoc plans and runtime/plan mismatches; assert failed attempts and interrupted observations remain visible in packages/evals/test/audio-transcription-benchmark.test.ts per FR-SI-01, SC-002, CC-02 (partial).
+- [X] [009-multimodal-ingestion-sync] T058 Pass T057 by validating observations and declared execution settings, checkpointing accepted/unfinished attempts, preserving errors and runtime provenance in packages/evals/src/audio-transcription-benchmark.ts and scripts/eval-v3-audio.mjs per FR-SI-01, SC-002, Gate v3.0 #1 (partial).
+- [X] [009-multimodal-ingestion-sync] T059 Reconcile current quickstart and implementation evidence with implemented adapters, actual API/fixture prerequisites and local verification while retaining T049/T050 as open live acceptance obligations per FR-SI-01/04/05, NFR-EVAL-01..04, Gate v3.0 #1 (partial).
