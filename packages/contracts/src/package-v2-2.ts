@@ -62,7 +62,7 @@ export const NotebookOverviewSchema = z.object({
   source_revisions: z.array(SourceRevisionPairSchema).min(1),
   authorization_key: z.string().min(1),
   output_language: z.string().min(2),
-  generation_parameters: z.record(z.unknown()),
+  generation_parameters: z.record(z.string(), z.unknown()),
   cache_key: z.string().min(1),
   overview_md: z.string().trim().min(1),
   starter_prompts: z.array(StarterPromptSchema).max(5),

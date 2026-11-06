@@ -85,7 +85,7 @@ export const InputLanguageSchema = z.string().refine((value) => value === "auto"
   message: "Input language must be auto or a valid BCP-47 tag",
 });
 export const OutputLanguageSchema = z.enum(SUPPORTED_OUTPUT_LANGUAGE_TAGS, {
-  errorMap: () => ({ message: "Output language is not in the supported locale set" }),
+  message: "Output language is not in the supported locale set",
 });
 export const NullableOutputLanguageSchema = OutputLanguageSchema.nullable();
 

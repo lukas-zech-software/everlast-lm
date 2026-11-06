@@ -192,7 +192,12 @@ export const StudioParamsJsonSchema = z.union([
   StudioDataTableParamsSchema,
   StudioMindmapParamsSchema,
 ]);
-export type StudioParamsJson = StudioReportParams & StudioDataTableParams & StudioMindmapParams;
+export type StudioParamsJson = {
+  custom_prompt?: string;
+  schema_id?: DataTableSchemaId;
+  focus_prompt?: string;
+  [key: string]: unknown;
+};
 
 export const StudioPayloadJsonSchema = z.union([
   StudioReportPayloadSchema,
