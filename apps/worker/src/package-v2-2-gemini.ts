@@ -141,10 +141,11 @@ export function guideInstruction(wordCount: number): string {
     `Write a Source Guide for the one source given. This source has ${wordCount} words (word_count).`,
     short
       ? `Because the source has fewer than 50 words, summary_md must be exactly one sentence of plain text: no headings, line breaks, lists or second sentence; join several points with commas or semicolons and end with a single full stop.`
-      : `summary_md: a summary of 100 to 250 words (never more than 250 words, count them; shorter when the source supports less). Never cut a sentence off to fit.`,
+      : `summary_md: a summary within 100 to 250 words: aim for 120 to 160 words to leave headroom for language and word-count differences (never more than 250 words, count them; shorter when the source supports less). Never cut a sentence off to fit.`,
     short
       ? "key_topics: 1 to 3 key topics of at most 40 characters each."
       : "key_topics: target 5 to 10 key topics of at most 40 characters each; list fewer when the source supports fewer, never pad, never more than 10.",
+    "For every topic label, aim for at most 30 characters, including spaces, with a hard maximum of 40 characters. Use a short noun phrase rather than a sentence, especially for German compound words.",
     "supporting_chunk_ids: the chunk_id values that support the summary and topics.",
     "Write in the output_language.", GROUNDING, UNTRUSTED,
   ].join(" ");

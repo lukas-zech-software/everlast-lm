@@ -63,3 +63,9 @@ Do not modify other package schemas or migrations; do not edit managed templates
 ## Complexity Tracking
 
 No new frameworks, datastores, cloud services or architecture decisions; D16 governs v2 storage. Injecting a model interface isolates external calls for deterministic testing. No SRS deviation or scope change is proposed.
+
+## Pre-v4 live-failure refinement (FR-SI-02, FR-GC-07)
+
+Reserve prompt headroom (120–160 words, topic labels ≤30 characters) under the existing summary/topic validators. Keep first-answer invalid-output failure and transient retry semantics unchanged. Give Shorter one compact factual sentence with terse labelled facts; preserve the existing Default/Longer guidance. Verify the unchanged relative-length thresholds and guide gate on the synthetic corpus through production generation paths. No new model, storage, dependency or architectural deviation.
+
+Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.

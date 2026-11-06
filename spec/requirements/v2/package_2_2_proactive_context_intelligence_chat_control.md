@@ -339,3 +339,11 @@ Scenario: Submitting negative feedback logs the error category
 **Out of scope:** Automated model fine-tuning from thumbs-up/down (`NFR-SEC-01` prohibits training on tenant data).
 
 **Open questions:** `None`
+
+## Pre-v4 generation refinement (2026-11-05; FR-SI-02, FR-GC-07)
+
+Guide generation aims for 120–160 summary words and topic labels of at most 30 characters, leaving headroom under the unchanged acceptance maxima of 250 words and 40 code points. Short sources retain the one-sentence/1–3-topic exception. Invalid output is rejected without truncation or regeneration.
+
+Shorter response-length guidance uses one compact cited sentence with terse labelled facts: all requested facts, no introduction or repeated narrative clauses. Default (concise and precise) and Longer (target at least four supported cited sentences) remain unchanged. Targets never require padding, dropping requested facts or weakening grounding/refusal. The release metric remains Shorter ≤50% and Longer ≥150% of Default on the existing fixed sample.
+
+Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.

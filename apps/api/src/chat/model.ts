@@ -3,7 +3,7 @@ import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import type { Schema } from "@google/genai";
 import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
-import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
+import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, preferenceLines, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
@@ -82,7 +82,13 @@ export class AdkGroundedModel implements GroundedModel {
       name: "grounded_chat",
       description: "Answers strictly from scoped source chunks with chunk-level citations.",
       model: this.llm,
-      instruction: groundingInstruction({ codeExecution: config.codeExecution ?? false }),
+      instruction: (context) => {
+        const base = groundingInstruction({ codeExecution: config.codeExecution ?? false });
+        // Only the trusted, request-local enum changes system-level form; source/custom text stays data.
+        return context.state.get("response_length") === "shorter"
+          ? `${base}\n${preferenceLines({ response_length: "shorter" }).join(" ")}`
+          : base;
+      },
       outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as Schema,
       includeContents: "none",
       disallowTransferToParent: true,
@@ -147,7 +153,7 @@ export class AdkGroundedModel implements GroundedModel {
     input.signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const userId = "chat";
-      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID() });
+      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID(), state: { response_length: input.preferences?.response_length ?? "default" } });
       let text = "";
       for await (const event of this.runner.runAsync({
         userId,

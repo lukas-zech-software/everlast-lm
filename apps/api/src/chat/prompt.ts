@@ -94,7 +94,7 @@ export function preferenceLines(preferences?: ResponsePreferences): string[] {
   }
   if (preferences.response_length === "shorter") {
     lines.push(
-      "Length: Shorter. Answer in at most 2 sentences with only the fact(s) directly asked for, and still cite their chunk_id; leave out background, context and lists. Never add facts that are not in the SOURCE CHUNKS."
+      "Length: Shorter. Answer in one compact sentence with only the fact(s) directly asked for, and still cite their chunk_id. Omit introductory phrases, repeated subjects, background, context and lists. Use terse labelled facts rather than full narrative clauses, retaining the named subject and all requested facts. For example, an ownership-and-lead question can use \"Service X: Team Y (lead: Person Z).\" Include citations to both supporting chunks; do not repeat \"is owned by\" and \"is led by\". Aim for half the words of a balanced Default answer; never remove a requested fact just to meet that target. Never add facts that are not in the SOURCE CHUNKS."
     );
   }
   if (preferences.input_language && preferences.input_language !== "auto") {
