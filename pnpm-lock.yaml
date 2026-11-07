@@ -6,9 +6,6 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
-      '@pnpm/exe':
-        specifier: 12.0.0
-        version: 12.0.0
       pnpm:
         specifier: 12.0.0
         version: 12.0.0
@@ -59,11 +56,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@pnpm/exe@12.0.0':
-    resolution: {integrity: sha512-405vw2qYPPghNxoPRt2cvkGtGNU5gnInDcIe5TztQxe73yUZLqFJN/jCJFGs1xbVaIWDXEVuQ71P8npFZeatZQ==}
-    engines: {node: '>=18.*'}
-    hasBin: true
-
   pnpm@12.0.0:
     resolution: {integrity: sha512-ni49w5EZlYaNyUuBdcIXwn6VQI+gO0oidJd48rNPdzt3zdOznt6BcbIvzVO+ajU0Lp+smUimjvWN9kiM6Jp+Zw==}
     engines: {node: '>=18.*'}
@@ -94,17 +86,6 @@ snapshots:
 
   '@pnpm/exe.win32-x64@12.0.0':
     optional: true
-
-  '@pnpm/exe@12.0.0':
-    optionalDependencies:
-      '@pnpm/exe.darwin-arm64': 12.0.0
-      '@pnpm/exe.darwin-x64': 12.0.0
-      '@pnpm/exe.linux-arm64': 12.0.0
-      '@pnpm/exe.linux-arm64-musl': 12.0.0
-      '@pnpm/exe.linux-x64': 12.0.0
-      '@pnpm/exe.linux-x64-musl': 12.0.0
-      '@pnpm/exe.win32-arm64': 12.0.0
-      '@pnpm/exe.win32-x64': 12.0.0
 
   pnpm@12.0.0:
     optionalDependencies:
@@ -165,8 +146,8 @@ importers:
         specifier: 2.3.0
         version: 2.3.0(@grpc/grpc-js@1.14.6)
       '@google/genai':
-        specifier: ^2.30.0
-        version: 2.31.0
+        specifier: ^2.32.0
+        version: 2.32.0
       exceljs:
         specifier: 4.4.0
         version: 4.4.0
@@ -249,8 +230,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/db
       '@google/genai':
-        specifier: ^2.30.0
-        version: 2.31.0
+        specifier: ^2.32.0
+        version: 2.32.0
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
@@ -283,8 +264,8 @@ importers:
         specifier: ^8.4.0
         version: 8.4.0
       '@google/genai':
-        specifier: ^2.30.0
-        version: 2.31.0
+        specifier: ^2.32.0
+        version: 2.32.0
       google-auth-library:
         specifier: ^11.3.1
         version: 11.3.1
@@ -349,8 +330,8 @@ importers:
         specifier: workspace:*
         version: link:../../apps/worker
       '@google/genai':
-        specifier: ^2.30.0
-        version: 2.31.0
+        specifier: ^2.32.0
+        version: 2.32.0
       google-auth-library:
         specifier: ^11.3.1
         version: 11.3.1
@@ -567,8 +548,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@google/genai@2.31.0':
-    resolution: {integrity: sha512-u1fw0qEiuWwNcjZixJFRfQF0awQnHb/rBBQUeiYGF+nmTXQCvcgpR2UMhKU9KNdnZdYhahY5jwS6nJ2V2tGtDA==}
+  '@google/genai@2.32.0':
+    resolution: {integrity: sha512-60c79uXpR0a47bmGqDxbXEBuQUalNmwo5mx5kqb91jIW4FoqpsLSt86DeVhRhtH5+s/16Wqxt3sXzFQn2U1OHQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -3034,7 +3015,7 @@ snapshots:
     dependencies:
       '@a2a-js/sdk': 0.3.14(@grpc/grpc-js@1.14.6)
       '@google-cloud/vertexai': 1.12.0
-      '@google/genai': 2.31.0
+      '@google/genai': 2.32.0
       '@mikro-orm/core': 7.2.5
       '@opentelemetry/api': 1.10.0
       '@opentelemetry/api-logs': 0.222.0
@@ -3078,7 +3059,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/genai@2.31.0':
+  '@google/genai@2.32.0':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
