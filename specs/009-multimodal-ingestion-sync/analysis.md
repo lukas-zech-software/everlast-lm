@@ -80,3 +80,15 @@ All references below are local to `specs/009-multimodal-ingestion-sync`; use tha
 - Custom `checklists/ingestion-sync.md` remains byte-for-byte unchanged with 37 unchecked reviewer-owned items. Built-in requirements checklist remains unchanged at 16/16. Neither task generation nor analysis silently approves custom checklist items.
 - PASS: exact feature pin/environment unset at bootstrap, prerequisites, sequential task IDs/story labels/SRS/path validation, backward-only dependencies, checklist preservation, spec integrity and diff whitespace. No implementation tests were executed. Provider/browser/audio benchmark/integrated v3 results remain UNAVAILABLE until implemented/measured; existing runners are not absent but new scenarios do not exist yet.
 - Next: reviewer requirements checklist, then gated `speckit-implement` in package order using Red→Green→Refactor; record approval/IaC prerequisites and run normal release gates. D19 accepts the managed sandbox and makes R6 obsolete; this package adds no R6 task.
+
+## Recovery delta review — 2026-11-07 (CC-01..CC-08, FR-SI-01/04/05)
+
+The integrated77bac2b delta keeps existing limits, failed-attempt population and
+shared contracts; its spec/card/task flow-back and Red→Green evidence are retained.
+No new application requirement or implementation was added during recovery.
+CC-01/02: existing T057/T058 map safeguards and failing tests; CC-03/04/05: no
+source-read/publication/contract changes; CC-06: live T049/T050 remain open;
+CC-07/08: no cloud apply, paid run, credential exposure or provider change.
+Recovered7e87bb2 requires a separate compatibility review before integration
+because its optional Model Armor resource also changes provider major versions.
+This is an incomplete recovery checkpoint, not whole-package or release acceptance.

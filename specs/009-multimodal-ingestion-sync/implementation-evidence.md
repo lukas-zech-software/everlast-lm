@@ -187,3 +187,25 @@ Convergence found partial audio evidence integrity and runtime/plan-binding gaps
 | Judged 50-case release sample | NOT_RUN | T049 belongs to the integrated release candidate and common release report |
 
 T049 and T050 stay open. Synthetic fixture metadata and labelled transcript doubles are not real ASR evidence. No cloud resources, APIs, paid evaluations or deployments were changed. The owner-directed pre-v4 implementation authorization covers independent local repairs; reviewer-owned ingestion checklist remains untouched (0/37). The extension hooks for analyze/implement offer optional `speckit.git.commit`; the package uses an explicit scoped commit for the sequential handoff. No mandatory hooks are registered for converge/analyze/implement.
+
+## Recovery integration checkpoint — 2026-11-07 (FR-SI-01/04/05, CC-06)
+
+Integrated preserved audio evidence integrity commit77bac2b as e278c03 on
+`codex/pre-v4-impl-009-20261107`, based on008checkpoint eb25d66. Original worktrees
+untouched. Existing spec-derived Red evidence remains in the historical section.
+Focused audio benchmark10tests, typecheck, lint/spec-integrity and whitespace checks
+PASS locally. Unconfigured audio CLI exits2/UNAVAILABLE before provider work.
+No cloud/provider/model/OCR call, deployment, infrastructure apply or GitHub write.
+
+Reviewed recovered7e87bb2 but did not apply: besides optional ingestion wiring it
+changes provider requirements6→8.9 and lockfiles broadly. Compatibility review,
+selective integration and its infrastructure tests remain pending; no provider
+upgrade inferred from recovery alone. T049/T050 remain OPEN pending final approved
+audio/locator/common judged evidence. Earlier API-disabled observations above are
+historical; later coordinator inventory records approved registrations already
+applied, not a live package pass. Reviewer-owned checklist unchanged.
+
+User cutoff reached at10%five-hour remaining. No new implementation/tests started
+after cutoff; already-running local checks finished. No deterministic release suite
+was rerun for this checkpoint; full required PR gates and live acceptance remain
+for continuation. Incidental pnpm12lockfile metadata removal restored.
