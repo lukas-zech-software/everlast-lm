@@ -155,7 +155,7 @@ Dev smoke test after deploying T066–T069: a Timeline over a memo without named
 
 ### Deferred
 
-- [ ] T061 Deferred (owner 2026-10-20, PoC): per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
+- [X] T061 Historically deferred (owner 2026-10-20, PoC), superseded by owner2026-11-05 and implemented/locally verified in T072–T075; final live acceptance remains T076: per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
 
 ### Dependencies and execution order (Phase 7)
 
@@ -166,3 +166,11 @@ Dev smoke test after deploying T066–T069: a Timeline over a memo without named
 - Package 2.3 first: `[007-notes-pinboard-lifecycle] T054` and `T055` (note-to-source marker stripping, `origin_citations`, sanitization on all write paths) must land before T047/T057. `[007] T046` (note-sources in the v1 source list) and `T047`–`T049` (Right Panel notes pinboard) must land before T049/T058.
 - Package 2.1: `[005-workspace-ui-comfort] T046` also edits `apps/api/src/studio/service.ts` (`touchNotebookModified`); serialize it with T055 and T056.
 - T060 runs last.
+
+## Phase 8: Convergence
+
+- [X] T072 Add spec-derived failing PostgreSQL and mounted-API tests for two concurrent on-demand Guide runs, twenty starts per rolling hour, uncharged deduplication, terminal/restart recovery, authorization and ordinary-ingestion exclusion (FR-SI-02, FR-ST-11, NFR-SEC-02; missing); precedes T073/T074.
+- [X] T073 Implement atomic notebook-scoped persisted on-demand Guide admission in packages/db/migrations/0012_guide_admission.sql and packages/db/src/guide-admission.ts, wired into apps/api/src/v2/runtime.ts and the Guide route with safe quota errors; preserve hourly failed starts and default-language ingestion (FR-SI-02, FR-ST-11, C-02; missing); depends on T072.
+- [X] T074 Add validated configurable admission defaults (2 concurrent,20 starts/rolling hour) and startup recovery wiring; verify legitimate report suggestions and standard/custom reports remain usable (FR-SI-02, FR-ST-11, NFR-SEC-02; missing); depends on T072/T073.
+- [X] T075 Reconcile T061 owner decision, analysis/quickstart/validation and report504/OCR prerequisites; run focused tests, lint/typecheck/spec/deterministic gates and preserve recovered012 merge notes (FR-ST-10/11, NFR-EVAL-01..04; partial); depends on T073/T074.
+- [ ] T076 Obtain applicable final-candidate live four-template validity/timing and common judged evidence after admission/reliability changes; retain prior504failure and existing EU OCR processor configuration prerequisite (FR-ST-10, Gate v2.0/v3.0, NFR-EVAL-01..04; partial); depends on T075 and authorized deployed candidate.

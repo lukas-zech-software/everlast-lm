@@ -1,0 +1,58 @@
+
+ RUN  v5.0.5 /private/tmp/everlast-pre-v4-impl-008-20261107
+
+stderr | apps/api/test/guide-admission.integration.test.ts
+{"severity":"WARNING","message":"Guide admission release failed; restart recovery required"}
+
+stderr | apps/api/test/guide-admission.integration.test.ts
+{"severity":"WARNING","message":"Guide admission release failed; restart recovery required"}
+
+ ❯ |integration| apps/api/test/guide-admission.integration.test.ts (2 tests | 2 failed) 3011ms
+   × atomically limits concurrent on-demand variants, deduplicates and keeps standard reports usable 1281ms
+   × does not charge or duplicate a primary-language polling race with ordinary Ready dispatch 1484ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/api/test/guide-admission.integration.test.ts > atomically limits concurrent on-demand variants, deduplicates and keeps standard reports usable
+AssertionError: expected 5 to be 7 // Object.is equality
+
+- Expected
++ Received
+
+- 7
++ 5
+
+ ❯ apps/api/test/guide-admission.integration.test.ts:40:17
+     38|   const ordinary = n.v2.pollReadySources();
+     39|   for(let i=0;i<100 && calls<7;i++) await new Promise(r=>setTimeout(r,…
+     40|   expect(calls).toBe(7);
+       |                 ^
+     41|   expect((await n.api.db.pool.query("SELECT count(*)::int AS n FROM gu…
+     42|   release();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |integration| apps/api/test/guide-admission.integration.test.ts > does not charge or duplicate a primary-language polling race with ordinary Ready dispatch
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ apps/api/test/guide-admission.integration.test.ts:73:24
+     71|   await app.call(owner,"GET",path.replace("en-US","fr-FR"));
+     72|   for(let i=0;i<100 && primaryCalls<2;i++)await new Promise(r=>setTime…
+     73|   expect(primaryCalls).toBe(2);
+       |                        ^
+     74|   expect((await app.api.db.pool.query("SELECT count(*)::int AS n FROM …
+     75|  }finally{unblock();await ready;await app.close();}
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  22:29:06
+   Duration  4.01s (tests 76%, import 21%, transform 2%)

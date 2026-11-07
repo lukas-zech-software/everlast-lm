@@ -48,3 +48,32 @@ After fixes: **0 open findings**.
 ## Metrics
 
 Requirements: 18 FR, 6 SC; tasks: 35; coverage 100 %; ambiguity 0; duplication 0; critical issues 0.
+
+
+## Pre-V4 admission analysis — 2026-11-07 (CC-01..CC-08)
+
+Focused consistency review of on-demand Guide admission (FR-SI-02/FR-ST-11,
+NFR-SEC-02) and retained report acceptance (FR-ST-10, NFR-EVAL-01..04):
+
+| Obligation | Coverage | Disposition |
+| --- | --- | --- |
+| Atomic2concurrent/20rolling-hour defaults, configurable positive integers | T072–T074; DB/API/config tests | Implemented, locally verified |
+| Dedup before charging; failed starts remain counted; terminal/restart recovery | T072–T074 | Implemented, locally verified |
+| Ordinary primary Guide exclusion/polling race | T072–T074; mountedAPI test | Implemented, locally verified |
+| Authorization/revision/standard report availability | T072–T074; scoped DB/API regressions | Implemented, locally verified |
+| Live four-template validity/timing and common judged acceptance | T076 | Open, UNAVAILABLE on final candidate |
+
+CC-01: policy synchronized in spec/plan/card/SRS/architecture; oldT061deferral is
+historical. CC-02: API Red observed5calls instead of2; primary polling Red
+observed1charged start instead of0 before fixes. CC-03: C-02 generation snapshot
+path unchanged, admission rechecks owner/Ready revision. CC-04: no citation retry or
+leakage relaxation. CC-05: existing contracts/pipelines retained; additive safe
+error code only. CC-06: v2retained work, V4unchanged, no gate pass inferred.
+CC-07: metadata-only ledger, Owner checks, no cloud writes. CC-08: existing
+PostgreSQL/TypeScript stack, additive migration0012, no new service.
+
+No new critical/high design inconsistency identified. Report504root cause remains
+insufficiently localized; unchanged historical failure and openT076are explicit.
+Both reviewer checklists remain unchanged (16/16and22/22checked). Hooks before/after
+analyze/implement are optional Git commit; dispatched scripts respect disabled
+auto-commit configuration, final reviewed checkpoint is manual.

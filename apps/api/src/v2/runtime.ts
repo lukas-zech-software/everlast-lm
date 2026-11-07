@@ -29,6 +29,11 @@ import {
   getSource,
   getSnapshotChunksByIds,
   getSourceGuide,
+  admitOnDemandGuide,
+  claimPrimaryGuideLanguage,
+  finishOnDemandGuide,
+  recoverOnDemandGuides,
+  type GuideAdmissionLimits,
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
   sweepOrphanedSourceGuides,
@@ -87,6 +92,7 @@ export type V2Handler = (req: IncomingMessage, res: ServerResponse, userId: stri
 export interface V2RuntimeOptions {
   pool: Pool;
   sourceLimit: number;
+  guideAdmission?: GuideAdmissionLimits;
   /** Grounded chat model; enables the Note Assistant (FR-NM-04). */
   model?: GroundedModel | undefined;
   /** Structured generation for Source Guides, overview and follow-ups (FR-SI-02, FR-GC-04/05). */
@@ -150,7 +156,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
   // specs/013 R5 (FR-010, FR-011): resolve background work a stopped process left behind (one API instance, D16).
   // v2 requests, Ready dispatch and the watcher wait for it, so nothing this process starts is swept.
-  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool)])
+  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool), recoverOnDemandGuides(pool)])
     .then(([reports, guides]) => {
       if (reports + guides > 0) console.info(JSON.stringify({ severity: "INFO", message: "v2 restart sweep", interrupted_reports: reports, orphaned_guides: guides }));
     })
@@ -235,13 +241,26 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
   // On-demand guides for another output language (FR-SI-02): one background run per (source, revision, language).
-  const guideRuns = new Set<string>();
-  const startGuide = (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => {
-    const key = `${input.notebook_id}:${input.source_id}:${input.revision}:${input.output_language}`;
-    if (guideRuns.has(key)) return;
-    guideRuns.add(key);
-    // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
-    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
+  const startGuide = async (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }): Promise<void> => {
+    await swept;
+    const effective = (await workspace.resolveLanguagePreferences(input.user_id, input.notebook_id)).output_language;
+    const primary = await claimPrimaryGuideLanguage(pool, { ...input, output_language: effective });
+    if (input.output_language === primary) {
+      const source = await getSource(pool, input.user_id, input.notebook_id, input.source_id);
+      if (source.status !== "Ready" || source.active_revision !== input.revision) throw new AppError("SourceSnapshotInvalid", 409, "Requested source revision is not Ready");
+      // Polling an initial primary Guide shares the ordinary Ready dispatcher, including its in-flight dedup.
+      void dispatchReady({ notebook_id: input.notebook_id, source_id: input.source_id, revision_id: input.revision,
+        title: source.title, media_type: source.media_type }).catch(() => undefined);
+      return;
+    }
+    const admission = await admitOnDemandGuide(pool, input, options.guideAdmission);
+    if (admission.state === "deduplicated") return;
+    if (admission.state !== "started") throw new AppError("GuideAdmissionLimited", 429, admission.state === "rate"
+      ? "On-demand Source Guide hourly limit reached. Try again later."
+      : "On-demand Source Guide concurrency limit reached. Try again after a running Guide finishes.");
+    // Captured persistence context follows this background Promise; every terminal outcome releases its slot.
+    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => finishOnDemandGuide(pool, admission.id))
+      .catch(() => console.warn(JSON.stringify({ severity: "WARNING", message: "Guide admission release failed; restart recovery required" })));
   };
   // ---- Package 2.3: notes (PostgreSQL, specs/013) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20)
   const noteSourceStore = createPostgresNoteSources({ pool, storage: options.storage, embedder: options.embedder, sourceLimit: options.sourceLimit });
@@ -309,10 +328,13 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       // process lists Ready sources again but never regenerates an existing guide.
       const owner = await ownerOf(event.notebook_id);
       if (owner) {
-        const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+        const preferred = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+        const language = await claimPrimaryGuideLanguage(pool, { notebook_id: event.notebook_id, user_id: owner,
+          source_id: event.source_id, revision: event.revision_id, output_language: preferred });
         if (await getSourceGuide(event.notebook_id, event.source_id, event.revision_id, language)) return;
+        await v22.generateSourceGuide({ notebook_id: event.notebook_id, user_id: owner, source_id: event.source_id,
+          revision: event.revision_id, output_language: language, ...(event.ready_at ? { ready_at: event.ready_at } : {}) });
       }
-      await v22.onSourceReady(event);
     });
   }
   if (options.topicEmoji) {
@@ -450,7 +472,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
           const owner = await ownerOf(notebookId);
           // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
           if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
-            startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
+            await startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
           }
           if (guide?.status === "GuideReady") {
             return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };

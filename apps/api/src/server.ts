@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
 import { createPool, runMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
-import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig } from "./config.ts";
+import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig, loadGuideAdmissionConfig } from "./config.ts";
 import { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
@@ -132,6 +132,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
       : createV2Runtime({
           pool,
           sourceLimit: config.sourceLimit,
+          guideAdmission: loadGuideAdmissionConfig(env),
           model,
           generation: createV2Generation(env, modelConfigured),
           reportModel: createV2ReportModel(env, modelConfigured),

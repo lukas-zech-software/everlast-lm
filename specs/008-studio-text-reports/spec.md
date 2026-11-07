@@ -146,3 +146,36 @@ As a domain expert, I want suggested report formats tailored to my active source
 
 - **In-Scope Release Constraints**: This specification covers Package 2.4 (FR-ST-10 and FR-ST-11), consumes C-02, and defines the shared C-03 registry for report generators. v2.0 is Owner-only. Markdown reports may be converted to sources using the existing FR-NM-03 source-conversion capability.
 - **Out of Scope / Deferred**: Interactive Learning Overviews (FR-ST-12, v4.0); Mindmaps and Data Tables (v3.0); Flashcards, quizzes, slides, and infographics (v4.0); audio and video overviews (v5.0); direct PDF/DOCX report export; external Word/LaTeX template uploads; and non-owner report permissions before v6.0.
+
+
+## On-demand Guide admission refinement (2026-11-07; FR-SI-02, FR-ST-11, NFR-SEC-02)
+
+The recorded owner decision of2026-11-05 supersedes the older T061 deferral.
+Newly admitted on-demand language variants share a per-notebook maximum of two
+concurrent runs and twenty starts in a rolling one-hour window, both configurable
+as positive integers. Ordinary Ready-transition ingestion bypasses this ledger.
+Repeated requests for the same source/revision/language reuse existing Guide or
+active admission without charging again, including at the limit. Failed admitted
+starts remain in the hourly population; terminal completion releases concurrency.
+Admission serializes under the existing owner→notebook→source lock order and
+revalidates Owner/Ready revision before allocating. Startup recovery in D16's
+single API instance releases orphaned admissions while retaining their start times.
+A quota-limited Guide request receives429/GuideAdmissionLimited; report suggestions
+explain temporary unavailability without disabling standard/custom reports.
+No provider/model latency threshold changes or new datastore are introduced.
+
+
+Primary-language Guide reads reuse the ordinary Ready dispatcher, including its
+in-flight identity deduplication, and do not allocate extra-language admission.
+A failed database slot-release write leaves capacity occupied (fail-closed) until
+D16 startup recovery; it does not admit extra work or reset the hourly count.
+Closed admission metadata older than the rolling hour may be pruned during
+admission; active and in-window failed starts are retained.
+
+
+Primary identity is frozen in `guide_primary_languages` per source/revision before
+any on-demand admission. Bootstrap existing revisions from an existing Guide
+(preferring Ready-origin metadata). Subsequent notebook/user language changes
+never redefine primary identity: a new language variant is charged, including
+when it now matches the mutable preference. This also prevents a seen Ready
+dispatcher from leaving the changed-language request permanently Pending.

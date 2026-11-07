@@ -1,0 +1,61 @@
+
+ RUN  v5.0.5 /private/tmp/everlast-pre-v4-impl-008-20261107
+
+stderr | apps/api/test/guide-admission.integration.test.ts > does not charge or duplicate a primary-language polling race with ordinary Ready dispatch
+{"severity":"WARNING","message":"Guide admission release failed; restart recovery required"}
+
+ ❯ |integration| apps/api/test/guide-admission.integration.test.ts (2 tests | 1 failed) 802ms
+   × does not charge or duplicate a primary-language polling race with ordinary Ready dispatch 251ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/api/test/guide-admission.integration.test.ts > does not charge or duplicate a primary-language polling race with ordinary Ready dispatch
+AssertionError: expected 1 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 1
+
+ ❯ apps/api/test/guide-admission.integration.test.ts:67:128
+     65|   for(let i=0;i<100 && primaryCalls<1;i++)await new Promise(r=>setTime…
+     66|   expect(primaryCalls).toBe(1);
+     67|   expect((await app.api.db.pool.query("SELECT count(*)::int AS n FROM …
+       |                                                                                                                                ^
+     68|   unblock();await ready;
+     69|  }finally{unblock();await app.close();}
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: Cannot use a pool after calling end on the pool
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.1/node_modules/pg-pool/index.js:45:11
+ ❯ process.processTicksAndRejections node:internal/process/task_queues:104:5
+ ❯ getNotebookRecord packages/db/src/poc-bridge.ts:39:20
+     37|   const pool = v2Pool();
+     38|   if (!pool) return getNotebookRaw(notebookId);
+     39|   const { rows } = await pool.query<{ id: string; owner_id: string; ti…
+       |                    ^
+     40|     "SELECT id, owner_id, title, created_at, updated_at FROM notebooks…
+     41|     [notebookId]
+ ❯ getNotebookOwner packages/db/src/poc-bridge.ts:51:20
+ ❯ pollReadySources apps/api/src/v2/runtime.ts:360:15
+
+This error originated in "apps/api/test/guide-admission.integration.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The last test to run before this error was "does not charge or duplicate a primary-language polling race with ordinary Ready dispatch". This means either:
+- the error was thrown while Vitest was running this test, or
+- the error was thrown after the test completed, and this was the most recent test at that point.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 1 passed (2)
+     Errors  1 error
+   Start at  22:25:46
+   Duration  2.29s (import 59%, tests 36%, transform 5%)

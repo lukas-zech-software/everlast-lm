@@ -371,3 +371,36 @@ Benchmark remains 20 warm sequential runs, nearest-rank P95 = 19th sorted ≤2,5
 ### Package 3.2 main reconciliation (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
 
 Preserve the current PostgreSQL ChatService → request-bound C-02 → buffered ADK model → verifyDraft → publishTurn path. Extend actual chat service/model/draft/verifier, SSE serializer and all stored/visible/web/v2 response projections for scoped execution and typed clarification; no replacement chat stack. Default targeted retrieval does not prove whole-table coverage: obtain sufficient original scoped inputs behind the captured C-02 snapshot or explain insufficient evidence. Persist admission, attempts, trace/artifacts and cleanup/reconciliation in Cloud SQL; the AbortController map is cancellation tracking. D16/specs/013 now persists v2 data and closes DEV-04; reuse applied migrations 0005–0008 and app-scoped pool selection, preserving visible history and transactional chat-clear hygiene. The retained single-API report/Guide restart sweeps do not recover remote sandbox attempts. Preserve sources/history readiness before UI submission, with independent server scope/admission checks. D18's accepted managed CPU/RAM and existing functional/security controls remain; D19 makes R6 obsolete. Apply Constitution 2.0.0 eval cadence: deterministic each PR, judged once per release candidate using the fixed stratified 50-case sample and recorded IDs/composition/hash.
+
+
+## On-demand Guide admission design (2026-11-07; FR-SI-02, FR-ST-11, NFR-SEC-02)
+
+The recorded owner decision of2026-11-05 supersedes the older T061 deferral.
+Newly admitted on-demand language variants share a per-notebook maximum of two
+concurrent runs and twenty starts in a rolling one-hour window, both configurable
+as positive integers. Ordinary Ready-transition ingestion bypasses this ledger.
+Repeated requests for the same source/revision/language reuse existing Guide or
+active admission without charging again, including at the limit. Failed admitted
+starts remain in the hourly population; terminal completion releases concurrency.
+Admission serializes under the existing owner→notebook→source lock order and
+revalidates Owner/Ready revision before allocating. Startup recovery in D16's
+single API instance releases orphaned admissions while retaining their start times.
+A quota-limited Guide request receives429/GuideAdmissionLimited; report suggestions
+explain temporary unavailability without disabling standard/custom reports.
+No provider/model latency threshold changes or new datastore are introduced.
+
+
+Primary-language Guide reads reuse the ordinary Ready dispatcher, including its
+in-flight identity deduplication, and do not allocate extra-language admission.
+A failed database slot-release write leaves capacity occupied (fail-closed) until
+D16 startup recovery; it does not admit extra work or reset the hourly count.
+Closed admission metadata older than the rolling hour may be pruned during
+admission; active and in-window failed starts are retained.
+
+
+Primary identity is frozen in `guide_primary_languages` per source/revision before
+any on-demand admission. Bootstrap existing revisions from an existing Guide
+(preferring Ready-origin metadata). Subsequent notebook/user language changes
+never redefine primary identity: a new language variant is charged, including
+when it now matches the mutable preference. This also prevents a seen Ready
+dispatcher from leaving the changed-language request permanently Pending.

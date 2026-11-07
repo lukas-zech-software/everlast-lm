@@ -396,3 +396,6 @@ Constitution-Prinzipien und erteilen keine Freigabe zum Aktivieren von Cloud-API
 Die [paketübergreifenden Regeln](requirements/README.md#binding-cross-package-rules) und
 [Abhängigkeiten](requirements/README.md#package-prerequisites) präzisieren diese bestehenden
 Anforderungen für die nachfolgenden Spec-Kit-Stufen.
+
+
+Operational amendment2026-11-07 (FR-SI-02, FR-ST-11, NFR-SEC-02): on-demand extra-language Guide admission uses configurable2 concurrent runs and20 starts/notebook/rolling hour; ordinary ingestion is excluded, deduplicated requests are uncharged, and failed starts remain counted. See Package2.4 card for atomic admission/recovery semantics.

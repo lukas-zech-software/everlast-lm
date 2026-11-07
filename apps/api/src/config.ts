@@ -96,3 +96,13 @@ export function loadBenchmarkConfig(env: NodeJS.ProcessEnv = process.env): Bench
   const revision = env.K_REVISION ?? env.COMMIT_SHA ?? "dev";
   return { approvedNotebookIds, revision };
 }
+
+/** [008-studio-text-reports] T074 — FR-SI-02, FR-ST-11: startup validation. */
+export function loadGuideAdmissionConfig(env: NodeJS.ProcessEnv = process.env): {maxConcurrent:number;maxStartsPerHour:number} {
+  const positive=(key:string,fallback:number)=>{
+    const value=env[key]===undefined?fallback:Number(env[key]);
+    if(!Number.isSafeInteger(value)||value<1)throw new Error(`${key} must be a positive integer`);
+    return value;
+  };
+  return {maxConcurrent:positive("GUIDE_MAX_CONCURRENT",2),maxStartsPerHour:positive("GUIDE_MAX_STARTS_PER_HOUR",20)};
+}

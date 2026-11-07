@@ -124,3 +124,34 @@ now take 2–5 s each; the extract map step (up to ~10 s) is the larger share.
 - **Dev smoke (image `61542fc`)**: Gate #3 fixture on dev 4/4 Completed. A Timeline over a 195-word status memo without named people failed 4/4 with `GenerationError` (reproduced locally against Vertex: `The report has an unknown section.`).
 - **After T070–T071** (Vertex `europe-west4:gemini-2.5-flash`, keyless ADC): the memo Timeline refuses 3/3 with `InsufficientEvidence` (no supported `cast_of_characters`, FR-015); memo Briefing Doc, FAQ and Study Guide complete and validate. Gate v2.0 #3 PASS: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 17.6 s.
 
+
+
+## Retained pre-V4 Guide admission —2026-11-07
+
+Traceability: FR-SI-02, FR-ST-10/11, NFR-SEC-02, NFR-EVAL-01..04, T061/T072–T076.
+
+- Red: mounted API started5held Guides instead of2. Primary polling Red charged1
+  start instead of0. Changed-preference Red left fr-FR ungenerated after en-US
+  because the old seen dispatcher skipped it; durable primary identity fixes this.
+  One initial test invocation used a stale local port and failed setup; it was not
+  counted as requirement Red. Actual db:test port54329 was then used.
+- Green:6focusedfiles/51tests PASS (DB ledger, configuration, mounted API, existing
+  Studio runtime/restart and Vertex report adapter). Typecheck/lint/spec checks PASS.
+  DB/API tests use real disposable PostgreSQL; model/provider calls are test doubles.
+- Deterministic eval: citation160/160, leakage0, labelled report/structure doubles
+  PASS; judged suites remain UNAVAILABLE/GatePending. The deterministic run preceded
+  the final primary-language identity refinement; that change affects Guide admission
+  only, not chat/model/citation evaluation. Its affected mounted API regression was
+  rerun Green afterward.
+- T061 admission implementation is complete locally; newT076retains final candidate
+  live acceptance and historical report504/75%failure. No report model/pipeline or
+  timeout was changed without a demonstrated cause. Existing OCR processor is a
+  configuration prerequisite, not new empirical acceptance.
+- Migration0012adds ledger and primary-language identity. Deploy migrations before
+  updatedAPI. Terminal slot-release DB errors fail closed until single-instance
+  restart recovery. Retained in-window failures remain charged through restart.
+- Checklist markers unchanged: requirements16/16, report-gates22/22checked.
+- No paid calls, cloud apply, deployment, push/PR/merge, issue closure or external
+  messages. See quickstart for012merge boundaries and live prerequisites.
+
+Sanitized local logs: [evidence](evidence/pre-v4-20261107/focused-green.txt).
