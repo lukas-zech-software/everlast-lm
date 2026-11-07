@@ -152,8 +152,8 @@ importers:
         specifier: 4.4.0
         version: 4.4.0
       google-auth-library:
-        specifier: ^11.3.1
-        version: 11.3.1
+        specifier: ^11.3.3
+        version: 11.3.3
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -236,8 +236,8 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       google-auth-library:
-        specifier: ^11.3.1
-        version: 11.3.1
+        specifier: ^11.3.3
+        version: 11.3.3
       jsdom:
         specifier: ^30.1.3
         version: 30.1.3
@@ -267,8 +267,8 @@ importers:
         specifier: ^2.32.0
         version: 2.32.0
       google-auth-library:
-        specifier: ^11.3.1
-        version: 11.3.1
+        specifier: ^11.3.3
+        version: 11.3.3
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -293,8 +293,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
       google-auth-library:
-        specifier: ^11.3.1
-        version: 11.3.1
+        specifier: ^11.3.3
+        version: 11.3.3
       pg:
         specifier: ^8.13.3
         version: 8.23.1
@@ -333,8 +333,8 @@ importers:
         specifier: ^2.32.0
         version: 2.32.0
       google-auth-library:
-        specifier: ^11.3.1
-        version: 11.3.1
+        specifier: ^11.3.3
+        version: 11.3.3
       zod:
         specifier: ^4.6.7
         version: 4.6.7
@@ -1586,8 +1586,8 @@ packages:
     resolution: {integrity: sha512-i1ydyHrqcIxXkWh/uBmVkzCvIuq5yiK2ATndIe5XxKholrG/MTYP9xGYka4sQhrbIAgGjL2B6NOE7rFaiF3fXw==}
     engines: {node: '>=18'}
 
-  google-auth-library@11.3.1:
-    resolution: {integrity: sha512-mQS0R2Ev/DKkzuWSYtDeq15uhDeaWuT2qzLYqJ41LmooxVKHmn5ut3pc6dlHY6wfHW/D7FBmOYjAtkjaD1A7qA==}
+  google-auth-library@11.3.3:
+    resolution: {integrity: sha512-VxjQ5+zHeR4RcRi001qnT/6KRKy2CIjQ5I7/wFErvRqr0+setlRqjDOAzvjzWEzyvsWswZE6WMQJtS8OpeTqAQ==}
     engines: {node: '>=22'}
 
   google-auth-library@9.15.1:
@@ -2991,7 +2991,7 @@ snapshots:
       duplexify: 4.1.3
       fast-xml-parser: 5.11.2
       gaxios: 7.3.1
-      google-auth-library: 11.3.1
+      google-auth-library: 11.3.3
       html-entities: 2.6.0
       mime: 3.0.0
       p-limit: 3.1.0
@@ -4139,7 +4139,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  google-auth-library@11.3.1:
+  google-auth-library@11.3.3:
     dependencies:
       base64-js: 1.5.1
       ecdsa-sig-formatter: 1.0.11
