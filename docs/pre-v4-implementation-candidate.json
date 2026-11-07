@@ -1,0 +1,99 @@
+{
+  "record_type": "implementation_checkpoint_not_release_acceptance",
+  "date": "2026-11-07",
+  "traceability": [
+    "CC-01",
+    "CC-06",
+    "Gate v3.0",
+    "NFR-PERF-01",
+    "NFR-EVAL-01..04"
+  ],
+  "coordinator_branch": "codex/pre-v4-implementation-coordinator",
+  "integrated_checkpoint": "f3a9e388a9ef5443795306e964dd1b4ee28577b4",
+  "release_result": "GatePending",
+  "v4_implementation_allowed": false,
+  "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
+  "packages": [
+    {
+      "feature": "006-source-guide-chat-control",
+      "branch": "codex/pre-v4-impl-006-20261107",
+      "checkpoint": "0e77ebb",
+      "status": "local_verified",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-006-handoff-20261107.md",
+      "checks": {
+        "focused_tests": 75,
+        "final_judge_regressions": 4,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "deterministic_citation": "160/160",
+        "leakage": 0
+      },
+      "live_acceptance": "Historical Guide/length evidence retained; full judged failure retained, no new paid rerun."
+    },
+    {
+      "feature": "001-workspace-foundation",
+      "branch": "codex/pre-v4-impl-001-20261107",
+      "checkpoint": "be90304a18259916c442b662fed9b0e26a2d0d79",
+      "status": "local_verified_live_pending",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-001-handoff-20261107.md",
+      "checks": {
+        "focused_tests": 22,
+        "provider_mock_tests": 2,
+        "live_tests_skipped": 2,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "tofu_validate": "PASS"
+      },
+      "open": [
+        "T046 real identity/storage proof and resumable applicability",
+        "T061 signup policy apply/live verification"
+      ],
+      "live_acceptance": "UNAVAILABLE: approved disposable fixtures missing; no policy applied."
+    },
+    {
+      "feature": "008-studio-text-reports",
+      "branch": "codex/pre-v4-impl-008-20261107",
+      "status": "local_verified_live_pending",
+      "checkpoint": "eb25d667797abb8fe961bc26e17913b860a3b7ac",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-008-handoff-20261107.md",
+      "checks": {
+        "focused_tests": 51,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "deterministic_citation": "160/160",
+        "leakage": 0
+      },
+      "open": [
+        "T076 live report/common judged acceptance; existing report504unresolved"
+      ]
+    },
+    {
+      "feature": "009-multimodal-ingestion-sync",
+      "branch": "codex/pre-v4-impl-009-20261107",
+      "status": "partial_recovery_checkpoint_at_usage_cutoff",
+      "checkpoint": "f3a9e388a9ef5443795306e964dd1b4ee28577b4",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-009-handoff-20261107.md",
+      "checks": {
+        "audio_tests": 10,
+        "typecheck": "PASS",
+        "lint": "PASS",
+        "spec_integrity": "PASS",
+        "diff": "PASS",
+        "unconfigured_live_cli": "UNAVAILABLE exit2"
+      },
+      "open": [
+        "7e87bb2 ingestion infrastructure provider compatibility review/integration",
+        "T049/T050 live acceptance"
+      ]
+    }
+  ],
+  "cloud_writes": false,
+  "paid_runs": false,
+  "github_writes": false,
+  "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
+  "stop_reason": "User usage cutoff observed: five-hour10%remaining/weekly70%remaining",
+  "active_package_agents": []
+}
