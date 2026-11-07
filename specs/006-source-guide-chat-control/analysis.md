@@ -74,3 +74,7 @@ The documentation inconsistencies found during analysis were corrected before th
 - All final unit and focused suites, typecheck, lint, integrity, deterministic eval, and diff checks pass; deterministic local timing remains distinct from cloud P95. The final convergence pass verifies T057–T059.
 - Keep full Gate v1 upload/citation evidence and Package 2.1 prerequisites distinct from this feature evidence; do not claim Gate v2.0 #2 until Package 2.3 converts the saved note and a subsequent grounded turn cites it.
 - Do not declare Gate v2.0 #2 passed until Package 2.3 FR-NM-03 converts the saved note and a subsequent grounded turn cites the converted source.
+
+## Pre-v4 follow-up analysis, 2026-11-07 (CC-01..CC-08)
+
+The T089–T091 changes map to FR-002/FR-012 and upstream FR-SI-02/FR-GC-07. Spec, plan and package card agree on generation headroom, record summarization and trusted request-local Shorter routing (CC-01); observed failing regression tests precede implementation (CC-02). C-02 scope/snapshot handling and citation/refusal validation are unchanged; concurrent length isolation and no source/custom promotion are tested (CC-03/04/07). No schema, datastore, service or dependency is added (CC-05/08). Work is restricted to the existing v2 package; v3/v4 release acceptance is not inferred, and the recorded global judged failure remains open (CC-06). No new consistency finding in this bounded change; reviewer checklists were not marked reviewed. See validation.md for passing package metrics and retained global limitations.

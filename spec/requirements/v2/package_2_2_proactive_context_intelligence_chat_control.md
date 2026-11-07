@@ -347,3 +347,7 @@ Guide generation aims for 120–160 summary words and topic labels of at most 30
 Shorter response-length guidance uses one compact cited sentence with terse labelled facts: all requested facts, no introduction or repeated narrative clauses. Default (concise and precise) and Longer (target at least four supported cited sentences) remain unchanged. Targets never require padding, dropping requested facts or weakening grounding/refusal. The release metric remains Shorter ≤50% and Longer ≥150% of Default on the existing fixed sample.
 
 Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.
+
+Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
+
+Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.

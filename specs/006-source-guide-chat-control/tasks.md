@@ -210,6 +210,6 @@ Source: first live Gate v2.0 run (2026-10-20). Gate v2.0 #1 rejected 6/20 guides
 
 ## Phase 13: Pre-v4 live-failure follow-up (FR-SI-02, FR-GC-07)
 
-- [ ] T089 Add spec-derived failing regression coverage for Source Guide generation headroom and compact Shorter composition and isolation of trusted length routing from concurrent requests/custom text; retain all hard validation and refusal rules (FR-SI-02, FR-GC-07, CC-02).
-- [ ] T090 Pass T089 by reserving generation headroom under summary/topic limits and making Shorter composition explicit through request-local trusted guidance without unsupported padding, truncation or retrying invalid output (FR-SI-02, FR-GC-07, FR-GC-01/02).
-- [ ] T091 Run the existing live 20-case guide gate and fixed-sample response-length metric using Vertex europe-west4; retain every attempt and exact failures, flow back findings, and run focused regressions plus static and deterministic eval gates (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-01).
+- [X] T089 Add spec-derived failing regression coverage for Source Guide generation headroom and compact Shorter composition and isolation of trusted length routing from concurrent requests/custom text; retain all hard validation and refusal rules (FR-SI-02, FR-GC-07, CC-02).
+- [X] T090 Pass T089 by reserving generation headroom under summary/topic limits and making Shorter composition explicit through request-local trusted guidance without unsupported padding, truncation or retrying invalid output (FR-SI-02, FR-GC-07, FR-GC-01/02).
+- [X] T091 Run the existing live 20-case guide gate and fixed-sample response-length metric using Vertex europe-west4; retain every attempt and exact failures, flow back findings, and run focused regressions plus static and deterministic eval gates (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-01).

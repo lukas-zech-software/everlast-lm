@@ -195,3 +195,7 @@ Package 2.2 and Package 2.3 use one stable DTO. `POST /api/notebooks/{notebook_i
 - **Out of Scope / Deferred**: Multi-step autonomous web research (FR-SI-07, v6.0); manual editing of Source Guide text; chat-history clearing behavior except saved-note independence; Studio reports and other Studio generators; model training or fine-tuning from feedback; non-owner roles before v6.0; and features assigned to Packages 2.1, 2.3, and 2.4 except the integrations explicitly identified above.
 
 Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.
+
+Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
+
+Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.

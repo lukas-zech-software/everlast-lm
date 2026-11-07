@@ -141,7 +141,7 @@ export function guideInstruction(wordCount: number): string {
     `Write a Source Guide for the one source given. This source has ${wordCount} words (word_count).`,
     short
       ? `Because the source has fewer than 50 words, summary_md must be exactly one sentence of plain text: no headings, line breaks, lists or second sentence; join several points with commas or semicolons and end with a single full stop.`
-      : `summary_md: a summary within 100 to 250 words: aim for 120 to 160 words to leave headroom for language and word-count differences (never more than 250 words, count them; shorter when the source supports less). Never cut a sentence off to fit.`,
+      : `summary_md: a summary within 100 to 250 words: aim for 120 to 160 words to leave headroom for language and word-count differences (never more than 250 words, count them; shorter when the source supports less). Summarize the central themes in 3 to 5 sentences, selecting representative details rather than reproducing a full list: do not enumerate every record, person, service, vendor or table row. Never cut a sentence off to fit.`,
     short
       ? "key_topics: 1 to 3 key topics of at most 40 characters each."
       : "key_topics: target 5 to 10 key topics of at most 40 characters each; list fewer when the source supports fewer, never pad, never more than 10.",
@@ -217,7 +217,12 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
   }
 
   generateSourceGuide(input: { source: ScopedSourceMaterial; output_language: string }) {
-    return this.generate(guideInstruction(input.source.word_count), { output_language: input.output_language, sources: [sourcePayload(input.source)] }, GUIDE_RESPONSE_SCHEMA, SourceGuideGenerationSchema);
+    return this.generateStructured({
+      systemInstruction: guideInstruction(input.source.word_count),
+      contents: { output_language: input.output_language, sources: [sourcePayload(input.source)] },
+      responseSchema: GUIDE_RESPONSE_SCHEMA,
+      schema: SourceGuideGenerationSchema,
+    });
   }
 
   generateOverview(input: { sources: ScopedSourceMaterial[]; output_language: string }) {

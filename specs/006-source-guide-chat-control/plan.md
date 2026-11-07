@@ -69,3 +69,7 @@ No new frameworks, datastores, cloud services or architecture decisions; D16 gov
 Reserve prompt headroom (120–160 words, topic labels ≤30 characters) under the existing summary/topic validators. Keep first-answer invalid-output failure and transient retry semantics unchanged. Give Shorter one compact factual sentence with terse labelled facts; preserve the existing Default/Longer guidance. Verify the unchanged relative-length thresholds and guide gate on the synthetic corpus through production generation paths. No new model, storage, dependency or architectural deviation.
 
 Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.
+
+Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
+
+Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.

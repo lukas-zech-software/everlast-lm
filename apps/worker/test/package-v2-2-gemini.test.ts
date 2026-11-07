@@ -77,11 +77,13 @@ describe("Vertex StructuredGenerationClient (FR-SI-02, FR-GC-04/05, D3, NFR-SEC-
     const client = new VertexStructuredGenerationClient({ project: "everlast-test", createClient: fake.createClient });
     await client.generateSourceGuide({ source: { ...material, word_count: 372 }, output_language: "en-US" });
     await client.generateSourceGuide({ source: { ...material, word_count: 45 }, output_language: "en-US" });
-    const long = JSON.parse(fake.requests[0]!.contents).instruction as string;
-    const short = JSON.parse(fake.requests[1]!.contents).instruction as string;
+    const long = fake.requests[0]!.config.systemInstruction as string;
+    const short = fake.requests[1]!.config.systemInstruction as string;
     expect(long).toMatch(/372 words/);
     expect(long).toMatch(/never more than 250 words/i);
     expect(long).toMatch(/aim for 120 to 160 words/i);
+    expect(long).toMatch(/do not enumerate every record/i);
+    expect(long).toMatch(/3 to 5 sentences/i);
     expect(long).toMatch(/aim for at most 30 characters/i);
     expect(short).toMatch(/aim for at most 30 characters/i);
     expect(long).toMatch(/5 to 10/);

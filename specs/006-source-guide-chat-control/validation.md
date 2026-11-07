@@ -141,3 +141,29 @@ Branch `fix/v2-006-live-gate` (base `main` 5a8dbe0, which includes the Gate v2.0
 | `NFR-EVAL-01..04` (50-case sample) | citation precision 18/18, hallucination 0/18, semantic support 18/18, leakage 0; negative rejection 24/25 (**fail**). NEG-060, SYN-041 and SYN-050 errored (likely residual 429s); the NEG-060 error counts as a missed rejection. |
 
 The fixes from #135 work for Longer and cut Source Guide rejections from 6/20 to 2/20, but they did not fix Shorter or the German summary and topic limits. Gate v2.0 stays approved by owner override ([record](../../docs/gate-v2-live-evaluation.md)). Remaining defects are follow-ups, not blockers.
+
+## Pre-v4 follow-up, 2026-11-05–07 (T089–T091; FR-SI-02, FR-GC-07)
+
+Code base: `ef28a5c` (includes main `8835c5c` / Zod 4). Exact final source hashes, all completed live attempts, incomplete-run reasons and the synthetic vendor output are retained in [attempts.json](evidence/pre-v4-20261107/attempts.json).
+
+The first fresh guide run rejected the German Infrastructure summary (19/20, P95 3.98 s). Prompt headroom alone subsequently passed once but then failed German topic/summary limits. The diagnostic Vendor summary transcribed every record and reached 275 words. Final generation uses fixed system instructions, targets 120–160 words/30-character topic labels, and summarizes central themes in 3–5 sentences instead of enumerating records. The 250-word/40-code-point validators, short-source rule and invalid-output rejection remain unchanged; no output is truncated or regenerated.
+
+Shorter initially averaged 100% of Default. Putting compact composition in the user payload still failed. A validated request-local Shorter enum now selects fixed system-level composition guidance; source/custom text remains untrusted data, concurrent requests cannot share settings, and Default/Longer instructions remain unchanged.
+
+| Verification | Result |
+| :- | :- |
+| Final live Source Guide, 2026-11-07 | **PASS**, 20/20 GuideReady, P95 2,677.47 ms including 1,000 ms watcher dispatch bound, no rejected cases |
+| Live response length, 2026-11-06 | **PASS**, Shorter/Default 0.435; Longer/Default 2.3733; 8 eligible cases, 6 Default refusals excluded under the existing rule |
+| Full judged run, 2026-11-06 | Grounding metrics **PASS**: citations 22/22, semantic support 22/22, hallucination 0/22, rejection 25/25, leakage 0; length again passes (43%/241%) |
+| Full judged command overall | **FAIL**, not GatePassed: OCR configuration unavailable; separate report gate 3/4 valid, P95 64.54 s after provider 504 failures; pre-final guide candidate 19/20 |
+| Focused regression suite | **PASS**, 8 files / 69 tests (chat, model routing, preferences, guide contracts/pipeline/client, length metric) |
+| Typecheck, lint, spec integrity, diff whitespace | **PASS** |
+| Deterministic eval | **PASS**, citation precision 160/160, leakage 0; report/structure deterministic checks pass |
+
+Red → Green: prompt regression tests failed before the bounded composition changes; request-isolation test failed without trusted Shorter routing; guide system-instruction and non-enumeration tests each failed before their implementation. Existing hard-limit tests remain enabled.
+
+The [judged report](evidence/pre-v4-20261107/judged-eval-report-v1.json) retains all 50 sample IDs/category counts and dataset hash `35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29`; [full log](evidence/pre-v4-20261107/judged-run.txt) retains subsequent report/guide failures. The [standalone length script](evidence/pre-v4-20261107/length-run.mjs) reuses the production chat pipeline and fixed release sample.
+
+Live usage: 121 guide generation calls, 131 length-generation attempts across baseline/intermediate/final/full-judged runs. These exclude embedding requests, the main 50-case chat/judge pass, report calls and transport retries. Exact billed cost is **UNAVAILABLE** (billing data not queried). Local DB interruptions and a provider 503 are recorded as unavailable/failed attempts, never passes. No further paid run was started after these results.
+
+This closes the bounded Package 2.2 implementation follow-up, not the global release gate. The live guide harness uses actual Vertex generation with a singleton in-memory source reader and a declared dispatch bound, not deployed end-to-end ingestion timing. Reviewer-owned checklists remain untouched (requirements-quality 0/18); the parent explicitly authorized bounded fixes while preserving those markers. Optional commit hooks were handled by explicit authorized commits; no mandatory implement hook is registered.
