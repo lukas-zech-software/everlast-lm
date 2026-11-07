@@ -78,3 +78,23 @@ The documentation inconsistencies found during analysis were corrected before th
 ## Pre-v4 follow-up analysis, 2026-11-07 (CC-01..CC-08)
 
 The T089–T091 changes map to FR-002/FR-012 and upstream FR-SI-02/FR-GC-07. Spec, plan and package card agree on generation headroom, record summarization and trusted request-local Shorter routing (CC-01); observed failing regression tests precede implementation (CC-02). C-02 scope/snapshot handling and citation/refusal validation are unchanged; concurrent length isolation and no source/custom promotion are tested (CC-03/04/07). No schema, datastore, service or dependency is added (CC-05/08). Work is restricted to the existing v2 package; v3/v4 release acceptance is not inferred, and the recorded global judged failure remains open (CC-06). No new consistency finding in this bounded change; reviewer checklists were not marked reviewed. See validation.md for passing package metrics and retained global limitations.
+
+
+## Integration and eval-resilience analysis, 2026-11-07 (T092–T094)
+
+Checkpoint integration preserves T089–T091 behavior/evidence without repeating paid
+runs. The resilience gap was verified: provider retries were bounded but had no
+attempt records, malformed JSON was retried, and exhausted judge errors escaped
+metric computation before a report. T092 Red tests reproduced all three behaviors;
+T093 retains private-safe attempt outcomes and cumulative elapsed time, retries only
+429/5xx, and records case-local judge failures without dropping the case population.
+Affected judged metrics become unavailable and the report fails through errored cases.
+
+CC-01: feature spec/plan, upstream card and T092–T094 agree. CC-02: observed Red
+preceded Green implementation. CC-03/04: product C-02, refusal and citation validation
+are unchanged and existing verifier tests pass. CC-05: additive evaluation metadata
+only; no shared contract fork. CC-06: no new release acceptance is claimed; historical
+judged/report/OCR failures remain. CC-07: attempt records omit prompts, source text
+and raw provider error messages. CC-08: no runtime dependency, service or datastore
+is added. Reviewer-owned checklists retain 18 unchecked entries and were not edited.
+No further high/critical finding in this scoped integration.

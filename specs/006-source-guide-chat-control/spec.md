@@ -199,3 +199,14 @@ Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is
 Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
 
 Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.
+
+
+## Pre-v4 evaluation resilience (FR-GC-07, NFR-EVAL-01..04)
+
+Judge provider retries are limited to five total attempts for transient 429/5xx
+responses. Retain each attempt's purpose, outcome, HTTP status and elapsed time,
+including backoff in cumulative elapsed time. Malformed or schema-invalid verdicts
+fail immediately; product citation validation is never retried. Exhausted provider
+errors must produce a failing report retaining the affected case and the original
+case population, rather than aborting before a report or omitting failed cases.
+Attempt records contain no prompts, source text or raw provider error messages.

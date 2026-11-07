@@ -167,3 +167,30 @@ The [judged report](evidence/pre-v4-20261107/judged-eval-report-v1.json) retains
 Live usage: 121 guide generation calls, 131 length-generation attempts across baseline/intermediate/final/full-judged runs. These exclude embedding requests, the main 50-case chat/judge pass, report calls and transport retries. Exact billed cost is **UNAVAILABLE** (billing data not queried). Local DB interruptions and a provider 503 are recorded as unavailable/failed attempts, never passes. No further paid run was started after these results.
 
 This closes the bounded Package 2.2 implementation follow-up, not the global release gate. The live guide harness uses actual Vertex generation with a singleton in-memory source reader and a declared dispatch bound, not deployed end-to-end ingestion timing. Reviewer-owned checklists remain untouched (requirements-quality 0/18); the parent explicitly authorized bounded fixes while preserving those markers. Optional commit hooks were handled by explicit authorized commits; no mandatory implement hook is registered.
+
+
+## Integration checkpoint and harness resilience, 2026-11-07 (T092–T094)
+
+Worktree `everlast-pre-v4-impl-006-20261107` starts at coordinator `5cb968b` and
+integrates `ea54297` and `4fd99c0` as `f533dd7`/`27e8563`; the main merge commit
+was already inherited. Product source behavior matches the completed checkpoint.
+Its dated Guide/length evidence remains historical supporting evidence, not a fresh
+release-candidate pass. No new live model calls or infrastructure changes were made.
+
+Red: three judge-resilience tests failed on missing attempt records and five retries
+of malformed JSON; the DB-backed report test threw the provider error before report
+construction. Green: 11 focused files / 75 tests pass, including bounded retry timing,
+malformed/schema-invalid verdict rejection, authorization failure, private-safe
+reporting, Guide generation and length isolation/grounding/verifier regressions.
+Typecheck and lint/spec integrity pass. The disposable test database is local only.
+
+Remaining limits: the earlier global judged report is still FAIL (report504/OCR and
+pre-final Guide19/20); gate-v2 historical owner acceptance is preserved. This fix
+retains judge failures in completed evaluation reports; it does not introduce product
+model retries or make unrelated ingestion/response-length setup failures recoverable.
+The final coordinator must run the qualifying integrated release sample after those
+prerequisites are resolved and assess current-candidate evidence applicability.
+
+Full deterministic evaluation passes citation160/160 and leakage0, with 60/60
+adversarial out-of-prompt drafts blocked. Labelled report/structure model doubles
+pass; judged metrics remain UNAVAILABLE and report GatePending, as expected.

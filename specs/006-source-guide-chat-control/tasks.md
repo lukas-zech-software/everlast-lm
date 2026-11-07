@@ -213,3 +213,10 @@ Source: first live Gate v2.0 run (2026-10-20). Gate v2.0 #1 rejected 6/20 guides
 - [X] T089 Add spec-derived failing regression coverage for Source Guide generation headroom and compact Shorter composition and isolation of trusted length routing from concurrent requests/custom text; retain all hard validation and refusal rules (FR-SI-02, FR-GC-07, CC-02).
 - [X] T090 Pass T089 by reserving generation headroom under summary/topic limits and making Shorter composition explicit through request-local trusted guidance without unsupported padding, truncation or retrying invalid output (FR-SI-02, FR-GC-07, FR-GC-01/02).
 - [X] T091 Run the existing live 20-case guide gate and fixed-sample response-length metric using Vertex europe-west4; retain every attempt and exact failures, flow back findings, and run focused regressions plus static and deterministic eval gates (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-01).
+
+
+## Phase 14: Retained evaluation failures (FR-GC-07, NFR-EVAL-01..04)
+
+- [X] T092 Add spec-derived Red tests for bounded judge transient retries, retained attempt/elapsed evidence, invalid-verdict immediate failure and exhausted judge errors producing a failing report without case loss (FR-GC-07, NFR-EVAL-01..04, CC-02).
+- [X] T093 Pass T092 with private-safe attempt records and case-local failure capture; keep refusal/citation validation and original denominators unchanged (FR-GC-07, NFR-EVAL-01..04).
+- [X] T094 Verify integrated 006 checkpoint and harness regressions locally, reconcile evidence applicability and preserve all historical live failures without a new paid run (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-06).

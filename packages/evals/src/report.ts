@@ -1,5 +1,6 @@
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import type { JudgeAttempt } from "./judge.ts";
 import type { EvalRunResult } from "./runner.ts";
 import type { PreflightReport } from "./security-preflight.ts";
 import type { MetricResult } from "./metrics.ts";
@@ -42,6 +43,7 @@ export interface GateReport {
   security_preflight: PreflightReport | null;
   /** v2.0 release metrics outside Gate v1.0 (FR-GC-07 response length); recorded, not part of the v1 gate state. */
   release_metrics?: { response_length: ResponseLengthMetric };
+  judge_attempts?: readonly JudgeAttempt[];
   failures: string[];
   cases: { id: string; category: string; kind: string; response: string; citations: number; leakage: number; judged?: unknown; turns?: unknown; error?: string }[];
 }
@@ -99,6 +101,7 @@ export function buildGateReport(input: {
     },
     security_preflight: input.preflight,
     ...(input.responseLength ? { release_metrics: { response_length: input.responseLength } } : {}),
+    ...(run.judge_attempts ? { judge_attempts: run.judge_attempts } : {}),
     failures,
     cases: run.cases.map((c) => ({
       id: c.id,
