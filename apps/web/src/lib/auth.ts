@@ -47,33 +47,26 @@ export function signInMethod(providerId: string): "password" | "saml" | "oauth" 
   return providerId.startsWith("saml.") ? "saml" : "oauth";
 }
 
-/** Email/password form for Identity Platform (dev PoC): sign in, or create the account on first use. */
-function renderPasswordSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
+/** FR-WM-04 / D21: existing accounts sign in; administrators provision new accounts. */
+export function renderPasswordSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
   return new Promise((resolve) => {
     clear(root);
     const email = h("input", { type: "email", name: "email", placeholder: "you@example.com", required: true, "data-testid": "signin-email", autocomplete: "email" });
-    const password = h("input", { type: "password", name: "password", placeholder: "Password (min. 6 characters)", required: true, minlength: "6", "data-testid": "signin-password", autocomplete: "current-password" });
-    const message = h("p", { class: "muted", "data-testid": "signin-message", text: "Sign in, or create an account with a new email and password." });
+    const password = h("input", { type: "password", name: "password", placeholder: "Password", required: true, "data-testid": "signin-password", autocomplete: "current-password" });
+    const message = h("p", { class: "muted", "data-testid": "signin-message", text: "Sign in with your existing account. Contact your administrator if you need access." });
     const signIn = h("button", { class: "btn btn-primary", type: "submit", text: "Sign in" });
-    const signUp = h("button", { class: "btn", type: "button", "data-testid": "signup", text: "Create account" });
-    const form = h("form", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message, email, password, signIn, signUp);
-    const run = async (create: boolean) => {
+    const form = h("form", { class: "signin", "data-testid": "signin-form" }, h("h1", { text: "Everlast LM" }), message, email, password, signIn);
+    const run = async () => {
       if (!form.reportValidity()) return;
-      message.textContent = create ? "Creating account…" : "Signing in…";
+      message.textContent = "Signing in…";
       try {
-        if (create) await authModule.createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
-        else await authModule.signInWithEmailAndPassword(auth, email.value.trim(), password.value);
+        await authModule.signInWithEmailAndPassword(auth, email.value.trim(), password.value);
         resolve();
       } catch (error) {
-        const code = String((error as { code?: unknown })?.code ?? "");
-        message.textContent =
-          code === "auth/email-already-in-use" ? "This email already has an account. Use Sign in." :
-          code === "auth/weak-password" ? "The password needs at least 6 characters." :
-          create ? "The account could not be created." : "Sign-in failed. Check email and password, or create an account.";
+        message.textContent = "Sign-in failed. Check email and password, or contact your administrator.";
       }
     };
-    form.addEventListener("submit", (event) => { event.preventDefault(); void run(false); });
-    signUp.addEventListener("click", () => void run(true));
+    form.addEventListener("submit", (event) => { event.preventDefault(); void run(); });
     root.append(form);
     email.focus();
   });

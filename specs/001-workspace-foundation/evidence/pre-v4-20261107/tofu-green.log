@@ -1,0 +1,5 @@
+tests/registration.tftest.hcl... pass
+  run "admin_only_preserves_existing_signin"... pass
+  run "disabled_identity_does_not_create_configuration"... pass
+
+Success! 2 passed, 0 failed.

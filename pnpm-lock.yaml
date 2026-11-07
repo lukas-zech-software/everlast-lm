@@ -267,6 +267,9 @@ importers:
       '@everlast/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit
+      '@google-cloud/storage':
+        specifier: ^8.4.0
+        version: 8.4.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5

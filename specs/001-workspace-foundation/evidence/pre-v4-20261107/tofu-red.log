@@ -1,0 +1,15 @@
+tests/registration.tftest.hcl... fail
+  run "admin_only_preserves_existing_signin"... fail
+
+Error: Test assertion failed
+
+  on tests/registration.tftest.hcl line 20, in run "admin_only_preserves_existing_signin":
+  20:     condition = try(google_identity_platform_config.auth[0].client[0].permissions[0].disabled_user_signup == true, false)
+    ├────────────────
+    │ google_identity_platform_config.auth[0].client is empty list of object
+
+Client signup must be denied by Identity Platform, including direct API
+requests.
+  run "disabled_identity_does_not_create_configuration"... pass
+
+Failure! 1 passed, 1 failed.

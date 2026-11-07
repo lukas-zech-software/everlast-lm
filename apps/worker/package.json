@@ -20,7 +20,8 @@
   "devDependencies": {
     "@everlast/testkit": "workspace:*",
     "@types/node": "^26.6.5",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "@google-cloud/storage": "^8.4.0"
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",

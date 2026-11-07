@@ -519,3 +519,39 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 - **T048** (Downstream Implementation Execution): Open pending external Packages 1.2 and 1.3 implementation; interfaces and integration tests delivered.
 - **T049** (Full Gate v1.0 Evidence): Open pending Package 1.4 release gate integration.
 - **T050** (Foundation Handoff): **COMPLETE [x]**.
+
+
+## Pre-V4 retained work checkpoint — 2026-11-07
+
+Traceability: FR-WM-01/04, NFR-SEC-01/02, NFR-EVAL-01..04, D21/DEV-06,
+[001-workspace-foundation] T046/T058–T061. Base: 0e77ebb.
+
+- T058/T059 local PASS: provider mock test initially failed specifically for absent
+  signup permissions; UI initially failed because Create account was present. Green:
+  two provider plan assertions/runs pass; password form signs in existing users and
+  never invokes account creation. No provider upgrade; offline tofu validate PASS.
+- T060 creation PASS: both exact T046 suite paths now exist. They compile, are
+  discoverable, and default to skipped. No cloud requests/mutations were executed.
+- Focused local run PASS: four files / 22 tests; two live suites / two tests SKIPPED
+  (not acceptance). The final safety recheck passed one fixture-guard test with
+  the same two live skips. Enabled-without-approval probe failed explicitly with
+  UNAVAILABLE before cloud access, as required.
+- Typecheck PASS; lint/spec-integrity PASS; whitespace PASS. Initial typecheck found
+  the new worker suite needed the already-approved storage SDK as a test dependency;
+  added the existing ^8.4.0 client to worker devDependencies, with no package version
+  upgrade. Restore pnpm12 package-manager metadata churn before committing.
+- Deterministic eval PASS for citation IDs/leakage; judged metrics remain unavailable
+  in this labelled local run, and this is not a release gate pass.
+- T046/T061 remain OPEN/UNAVAILABLE: approved pre-created disposable identity user,
+  labelled versioned EU test bucket with soft delete disabled, signing ADC and
+  reviewed deployment/saved state plan are absent. Current signup config was not
+  applied. Existing real accounts and buckets were not used.
+- Resumable semantics are explicit: current app issues signed PUTs; new live suite
+  checks POST-resumable denial on that capability and real PUT expiry/late sweep.
+  It does not certify arbitrary externally created resumable-session cancellation.
+  Do not close that retained T046 obligation without an applicability review/proof.
+
+Sanitized local logs are in `evidence/pre-v4-20261107/`. Missing/failed historical
+live acceptance remains unchanged. Current checklists remain 16/16 and 17/17
+checked; no reviewer markers changed. Optional Git commit hooks apply to analyze
+and implement; a reviewed final commit supplies the checkpoint.

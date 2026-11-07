@@ -50,3 +50,33 @@
 
 - Package 1.1 (`specs/001-workspace-foundation`) passes `/speckit-analyze` with zero blocking or non-blocking issues.
 - Ready for `/speckit-implement` execution starting at Phase 1 Setup (`T001`–`T004`).
+
+
+## Pre-V4 retained-work analysis — 2026-11-07 (FR-WM-01/04, NFR-SEC-01/02)
+
+Read-only analysis followed separate flow-back and preceded implementation.
+Converge found two actionable high gaps: missing discoverable real-service suites
+(T046), and open signup contrary to the recorded owner policy. T058–T061 were
+appended without renumbering earlier tasks. No critical cross-artifact contradiction
+remains after the explicit D21/DEV-06/card/spec/plan flow-back. Existing checklists:
+requirements 16/16 and workspace-isolation-quotas 17/17 checked; unchanged.
+
+| Requirement | Test/task coverage | Remaining acceptance |
+| --- | --- | --- |
+| FR-WM-04 admin-only signup, existing sign-in | T058/T059 provider and UI tests | Actual policy rollout and disposable real Identity Platform verification |
+| FR-WM-01/04 live cleanup and revocation | T046/T060/T061, existing local tests | Approved fixtures and successful real run; resumable obligation applicability remains explicit |
+
+| Gate | Design recheck before implementation and after refinements |
+| --- | --- |
+| CC-01 | PASS: D21/DEV-06, 001 spec/plan/card and tasks agree; live status remains pending. |
+| CC-02 | PASS: provider/UI Red precedes Green; harness checks supplement existing tests. |
+| CC-03 | PASS: no source-read/snapshot path is changed. |
+| CC-04 | PASS: no generation/citation behavior changes; deterministic eval remains required. |
+| CC-05 | PASS: no shared contract duplication or new pipeline. |
+| CC-06 | PASS: existing package only, inherited predecessor checkpoint, no V4 implementation. |
+| CC-07 | PASS design: admin provisioning, keyless fixture access and production guards; real verification UNAVAILABLE. |
+| CC-08 | PASS: existing provider v6/storage client/TypeScript stack; test-only existing storage client dependency, no new service. |
+
+No unmapped new tasks; T061/T046 cannot be marked passed from local test skips.
+No mandatory before/after analyze/implement hooks are registered; optional Git
+commit hooks are satisfied by the reviewed final checkpoint.

@@ -106,3 +106,22 @@ No constitution exception or new architecture decision is required. A payload-fr
 - **Persistence (FR-WM-01/07):** migrations `0001`–`0003` define `users`, `notebooks`, `notebook_create_requests` (replay never resurrects a deleted notebook), `sources` (admission ledger), `cleanup_operations` and a durable `jobs` outbox. On Cloud Run the pool uses the Cloud SQL socket with IAM database authentication (access-token password).
 - **Deletion (FR-WM-01):** DELETE always returns 202 with a deletion ID; the worker purges all generations, stays Pending until upload capabilities expire, then sweeps again before `Purged`. The API wakes the worker by enqueuing a Cloud Tasks HTTP task (OIDC) on Cloud Run, or by direct call locally; the outbox guarantees recovery.
 - **Infrastructure (D14):** the policy assertions planned as `infra/tests/workspace-policy.test.ts` are native `tofu test` files in `infra/modules/storage_secrets/tests/`. The workspace bucket now sets soft-delete retention 0 and allows `x-goog-content-length-range` in CORS. Compute passes Identity Platform client settings and the Cloud Tasks location.
+
+
+## Retained pre-V4 identity acceptance (2026-11-07; FR-WM-04, NFR-SEC-01/02)
+
+Owner decision recorded 2026-11-05: accounts are created by an administrator only.
+Existing authorized accounts retain sign-in. Enforce this with Identity Platform
+client permissions (`disabled_user_signup = true`), not only a hidden signup button.
+Keep configured email/password and OIDC/SAML authentication, existing accounts,
+notebook ownership and token verification/revocation unchanged. The password form
+offers sign-in and directs users without accounts to their administrator.
+
+Real identity/storage acceptance uses opt-in suites at the T046 paths. An enabled
+suite missing explicit disposable-fixture acknowledgement/configuration fails
+UNAVAILABLE before any cloud mutation. Do not use the application workspace bucket
+or production identities. Use pre-created approved disposable project/accounts and
+a versioned EU test bucket labelled `everlast-fixture=disposable`; tests isolate
+object names by random notebook ID and verify holds/retry, all generations,
+outstanding upload expiry and privacy. Configuration/code tests are not a live pass.
+T046 remains open until approved real runs prove its full obligations.
