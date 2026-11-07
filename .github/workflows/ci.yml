@@ -66,6 +66,9 @@ jobs:
       - name: Lint and spec integrity
         run: pnpm lint
 
+      - name: Roadmap acceptance rules (CC-06)
+        run: node --test scripts/sync-github-project.test.mjs
+
       - name: Typecheck
         run: pnpm typecheck
 

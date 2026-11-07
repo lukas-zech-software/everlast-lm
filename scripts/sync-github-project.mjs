@@ -10,7 +10,8 @@
  */
 
 import { execSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const OWNER = "lukas-zech-software";
 const REPO = "lukas-zech-software/everlast-lm";
@@ -101,13 +102,15 @@ const PACKAGES = {
     slug: "008-studio-text-reports",
     initialPr: 122,
     convergePr: null,
+    // Explicit live acceptance for all four report templates, not implementation alone.
+    acceptancePr: 151,
   },
   "3.1": {
     release: "v3.0",
     epic: 10,
-    issues: [51, 52],
+    issues: [51, 52, 83],
     slug: "009-multimodal-ingestion-sync",
-    initialPr: 118,
+    initialPr: 160,
     convergePr: null,
   },
   "3.2": {
@@ -115,7 +118,7 @@ const PACKAGES = {
     epic: 11,
     issues: [53],
     slug: "010-code-execution-sandbox",
-    initialPr: null,
+    initialPr: 159,
     convergePr: null,
   },
   "3.3": {
@@ -123,15 +126,15 @@ const PACKAGES = {
     epic: 12,
     issues: [54, 55, 56],
     slug: "011-studio-mindmaps-data-tables",
-    initialPr: null,
+    initialPr: 161,
     convergePr: null,
   },
   "3.4": {
     release: "v3.0",
     epic: 13,
-    issues: [57, 83],
+    issues: [57],
     slug: "012-long-context-latency-scaling",
-    initialPr: null,
+    initialPr: 162,
     convergePr: null,
   },
   "4.1": {
@@ -241,13 +244,16 @@ function getProjectItems() {
   return JSON.parse(jsonStr).items;
 }
 
-function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
+export function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
   if (pkg.deferred) {
     return "Backlog";
   }
 
   // 1. Check if fully converged
   if (pkg.convergePr && mergedPrNumbers.has(pkg.convergePr)) {
+    return "Done";
+  }
+  if (pkg.acceptancePr && mergedPrNumbers.has(pkg.acceptancePr)) {
     return "Done";
   }
 
@@ -274,6 +280,19 @@ function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
     return "In Progress";
   }
 
+  return "Backlog";
+}
+
+// CC-06 / Gate v2.0: PR #151 records live failures even after convergence.
+// Remove an override only when merged evidence resolves the specific failure.
+export function resolveIssueState(issueNumber, packageState) {
+  if ([7, 40, 43].includes(issueNumber)) return "In Progress";
+  return packageState;
+}
+
+export function resolveGateState(release) {
+  if (["v1.0", "v2.0"].includes(release)) return "Done";
+  if (release === "v3.0") return "In Progress";
   return "Backlog";
 }
 
@@ -305,19 +324,21 @@ async function main() {
   // 1. Process Functional Packages
   for (const [pkgKey, pkg] of Object.entries(PACKAGES)) {
     const pkgState = determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs);
+    const evidencePr = pkg.acceptancePr ?? pkg.convergePr;
+    const proof = `Implementation and acceptance evidence for Package ${pkgKey}: https://github.com/${REPO}/pull/${evidencePr}. See specs/${pkg.slug}/validation.md. Package completion does not independently establish a later release gate (CC-06).`;
     debug(`Package ${pkgKey} state: ${pkgState}`);
 
     // Set state for Epic
     desiredIssueState.set(pkg.epic, {
-      status: pkgState,
+      status: resolveIssueState(pkg.epic, pkgState),
       release: pkg.release,
-      comment: pkgState === "Done" ? `Abgenommen und verifiziert in Release ${pkg.release} Paket ${pkgKey}.` : undefined,
+      comment: pkgState === "Done" ? proof : undefined,
     });
 
     // Set state for child issues
     for (const issueNum of pkg.issues) {
       // Special check: Contract C-03 (issue 80) is Done with PR 122
-      let issueStatus = pkgState;
+      let issueStatus = resolveIssueState(issueNum, pkgState);
       if (issueNum === 80 && mergedPrNumbers.has(122)) {
         issueStatus = "Done";
       }
@@ -325,7 +346,7 @@ async function main() {
       desiredIssueState.set(issueNum, {
         status: issueStatus,
         release: pkg.release,
-        comment: issueStatus === "Done" ? `Abgenommen und verifiziert in Release ${pkg.release} (Paket ${pkgKey}).` : undefined,
+        comment: issueStatus === "Done" ? (issueNum === 80 ? `C-03 contract verification merged in https://github.com/${REPO}/pull/122.` : proof) : undefined,
       });
     }
   }
@@ -338,16 +359,17 @@ async function main() {
     comment: "Abgenommen und verifiziert in Release v1.0 (GatePassed, PR #125).",
   });
 
-  // v2.0 Gate: In Progress
+  // Owner acceptance is distinct from empirical PASS (PR #151).
   desiredIssueState.set(RELEASE_GATES["v2.0"], {
-    status: "In Progress",
+    status: resolveGateState("v2.0"),
     release: "v2.0",
+    comment: "Accepted by explicit owner override, not an empirical pass. See docs/gate-v2-live-evaluation.md and PR #151; live follow-ups #40 and #43 remain open.",
   });
 
   // v3.0..v6.0 Gates: Backlog
   for (const rel of ["v3.0", "v4.0", "v5.0", "v6.0"]) {
     desiredIssueState.set(RELEASE_GATES[rel], {
-      status: "Backlog",
+      status: resolveGateState(rel),
       release: rel,
     });
   }
@@ -436,7 +458,9 @@ async function main() {
   log(`Sync finished successfully!`);
 }
 
-main().catch((err) => {
-  console.error("Sync script failed:", err);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error("Sync script failed:", err);
+    process.exitCode = 1;
+  });
+}
