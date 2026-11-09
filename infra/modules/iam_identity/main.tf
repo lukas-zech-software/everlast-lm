@@ -100,7 +100,7 @@ resource "google_identity_platform_config" "auth" {
 
   autodelete_anonymous_users = true
 
-  # D21 / DEV-06 (FR-WM-04): admins provision accounts; existing users still sign in.
+  # D22 / DEV-06 (FR-WM-04): admins provision accounts; existing users still sign in.
   client {
     permissions {
       disabled_user_signup = true

@@ -9,7 +9,7 @@ description: "Task list template for feature implementation"
 **Package Source**: `spec/requirements/v[N]/package_[N]_[M]_[name].md` + `spec/requirements/README.md`
 **SRS IDs in Scope**: `[FR-*, NFR-*, C-01..C-03]` | **Release Gate**: `Gate v[N].0`
 
-**Prerequisites**: `plan.md` (with `CC-01`..`CC-08` passing), `spec.md` (with all clarification markers resolved), `research.md`, `data-model.md`, `contracts/`
+**Prerequisites**: `plan.md` (with `CC-01`..`CC-09` passing), `spec.md` (with all clarification markers resolved), `research.md`, `data-model.md`, `contracts/`
 
 **Tests**: MANDATORY (Constitution Principle II / `CC-02`). Every requirement, Gherkin acceptance scenario, and numeric/text boundary in scope gets spec-derived test tasks that cite its SRS ID and precede the implementation tasks they cover. Tests MUST fail before implementation (`Red → Green → Refactor`).
 
@@ -136,3 +136,18 @@ description: "Task list template for feature implementation"
 - `[P]` is permission to parallelize only after prerequisites and shared contracts (`C-01..C-03`) are fixed and file ownership is disjoint
 - Pass failing spec-derived tests to the implementation owner before implementation starts
 - Qualify all task references by spec path (`specs/[###-feature-name] T001`) in handoffs, commits, and GitHub issues
+
+## Architecture Task Coverage (mandatory; CC-09)
+
+Follow `docs/agent-architecture-guardrails.md`. Add concrete, qualified tasks with assigned
+SRS IDs to the appropriate phases above; this checklist is not a replacement for tasks.
+
+- Characterize affected behavior before extraction; preserve authorization, scope snapshots,
+  atomic transactions, quotas, cancellation, recovery and publication fencing.
+- Map each planned module/export/port change to the plan's boundary inventory and an owner.
+- Where checker implementation is in scope, add failing forbidden-edge and passing allowed-edge
+  fixtures before implementation, including alias, relative, type-only and re-export cases.
+- Verify final dependency directions, public exports and workflow ownership. Record manual
+  evidence separately from automated checker results; mark missing checks UNAVAILABLE.
+- Remove applicable legacy exceptions with their migration tasks; never expand an allowlist.
+- Refresh upstream artifacts and rerun analysis on architectural changes before completion.

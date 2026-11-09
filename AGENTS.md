@@ -1,7 +1,7 @@
 # Everlast LM
 
 ## Source of truth (highest first)
-1. `.specify/memory/constitution.md` — supreme authority (Principles I–VI, gates `CC-01`..`CC-08`, stack).
+1. `.specify/memory/constitution.md` — supreme authority (Principles I–VI, gates `CC-01`..`CC-09`, stack).
 2. `spec/System_Requirements_Specification_Gemeni_Notebook.md` — SRS (`FR-*`, `NFR-*`, `C-01..C-03`, release gates, `DEV-xx`).
 3. `spec/requirements/v<N>/package_<N>_<M>_*.md` + `spec/requirements/README.md` — FR cards and cross-package rules/prerequisites.
 4. `docs/solution-architecture.md` — binding architecture decisions (`D1..Dn`).
@@ -17,7 +17,7 @@
 - **Worktree-first mandate**: Every task, command, or workflow must begin by creating a dedicated Git worktree and working solely within it as the very first step.
 - **Package scope**: One FR package per `specs/<NNN>-<name>/` directory. Always load `spec/requirements/README.md` alongside the package's FR card; write generated specs in English.
 - **Bidirectional flow-back**: Downstream clarifications, contract refinements, or implementation discoveries must flow back into `spec.md`/`plan.md` and upstream to FR cards, SRS, or architecture decisions (`Dn`).
-- **Templates & gates**: Follow `.specify/memory/constitution.md` (`CC-01`..`CC-08`) and `.specify/templates/overrides/{spec,plan,tasks}-template.md` (do not edit managed `.specify/templates/*.md` or `{.agents,.github}/skills/speckit-*` directly).
+- **Templates & gates**: Follow `.specify/memory/constitution.md` (`CC-01`..`CC-09`) and `.specify/templates/overrides/{spec,plan,tasks}-template.md` (do not edit managed `.specify/templates/*.md` or `{.agents,.github}/skills/speckit-*` directly).
 - **Traceability & TDD**: Cite SRS IDs on every requirement, plan section, task, and test (`CC-01`). Spec-derived failing tests precede implementation (`CC-02`, Red → Green → Refactor); report non-existent runners as `UNAVAILABLE`.
 - **Worktree isolation & feature pinning**: Work in dedicated Git worktrees on feature branches (never directly on `main`). Pin the active feature via `.specify/feature.json` (avoiding persistent `SPECIFY_FEATURE_DIRECTORY` env vars). Qualify task references with `[<feature-slug>] T001`.
 - **Verification & PR**: Pass `node scripts/check-spec-integrity.mjs` and applicable test/eval gates (`NFR-EVAL-01..04`) before opening a PR to `main`.
@@ -58,3 +58,32 @@ Whenever an agent is tasked with `/speckit-specify` or other Spec Kit workflows 
 - **Independent Packages (Concurrent Subagent Execution)**:
   - **ONLY IF** the packages do not depend on each other and have no shared uncommitted prerequisites, the agent **MAY invoke the subagents at the same time** (each running in its own dedicated worktree and feature branch, with its context initialized as above).
 
+
+## Architectural guardrails (all agents)
+
+- Before repository changes, read Constitution IV/CC-09 and
+  [the architecture guardrail procedure](docs/agent-architecture-guardrails.md).
+  Apply it to every feature, fix, refactor and delegated task, including work outside a skill.
+- Preserve feature-oriented modules; shared packages must not depend on applications, and
+  applications must not consume other deployment applications as libraries. Use explicit
+  public exports and ports; composition roots wire adapters.
+- Routes own transport concerns; services own multi-step workflows; adapters own SQL and
+  transaction mechanics. Authorized simple CRUD requires a rationale, not a forwarding layer.
+- Populate CC-09 boundary and behavior evidence in plans, tasks, analysis, convergence and PRs.
+  Recheck it on the actual final diff. Missing evidence or new violations blocks completion.
+- Existing violations require individually scoped, approved migration exceptions; never treat
+  current code as permission to copy the pattern. Preserve D16, C-02, atomicity and publication
+  fencing during extraction. Report a missing checker as UNAVAILABLE, never as a passing lint gate.
+- When resuming an older feature, refresh its plan/tasks for CC-09 and rerun analysis before
+  implementation. Governance-only work does not repoint `.specify/feature.json`.
+- Delegation/bootstrap must pass these instructions, the constitution, procedure, feature path,
+  package scope, allowed files and exception evidence to every agent. Verify instruction loading
+  for integrations that do not discover AGENTS.md automatically.
+- Use project-owned template overrides and workflow overlays for durable guardrails. Do not
+  weaken rules or edit generated skills to make a task pass. Follow the constitution's amendment
+  and exception process when a rule cannot be met.
+
+- Run `pnpm test:architecture`, `pnpm check:architecture` and
+  `pnpm check:architecture-artifacts` (also part of lint). CI compares exceptions and feature
+  artifacts against the PR base. Do not regenerate or widen the migration inventory to make
+  a feature pass. Remove stale entries with the actual remediation; expired debt blocks CI.

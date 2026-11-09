@@ -47,7 +47,7 @@ export function signInMethod(providerId: string): "password" | "saml" | "oauth" 
   return providerId.startsWith("saml.") ? "saml" : "oauth";
 }
 
-/** FR-WM-04 / D21: existing accounts sign in; administrators provision new accounts. */
+/** FR-WM-04 / D22: existing accounts sign in; administrators provision new accounts. */
 export function renderPasswordSignIn(root: HTMLElement, authModule: any, auth: unknown): Promise<void> {
   return new Promise((resolve) => {
     clear(root);

@@ -121,7 +121,7 @@ arbitrary administrator-created resumable-session cancellation; the current app
 issues signed PUT capabilities, not resumable-session URLs. Retain any additional
 T046 resumable obligation until its applicable path/proof is explicitly reviewed.
 
-### Concrete signup deployment proposal (D21/DEV-06, T059)
+### Concrete signup deployment proposal (D22/DEV-06, T059)
 
 Change only the managed `module.v1_foundation.module.iam_identity` Identity Platform
 config's `client.permissions.disabled_user_signup` from absent/false to true. No new
