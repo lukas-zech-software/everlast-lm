@@ -28,8 +28,8 @@ also reject absent gates/inventories and source-only implementation without a ch
   alias/relative/dynamic/CommonJS paths, package cycles, computed loads, wildcard growth,
   counts, expiry, malformed/duplicate/stale exceptions, completed removal tasks, PR exception
   widening, changed-feature evidence, and actual CLI nonzero diagnostic behavior.
-- `pnpm check:architecture`: PASS with 285 enumerated legacy exceptions, not zero legacy debt.
-- `pnpm check:architecture-artifacts`: PASS for changed feature artifacts.
+- `pnpm check:architecture`: PASS with 293 enumerated legacy exceptions after reconciling `main` (`37d08cc`, including Package 3.4 `#162`), not zero legacy debt.
+- `pnpm check:architecture-artifacts`: PASS for changed feature artifacts (both locally and with `--base-ref origin/main`).
 - `pnpm lint`: PASS (spec integrity, architecture tests/checks and TypeScript build diagnostics).
 - `git diff --check`: PASS. Workflow YAML and project template resolution checked separately.
 
@@ -53,8 +53,8 @@ the two review-setting changes are already live. Administrator bypass remains po
 
 ## Debt and limitations
 
-Inventory: 58 cross-app, 38 shared-to-app, 179 public-entrypoint, 7 wildcard-export,
-2 computed-module and 1 contracts-only records. Multiple rules may describe one underlying
+Inventory: 58 cross-app, 39 shared-to-app, 186 public-entrypoint, 7 wildcard-export,
+2 computed-module and 1 contracts-only records (293 total after reconciling `main` commit `37d08cc` / Package 3.4 `#162`). Multiple rules may describe one underlying
 import; these counts are violation records, not distinct refactoring tasks. Every record is
 bound to an importer/target/rule/fingerprint/count, owner, baseline, D21, removal task and
 2027-02-05 expiry. It cannot expand on an ordinary PR after initial adoption. The initial
