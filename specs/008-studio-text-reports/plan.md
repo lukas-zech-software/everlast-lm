@@ -111,3 +111,63 @@ any on-demand admission. Bootstrap existing revisions from an existing Guide
 never redefine primary identity: a new language variant is charged, including
 when it now matches the mutable preference. This also prevents a seen Ready
 dispatcher from leaving the changed-language request permanently Pending.
+
+
+## Architecture Boundary Evidence — CC-09 (2026-11-09; FR-SI-02, FR-ST-10/11, C-02/C-03)
+
+Resumed base 3d02a51 includes Constitution 2.1.0, canonical D21 guardrails and current
+Node 26 / TypeScript 7 / pnpm 12 / Vitest 5.1 dependencies. Earlier in-memory/persistence
+planning paragraphs are historical: D16/specs/013 persist v2 data in PostgreSQL with
+one API instance. This slice changes the Guide-admission test fixture and 008
+artifacts/evidence only. Migration 0012 and production behavior are inherited unchanged.
+
+Pre-research assessment: FAIL until the missing 008 boundary inventory and forbidden
+new fixture edge are resolved. Post-design manual review: replace only the concrete
+worker suggestion fixture with a local structural double typed by ReportSuggestion
+from @everlast/contracts. No new cross-app type import, helper export, public
+export tree, exception, workflow extraction or execution-placement change is proposed.
+Characterization covers the old test before the fixture changes.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-02, FR-ST-11, NFR-SEC-02 | apps/api/test/guide-admission.integration.test.ts;008 test owner | Held Guide and fixed valid three-suggestion doubles; no production workflow | Public @everlast/contracts ReportSuggestion; public @everlast/db/testing seedReadySource; local startNotesApi | API-local fixture uses contracts and DBtesting only; no worker implementation/type import or helper re-export | This test's beforeAll injects doubles through existing runtime options | Same two mounted API cases before/after:2 concurrent, quota429, dedup, ordinary exclusion, primary polling and preference changes, standard report 202 |
+| FR-SI-02, FR-ST-11, NFR-SEC-02 | packages/db/src/guide-admission.ts and migrations/0012_guide_admission.sql;008 persistence owner | Owner/Ready revision validation, SQL locking, primary-language identity and atomic ledger mutation | admitOnDemandGuide, claimPrimaryGuideLanguage, finishOnDemandGuide, recoverOnDemandGuides via explicit @everlast/db root | API runtime consumes named root exports; adapter uses canonical contracts, pg and module-local transaction/notebook helpers | apps/api/src/v2/runtime.ts injects pool/config and invokes adapter; deployment migration runner applies 0012 | packages/db/test/guide-admission.integration.test.ts: concurrency, dedup, rolling hour/failed starts/restart, configurable limits, foreign/stale rejection without HTTP |
+| FR-SI-02, FR-ST-11, C-02 | apps/api/src/routes/package-v2-2.ts and v2/runtime.ts;API transport/runtime owner | Route parses language/revision, awaits startGuide and maps status; runtime coordinates primary/admission/dispatch/final release | PackageV22ApiDependencies.startGuide; StructuredGenerationClient/Ready dispatcher are unchanged legacy worker ports | Route uses local service/dependency inputs and canonical contracts; runtime DBroot calls stay unchanged; cross-app worker imports remain exact D21 debt | apps/api/src/server.ts wires runtime/config/model; runtime remains current lifecycle/composition owner | apps/api/test/guide-admission.integration.test.ts and v2-restart.integration.test.ts: polling race, primary identity, quota/failure/recovery |
+| FR-SI-02, FR-ST-11, NFR-SEC-02 | apps/api/src/config.ts and server.ts;API configuration/composition owner | Parse positive integer 2/20 defaults and wire GuideAdmissionLimits | loadGuideAdmissionConfig and V2RuntimeOptions.guideAdmission; no new public export | Config uses contracts/Node env; server composes existing adapters under unchanged D21imports | apps/api/src/server.ts | apps/api/test/guide-admission-config.test.ts and scoped typecheck: invalid bounds/default/configuration behavior |
+| FR-ST-10/11, C-03, NFR-EVAL-02/04 | apps/api/src/studio/service.ts;008 service owner;apps/worker/src/studio/runner.ts and studio/reports/suggestions.ts;existing workflow owners | StudioService coordinates access/job admission; runner validates/scopes/publishes; suggestions reads Guide port and validates suggestion output | StudioAccess, StudioJobDispatcher, StudioArtifactRepository, StudioSuggestionsPort; worker ReportSuggestionModel.suggest stays adapter-side legacy interface | Current service consumes canonical contracts/repository/ports; worker pipeline/model consumers unchanged; no API fixture imports worker interface | apps/api/src/v2/runtime.ts wires repository/registry/runner/suggestion service | apps/api/test/studio-runtime.integration.test.ts, v2-restart.integration.test.ts, apps/worker/test/studio-vertex-report-model.test.ts: complete scoped reads, revoked publication, report conversion, adapter validation and retries |
+| FR-SI-02, FR-ST-10/11 | apps/api/test/notes-pg-support.ts;existing API integration harness owner | Disposable DB/API/worker setup, local storage and injected runtime options | Existing local startNotesApi only; no new export or extra worker usage | Existing createWorkerHandler import is exact unchanged D21 debt; do not re-export worker models/types through helper | Existing harness constructs createV2Runtime/createWorkerHandler as before | The six-file 51-test characterization/finalrun uses this unchanged harness |
+
+**Workflow ownership (manual):** API authentication/route dependencies authorize the
+caller and resolve requested language/revision. The current runtime's startGuide
+coordinates frozen primary identity, quota admission, dispatch and final slot
+release; its Ready watcher handles ordinary ingestion and startup sweeps. This
+runtime contains existing orchestration as well as composition; calling it a
+composition root does not certify it as pure wiring or complete R1/R2 extraction.
+The DB adapter owns owner→notebook→source locking, rollback, dedup, quota reservation
+and primary/ledger SQL. Runtime dispatch/terminal completion owns slot release; a
+failed release stays fail-closed until single-instance recovery. Guide generation
+uses C-02 plus snapshot/access checks before reads/publication. StudioService owns
+job/authorization coordination through injected access/repository/dispatch ports;
+runner/plugin owns required-section/citation validation and publication fencing.
+Existing runner cancellation responsibilities/C-03 states stay unchanged; this slice
+adds no v2 report cancel action. No workflow responsibility moves into a route or
+fixture, no infrastructure client is added, and no simple-CRUD forwarding layer
+is introduced. Service/adapter behavior remains testable without HTTP where its
+existing ports permit; the admission adapter has direct PostgreSQL tests.
+
+**Exact unchanged migration debt:** [legacy-exceptions.json](evidence/cc09-20261109/legacy-exceptions.json)
+records the inspected runtime/server/old runtime-test/helper/manifest edges. Each
+retains baseline 13e76bd5229af7d52146456297e1aa92a220908d, accountable owner
+@lukas-zech-software, D21, expiry 2027-02-05 and qualified 004 T035 (R1) or T036 (R3)
+removal task. They describe current placement/dependency debt, not permission to
+copy worker imports or certify all legacy workflow ownership. No entry is added,
+changed, widened or renewed. Existing notes-pg-support worker use remains byte-for-byte
+unchanged. The newly forbidden Guide fixture import has no exception and must go.
+
+**Checks and applicability:** run graph with --base-ref origin/main, scoped 008
+artifact validation, six focused Guide/runtime/restart/report-adapter files, type
+and spec/diff checks. Record global 009 artifact failures separately. The inherited
+001evidence/cc09-20261109checker fixtures 39/39, build and deterministic citation 160/160 / leakage 0
+remain applicable because no checker/build/product/model/schema/config implementation
+changes here; the affected API fixture is rerun on current dependencies. Manual
+PASS labels ownership review only and cannot replace graph/artifact checks.

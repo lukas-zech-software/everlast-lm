@@ -179,3 +179,21 @@ any on-demand admission. Bootstrap existing revisions from an existing Guide
 never redefine primary identity: a new language variant is charged, including
 when it now matches the mutable preference. This also prevents a seen Ready
 dispatcher from leaving the changed-language request permanently Pending.
+
+
+## Resumed architecture scope — CC-09 (2026-11-09; FR-SI-02, FR-ST-10/11, C-02/C-03)
+
+This resumed slice reconciles inherited 008 work with Constitution 2.1.0 and D21.
+Behavior requirements,2/20admission, primary-language identity, source snapshots,
+publication fences and the existing single-API placement remain unchanged. The
+only code change is an API-owned test double replacing the Guide-admission test's
+worker implementation import. Consume ReportSuggestion from the explicit public
+contracts root; do not add worker/type-only imports, helper re-exports, manifest
+exports or exception entries. Existing production/helper debt remains migration
+debt under its exact approved records, not precedent for a new consumer.
+
+Characterize existing behavior before replacing the fixture; a real static graph
+failure provides governance Red, not a manufactured product failure. The plan's
+boundary inventory records workflow/transaction ownership and unchanged debt.
+Report 504 / 75% validity and final live T076 remain open; this boundary repair does not
+change report models, pipelines, timeouts or release acceptance.

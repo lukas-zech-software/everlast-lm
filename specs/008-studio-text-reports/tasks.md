@@ -174,3 +174,11 @@ Dev smoke test after deploying T066–T069: a Timeline over a memo without named
 - [X] T074 Add validated configurable admission defaults (2 concurrent,20 starts/rolling hour) and startup recovery wiring; verify legitimate report suggestions and standard/custom reports remain usable (FR-SI-02, FR-ST-11, NFR-SEC-02; missing); depends on T072/T073.
 - [X] T075 Reconcile T061 owner decision, analysis/quickstart/validation and report504/OCR prerequisites; run focused tests, lint/typecheck/spec/deterministic gates and preserve recovered012 merge notes (FR-ST-10/11, NFR-EVAL-01..04; partial); depends on T073/T074.
 - [ ] T076 Obtain applicable final-candidate live four-template validity/timing and common judged evidence after admission/reliability changes; retain prior504failure and existing EU OCR processor configuration prerequisite (FR-ST-10, Gate v2.0/v3.0, NFR-EVAL-01..04; partial); depends on T075 and authorized deployed candidate.
+
+
+## Phase 9: CC-09 boundary reconciliation
+
+- [X] T077 [specs/008-studio-text-reports] Characterize current Guide admission/config/DB/runtime/restart/report-adapter behavior on current dependencies; record the actual graph and artifact failures without manufacturing product Red (FR-SI-02, FR-ST-10/11, C-02/C-03, CC-02/09).
+- [X] T078 [specs/008-studio-text-reports] Refresh spec/plan boundary inventory, exact legacy debt, workflow/transaction ownership and coverage; run scoped artifact validation and analyze before fixture remediation (FR-SI-02, FR-ST-10/11, C-02/C-03, CC-01/09); depends on T077.
+- [X] T079 [specs/008-studio-text-reports] Replace the Guide-admission test's worker DeterministicReportModel import with an API-owned valid suggestion double typed through the public contracts root; no cross-app types, helper laundering, export or policy changes (FR-ST-11, CC-09); depends on T077/T078.
+- [X] T080 [specs/008-studio-text-reports] Recheck final diff/graph, scoped 008 artifacts, focused behavior/type/spec checks and record manual versus automated evidence plus unchanged live acceptance; preserve009global artifact blockers (FR-SI-02, FR-ST-10/11, NFR-EVAL-02/04, C-02/C-03, CC-09); depends on T079.

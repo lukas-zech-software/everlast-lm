@@ -155,3 +155,42 @@ Traceability: FR-SI-02, FR-ST-10/11, NFR-SEC-02, NFR-EVAL-01..04, T061/T072–T0
   messages. See quickstart for012merge boundaries and live prerequisites.
 
 Sanitized local logs: [evidence](evidence/pre-v4-20261107/focused-green.txt).
+
+
+## Resumed boundary verification — 2026-11-09 (CC-09)
+
+Reviewer: Package 008 implementation agent. Base `3d02a51`; final diff is the
+API-local Guide suggestion fixture plus 008 spec/plan/tasks/analysis/evidence.
+No production file, manifest, public export, checker or exception changes.
+
+| Check | Result | Evidence / applicability |
+| --- | --- | --- |
+| Initial graph `node scripts/check-architecture.mjs --base-ref origin/main` | FAIL: 2 findings | [Before](evidence/cc09-20261109/graph-before.txt): one worker-model import violates no-cross-app and public-entrypoint. Initial dependency-install failure was setup-only, not governance Red; this captured run follows install. |
+| Initial global artifacts | FAIL: 8 findings | [Before](evidence/cc09-20261109/artifacts-before.txt), 008 and 009. |
+| Pre-edit behavior characterization | PASS: 6 files, 51 tests | [Characterization](evidence/cc09-20261109/characterization.txt), real disposable PostgreSQL and labelled model doubles on Vitest 5.1.0. |
+| Final graph against origin/main | PASS: 0 findings, 186 unchanged exact exceptions | [Graph](evidence/cc09-20261109/graph-after.txt). No policy expansion, new import bypass or helper re-export. |
+| Scoped 008 artifact check | PASS: 0 findings | [Scoped check](evidence/cc09-20261109/artifacts-scoped.txt), explicit spec/plan/tasks plus the changed test path. |
+| Final global artifacts against origin/main | FAIL: 4 findings, 009 only | [Global check](evidence/cc09-20261109/artifacts-global-after.txt). Do not report full lint/CI green before 009 is reconciled. |
+| Final focused Guide/config/DB/runtime/restart/report-adapter behavior | PASS: 6 files, 51 tests | [Focused run](evidence/cc09-20261109/focused-after.txt), same assertions before/after; no artificial product Red. |
+| Typecheck | PASS | [Typecheck](evidence/cc09-20261109/typecheck.txt), unchanged production code and current dependencies. |
+| Spec integrity / whitespace | PASS | [Spec check](evidence/cc09-20261109/spec-integrity.txt); final git diff --check. |
+| Manual CC-09 ownership/diff review | PASS for this slice | Plan inventory records actual authorization, transaction, quota, dispatch, cancellation and publication owners, unchanged D16 placement and exact [legacy records](evidence/cc09-20261109/legacy-exceptions.json). Not certification that legacy runtime orchestration is pure composition. |
+| Checker fixtures, build, deterministic evaluation | Reused, not rerun here | Inherited 001 [39 fixture checks](../001-workspace-foundation/evidence/cc09-20261109/architecture-fixtures.log), [build](../001-workspace-foundation/evidence/cc09-20261109/build.log) and [deterministic report](../001-workspace-foundation/evidence/cc09-20261109/deterministic.log): citation160/160, leakage0. No checker/build/product/model/schema/config implementation changes invalidate these results; the affected fixture is verified directly above. Doubles remain labelled. |
+
+Exact focused command (using the local-only connection returned by db:test:up):
+
+```sh
+pnpm exec vitest run apps/api/test/guide-admission.integration.test.ts apps/api/test/guide-admission-config.test.ts packages/db/test/guide-admission.integration.test.ts apps/api/test/studio-runtime.integration.test.ts apps/api/test/v2-restart.integration.test.ts apps/worker/test/studio-vertex-report-model.test.ts
+```
+
+The local double returns three valid public-contract suggestions. A mistaken call
+can therefore still produce SuggestionsReady and violate the existing unavailable
+assertion; a throwing stub was intentionally avoided. It has no extract/compose
+implementation, worker import or hidden helper export. Existing helper worker usage
+remains byte-for-byte unchanged.
+
+Both reviewer checklists are unchanged (16/16 and 22/22 checked). Optional Git
+before/after analyze and implement hooks were dispatched and respected disabled
+auto-commit settings; final reviewed checkpoint is manual. No cloud, paid calls,
+new resources, deployments, GitHub writes or issue closures occurred. Report504
+root cause remains unproven; final live T076 and Gate v3 acceptance remain pending.

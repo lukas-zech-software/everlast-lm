@@ -1,14 +1,25 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { seedReadySource } from "@everlast/db/testing";
-import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
+import type { ReportSuggestion } from "@everlast/contracts";
 import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 /** [008-studio-text-reports] T072 — FR-SI-02, FR-ST-11, NFR-SEC-02. Model is a held test double. */
+// API-owned suggestion-port double: valid output makes accidental invocation observable
+// as SuggestionsReady rather than hiding it behind a throwing/failing model fixture.
+const suggestionModel = {
+  async suggest(): Promise<ReportSuggestion[]> {
+    return [
+      { title: "Compare sources", description: "Compare the selected sources.", prompt_template: "Compare selected source evidence." },
+      { title: "Review risks", description: "Review the selected risks.", prompt_template: "Summarize risks in selected evidence." },
+      { title: "Decision brief", description: "Prepare a source-based brief.", prompt_template: "Write a brief from selected evidence." },
+    ];
+  },
+};
 let n: NotesApi;
 let release!: () => void;
 const gate = new Promise<void>(resolve => { release = resolve; });
 let calls = 0;
 beforeAll(async () => {
-  n = await startNotesApi({ v2: { suggestionModel: new DeterministicReportModel(), generation: {
+  n = await startNotesApi({ v2: { suggestionModel, generation: {
     async generateSourceGuide(): Promise<never> { calls++; await gate; throw new Error("scripted failure"); },
     async generateOverview(): Promise<never> { throw new Error("unused"); },
     async generateFollowUps(): Promise<never> { throw new Error("unused"); },
