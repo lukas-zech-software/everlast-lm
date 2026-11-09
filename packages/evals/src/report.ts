@@ -159,6 +159,55 @@ export function renderMarkdown(report: GateReport): string {
   return `${lines.join("\n")}\n`;
 }
 
+import type { BenchmarkObservation } from "@everlast/contracts";
+import { aggregateScaleLatency, aggregateScaleConcurrency } from "./latency.ts";
+
+export interface ScaleBenchmarkReport {
+  schema: "everlast.scale-v3-report/1";
+  benchmark_id: string;
+  manifest_hash: string;
+  timestamp: string;
+  result: "PASS" | "FAIL" | "UNAVAILABLE";
+  core: ReturnType<typeof aggregateScaleLatency>;
+  concurrency?: ReturnType<typeof aggregateScaleConcurrency> | null;
+  restart?: {
+    ready_guides_survived: boolean;
+    orphaned_pending_regenerated: boolean;
+    interrupted_reports_failed_explicit_retry: boolean;
+  } | null;
+}
+
+export function buildScaleBenchmarkReport(input: {
+  benchmark_id: string;
+  manifest_hash: string;
+  coreObservations: readonly BenchmarkObservation[];
+  concurrencyObservations?: readonly BenchmarkObservation[] | undefined;
+  restartEvidence?: {
+    ready_guides_survived: boolean;
+    orphaned_pending_regenerated: boolean;
+    interrupted_reports_failed_explicit_retry: boolean;
+  } | undefined;
+}): ScaleBenchmarkReport {
+  const core = aggregateScaleLatency(input.coreObservations);
+  const concurrency = input.concurrencyObservations ? aggregateScaleConcurrency(input.concurrencyObservations) : null;
+  let result: "PASS" | "FAIL" | "UNAVAILABLE" = "PASS";
+  if (core.result === "UNAVAILABLE" || (concurrency && concurrency.result === "UNAVAILABLE")) {
+    result = "UNAVAILABLE";
+  } else if (core.result === "FAIL" || (concurrency && concurrency.result === "FAIL")) {
+    result = "FAIL";
+  }
+  return {
+    schema: "everlast.scale-v3-report/1",
+    benchmark_id: input.benchmark_id,
+    manifest_hash: input.manifest_hash,
+    timestamp: new Date().toISOString(),
+    result,
+    core,
+    concurrency,
+    restart: input.restartEvidence ?? null,
+  };
+}
+
 export async function writeGateReport(report: GateReport, outDir: string): Promise<void> {
   await mkdir(outDir, { recursive: true });
   const base = report.mode === "release" ? "eval-report-v1" : "eval-report-v1.deterministic";

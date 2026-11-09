@@ -28,9 +28,9 @@
     "@everlast/db": "workspace:*",
     "@everlast/testkit": "workspace:*",
     "@everlast/worker": "workspace:*",
-    "@google/genai": "^2.30.0",
-    "zod": "^3.24.2",
-    "google-auth-library": "^9.15.1"
+    "@google/genai": "^2.32.0",
+    "zod": "^4.6.7",
+    "google-auth-library": "^11.3.3"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
 import { createPool, runMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
-import { loadApiConfig, loadCodeExecutionConfig } from "./config.ts";
+import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig } from "./config.ts";
+import { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
@@ -145,6 +146,27 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   const sandboxRuntime = createSandboxRuntime(env);
   const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;
   if (codeExecution) startCodeExecutionReconciler({ pool, ...codeExecution });
+  const benchmarkConfig = loadBenchmarkConfig(env);
+  const benchmark = extra.benchmark ?? (benchmarkConfig
+    ? new PrivateBenchmarkRecorder({
+        approved_notebook_ids: benchmarkConfig.approvedNotebookIds,
+        revision: benchmarkConfig.revision,
+        sink: () => {},
+      })
+    : undefined);
+  if (benchmark) {
+    benchmark.qualify({
+      ready_at_ms: Date.now(),
+      dependencies: {
+        sql: true,
+        model: Boolean(model),
+        retrieval: Boolean(embedder),
+        cache: true,
+        migrations: true,
+        recovery: true,
+      },
+    });
+  }
   const chat =
     extra.chat ??
     (embedder && model
@@ -152,6 +174,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           pool,
           embedder,
           model,
+          benchmark,
           codeExecution,
           ...(v2 ? { resolvePreferences: (ownerId: string, notebookId: string, locale?: string) => v2.chatPreferences(ownerId, notebookId, locale) } : {}),
         })
@@ -180,6 +203,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     storage,
     embedder,
     chat,
+    benchmark,
     v2,
     notifyJobs,
     ...extra,
