@@ -162,3 +162,14 @@ Scenario: Deselected source does not leak via conversation history
 - **Evaluation cadence (`NFR-EVAL-01..04`, `Gate v1.0`)**: Deterministic citation-ID (`NFR-EVAL-02` $\text{Precision}_{\text{ID}} = 1.0$) and context-scoping/leakage (`NFR-EVAL-04` $\text{Leakage} = 0$) suites run on every PR once the harness exists; LLM-judged grounding faithfulness (`NFR-EVAL-01` $\epsilon_{\text{hallucination}} < 0.05$), semantic citation support (`NFR-EVAL-02`), and negative rejection (`NFR-EVAL-03` $\ge 99\%$) run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0).
 - **Viewport breakpoints and citation navigation (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)**: Default layout is tabbed at $< 1024\text{ px}$, 3-column with `Studio` collapsed at $1024\text{–}1279\text{ px}$, and 3-column with both side panels expanded at $\ge 1280\text{ px}$. Clicking an inline citation badge `[n]` switches/un-collapses to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing active chat draft or scroll state.
 - **Enterprise no-training verification (`NFR-SEC-01`, `D14`)**: Automated preflight security checks verify that all LLM, OCR, and embedding endpoints use Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), distinguishing enterprise no-training verification from zero-data-retention claims.
+
+## Architecture enforcement refinement (2026-11-07; CC-09, C-01..C-03, NFR-EVAL-02/04)
+
+Quality-gate tooling must reject forbidden dependency directions and public-interface bypasses
+before merge. This supplements, not replaces, the deterministic grounding suites. The architecture
+checker covers type/value imports, re-exports, aliases, relative paths, statically resolvable dynamic
+imports, workspace manifests, cycles and browser/server separation. Unresolvable local/workspace
+imports and computed module loading fail closed. Existing debt may be retained only by individually
+scoped, expiring exceptions under D21; new or expanded violations fail. Positive and negative
+fixtures must precede implementation. New or resumed feature artifacts require CC-09 evidence.
+Workflow ownership and behavioral invariants remain subject to review and the existing tests.

@@ -206,3 +206,18 @@ Generation validates task format, ordering and transcription only. No behavior t
 - [x] T027 Implement `packages/evals/src/report.ts` (currently a re-export) with the `GatePending → GatePassed | GateFailed` lifecycle, a per-commit audit log, and the full gate held pending until upload/schema and citation-navigation checks pass; remove the duplicate re-exports in `packages/evals/src/security-gates.ts` if unused per NFR-EVAL-01..04, Gate v1.0 (partial)
 - [x] T028 Add the planned `packages/evals/test/package-v1-4.test.ts` integrated regression (T019 references it; the file does not exist) per Gate v1.0, NFR-EVAL-02, NFR-EVAL-04 (missing)
 - [x] T029 Make the NFR-SEC-01 preflight tests in `packages/evals/test/release-v1.test.ts` hermetic: `verifyEnterpriseNoTraining(config)` falls back to ambient `GEMINI_API_KEY`/`GOOGLE_API_KEY`, so T012 fails on any machine with those set; isolate env in tests (stub or clear) per NFR-SEC-01, T012 (partial)
+
+## Phase 6: Architecture enforcement maintenance — CC-09 (C-01..C-03, NFR-EVAL-02/04)
+
+Only T030–T034 are active for this amendment; earlier tasks retain their historical status.
+
+- [x] T030 [specs/004-ui-skeleton-quality-gates] Add spec-derived boundary and exception fixtures and observe expected failures before checker implementation (C-01..C-03, ARCH-01..03).
+- [x] T031 [specs/004-ui-skeleton-quality-gates] Implement AST/module-resolution dependency enforcement with exact expiring migration records and diagnostic CLI in scripts/ (C-01..C-03, ARCH-01..03).
+- [x] T032 [specs/004-ui-skeleton-quality-gates] Test and implement changed-feature CC-09 evidence validation, preserving historical artifact checks (C-01..C-03, ARCH-04).
+- [x] T033 [specs/004-ui-skeleton-quality-gates] Wire checks into lint and the existing required GitHub CI context; verify ruleset linkage without dropping existing gates (NFR-EVAL-02/04, ARCH-04).
+- [x] T034 [specs/004-ui-skeleton-quality-gates] Run focused suites, lint/spec checks, final boundary analysis and document limitations and required-check rollout (NFR-EVAL-02/04, C-01..C-03).
+
+Deferred application remediation (outside this tooling amendment; scope each owning package before execution):
+
+- [ ] T035 [specs/004-ui-skeleton-quality-gates] Coordinate R1 extraction and retire cross-app/shared-to-app debt records via the owning package's workflow (C-01..C-03).
+- [ ] T036 [specs/004-ui-skeleton-quality-gates] Coordinate explicit public exports, cycle and test-boundary remediation and retire associated debt records via owning packages (C-01..C-03).
