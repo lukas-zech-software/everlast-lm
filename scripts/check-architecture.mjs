@@ -122,7 +122,7 @@ export function inspectArchitecture(root) {
             const [start,end]=pattern.split('*');
             if(!key.startsWith(start)||!key.endsWith(end)) continue;
             const middle=key.slice(start.length,end.length?-end.length:undefined);
-            target=leaves(values).map(p=>sourceFile(resolve(targetPkg.dir,p.replace('*',middle)))).find(Boolean);
+            target=leaves(values).map(p=>sourceFile(resolve(targetPkg.dir,p.replaceAll('*',middle)))).find(Boolean);
           }
           target ||= sourceFile(resolve(targetPkg.dir,specifier.slice(targetPkg.data.name.length+1)));
         }
