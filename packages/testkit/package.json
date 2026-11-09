@@ -5,10 +5,35 @@
   "type": "module",
   "description": "Test-only fixture builders (deterministic PDFs). Never imported by production code.",
   "exports": {
-    "./*": {
-      "types": "./src/*.ts",
-      "import": "./src/*.ts",
-      "default": "./src/*.ts"
+    "./pdf-builder": {
+      "types": "./src/pdf-builder.ts",
+      "import": "./src/pdf-builder.ts",
+      "default": "./src/pdf-builder.ts"
+    },
+    "./ooxml-builder": {
+      "types": "./src/ooxml-builder.ts",
+      "import": "./src/ooxml-builder.ts",
+      "default": "./src/ooxml-builder.ts"
+    },
+    "./multimodal-fixtures": {
+      "types": "./src/multimodal-fixtures.ts",
+      "import": "./src/multimodal-fixtures.ts",
+      "default": "./src/multimodal-fixtures.ts"
+    },
+    "./studio-structure-fixtures": {
+      "types": "./src/studio-structure-fixtures.ts",
+      "import": "./src/studio-structure-fixtures.ts",
+      "default": "./src/studio-structure-fixtures.ts"
+    },
+    "./code-execution-fixtures": {
+      "types": "./src/code-execution-fixtures.ts",
+      "import": "./src/code-execution-fixtures.ts",
+      "default": "./src/code-execution-fixtures.ts"
+    },
+    "./live-fixtures": {
+      "types": "./src/live-fixtures.ts",
+      "import": "./src/live-fixtures.ts",
+      "default": "./src/live-fixtures.ts"
     }
   },
   "dependencies": {

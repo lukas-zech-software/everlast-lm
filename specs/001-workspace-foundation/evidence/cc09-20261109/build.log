@@ -1,0 +1,2 @@
+$ node scripts/build-web.mjs
+Built apps/web/dist

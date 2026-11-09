@@ -236,3 +236,10 @@ All 9 original Gherkin scenarios map to rows above. The retained supplemental US
 - [x] T059 Enforce disabled client signup in existing Identity Platform IaC, retain existing authentication methods/accounts and remove self-registration UI; synchronize owner policy across governing artifacts (FR-WM-04, NFR-SEC-02; contradicts); depends on T058.
 - [x] T060 Create discoverable gated identity.integration.test.ts and notebook-cleanup.integration.test.ts for approved disposable real-service fixtures: sign-in/revocation, direct signup denial, all generations/holds, outstanding uploads, recovery and privacy; preserve T046 until live proof exists (FR-WM-01/04, NFR-SEC-01/02; missing); depends on T058.
 - [ ] T061 Run T046/T060 only with explicitly approved disposable identity/storage inputs; retain actual observations or UNAVAILABLE and prepare concrete config/deployment instructions without cloud apply (FR-WM-01/04, NFR-SEC-01/02, Gate v1.0; missing); depends on T059/T060.
+
+
+## Phase 9: CC-09 resume and boundary reconciliation
+
+- [x] T062 Characterize existing password sign-in/provider selection and disposable fixture safeguards; retain failing architecture/artifact output on the actual refreshed baseline before T063 (FR-WM-04, NFR-SEC-02, CC-02/CC-09).
+- [x] T063 Replace auth computed Firebase CDN imports with same-version literal browser loads; replace db/testkit wildcard export maps with explicit compatible public interfaces and remove only exact exceptions actually remediated (FR-WM-01/04/07, C-02, CC-09); depends on T062.
+- [x] T064 Recheck manual workflow ownership, automatic boundary fixtures/graph, scoped001CC-09 artifacts, targeted behavior, type/spec/build/diff; record remaining global findings without weakening policy or claiming live acceptance (FR-WM-01/04, NFR-SEC-02, CC-09); depends on T063.

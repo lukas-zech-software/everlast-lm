@@ -363,9 +363,9 @@ As an owner, I see available capacity and receive clear limit errors before exce
 
 
 
-## Retained pre-V4 identity acceptance (2026-11-07; FR-WM-04, NFR-SEC-01/02)
+## Retained pre-V4 identity acceptance (2026- 11-07; FR-WM-04, NFR-SEC-01/02)
 
-Owner decision recorded 2026-11-05: accounts are created by an administrator only.
+Owner decision recorded 2026- 11-05: accounts are created by an administrator only.
 Existing authorized accounts retain sign-in. Enforce this with Identity Platform
 client permissions (`disabled_user_signup = true`), not only a hidden signup button.
 Keep configured email/password and OIDC/SAML authentication, existing accounts,
@@ -380,3 +380,17 @@ a versioned EU test bucket labelled `everlast-fixture=disposable`; tests isolate
 object names by random notebook ID and verify holds/retry, all generations,
 outstanding upload expiry and privacy. Configuration/code tests are not a live pass.
 T046 remains open until approved real runs prove its full obligations.
+
+
+## CC-09 resume scope (2026- 11-09; FR-WM-01/04/07, NFR-SEC-02, C-01/C-02)
+
+Refresh against Constitution 2.1.0 and canonical D21 architecture enforcement.
+The signup policy remains D22/DEV-06; earlier signup-D21 references in dated
+evidence are historical provisional labels explicitly superseded by D22.
+No account, authorization, notebook, quota, transaction, purge, source-snapshot or
+publication behavior changes in this boundary repair. Browser Identity Platform
+SDK loading must be statically explicit while retaining the existing pinned SDK
+and lazy sign-in semantics. Database/test fixtures must use named public exports
+rather than exposing implementation trees via wildcards. Test-only live fixture
+helpers stay outside production. R3 applies to these exports/loads; R1/R2 shared
+workflow extraction is not introduced by this focused scope.

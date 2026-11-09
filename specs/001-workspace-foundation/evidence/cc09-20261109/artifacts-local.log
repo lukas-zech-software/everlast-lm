@@ -1,0 +1,2 @@
+$ node scripts/check-architecture-artifacts.mjs
+Architecture artifacts: 0 finding(s).

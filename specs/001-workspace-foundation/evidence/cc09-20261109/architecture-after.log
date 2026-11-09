@@ -1,0 +1,3 @@
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: no-cross-app
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: public-entrypoint
+Architecture: 2 finding(s); 186 exact legacy exception(s).

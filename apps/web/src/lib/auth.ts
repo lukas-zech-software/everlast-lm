@@ -12,7 +12,6 @@ interface AuthConfig {
   identity_platform?: { apiKey: string; authDomain: string; providerId: string; tenantId?: string };
 }
 
-const FIREBASE_VERSION = "12.19.0";
 const LOCAL_TOKEN_KEY = "everlast.localToken";
 
 export interface Session {
@@ -142,9 +141,11 @@ export async function startSession(root: HTMLElement): Promise<Session> {
 
   const ip = config.identity_platform;
   if (!ip) throw new Error("Identity Platform client configuration is missing");
-  const base = `https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}`;
-  const { initializeApp } = (await import(/* @vite-ignore */ `${base}/firebase-app.js`)) as any;
-  const authModule = (await import(/* @vite-ignore */ `${base}/firebase-auth.js`)) as any;
+  // Browser-native, pinned external ESM; TypeScript does not resolve HTTPS modules.
+  // @ts-expect-error TS2307: browser loads this literal CDN module at runtime (D6, CC-09).
+  const { initializeApp } = (await import("https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js")) as any;
+  // @ts-expect-error TS2307: same pinned browser-only Firebase SDK; no computed module path.
+  const authModule = (await import("https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js")) as any;
   const app = initializeApp({ apiKey: ip.apiKey, authDomain: ip.authDomain });
   const auth = authModule.getAuth(app);
   if (ip.tenantId) auth.tenantId = ip.tenantId;

@@ -1,0 +1,16 @@
+apps/web/src/lib/auth.ts:153 → <computed>: stale-exception
+apps/web/src/lib/auth.ts:154 → <computed>: stale-exception
+packages/db/package.json:1 → ./*: stale-exception
+packages/testkit/package.json:1 → ./*: stale-exception
+apps/web/src/lib/auth.ts:146 → <computed>: computed-module
+apps/web/src/lib/auth.ts:147 → <computed>: computed-module
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: no-cross-app
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: public-entrypoint
+apps/api/test/guide-admission.integration.test.ts:2 → packages/db/src/testing.ts: public-entrypoint
+apps/api/test/identity.integration.test.ts:3 → packages/testkit/src/live-fixtures.ts: public-entrypoint
+apps/worker/test/notebook-cleanup.integration.test.ts:5 → packages/db/src/testing.ts: public-entrypoint
+apps/worker/test/notebook-cleanup.integration.test.ts:6 → packages/testkit/src/live-fixtures.ts: public-entrypoint
+packages/evals/test/judge-report.integration.test.ts:3 → packages/db/src/testing.ts: public-entrypoint
+packages/db/package.json:1 → ./*: wildcard-export
+packages/testkit/package.json:1 → ./*: wildcard-export
+Architecture: 15 finding(s); 293 exact legacy exception(s).

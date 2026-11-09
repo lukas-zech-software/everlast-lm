@@ -52,7 +52,7 @@
 - Ready for `/speckit-implement` execution starting at Phase 1 Setup (`T001`–`T004`).
 
 
-## Pre-V4 retained-work analysis — 2026-11-07 (FR-WM-01/04, NFR-SEC-01/02)
+## Pre-V4 retained-work analysis — 2026- 11-07 (FR-WM-01/04, NFR-SEC-01/02)
 
 Read-only analysis followed separate flow-back and preceded implementation.
 Converge found two actionable high gaps: missing discoverable real-service suites
@@ -80,3 +80,36 @@ requirements 16/16 and workspace-isolation-quotas 17/17 checked; unchanged.
 No unmapped new tasks; T061/T046 cannot be marked passed from local test skips.
 No mandatory before/after analyze/implement hooks are registered; optional Git
 commit hooks are satisfied by the reviewed final checkpoint.
+
+
+## CC-09 resumed analysis and final-diff review — 2026- 11-09
+
+Traceability: FR-WM-01/04/07, NFR-SEC-02, C-02; Constitution 2.1.0, canonical D21.
+Historical signup-D21 references above are provisional labels, superseded by
+canonical D22/DEV-06 as explained in solution-architecture.md; no policy reversal.
+
+Read-only analysis after separate spec/plan/tasks refresh and before implementation:
+T062 characterizes existing auth/fixture behavior and captures15 graph findings;
+T063 maps actual load/export repairs and removal-only exceptions; T064 owns final
+manual/static/regression verification. No missing in-scope requirement/task map or
+critical design ambiguity remained before implementation. Existing custom checklists
+were not edited or self-approved.
+
+| Finding | Severity / scope | Disposition |
+| --- | --- | --- |
+| Missing001CC-09artifact evidence | CRITICAL,001 | Resolved by actual boundary/workflow inventory and scoped validator result0 |
+| Computed auth imports and stale whole-file exception fingerprints | CRITICAL,001 | Same pinned literal CDN loads; exact old exceptions removed, no rebaseline |
+| Expanded wildcard exports/new private fixture imports | CRITICAL,001shared interface | Named public exports; runtime resolution/escape rejection and typecheck; exact remediated exception removal only |
+| Cross-app008guide-admission fixture | CRITICAL,008 | Remains two graph findings, assigned subsequent package agent; not masked |
+| Missing006/008/009CC-09evidence | CRITICAL,other resumed features | Remains12global artifact findings; not edited in001scope |
+
+CC-01/02: traced refresh and actual Redgraph plus passing behavior characterization.
+CC-03/04/05: contracts, scoping, citation validation and deterministic pipelines unchanged.
+CC-06: isolated existing001 worktree branched from refreshed coordinator, no V4 work.
+CC-07/08: browser-safe pinned SDK, no server credentials/new service/upgrade.
+CC-09: manual actual-diff ownership review PASS and automated001scopePASS,
+with global checker/lint FAIL explicitly retained for other packages.
+
+Final convergence: no remaining 001 boundary work in T062–T064. T046/T061 live
+acceptance stays OPEN/UNAVAILABLE; no checked task or manual review substitutes
+for approved fixture runs or release acceptance.

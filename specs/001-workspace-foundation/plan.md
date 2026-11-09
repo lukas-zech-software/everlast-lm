@@ -108,9 +108,9 @@ No constitution exception or new architecture decision is required. A payload-fr
 - **Infrastructure (D14):** the policy assertions planned as `infra/tests/workspace-policy.test.ts` are native `tofu test` files in `infra/modules/storage_secrets/tests/`. The workspace bucket now sets soft-delete retention 0 and allows `x-goog-content-length-range` in CORS. Compute passes Identity Platform client settings and the Cloud Tasks location.
 
 
-## Retained pre-V4 identity acceptance (2026-11-07; FR-WM-04, NFR-SEC-01/02)
+## Retained pre-V4 identity acceptance (2026- 11-07; FR-WM-04, NFR-SEC-01/02)
 
-Owner decision recorded 2026-11-05: accounts are created by an administrator only.
+Owner decision recorded 2026- 11-05: accounts are created by an administrator only.
 Existing authorized accounts retain sign-in. Enforce this with Identity Platform
 client permissions (`disabled_user_signup = true`), not only a hidden signup button.
 Keep configured email/password and OIDC/SAML authentication, existing accounts,
@@ -125,3 +125,65 @@ a versioned EU test bucket labelled `everlast-fixture=disposable`; tests isolate
 object names by random notebook ID and verify holds/retry, all generations,
 outstanding upload expiry and privacy. Configuration/code tests are not a live pass.
 T046 remains open until approved real runs prove its full obligations.
+
+
+## Architecture Boundary Evidence (CC-09 resume, 2026- 11-09)
+
+Pre-research/design: FAIL at abe17ff because computed browser loads, expanded
+wildcard exports and new private imports conflict with canonical D21/CC-09.
+Post-design manual review: PASS for the examined001 diff; automated graph reports
+no001 findings and scoped artifact validation passes. Global graph/lint remain FAIL
+for two008 test-fixture findings; global artifact validation retains12 findings in
+006/008/009. This is not an integrated gate pass.
+Signup policy is canonical D22/DEV-06; historical provisional signup-D21 labels
+are retained only in dated evidence under D22's supersession explanation.
+
+| SRS / contract | Module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-WM-04, NFR-SEC-02 | apps/web/src/lib/auth.ts; package 001 | Browser authentication composition and form transport | startSession, renderPasswordSignIn, signInMethod; pinned literal Firebase browser SDK URLs | Browser DOM/API client and browser-safe Firebase CDN ESM; no DB/server adapters | apps/web/src/lib/auth.ts, called from apps/web/src/main.ts | apps/web/test/password-signin.test.ts and lib.test.ts; existing sign-in without client signup, provider selection; build verifies emitted ESM |
+| FR-WM-01/04/07, C-02 | packages/db/package.json; package 001 public interface | Database adapter export map; SQL/transactions remain in existing DB modules | Existing root index plus explicit ./testing | Existing application adapters and test/eval composition use root; explicitly named testing helpers for current fixture consumers | Existing apps/api/src/server.ts and test suite fixtures; no rewiring | Existing identity/cleanup tests and package entrypoint resolution; pnpm typecheck |
+| FR-WM-01/04, NFR-SEC-02 | packages/testkit/package.json; package 001 public fixture interface | Test-only fixture construction and opt-in disposable admission | Explicit ./pdf-builder, ./ooxml-builder, ./multimodal-fixtures, ./studio-structure-fixtures, ./code-execution-fixtures, ./live-fixtures | Existing test/eval fixtures only; never production applications | apps/api/test/identity.integration.test.ts and apps/worker/test/notebook-cleanup.integration.test.ts beforeAll | packages/testkit/test/live-fixtures.test.ts; actual live suites remain opt-in UNAVAILABLE without approved resources |
+
+**Workflow ownership:** unchanged. API identity verification and notebook ownership
+remain server-owned; SQL adapters retain existing atomic notebook/source quotas,
+transactions and deletion fences. Worker cleanup retains generation/hold/expiry
+and recovery logic. This patch moves no authorization, cancellation, dispatch or
+publication workflow and changes neither C-01/C-02 nor D16 placement.
+
+**Simple CRUD rationale:** no route/repository call is added or changed.
+
+**Dependency review:** inspect actual aliases, dynamic/type imports and manifest
+exports; keep exact named public subpaths used by current consumers. Literal CDN
+loads keep the same SDK version and browser-only runtime; compiler suppression
+may cover only TypeScript's lack of HTTPS module resolution, not dependency checks.
+No dependency/package upgrade or new framework/service is planned.
+
+**Legacy exceptions:** remove only exact stale computed-module entries from
+auth.ts, wildcard-export entries for db/testkit and public-entrypoint entries
+actually resolved by the explicit interfaces. Baseline13e76bd, owner
+@lukas-zech-software, D21, removal task specs/004-ui-skeleton-quality-gates T036,
+expiry 2027-02-05 are unchanged for retained exceptions. No new/widened exception.
+
+**Check availability:** automated graph, artifact and fixture checkers exist.
+Run pnpm test:architecture, graph with --base-ref origin/main, scoped001 artifact
+validation, typecheck/spec/diff and targeted behavior tests. Global findings for
+other resumed packages remain FAIL, never substituted by a manual PASS. Manual
+001 ownership review is separate from automated results. Live T046/T061 stay open.
+
+
+### CC-09 actual-diff verification (2026- 11-09; FR-WM-01/04/07, C-02)
+
+Reviewed by package001agent against abe17ff. Exact changes: auth literal loaders,
+db/testkit named exports, removal-only exception inventory and001 artifacts.
+Runtime resolution confirms seven public subpaths resolve while implementation
+escapes are rejected. Every retained policy record equals its predecessor;107
+exact stale records removed (2 computed-module,2 wildcard-export,103 public-entrypoint).
+No parser/checker rule or exception fingerprint was weakened.
+
+Manual workflow review PASS: auth remains browser composition, generated SDK URLs
+are unchanged, test fixtures remain test-only, and no service/SQL/transaction/job
+ownership moved. Existing tests characterize provider selection/password sign-in,
+identity verification and cleanup/recovery. Automated39 architecture fixtures,
+typecheck/build and31 targeted tests pass; two opt-in live tests remain SKIPPED.
+Scoped001 artifact checker PASS; overall lint/graph/artifacts stay FAIL only for
+explicit subsequent package work. See validation.md and evidence/cc09-20261109.

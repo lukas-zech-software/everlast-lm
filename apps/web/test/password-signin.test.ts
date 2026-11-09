@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { MockElement, setupMockDOM } from "./mock-dom.ts";
 import { renderPasswordSignIn } from "../src/lib/auth.ts";
-/** [001-workspace-foundation] T058 — FR-WM-04, NFR-SEC-02, D21: sign-in survives disabled signup. */
+/** [001-workspace-foundation] T058 — FR-WM-04, NFR-SEC-02, D22: sign-in survives disabled signup. */
 afterEach(() => vi.unstubAllGlobals());
 it("offers existing-account sign-in without creating accounts", async () => {
   const { document } = setupMockDOM();
