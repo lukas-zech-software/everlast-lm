@@ -175,9 +175,14 @@ variable "enable_v3_ingestion" {
 }
 
 variable "model_armor_template_id" {
-  description = "Model Armor template for fail-closed screening of web/synced content (Constitution VI)."
+  description = "Existing Model Armor local template ID (not a full resource path); mutually exclusive with create_model_armor_template (FR-SI-01/05)."
   type        = string
   default     = ""
+
+  validation {
+    condition     = !strcontains(var.model_armor_template_id, "/") && trimspace(var.model_armor_template_id) == var.model_armor_template_id
+    error_message = "model_armor_template_id must be a local template ID, not a full resource path or padded value."
+  }
 }
 
 variable "google_oauth_client_id" {
@@ -214,4 +219,10 @@ variable "code_execution_reasoning_engine" {
   description = "Owner-created parent Agent Platform runtime without agent code: projects/<p>/locations/europe-west4/reasoningEngines/<id>."
   type        = string
   default     = ""
+}
+
+variable "create_model_armor_template" {
+  description = "Default-off proposal to manage the EU prompt-injection/jailbreak screening template; requires ingestion enablement and excludes an existing template ID (FR-SI-01/05)."
+  type        = bool
+  default     = false
 }

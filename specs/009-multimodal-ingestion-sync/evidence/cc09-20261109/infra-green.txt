@@ -1,0 +1,1 @@
+PASS: mocked dev plans verify default-off resources, API/runtime/render wiring and optional fail-closed EU prompt-injection screening (FR-SI-01/05).

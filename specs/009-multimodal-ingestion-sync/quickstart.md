@@ -65,3 +65,42 @@ node scripts/eval-v3-audio.mjs --plan /private/path/plan.json --fixture /private
 The supported collector is serial (`concurrency: 1`) and accepts FLAC only. Declare `speech.googleapis.com/v2`, `chirp_2`, the matching `SPEECH_LOCATION` and fixture language in the plan. `SPEECH_LANGUAGE_CODES`, if supplied, must equal that single declared language; otherwise the runner uses the plan's language. Unsupported/mismatched execution settings exit 2 before provider I/O. Set `GCP_PROJECT_ID` (or `GOOGLE_CLOUD_PROJECT`), `GCS_WORKSPACE_BUCKET` (or `STORAGE_BUCKET`) and keyless ADC through the approved runtime. Every accepted attempt is checkpointed as unfinished before transcription; preserve the `RUNNING` report if interrupted. Collection errors remain in the report and incomplete runs are UNAVAILABLE. Cleanup failures are explicitly recorded and require follow-up; no object absence is inferred from attempted deletion. Reports include source commit, runtime, plan hash and fixture hash.
 
 Read-only inventory reported by the controller on 2026-11-05: `speech.googleapis.com` and `modelarmor.googleapis.com` are not enabled in the configured project. The ready API/worker revisions predate the final v3 candidate. No fixture, deployment or provider benchmark was run as part of this package repair. Required preparation uses the existing `infra/stacks/v1_foundation` inputs: owner-approved `enable_v3_ingestion=true` (Speech, Drive, YouTube, Compute and Model Armor wiring), a Model Armor template ID, delegated OAuth client/Secret Manager configuration and Picker IDs, a render image and webhook address. Review a concrete OpenTofu plan and cost scope before enabling APIs or applying resources; then deploy the agreed candidate/worker order. These remain execution prerequisites, not passing evidence.
+
+## Verified dev infrastructure recovery — 2026-11-09 (FR-SI-01/05, CC-08/09)
+
+Dev forwards enable_v3_ingestion, render_image, model_armor_template_id,
+google_oauth_client_id, google_picker_api_key, google_picker_app_id and
+drive_webhook_address. Defaults remain false/empty; optional
+create_model_armor_template also defaults false. Root constraints remain~>8.9 and
+modules~>8.10 as inherited; their intersection selects approved8.10.0. All five
+checked-in provider locks now match. No new provider-major decision is introduced.
+
+Initialize with `tofu -chdir=infra/environments/dev init -backend=false -input=false
+-lockfile=readonly`, then run `node scripts/test-v3-ingestion-infra.mjs`,
+`tofu -chdir=infra/environments/dev validate` and `tofu fmt -check -recursive infra`.
+The runner inspects seven actual nested mocked plan populations; it never applies
+resources or contacts cloud APIs. Stable8.10provider schema includes the selected
+Model Armor resource/filter/metadata fields. A mock plan is NOT a current-state
+saved environment plan or deployment approval.
+
+Managed screening plans everlast-dev-ingestion in europe-west4 only with explicit
+ingestion+managed flags and no existing local templateID. It enables only
+prompt-injection/jailbreak LOW_AND_ABOVE, INSPECT_AND_BLOCK, fails closed on partial
+errors, declares EU residency/text modality and disables sanitize-content logs.
+Full template resource paths, another region and mixed managed/existing modes are
+rejected. TemplateID output reaches the existing worker endpoint builder.
+
+Render's actual Node26 image lacks corepack; pinned npm-installed pnpm12 now
+bootstraps the existing two-stage render image, preserving USERnode and tools.
+No TS exports/workflows or source/citation/publication behavior were changed.
+Later012must retain this render bootstrap and separately align the mainAPI image.
+
+Still required before an authorized live run: final immutable API/worker/render
+image digests/revisions; current-state saved IaC plan and approval; existing or
+approved managed screening template; delegated Drive OAuth client/SecretManager
+configuration, verified callback/Picker values and authorized documents; declared
+30-minuteaudio fixture/plan and bounded paid workload approval; authenticated
+Owner fixture and Interview.mp3 04:15 browser scenario; finalcommon50-case judged
+report. Do not invent these inputs or run600audio minutes from this recovery.
+T049/T050 remain OPEN. Earlier API-disabled inventories are dated historical
+observations, not proof that approved registrations still need enablement.

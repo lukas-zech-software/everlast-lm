@@ -152,3 +152,57 @@ variable "code_execution_reasoning_engine" {
   type        = string
   default     = ""
 }
+
+# Package 3.1 (FR-SI-01/05, specs/009): public configuration only; owner-approved enablement remains separate.
+variable "enable_v3_ingestion" {
+  description = "Owner-approval gate for v3 ingestion APIs and worker wiring (Speech V2, Drive, YouTube; FR-SI-01 Subset B)."
+  type        = bool
+  default     = false
+}
+
+variable "render_image" {
+  description = "everlast-render job image (Package 3.1, specs/009); empty skips the job."
+  type        = string
+  default     = ""
+}
+
+variable "model_armor_template_id" {
+  description = "Existing Model Armor local template ID (not a full resource path); mutually exclusive with create_model_armor_template (FR-SI-01/05)."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !strcontains(var.model_armor_template_id, "/") && trimspace(var.model_armor_template_id) == var.model_armor_template_id
+    error_message = "model_armor_template_id must be a local template ID, not a full resource path or padded value."
+  }
+}
+
+variable "google_oauth_client_id" {
+  description = "OAuth client ID for delegated per-user Google Drive access (D11)."
+  type        = string
+  default     = ""
+}
+
+variable "google_picker_api_key" {
+  description = "Public Picker API key (specs/009 T055)."
+  type        = string
+  default     = ""
+}
+
+variable "google_picker_app_id" {
+  description = "Picker app ID / project number (specs/009 T055)."
+  type        = string
+  default     = ""
+}
+
+variable "drive_webhook_address" {
+  description = "Public HTTPS /webhooks/google-drive address for Drive change channels (specs/009 T054)."
+  type        = string
+  default     = ""
+}
+
+variable "create_model_armor_template" {
+  description = "Default-off proposal to manage the EU prompt-injection/jailbreak screening template; requires ingestion enablement and excludes an existing template ID (FR-SI-01/05)."
+  type        = bool
+  default     = false
+}

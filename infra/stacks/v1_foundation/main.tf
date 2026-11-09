@@ -98,6 +98,22 @@ module "code_execution" {
   reasoning_engine_name     = var.code_execution_reasoning_engine
 }
 
+# Package 3.1 (FR-SI-01/05, NFR-SEC-01/02): optional fail-closed EU screening template; no idle workload.
+module "ingestion_screening" {
+  source = "../../modules/ingestion_screening"
+
+  project_id                  = var.project_id
+  environment                 = var.environment
+  region                      = var.region
+  enable_v3_ingestion         = var.enable_v3_ingestion
+  create_model_armor_template = var.create_model_armor_template
+  model_armor_template_id     = var.model_armor_template_id
+  deletion_protection         = var.deletion_protection
+  labels                      = local.common_labels
+
+  depends_on = [module.project_services]
+}
+
 module "compute" {
   source = "../../modules/compute"
 
@@ -132,7 +148,7 @@ module "compute" {
   render_image                        = var.render_image
   render_service_account_email        = module.iam_identity.render_service_account_email
   enable_v3_ingestion                 = var.enable_v3_ingestion
-  model_armor_template_id             = var.model_armor_template_id
+  model_armor_template_id             = module.ingestion_screening.template_id
   google_oauth_client_id              = var.google_oauth_client_id
   google_picker_api_key               = var.google_picker_api_key
   google_picker_app_id                = var.google_picker_app_id

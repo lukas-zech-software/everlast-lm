@@ -3,7 +3,7 @@
 FROM node:26-slim AS build
 WORKDIR /app
 ENV CI=true
-RUN corepack enable && corepack prepare pnpm@12.0.0 --activate
+RUN npm install --global pnpm@12.0.0
 COPY . .
 RUN pnpm install --frozen-lockfile --filter @everlast/render... \
   && find . -name node_modules -type d -prune -exec rm -rf {} + \

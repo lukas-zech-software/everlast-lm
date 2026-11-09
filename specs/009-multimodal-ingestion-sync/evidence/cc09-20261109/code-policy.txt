@@ -1,0 +1,7 @@
+tests/runtime_policy.tftest.hcl... pass
+  run "disabled_by_default_wires_nothing"... pass
+  run "enabled_wires_only_public_identifiers"... pass
+  run "non_eu_runtime_is_rejected"... pass
+  run "enabled_without_runtime_is_rejected"... pass
+
+Success! 4 passed, 0 failed.

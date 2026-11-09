@@ -11,7 +11,7 @@ Extend the existing ingestion pipeline with Office, delegated Drive, guarded HTM
 
 ## Technical Context (FR-SI-01/05, C-01/C-02, NFR-SEC-01/02)
 
-**Language/Version**: TypeScript 5.x strict ESM, Node.js 26, pnpm workspaces; reuse root package versions.
+**Language/Version**: TypeScript 7.x strict ESM, Node.js 26, pnpm workspaces; reuse root package versions.
 **Primary Dependencies**: Existing Zod shared contracts; pdfjs-dist/Document AI PDF path; LibreOffice and ffmpeg in architecture-designated render job; Mozilla Readability; Speech-to-Text V2 Chirp 2 batch word offsets; delegated Drive REST export; Model Armor. No ADK agent loop for ingestion. No unverified SDK signatures or deployment commands prescribed.
 **Storage**: Existing Cloud SQL PostgreSQL 16+ with pgvector/FTS, revision rows and operation/outbox records; canonical viewer text in `source_pages` committed atomically with chunks (D15); private Cloud Storage raw files and binary staged objects. Existing `chunks` already has vector(768), tsv, HNSW and GIN indexes; do not create a duplicate index/table. No new datastore.
 **Authentication & Residency**: Owner-only v3, generic OIDC/SAML; delegated Drive authorization separate from SSO. Cloud Run, SQL, Storage, Speech and Model Armor endpoints configured in europe-west4; no region exception. Model Armor processes within EU jurisdiction, not a claim of Netherlands-only processing. Drive is an external user-selected repository, not an EU model runtime. Use approved enterprise model endpoints and no-training agreements; do not claim zero retention.
@@ -127,3 +127,43 @@ Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the e
 ### Benchmark evidence validation — 2026-11-05 (FR-SI-01, SC-002, Gate v3.0 #1)
 
 The declared plan must precede every acceptance timestamp. Observations have exactly the predeclared unique attempt IDs 1..N and finite chronological upload/acceptance/transcript/index clocks; malformed or reversed clocks cannot produce a passing latency. The runner validates that its supported serial FLAC/Chirp 2 regional execution matches the declared codec, language, model and region before any provider request; unsupported execution plans are UNAVAILABLE rather than silently measured under different settings. Accepted attempts are checkpointed as unfinished before transcription, then updated with outcome/error and cleanup status, so interruption or provider failure cannot erase the denominator. Runtime, source commit and plan/fixture hashes accompany the report. These safeguards do not replace the real 30-minute benchmark or the integrated timestamp click scenario.
+
+## Architecture Boundary Evidence — CC-09 (2026-11-09; FR-SI-01/04/05, C-01/C-02)
+
+Pre-research FAIL: resumed009 lacks current ownership evidence; infrastructure
+recovery remains unapplied. Post-design manual PASS for this bounded recovery:
+no TS workflow relocation or new app/package imports, no policy/exception changes.
+Current source uses TypeScript7/Node26/pnpm12. Constitution2.1/D21 is governing;
+old planning-only/toolchain/2.0 statements above are historical.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-01/05, NFR-SEC-01/02 | infra/environments/dev and stacks/v1_foundation;009 deployment owner | Forward explicit default-off render/screening/Drive settings; no runtime workflow | Typed OpenTofu variables/module outputs | Foundation composes existing compute/identity/project-services plus optional ingestion_screening | infra/environments/dev/main.tf and infra/stacks/v1_foundation/main.tf | scripts/test-v3-ingestion-infra.mjs inspects nested actual mocked resource plans, no cloud mutation |
+| FR-SI-01/05, D3 | infra/modules/ingestion_screening;009 infrastructure adapter owner | Optional EU fail-closed injection template and localID validation | template_id output, typed variables | Google provider schema, no application imports or source access | Foundation module passes templateID into compute worker env | Mock plans reject disabled/nonEU/conflicting/path-shaped configuration and assert no sanitize logs |
+| FR-SI-01, C-01 | apps/render/Dockerfile;009 render composition owner | Install pinned package manager on actual Node26 build image; retain LibreOffice/ffmpeg runtime | Existing render environment command, no new TS export | Render consumes existing contracts/cloud public interfaces; Docker bootstrap adds no app graph edges | apps/render/src/main.ts is unchanged per-job entry/composition root | Real Node26 corepack absence Red, repaired bootstrap/image smoke where available; existing render tests |
+| FR-SI-01/04/05, C-01/C-02 | apps/worker/src/ingestion and jobs/main;existing009 workflow owners | Existing deterministic normalize/screen/embed then fenced publish; effect adapters retain job IDs/authorization | Existing source publication, transcript, storage/transcriber/screener ports | Worker-local workflows, public contracts/db/cloud; no new cross-app/private consumer | apps/worker/src/main.ts injects concrete effects; source API authenticates/admit before durable dispatch | Existing ingestion-media/screening/render regressions and audio evidence tests characterize unchanged runtime |
+| FR-SI-01, NFR-EVAL-02/04 | scripts/eval-v3-audio.mjs, packages/evals/src/audio-transcription-benchmark.ts;009 evidence owner | Existing predeclared measurement/checkpoint collector; unchanged by infra recovery | validateExecutionPlan, collectAudioBenchmark, evaluateBenchmark | Current dynamic worker adapter import in script, no new import or export added | Existing CLI constructs configured storage/transcriber | packages/evals/test/audio-transcription-benchmark.test.ts preserves all accepted attempts/clocks/Infinity failures |
+
+Workflow ownership review: source routes parse/authenticate; current ingestion
+application pipeline owns bounded adapter sequencing, screening/quota/cancellation
+and job coordination; persistence adapters own SQL/atomic reservations and notebook→
+source publication/deletion fences. Sync stages outside transactions and publishes
+only through guarded revision/operation boundaries. C-02 remains the sole downstream
+read path, Guide dispatch stays with008 runtime/primary identity and recovery.
+No ownership moves into routes or infrastructure; render main owns only per-job
+conversion and guarded effect composition, not source publication. No simpleCRUD
+forwarding layer or new deployment placement is introduced.
+
+Exact inspected unchanged migration records are in
+[evidence/cc09-20261109/legacy-exceptions.json](evidence/cc09-20261109/legacy-exceptions.json):
+review baseline13e76bd5229af7d52146456297e1aa92a220908d, owner@lukas-zech-software,
+D21, expiry2027-02-05, qualified004T035/T036. These cover existing API/browser/eval
+media/pipeline uses; recovery changes none of those imports, fingerprints or policy.
+The full graph must retain186exact records with zero new/widened violations.
+
+Behavior evidence before/after: original seven mocked policy runs and actual nested
+resource inspection; audio evidence and affected render/worker tests; backend-false
+provider schema/validate plus graph --base-ref origin/main, architecture fixtures,
+scoped/global artifact checks, lint/type/spec/diff. Separate static/manual PASS from
+provider/runtime live acceptance. T049/T050 stay OPEN. Optional hook dispatch occurs
+under existing project Git configuration; reviewer checklist is unchanged.

@@ -212,3 +212,14 @@ Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the e
 ### Benchmark evidence validation — 2026-11-05 (FR-SI-01, SC-002, Gate v3.0 #1)
 
 The declared plan must precede every acceptance timestamp. Observations have exactly the predeclared unique attempt IDs 1..N and finite chronological upload/acceptance/transcript/index clocks; malformed or reversed clocks cannot produce a passing latency. The runner validates that its supported serial FLAC/Chirp 2 regional execution matches the declared codec, language, model and region before any provider request; unsupported execution plans are UNAVAILABLE rather than silently measured under different settings. Accepted attempts are checkpointed as unfinished before transcription, then updated with outcome/error and cleanup status, so interruption or provider failure cannot erase the denominator. Runtime, source commit and plan/fixture hashes accompany the report. These safeguards do not replace the real 30-minute benchmark or the integrated timestamp click scenario.
+
+## CC-09 recovery scope — 2026-11-09 (FR-SI-01/04/05, C-01/C-02)
+
+Recover only optional default-off dev ingestion/render/screening deployment wiring
+and its offline policy tests. Canonical contracts, source admission/publication,
+C-02, Guide ownership, D16 placement and saved live thresholds remain unchanged.
+Existing Google8.x constraints are approved; obsolete6.50locks must match their
+current intersection without importing older recovery constraints. Render Node26
+bootstrap must work with the actual base image. No API enablement, resource apply,
+paid benchmark, OAuth fixture or deployment approval is inferred. Existing legacy
+imports remain exact approved D21 debt, never authorization for new cross-app use.

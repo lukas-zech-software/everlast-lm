@@ -92,3 +92,38 @@ CC-07/08: no cloud apply, paid run, credential exposure or provider change.
 Recovered7e87bb2 requires a separate compatibility review before integration
 because its optional Model Armor resource also changes provider major versions.
 This is an incomplete recovery checkpoint, not whole-package or release acceptance.
+
+## CC-09 recovery analysis —2026-11-09 (FR-SI-01/04/05, C-01/C-02)
+
+Bootstrap loaded currentAGENTS, Constitution2.1IV/CC-09, guardrailprocedure,
+policy, README/card, existing artifacts and SpecKit hooks before implementation.
+Preimplementation review identified missing009CC-09evidence and incomplete dev
+forwarding/provider locks; refreshedspec/plan/tasks resolve ownership/design gaps.
+No unresolved criticaldesignfinding: typed variables/moduleoutput boundaries and
+existing render entrypoint suffice; no workflow or cross-app boundary expansion.
+Finalmanual review examines actual infra/Docker/script diff, adapter/public
+interfaces and all copied legacy records. Policy remains byte-for-byte unchanged.
+
+| Finding | Severity | Final disposition |
+| --- | --- | --- |
+| Missing resumed009ownership/behaviorinventory | CRITICAL | Resolved by plan table, spec constraints, T060–T065 and scoped evidence |
+| Old6.50locks contradict approved8.xintersection | HIGH | Red init rejects locks; allfive regenerated to8.10.0 without changing inherited constraints |
+| Dev ignores approved ingestion flags | HIGH | Original mockplan Red fails requiredAPIselection; recovered forwarding/template makes sevenruns+nestedresource assertions PASS |
+| Node26 render corepack bootstrap unavailable | HIGH | Actual base Red127; pinnednpmbootstrap fullimagebuild and offlineentrypoint/toolsmoke PASS |
+| LiveT049/T050 acceptance absent | HIGH | StillOPEN; no fixed50casejudged/audio/locator/cloudpass inferred |
+
+CC-01/02 retains original requirement mappings and Red→Green safeguards; CC-03/04/05
+unchanged source/publication/C-02/C-01contracts; CC-06 noV4build or releaseclaim;
+CC-07 defaultoff/EU/keyless/failclosed and approvalprerequisites; CC-08 approved
+providerlocks/Node26render only; CC-09 graph/staticmanual/behavior evidence remain
+distinct. No source/module exception was added,widened,renewed or removed.
+Graph/base-ref and changed-featureartifact checks PASS. A retrospective all-feature
+probe finds32missingCC-09items in untouched002/003/005/007/010/011/012/013, outside
+this resumed009scope; it does not certify those historical artifacts or block this
+changed-feature check. Prior006/001/008evidence remains inherited.
+
+Final convergence review: T060–T065 are locally satisfied with concrete current
+provider/schema/mock/image/behavior/static evidence; no new workflow ownership
+change or exception found on finaldiff. Retained T049/T050 cover all remaining
+assigned live judged/audio/locator acceptance. No new convergence task is needed
+for already-recorded unavailable live prerequisites; no release completion claimed.

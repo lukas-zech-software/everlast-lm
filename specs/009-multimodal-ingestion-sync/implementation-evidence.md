@@ -209,3 +209,39 @@ User cutoff reached at10%five-hour remaining. No new implementation/tests starte
 after cutoff; already-running local checks finished. No deterministic release suite
 was rerun for this checkpoint; full required PR gates and live acceptance remain
 for continuation. Incidental pnpm12lockfile metadata removal restored.
+
+## Infrastructure recovery —2026-11-09 (FR-SI-01/04/05, CC-01..CC-09)
+
+Recovered only009scope from7e87bb2 onto fb75e72: dev/foundation settings, defaultoff
+optionalEUModelArmor module and originalsevenmockplan/script. Did not copy old
+8.9moduleconstraints or ancestorpackages; current environment~>8.9/module~>8.10
+intersection preserved, allfive trackedlocks now8.10.0. No shared policy update.
+Originalaudio repair e278c03 remainsunchanged. MinimalrenderDockerbootstrap uses
+pinned npm/pnpm12, actualNode26base lacks corepack; fullimagebuilt and offline
+entrypoint/installedtools smoke passed. MainAPI Node24→26 remains012responsibility.
+
+Current evidence: [CC-09 recovery evidence](evidence/cc09-20261109/infra-green.txt),
+[focused33tests](evidence/cc09-20261109/focused.txt),
+[actualrenderbuild](evidence/cc09-20261109/render-build-summary.txt),
+[renderofflineentrypoint](evidence/cc09-20261109/render-smoke.txt).
+Provider/schema validate and fmt PASS fordev/staging/prod, standalonecode_execution
+andstorage_secrets; schema inspection via standaloneingestion_screening confirms
+filter/metadata fields. Root providersschema under backendfalse refuses backend
+initialization; no backend/cloud configuration was performed to bypass that.
+
+33tests acrossaudio/media/screening/render PASS using disposablelocalPG54329 and
+labelledprovidermodeldoubles. Typecheck PASS. Lint initiallycaught recoveredREADME
+anchor missing because quickstartsection was notyetrecovered; correctedlink and
+currentquickstart restored finalPASS. Architecture39fixturetests PASS, fullgraph
+0findings/186exactunchangedapprovedrecords; changed-featureartifacts0. Reviewer
+checklists unchanged. Finalchecks and liveprerequisites are in the packagehandoff.
+No cloudAPIcall/resourceapply/deployment/paidOCR/audio/modelrun/GitHubwrite.
+
+Final verification (2026-11-09): deterministic citations160/160 and leakage0 PASS;
+report/structure gates use clearly labelled doubles and judged metrics remain
+UNAVAILABLE/GatePending. Existing code-execution and storage policy tests each
+PASS4/4 under selected8.10providers. Final graph with origin/main base remains
+0findings/186unchangedrecords; changed-featureartifacts0, 39architecturefixtures
+PASS. Spec integrity201Markdown/55SRS/39featureartifacts PASS; whitespace PASS.
+No new boundary/behavior changes occurred after affected33test/typecheck checks.
+T060–T065 recovery tasks complete locally; T049/T050 remain explicitlyOPEN.

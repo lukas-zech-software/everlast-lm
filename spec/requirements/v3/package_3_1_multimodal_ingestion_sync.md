@@ -226,3 +226,16 @@ Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the e
 ### Benchmark evidence validation — 2026-11-05 (FR-SI-01, SC-002, Gate v3.0 #1)
 
 The declared plan must precede every acceptance timestamp. Observations have exactly the predeclared unique attempt IDs 1..N and finite chronological upload/acceptance/transcript/index clocks; malformed or reversed clocks cannot produce a passing latency. The runner validates that its supported serial FLAC/Chirp 2 regional execution matches the declared codec, language, model and region before any provider request; unsupported execution plans are UNAVAILABLE rather than silently measured under different settings. Accepted attempts are checkpointed as unfinished before transcription, then updated with outcome/error and cleanup status, so interruption or provider failure cannot erase the denominator. Runtime, source commit and plan/fixture hashes accompany the report. These safeguards do not replace the real 30-minute benchmark or the integrated timestamp click scenario.
+
+### Infrastructure recovery refinement —2026-11-09 (FR-SI-01/05, NFR-SEC-01/02, CC-09)
+
+Dev exposes the existing foundation inputs with disabled/empty defaults; optional
+managed screening is default-off, europe-west4-only, mutually exclusive with an
+existing local templateID. Prompt-injection/jailbreak LOW_AND_ABOVE plus block
+enforcement, fail-closed partial errors and no sanitize logs preserve current
+screening semantics. Current approved provider8.xconstraints select8.10.0, with
+consistent locks; no recovered older constraints replace them. Actual Node26
+render bootstrap uses pinned npm/pnpm12 because corepack is absent. This changes
+no canonical contracts/workflow ownership, authorizes no resource/API apply or
+paid cohort, and leaves T049/T050 live acceptance open. See009plan's CC-09inventory
+and implementation evidence for scoped static/manual checks versus live proof.

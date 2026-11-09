@@ -28,6 +28,16 @@ module "v1_foundation" {
 
   enable_email_password_sign_in = var.enable_email_password_sign_in
 
+  # Package 3.1 (FR-SI-01/05, specs/009): default off/empty until deployment approval.
+  create_model_armor_template = var.create_model_armor_template
+  enable_v3_ingestion         = var.enable_v3_ingestion
+  render_image                = var.render_image
+  model_armor_template_id     = var.model_armor_template_id
+  google_oauth_client_id      = var.google_oauth_client_id
+  google_picker_api_key       = var.google_picker_api_key
+  google_picker_app_id        = var.google_picker_app_id
+  drive_webhook_address       = var.drive_webhook_address
+
   # Package 3.2 (FR-GC-08, specs/010): default off; dev is the only planned target.
   enable_v3_code_execution        = var.enable_v3_code_execution
   code_execution_reasoning_engine = var.code_execution_reasoning_engine
