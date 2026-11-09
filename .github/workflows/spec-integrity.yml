@@ -17,12 +17,34 @@ jobs:
   check:
     name: Links, anchors and FR card coverage
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
+      - name: Setup pnpm
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - run: node scripts/check-spec-integrity.mjs
+      # Preserve this job name: main ruleset 25242656 already requires its context.
+      - name: Architecture checker regression fixtures (CC-09)
+        run: pnpm test:architecture
+      - name: Dependency boundaries and changed-feature evidence (CC-09)
+        env:
+          ARCHITECTURE_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+        shell: bash
+        run: |
+          args=()
+          if [[ -n "$ARCHITECTURE_BASE_REF" && ! "$ARCHITECTURE_BASE_REF" =~ ^0+$ ]]; then
+            args=(--base-ref "$ARCHITECTURE_BASE_REF")
+          fi
+          node scripts/check-architecture.mjs "${args[@]}"
+          node scripts/check-architecture-artifacts.mjs "${args[@]}"

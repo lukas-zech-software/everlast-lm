@@ -14,7 +14,7 @@
 ## Technical Context
 
 <!--
-  Fixed stack choices from Constitution v1.2.0 & `docs/solution-architecture.md` (D1–D14).
+  Fixed stack choices from the current Constitution & `docs/solution-architecture.md` (D1–D14).
   Deviating from any choice below requires a prior recorded `Dn` decision in `docs/solution-architecture.md`.
   Any contract, limit, error-state, or technical refinement introduced during planning or analysis MUST
   flow back into `spec.md`, the package's FR card, the SRS, or `docs/solution-architecture.md` (`Dn`)
@@ -31,9 +31,9 @@
 **Constraints**: `[e.g., 200,000,000 bytes / 500,000 words per source; C-01 300–600 token chunk target; Owner-only in v1–v5, RBAC in v6]`
 **Within-Release Prerequisites**: `[Cite required upstream packages and shared contracts C-01..C-03 from spec/requirements/README.md]`
 
-## Constitution Check (`CC-01`..`CC-08`)
+## Constitution Check (`CC-01`..`CC-09`)
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design. Any violation is CRITICAL and must be resolved or justified in Complexity Tracking.*
+*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design. Any violation is CRITICAL and must be resolved or covered by a valid prior exception. CC-09 requires the scoped exception process in Constitution IV; Complexity Tracking alone is insufficient.*
 
 | Gate ID | Principle | Pre-Research Status | Post-Design Status | Verification Evidence / Notes |
 | :--- | :--- | :--- | :--- | :--- |
@@ -45,6 +45,25 @@
 | `CC-06` | **V. Release & Package Order** | `[PASS / FAIL]` | `[PASS / FAIL]` | Honors `Gate v(k)` and within-release package prerequisites; excludes deferred items (`D5`/`DEV-03`, `D8`/`DEV-02`, `D10` before `v6.0`). |
 | `CC-07` | **VI. Security, RBAC & Residency** | `[PASS / FAIL]` | `[PASS / FAIL]` | Enforces server-side auth (`Owner`-only in `v1–v5`, RBAC in `v6`), atomic quota slot reservation, enterprise no-training endpoints (`NFR-SEC-01`), and `europe-west4` residency. |
 | `CC-08` | **Platform & Cost** | `[PASS / FAIL]` | `[PASS / FAIL]` | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources. |
+| `CC-09` | **IV. Architectural Boundaries & Evidence** | `[PASS / FAIL]` | `[PASS / FAIL]` | Boundary inventory, workflow/transaction ownership, explicit exports, regression evidence and valid scoped legacy exceptions; report automated checker availability separately. |
+
+## Architecture Boundary Evidence (mandatory; CC-09)
+
+Follow `docs/agent-architecture-guardrails.md`. Cite the assigned SRS IDs for every row.
+
+| SRS / contract | Module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `[SRS-ID]` | `[exact paths / owner]` | `[transport / workflow / adapter / contract]` | `[explicit interfaces]` | `[allowed edges]` | `[wiring file]` | `[test path and invariant]` |
+
+- **Workflow ownership**: [Authorization, transactions/quotas, dispatch, cancellation,
+  publication and recovery; preserve C-02, C-03, D13 and D16 where affected.]
+- **Simple CRUD rationale**: [Any direct route/repository access, or none.]
+- **Dependency review**: [Aliases, relative/type/dynamic imports, re-exports, cycles and
+  manifest/export changes; exact inspected paths and results.]
+- **Legacy exceptions**: [Exact edge, baseline, owner, removal task, expiry and prior Dn;
+  no blanket exceptions. None if not applicable.]
+- **Check availability**: [Manual evidence separately from automated PASS/FAIL/UNAVAILABLE;
+  unavailable automation never counts as a successful automated check.]
 
 ## Project Structure
 
@@ -89,7 +108,7 @@ infra/                   # OpenTofu IaC for Google Cloud (`europe-west4`)
 
 ## Complexity Tracking
 
-> **Fill ONLY if Constitution Check (`CC-01`..`CC-08`) has violations or requires a recorded `Dn` / `DEV-xx` reference**
+> **Fill ONLY if Constitution Check (`CC-01`..`CC-09`) has violations or requires a recorded `Dn` / `DEV-xx` reference**
 
 | Gate / Decision | Why Needed | Simpler Alternative Rejected Because |
 | :--- | :--- | :--- |

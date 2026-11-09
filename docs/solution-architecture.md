@@ -30,6 +30,7 @@
 | D18 | FR-GC-08 managed sandbox resource envelope | **Owner-approved amendment (2026-10-20):** select Agent Platform's default **2 vCPU / 1.5 GB RAM** profile, replacing the former 1 vCPU / 512 MB caps and initial Option A hold. Retain zero network and existing retries; storage, input handling and timeout enforcement follow D20 (2026-10-22). The 4 vCPU / 4 GB profile is not approved. **2026-10-22:** D19 supersedes the separate R6 qualification gate; this resource envelope remains unchanged. |
 | D19 | FR-GC-08 managed provider acceptance; R6 obsolete | **Project-owner decision (2026-10-22):** Accept Google's Agent Platform (Agent Engine) Code Execution sandbox as the service dependency and retire R6's separate feasibility spike and implementation/deployment qualification gate. Implement directly against the managed service using the D18 default. Existing FR-GC-08 behavior, scoped data, security/residency, cleanup and normal test/release gates remain; acceptance is not a claim of new empirical results. Retaining a separate provider-qualification project or switching to a Pyodide host is rejected for this scope. |
 | D20 | FR-GC-08 limits follow the managed sandbox | **Project-owner decision (2026-10-22):** Until a new decision, the FR-GC-08 sandbox limits are what Agent Platform Code Execution provides, as documented by Google (overview and quickstart, retrieved 2026-10-22): default **2 vCPU / 1.5 GB RAM** (D18), **no network access**, a provider-limited file system, and at most **100 MB of input or output files per request or response**. Input data is sent as file copies into a fresh sandbox, so executed code cannot modify stored sources. The former 64 MB `/tmp` cap and the separate read-only mount requirement are dropped. The provider documents no execution timeout, so the application enforces the **15.0 s deadline per attempt**: it stops waiting, deletes the sandbox and discards any later result. A memory error reported by the sandbox counts as a memory violation (no retry). Network isolation is taken from the provider; tests check that network calls from executed code fail, not packet capture. Each attempt uses a fresh sandbox with a short explicit TTL and is deleted afterwards. Residency (D3), scope, citation, retry and cleanup rules are unchanged. |
+| **D21** | **Incremental architecture enforcement (2026-11-07)** | Package 1.4 quality tooling enforces CC-09 dependency boundaries using exact, expiring migration records and the existing required CI context. See the D21 section below for scope, parser choice and rollout. C-01..C-03, NFR-EVAL-02/04. |
 
 ---
 
@@ -370,3 +371,22 @@ Benchmark remains 20 warm sequential runs, nearest-rank P95 = 19th sorted ≤2,5
 ### Package 3.2 main reconciliation (2026-10-21; FR-GC-08, C-02, NFR-EVAL-01..04)
 
 Preserve the current PostgreSQL ChatService → request-bound C-02 → buffered ADK model → verifyDraft → publishTurn path. Extend actual chat service/model/draft/verifier, SSE serializer and all stored/visible/web/v2 response projections for scoped execution and typed clarification; no replacement chat stack. Default targeted retrieval does not prove whole-table coverage: obtain sufficient original scoped inputs behind the captured C-02 snapshot or explain insufficient evidence. Persist admission, attempts, trace/artifacts and cleanup/reconciliation in Cloud SQL; the AbortController map is cancellation tracking. D16/specs/013 now persists v2 data and closes DEV-04; reuse applied migrations 0005–0008 and app-scoped pool selection, preserving visible history and transactional chat-clear hygiene. The retained single-API report/Guide restart sweeps do not recover remote sandbox attempts. Preserve sources/history readiness before UI submission, with independent server scope/admission checks. D18's accepted managed CPU/RAM and existing functional/security controls remain; D19 makes R6 obsolete. Apply Constitution 2.0.0 eval cadence: deterministic each PR, judged once per release candidate using the fixed stratified 50-case sample and recorded IDs/composition/hash.
+
+## D21 — Incremental architecture enforcement (2026-11-07)
+
+Traceability: Constitution IV/CC-09, C-01..C-03, NFR-EVAL-02/04; Package 1.4 quality tooling.
+User-directed implementation of automated guardrails preserves the deployment and runtime baseline.
+Use the pinned TypeScript 6 compiler API (dev-only alias; TypeScript 7 remains the application compiler) and an individually enumerated migration inventory,
+not a new framework or a global allowance for current imports. Each record fixes the importing
+file, target, rule, normalized statement/manifest fingerprint, occurrence count, baseline, owner,
+removal task and expiry (2027-02-05). New/expanded violations, stale records and expiry fail.
+This stages R1/R3 without silently declaring existing application coupling compliant; R2 still
+requires behavior-focused review. Removal work must be planned in the affected owning package.
+PR checks prohibit increasing or editing baseline exceptions; a future extension requires a
+separate owner-reviewed governance change, not an automatically regenerated allowlist.
+
+Alternatives: immediate whole-application refactoring exceeds this tooling scope; regex import
+matching misses type/re-export/alias paths; blanket ignore patterns permit repeated violations.
+The required GitHub context remains `Links, anchors and FR card coverage`, now also running
+architecture fixtures and enforcement. Existing ruleset administrator bypass remains a platform
+limitation; source-controlled checks cannot prevent an authorized administrator from bypassing them.

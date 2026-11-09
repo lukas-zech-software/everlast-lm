@@ -169,6 +169,40 @@ through caches or chat history is the product's core enterprise guarantee.
   MUST be preceded by an SRS amendment, a recorded architecture decision (`Dn`), a migration
   plan, and updated consumer tests in the same pull request.
 
+- **Dependency and responsibility boundaries (`CC-09`; `C-01..C-03`, `FR-WM-01..04`,
+  `FR-WM-07`)**:
+  - Retain feature-oriented modules. Deployment applications MUST NOT serve as shared
+    libraries for other applications. Shared workflows MUST live behind explicit public
+    interfaces in focused workspace packages; shared packages MUST NOT depend on `apps/*`.
+  - Cross-package consumers MUST use explicit public exports. Wildcard exports exposing
+    implementation trees, deep imports, relative-path escapes, and type-only imports MUST
+    NOT bypass boundaries. New workspace dependency cycles are forbidden.
+  - Transport handlers own parsing, protocol/status mapping and serialization. Application
+    services own multi-step use cases, authorization coordination, cancellation and job
+    coordination. Persistence adapters own SQL and transaction mechanics. Simple CRUD may
+    call an authorized repository directly when it coordinates no additional workflow;
+    document that rationale rather than creating pass-through layers.
+  - Application workflows MUST depend on explicit ports for persistence, model and job
+    effects. Composition roots may wire concrete adapters; business workflows MUST NOT
+    import transport entry points or construct infrastructure clients.
+  - Refactoring MUST preserve canonical contracts, C-02 scope/snapshot checks, authorization,
+    atomic quotas/transactions, idempotency, cancellation, durable dispatch/recovery and
+    publication fences. Moving code MUST NOT implicitly change execution placement or D16's
+    single-API-instance restriction. Deployment changes require a prior `Dn` and evidence.
+  - Each plan MUST map touched modules to owners, allowed dependencies, public interfaces,
+    composition roots and relevant behavior tests. The operating procedure and evidence
+    format are in `docs/agent-architecture-guardrails.md`.
+  - Dependency rules MUST ultimately be enforced in lint/CI with positive and negative
+    fixtures. Until that checker exists, agents MUST report it `UNAVAILABLE`, perform and
+    record the manual CC-09 review, and MUST NOT claim automated enforcement. Manual review
+    does not substitute for other required test/eval gates or complete the checker work.
+  - Existing violations are migration debt, not precedent. Only unchanged, individually
+    recorded violations may receive a scoped exception with an owner, removal task, expiry
+    date and prior architecture decision. New or expanded violations MUST block completion.
+    Agents MUST NOT create blanket allowlists or approve their own exception by writing a
+    Complexity Tracking explanation. Exceptions expire at the stated date or removal task
+    completion, whichever occurs first; renewal requires the same decision process.
+
 **Rationale:** Enforced shared contracts and a strict boundary between agentic loops and
 deterministic pipelines prevent cross-package regressions, latency spikes, and ungrounded drift.
 
@@ -291,10 +325,11 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
     or feasibility constraints, the resolution MUST flow back to `spec.md` AND upstream to the
     FR card / SRS / `docs/solution-architecture.md` (`Dn`) (and affected GitHub issues), followed
     by re-running `/speckit-analyze`, rather than only patching code or appending unbacked tasks.
-- **Constitution Check Gate Table (`CC-01`..`CC-08`)**: Every `plan.md` (before Phase 0 research
-  and again after Phase 1 design) and every `/speckit-analyze` run MUST evaluate these eight
+- **Constitution Check Gate Table (`CC-01`..`CC-09`)**: Every `plan.md` (before Phase 0 research
+  and again after Phase 1 design) and every `/speckit-analyze` run MUST evaluate these nine
   gates explicitly. Any justified exception MUST be recorded in the plan's Complexity Tracking
-  table or as a prior `Dn` / SRS amendment:
+  table or as a prior `Dn` / SRS amendment. CC-09 exceptions additionally MUST
+  satisfy Principle IV; a table entry alone is insufficient:
 
 | Gate ID | Principle | Required Verification in `plan.md` and `/speckit-analyze` |
 | :--- | :--- | :--- |
@@ -306,11 +341,14 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 | `CC-06` | V. Release & Package Order | Honors `Gate v(k)` and within-release package prerequisites; excludes deferred items (`D5`/`DEV-03`, `D8`/`DEV-02`, `D10` before `v6.0`). |
 | `CC-07` | VI. Security, RBAC & Residency | Enforces server-side auth (`Owner`-only in `v1–v5`, RBAC in `v6`), atomic quota slot reservation, enterprise no-training endpoints (`NFR-SEC-01`), and `europe-west4` residency. |
 | `CC-08` | Platform & Cost | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources. |
+| `CC-09` | IV. Architectural Boundaries & Evidence | Records module ownership, public exports, dependency directions and workflow/transaction ownership; forbids new boundary violations; links regression and boundary-check evidence plus individually scoped legacy exceptions. Separates manual review from automated-check availability. |
 
 - **Multi-session isolation & feature pinning**:
-  - Every concurrent writing session MUST use its own dedicated Git worktree and branch, and
-    MUST pin `SPECIFY_INIT_DIR`, `SPECIFY_FEATURE_DIRECTORY`, and `SPECIFY_FEATURE_NO_PERSIST=1`
-    as defined in `AGENTS.md`.
+  - Every repository task MUST begin in a newly created dedicated Git worktree and branch.
+    Feature work MUST pin its active directory in `.specify/feature.json` as defined in
+    `AGENTS.md`. A supplied `SPECIFY_FEATURE_DIRECTORY` MUST be copied into that file and
+    unset, never retained as persistent configuration. Governance-only work MUST NOT repoint
+    an unrelated feature or create a placeholder feature directory.
   - Feature directory numbers (`specs/NNN-<package>`) MUST be allocated centrally before
     running `/speckit-specify` to prevent sequential numbering collisions across worktrees.
   - Task references in commits, issues, and handoffs MUST be qualified by spec path (for example,
@@ -337,7 +375,7 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   - `MAJOR`: Removing or weakening a core principle or mandatory gate.
   - `MINOR`: Adding a principle, gate, or materially expanded architectural/operational rules.
   - `PATCH`: Wording clarifications, cross-reference updates, or non-semantic refinements.
-- Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-08`),
+- Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-09`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 2.0.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-10-19
+**Version**: 2.1.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-07

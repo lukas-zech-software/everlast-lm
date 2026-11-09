@@ -18,7 +18,7 @@ Implement exactly package 1.4 from [FR cards](../../spec/requirements/v1/package
 - 1.1–1.3 provide real notebook, source, inspector and chat features; UI shell and test datasets can be prepared early, but full Gate v1.0 requires the integrated runnable application.
 - Owner-only v1–v5; explicit nonempty Ready source IDs, immutable submission revisions, current authorization before reads/publication, singleton inspection without selection mutation. All source reads go through C-02; history/cache eligibility covers complete provenance, not only citations. Deleted/revoked content is hidden or unavailable; invalid factual citations cause immediate refusal before publication. Byte and word limits are independent and inclusive. All future roles, overview/chips/Source Guide, personas, re-sync, media and Studio features remain in their assigned releases.
 
-## Constitution Check (CC-01..CC-08)
+## Constitution Check (CC-01..CC-09)
 
 Pre-research scope review passed before selecting implementation details; post-design review covers the contract/data/validation documents, not runtime success. No tests are claimed executed. Full analyze is required after tasks before implementation.
 
@@ -32,6 +32,7 @@ Pre-research scope review passed before selecting implementation details; post-d
 | CC-06 | Release order | PASS | PASS | 1.1–1.3 provide real notebook, source, inspector and chat features; UI shell and test datasets can be prepared early, but full Gate v1.0 requires the integrated runnable application. |
 | CC-07 | Security/residency | PASS | PASS | Owner authorization and no-training enterprise routes; EU default with verified service region map; no API activation. |
 | CC-08 | Platform/cost | PASS | PASS | Reuse TypeScript/Cloud Run/single Postgres/Storage/Tasks and OpenTofu D14; no new framework/fixed-cost service. |
+| CC-09 | Architectural boundaries | PASS | PASS | C-01..C-03: tooling boundary inventory below; automated dependency and artifact checks plus 39 fixtures pass, with 285 exact D21 migration exceptions. Manual workflow review remains required for application changes. |
 
 ## Project Structure and Ownership
 
@@ -70,3 +71,26 @@ No new framework, datastore, cloud service, scope deferral or constitution excep
 - **Judged release sample (Constitution v2.0.0):** `pnpm eval:judged` runs once per release gate on a fixed stratified 50-case sample (`releaseSample`: 25 unanswerable, 7 deselected-source, 4 history carry-over, 14 synthesis); case IDs and method are written into the report. With 25 unanswerable cases, rejection ≥ 0.99 requires 25/25. The CI `judged` job runs only on a release-gate `workflow_dispatch`; `--full` runs all 222 cases.
 - **Gate lifecycle:** GatePassed only for a release run with all metrics passing, NFR-SEC-01 preflight passing and UI evidence for #1 and #3; any failure fails closed; missing evidence stays GatePending. Semantic citation support is gated at 1.0.
 - **Preflight (NFR-SEC-01):** inspects the actual SDK clients (Vertex AI, no API key, `europe-west4`), forbids developer keys in the runtime environment, accepts Document AI in `europe-west4` or `eu` (D3 region map), checks ADC live, and reports no-training separately from retention.
+
+## Architecture Boundary Evidence — 2026-11-07 amendment (C-01..C-03, NFR-EVAL-02/04)
+
+The original gates above describe the historical product work. For this tooling-only amendment,
+CC-01 maps ARCH-01..04 to Package 1.4; CC-02 requires failing fixtures first; CC-03/04/05 preserve
+runtime contracts without modifying them; CC-06 is v1 quality maintenance; CC-07 changes no
+credentials/resources; CC-08 reuses Node and TypeScript; CC-09 follows the inventory below.
+Pre-research and post-design assessment: PASS for the proposed tooling boundaries; implementation
+and CI execution evidence must be recorded separately. R1/R2 application remediation is deferred.
+
+| SRS / contract | Module and owner | Responsibility | Public interface | Allowed dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| C-01..C-03 | scripts/check-architecture.mjs; quality-gate maintainer | Parse/resolve/check/report | inspectArchitecture, checkArchitecture | Node built-ins, pinned typescript-compiler alias | CLI entry | scripts/test/architecture.test.mjs |
+| C-01..C-03 | scripts/architecture-policy.json; project owner | Individual migration records | Versioned JSON | D21, removal tasks | Checker CLI | Exception lifecycle fixtures |
+| NFR-EVAL-02/04 | scripts/check-architecture-artifacts.mjs; quality-gate maintainer | Changed-feature evidence | CLI with base ref | Node/git | lint and required CI job | Artifact fixtures |
+| NFR-EVAL-02/04 | .github/workflows/spec-integrity.yml; project owner | Required CI wiring | Existing job context | Existing pinned setup actions | GitHub Actions | Local command chain and workflow inspection |
+
+Tests use isolated temporary repositories; no fixtures are imported into production. No workflow,
+transaction, quota, cancellation, recovery or publication behavior is moved. No new service, SDK,
+API or deployment dependency. TypeScript 7 exposes no legacy compiler API; a pinned dev-only TypeScript 6 alias supplies the parser/resolver without changing the application compiler. No simplistic route scanner is
+claimed to prove service ownership. Exceptions are exact, expire 2027-02-05, and are removable
+only; enlarging them needs a separately reviewed governance amendment (D21). Enforcement rollout
+reuses the existing required check so an unpublished new context cannot block unrelated PRs.

@@ -21,3 +21,16 @@
 ## Validation
 
 <!-- Commands run and their results. Say explicitly if a check does not exist yet. -->
+
+## Architecture evidence (CC-09)
+
+- **Reviewed commit / diff and SRS IDs:**
+- **Boundary inventory / workflow ownership:** <!-- Link plan; docs-only may be N/A with reason. -->
+- **Dependency and export review:** <!-- Include aliases, relative/type imports and re-exports. -->
+- **Behavior preserved / tests:** <!-- Scope, auth, transactions, quotas, cancellation, recovery, publication. -->
+- **Legacy exceptions:** <!-- Exact edge, prior Dn, owner, removal task and expiry; or none. -->
+- **Manual review result:**
+- **Automated boundary check result:** <!-- PASS / FAIL / UNAVAILABLE; do not infer from typecheck. -->
+
+- [ ] No new or expanded boundary violations; valid exceptions only for unchanged legacy edges
+- [ ] Analysis and convergence evidence match the final implementation; unavailable checks disclosed
