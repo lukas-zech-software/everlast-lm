@@ -185,3 +185,47 @@ Each fix started from a failing regression test (`apps/api/test/code-execution-p
 - **Deferred (efficiency, not correctness):** the periodic `invalidateChartsOfUnavailableSources` scan. Source deletion already invalidates charts synchronously, and the chart route re-checks provenance on each request. Narrowing the scan is a follow-up.
 
 Gates: build, lint/typecheck and spec integrity PASS; `pnpm test` 1159 passed / 11 skipped (live sandbox UNAVAILABLE); `eval:deterministic` citation precision 160/160, leakage 0, adversarial 0/60 published.
+
+
+## Execution checkpoint (2026-11-05; [010-code-execution-sandbox] T049–T052)
+
+Candidate parent: `77bac2b62586bce6bf81c9a7efbb42febc862a22`; isolated branch `codex/pre-v4-package-3-2-20261105`, worktree `/private/tmp/everlast-lm-pre-v4-package-3-2-20261105`. Node26/pnpm12 frozen install; disposable PostgreSQL16/pgvector at local port54331, separate test schemas. The package commit contains the repaired runner and this checkpoint; no cloud candidate deployment occurred.
+
+| Check | Outcome |
+| --- | --- |
+| `pnpm exec vitest run --project unit packages/evals/test/code-execution-performance.test.ts` before repair | RED: 7 newly added tests failed on intended gaps; 7 legacy tests passed. |
+| Same focused command after repair | PASS: 14/14 tests. |
+| Package contract/runtime/API/DB/web/eval regressions using TEST_DATABASE_URL | PASS: 18 suites, 172 tests. |
+| `E2E_PORT=4332 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium` with local TEST_DATABASE_URL | PASS: 6/6 tests, 14.4s (after resolving sandbox Chromium launch restriction). |
+| `pnpm eval:deterministic` with local TEST_DATABASE_URL | PASS: citation precision 160/160, leakage 0; package structure/reports deterministic gates pass. Judged metrics remain UNAVAILABLE. |
+| `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `git diff --check` | PASS. |
+| Unconfigured runner | UNAVAILABLE: writes report and exits 2. |
+| Configured runner without observations (CLI regression) | UNAVAILABLE: writes report and exits 2; no successful no-op. |
+| Live managed service, all four real N≥20 application cohorts, common fixed50 judged gate | UNAVAILABLE: no approved parent runtime or matching deployment; T052 remains open. |
+
+T049–T051 complete the local evidence safeguards and documentation reconciliation. Original T044–T047 checkmarks record historical implementation/check attempts, including their documented unavailability; they do not imply live acceptance. T052 is the current open acceptance obligation. The benchmark import contract and exact command are in the quickstart; reports retain original valid observations plus plan/input hashes, source revision and dirty state. A passing aggregate of supplied samples alone is not real-service proof.
+
+
+## Recovery checkpoint — 2026-11-09 (FR-GC-08, NFR-PERF-01, CC-09)
+
+Reviewed a6a38e5 safeguards recovered onto current main-derived 62b2974. New
+worktree and immediate feature pin; reviewer checklist unchanged. Seven actual
+validator/CLI tests failed before recovery, all 14 pass afterward. Typecheck,
+lint (39 architecture fixtures, graph0/186 unchanged exceptions, changed artifacts0),
+spec integrity and whitespace checks PASS. Logs: evidence/recovery-20261109/.
+009 deterministic citation160/160/leakage0 evidence remains applicable to unchanged
+source/publication paths; no fresh deterministic or paid judged run is claimed here.
+
+This is PARTIAL recovery. Optional parent infrastructure 0e00bf8 is NOT integrated.
+T062 remains open for selective recovery, provider mocks/schema and wiring tests.
+T063 remains open for actual ordinary-application collection. Current runtime stores
+attempt startedAt before provider creation and emits running_code, but the benchmark
+has no authenticated application collector, source/serving provenance or measured
+cold/warm classification. Do not infer these from configuration or labels. Review
+existing attempt trace/status boundaries and later012 private evidence, implement
+bounded real collection with tests, then execute only approved frozen live cohorts.
+T052 live security/four-cohort/common judged acceptance remains OPEN.
+
+No cloud/model/sandbox calls, resource apply, deployment or GitHub write occurred.
+No policy exception was added, modified or removed. Existing 8.10 provider locks,
+prior package fixes and render bootstrap remain unchanged.

@@ -115,3 +115,22 @@ $ node scripts/eval-v3-code-execution.mjs
 | `apps/api/test/code-execution-runtime.integration.test.ts` | Live Agent Platform sandbox isolation & resource limits (`CODE_EXECUTION_IT=1`) | **UNAVAILABLE** (11 skipped) |
 | `pnpm eval:v3-code-execution` | Live cold/warm 1u/2u latency cohorts ($N = 20$ per cohort) | **UNAVAILABLE** (exit 2) |
 | `pnpm eval:judged` | Live Vertex AI 50-case stratified judged evaluation | **UNAVAILABLE** (exit 2) |
+
+
+## Execution checkpoint (2026-11-05; [010-code-execution-sandbox] T049–T052)
+
+Candidate parent: `77bac2b62586bce6bf81c9a7efbb42febc862a22`; isolated branch `codex/pre-v4-package-3-2-20261105`, worktree `/private/tmp/everlast-lm-pre-v4-package-3-2-20261105`. Node26/pnpm12 frozen install; disposable PostgreSQL16/pgvector at local port54331, separate test schemas. The package commit contains the repaired runner and this checkpoint; no cloud candidate deployment occurred.
+
+| Check | Outcome |
+| --- | --- |
+| `pnpm exec vitest run --project unit packages/evals/test/code-execution-performance.test.ts` before repair | RED: 7 newly added tests failed on intended gaps; 7 legacy tests passed. |
+| Same focused command after repair | PASS: 14/14 tests. |
+| Package contract/runtime/API/DB/web/eval regressions using TEST_DATABASE_URL | PASS: 18 suites, 172 tests. |
+| `E2E_PORT=4332 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium` with local TEST_DATABASE_URL | PASS: 6/6 tests, 14.4s (after resolving sandbox Chromium launch restriction). |
+| `pnpm eval:deterministic` with local TEST_DATABASE_URL | PASS: citation precision 160/160, leakage 0; package structure/reports deterministic gates pass. Judged metrics remain UNAVAILABLE. |
+| `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `git diff --check` | PASS. |
+| Unconfigured runner | UNAVAILABLE: writes report and exits 2. |
+| Configured runner without observations (CLI regression) | UNAVAILABLE: writes report and exits 2; no successful no-op. |
+| Live managed service, all four real N≥20 application cohorts, common fixed50 judged gate | UNAVAILABLE: no approved parent runtime or matching deployment; T052 remains open. |
+
+T049–T051 complete the local evidence safeguards and documentation reconciliation. Original T044–T047 checkmarks record historical implementation/check attempts, including their documented unavailability; they do not imply live acceptance. T052 is the current open acceptance obligation. The benchmark import contract and exact command are in the quickstart; reports retain original valid observations plus plan/input hashes, source revision and dirty state. A passing aggregate of supplied samples alone is not real-service proof.

@@ -122,3 +122,20 @@ Cache/history coverage explicitly tests notebook/exact source revisions/effectiv
 
 - SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
 - Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.
+
+
+## Architecture Boundary Evidence — recovery 2026-11-09 (CC-09)
+
+| SRS / contract | Module and owner | Responsibility | Public ports | Allowed dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-performance.ts, 010 | Validate declared cohorts and retained observations; no infrastructure effects | validateCodeExecutionPlan, evaluateCodeExecutionBenchmark | Local types and pure functions only | scripts/eval-v3-code-execution.mjs | packages/evals/test/code-execution-performance.test.ts |
+| FR-GC-08, NFR-SEC-02 | scripts/eval-v3-code-execution.mjs, 010 | CLI parsing, private report serialization; configured-but-unimplemented collection is UNAVAILABLE | Explicit plan/observation files | Explicit relative evaluator/test fixture imports; no app imports | CLI entry point | Configured/unconfigured subprocess regression |
+| FR-GC-08, D18-D20 | infra/modules/code_execution, 010 | Default-off typed parent and managed profile wiring | Optional variables and environment outputs | Google provider 8.10; no runtime code | dev -> foundation -> code_execution -> compute | Mock provider policy/wiring tests |
+
+Before recovery: no source workflow extraction or new consumer is proposed. SQL,
+authorization, execution deadline, cancellation and publication remain owned by the
+existing API execution controller and DB adapters; these are untouched. Existing
+D21 migration exceptions are neither widened nor renewed. New infrastructure has
+no source-content access. Reuse 009's unchanged architecture fixtures/deterministic
+evidence; rerun graph and changed-artifact checks on the actual diff. Post-design
+CC-09 review must report live collection still unavailable if not implemented.

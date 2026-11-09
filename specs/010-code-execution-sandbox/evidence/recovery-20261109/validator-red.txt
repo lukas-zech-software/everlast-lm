@@ -1,0 +1,1115 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-010-resume-20261109
+
+ ❯ |unit| packages/evals/test/code-execution-performance.test.ts (14 tests | 7 failed) 223ms
+   ❯ code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) (14)
+     × CE-PERF-08: duplicated identities and unknown or out-of-range samples cannot satisfy a declared cohort 3ms
+     × CE-PERF-09: successful observations require complete, chronological UTC events after predeclaration 1ms
+     × CE-PERF-10: invalid outcome and retry metadata are rejected rather than omitted from failure accounting 1ms
+     × CE-PERF-11: minimum N=20, UTC declaration and accepted managed profile are enforced 0ms
+     × CE-PERF-12: configured runtime without a collector writes an explicit UNAVAILABLE report and exits 2 76ms
+     × CE-PERF-13: importing observations without an explicit predeclared plan cannot manufacture a passing run 67ms
+     × CE-PERF-14: explicit evidence import preserves observations and hashes; invalid evidence writes a FAIL report 67ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-08: duplicated identities and unknown or out-of-range samples cannot satisfy a declared cohort
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:249:76
+    247|       const observations = allPassingObservations();
+    248|       Object.assign(observations[0]!, patch);
+    249|       expect(() => evaluateCodeExecutionBenchmark(basePlan, observatio…
+       |                                                                            ^
+    250|     }
+    251|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-09: successful observations require complete, chronological UTC events after predeclaration
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:265:76
+    263|       const observations = allPassingObservations();
+    264|       Object.assign(observations[0]!, patch);
+    265|       expect(() => evaluateCodeExecutionBenchmark(basePlan, observatio…
+       |                                                                            ^
+    266|     }
+    267|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-10: invalid outcome and retry metadata are rejected rather than omitted from failure accounting
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:277:76
+    275|       const observations = allPassingObservations();
+    276|       Object.assign(observations[0]!, patch);
+    277|       expect(() => evaluateCodeExecutionBenchmark(basePlan, observatio…
+       |                                                                            ^
+    278|     }
+    279|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-11: minimum N=20, UTC declaration and accepted managed profile are enforced
+AssertionError: expected [Function] to throw an error
+
+- Expected:
+null
+
++ Received:
+undefined
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:286:54
+    284|       { ...basePlan, provider: { ...basePlan.provider, region: "us-cen…
+    285|       { ...basePlan, cohorts: { ...basePlan.cohorts, cold_1u: { ...bas…
+    286|     ]) expect(() => validateCodeExecutionPlan(plan)).toThrow(/declar|p…
+       |                                                      ^
+    287|     expect(evaluateCodeExecutionBenchmark(basePlan, allPassingObservat…
+    288|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-12: configured runtime without a collector writes an explicit UNAVAILABLE report and exits 2
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:307:29
+    305|       });
+    306|       expect(result.error).toBeUndefined();
+    307|       expect(result.status).toBe(2);
+       |                             ^
+    308|       expect(result.stderr).toContain("UNAVAILABLE");
+    309|       expect(JSON.parse(readFileSync(join(out, "v3-code-execution-benc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-13: importing observations without an explicit predeclared plan cannot manufacture a passing run
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:319:29
+    317|       writeFileSync(input, JSON.stringify(allPassingObservations()));
+    318|       const result = runCli(["--observations", input, "--out", out]);
+    319|       expect(result.status).toBe(2);
+       |                             ^
+    320|       expect(result.stderr).toMatch(/predeclared.*plan|plan.*predeclar…
+    321|     } finally { rmSync(out, { recursive: true, force: true }); }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/7]⎯
+
+ FAIL  |unit| packages/evals/test/code-execution-performance.test.ts > code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043) > CE-PERF-14: explicit evidence import preserves observations and hashes; invalid evidence writes a FAIL report
+AssertionError: expected undefined to deeply equal [ { cohort: 'cold_1u', …(9) }, …(79) ]
+
+- Expected:
+[
+  {
+    "answerPublishedAt": "2026-10-24T12:00:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:00:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:00:00.900Z",
+    "sampleIndex": 1,
+    "sandboxCreatedAt": "2026-10-24T12:00:00.900Z",
+    "submittedAt": "2026-10-24T12:00:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:01:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:01:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:01:00.900Z",
+    "sampleIndex": 2,
+    "sandboxCreatedAt": "2026-10-24T12:01:00.900Z",
+    "submittedAt": "2026-10-24T12:01:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:02:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:02:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:02:00.900Z",
+    "sampleIndex": 3,
+    "sandboxCreatedAt": "2026-10-24T12:02:00.900Z",
+    "submittedAt": "2026-10-24T12:02:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:03:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:03:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:03:00.900Z",
+    "sampleIndex": 4,
+    "sandboxCreatedAt": "2026-10-24T12:03:00.900Z",
+    "submittedAt": "2026-10-24T12:03:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:04:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:04:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:04:00.900Z",
+    "sampleIndex": 5,
+    "sandboxCreatedAt": "2026-10-24T12:04:00.900Z",
+    "submittedAt": "2026-10-24T12:04:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:05:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:05:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:05:00.900Z",
+    "sampleIndex": 6,
+    "sandboxCreatedAt": "2026-10-24T12:05:00.900Z",
+    "submittedAt": "2026-10-24T12:05:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:06:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:06:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:06:00.900Z",
+    "sampleIndex": 7,
+    "sandboxCreatedAt": "2026-10-24T12:06:00.900Z",
+    "submittedAt": "2026-10-24T12:06:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:07:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:07:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:07:00.900Z",
+    "sampleIndex": 8,
+    "sandboxCreatedAt": "2026-10-24T12:07:00.900Z",
+    "submittedAt": "2026-10-24T12:07:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:08:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:08:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:08:00.900Z",
+    "sampleIndex": 9,
+    "sandboxCreatedAt": "2026-10-24T12:08:00.900Z",
+    "submittedAt": "2026-10-24T12:08:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:09:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:09:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:09:00.900Z",
+    "sampleIndex": 10,
+    "sandboxCreatedAt": "2026-10-24T12:09:00.900Z",
+    "submittedAt": "2026-10-24T12:09:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:10:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:10:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:10:00.900Z",
+    "sampleIndex": 11,
+    "sandboxCreatedAt": "2026-10-24T12:10:00.900Z",
+    "submittedAt": "2026-10-24T12:10:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:11:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:11:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:11:00.900Z",
+    "sampleIndex": 12,
+    "sandboxCreatedAt": "2026-10-24T12:11:00.900Z",
+    "submittedAt": "2026-10-24T12:11:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:12:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:12:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:12:00.900Z",
+    "sampleIndex": 13,
+    "sandboxCreatedAt": "2026-10-24T12:12:00.900Z",
+    "submittedAt": "2026-10-24T12:12:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:13:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:13:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:13:00.900Z",
+    "sampleIndex": 14,
+    "sandboxCreatedAt": "2026-10-24T12:13:00.900Z",
+    "submittedAt": "2026-10-24T12:13:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:14:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:14:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:14:00.900Z",
+    "sampleIndex": 15,
+    "sandboxCreatedAt": "2026-10-24T12:14:00.900Z",
+    "submittedAt": "2026-10-24T12:14:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:15:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:15:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:15:00.900Z",
+    "sampleIndex": 16,
+    "sandboxCreatedAt": "2026-10-24T12:15:00.900Z",
+    "submittedAt": "2026-10-24T12:15:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:16:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:16:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:16:00.900Z",
+    "sampleIndex": 17,
+    "sandboxCreatedAt": "2026-10-24T12:16:00.900Z",
+    "submittedAt": "2026-10-24T12:16:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:17:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:17:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:17:00.900Z",
+    "sampleIndex": 18,
+    "sandboxCreatedAt": "2026-10-24T12:17:00.900Z",
+    "submittedAt": "2026-10-24T12:17:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:18:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:18:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:18:00.900Z",
+    "sampleIndex": 19,
+    "sandboxCreatedAt": "2026-10-24T12:18:00.900Z",
+    "submittedAt": "2026-10-24T12:18:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:19:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_1u",
+    "executionCompletedAt": "2026-10-24T12:19:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:19:00.900Z",
+    "sampleIndex": 20,
+    "sandboxCreatedAt": "2026-10-24T12:19:00.900Z",
+    "submittedAt": "2026-10-24T12:19:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:00:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:00:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:00:00.900Z",
+    "sampleIndex": 1,
+    "sandboxCreatedAt": "2026-10-24T12:00:00.900Z",
+    "submittedAt": "2026-10-24T12:00:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:01:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:01:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:01:00.900Z",
+    "sampleIndex": 2,
+    "sandboxCreatedAt": "2026-10-24T12:01:00.900Z",
+    "submittedAt": "2026-10-24T12:01:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:02:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:02:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:02:00.900Z",
+    "sampleIndex": 3,
+    "sandboxCreatedAt": "2026-10-24T12:02:00.900Z",
+    "submittedAt": "2026-10-24T12:02:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:03:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:03:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:03:00.900Z",
+    "sampleIndex": 4,
+    "sandboxCreatedAt": "2026-10-24T12:03:00.900Z",
+    "submittedAt": "2026-10-24T12:03:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:04:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:04:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:04:00.900Z",
+    "sampleIndex": 5,
+    "sandboxCreatedAt": "2026-10-24T12:04:00.900Z",
+    "submittedAt": "2026-10-24T12:04:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:05:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:05:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:05:00.900Z",
+    "sampleIndex": 6,
+    "sandboxCreatedAt": "2026-10-24T12:05:00.900Z",
+    "submittedAt": "2026-10-24T12:05:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:06:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:06:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:06:00.900Z",
+    "sampleIndex": 7,
+    "sandboxCreatedAt": "2026-10-24T12:06:00.900Z",
+    "submittedAt": "2026-10-24T12:06:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:07:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:07:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:07:00.900Z",
+    "sampleIndex": 8,
+    "sandboxCreatedAt": "2026-10-24T12:07:00.900Z",
+    "submittedAt": "2026-10-24T12:07:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:08:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:08:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:08:00.900Z",
+    "sampleIndex": 9,
+    "sandboxCreatedAt": "2026-10-24T12:08:00.900Z",
+    "submittedAt": "2026-10-24T12:08:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:09:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:09:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:09:00.900Z",
+    "sampleIndex": 10,
+    "sandboxCreatedAt": "2026-10-24T12:09:00.900Z",
+    "submittedAt": "2026-10-24T12:09:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:10:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:10:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:10:00.900Z",
+    "sampleIndex": 11,
+    "sandboxCreatedAt": "2026-10-24T12:10:00.900Z",
+    "submittedAt": "2026-10-24T12:10:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:11:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:11:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:11:00.900Z",
+    "sampleIndex": 12,
+    "sandboxCreatedAt": "2026-10-24T12:11:00.900Z",
+    "submittedAt": "2026-10-24T12:11:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:12:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:12:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:12:00.900Z",
+    "sampleIndex": 13,
+    "sandboxCreatedAt": "2026-10-24T12:12:00.900Z",
+    "submittedAt": "2026-10-24T12:12:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:13:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:13:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:13:00.900Z",
+    "sampleIndex": 14,
+    "sandboxCreatedAt": "2026-10-24T12:13:00.900Z",
+    "submittedAt": "2026-10-24T12:13:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:14:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:14:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:14:00.900Z",
+    "sampleIndex": 15,
+    "sandboxCreatedAt": "2026-10-24T12:14:00.900Z",
+    "submittedAt": "2026-10-24T12:14:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:15:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:15:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:15:00.900Z",
+    "sampleIndex": 16,
+    "sandboxCreatedAt": "2026-10-24T12:15:00.900Z",
+    "submittedAt": "2026-10-24T12:15:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:16:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:16:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:16:00.900Z",
+    "sampleIndex": 17,
+    "sandboxCreatedAt": "2026-10-24T12:16:00.900Z",
+    "submittedAt": "2026-10-24T12:16:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:17:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:17:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:17:00.900Z",
+    "sampleIndex": 18,
+    "sandboxCreatedAt": "2026-10-24T12:17:00.900Z",
+    "submittedAt": "2026-10-24T12:17:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:18:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:18:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:18:00.900Z",
+    "sampleIndex": 19,
+    "sandboxCreatedAt": "2026-10-24T12:18:00.900Z",
+    "submittedAt": "2026-10-24T12:18:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:19:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_1u",
+    "executionCompletedAt": "2026-10-24T12:19:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:19:00.900Z",
+    "sampleIndex": 20,
+    "sandboxCreatedAt": "2026-10-24T12:19:00.900Z",
+    "submittedAt": "2026-10-24T12:19:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:00:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:00:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:00:00.900Z",
+    "sampleIndex": 1,
+    "sandboxCreatedAt": "2026-10-24T12:00:00.900Z",
+    "submittedAt": "2026-10-24T12:00:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:01:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:01:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:01:00.900Z",
+    "sampleIndex": 2,
+    "sandboxCreatedAt": "2026-10-24T12:01:00.900Z",
+    "submittedAt": "2026-10-24T12:01:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:02:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:02:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:02:00.900Z",
+    "sampleIndex": 3,
+    "sandboxCreatedAt": "2026-10-24T12:02:00.900Z",
+    "submittedAt": "2026-10-24T12:02:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:03:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:03:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:03:00.900Z",
+    "sampleIndex": 4,
+    "sandboxCreatedAt": "2026-10-24T12:03:00.900Z",
+    "submittedAt": "2026-10-24T12:03:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:04:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:04:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:04:00.900Z",
+    "sampleIndex": 5,
+    "sandboxCreatedAt": "2026-10-24T12:04:00.900Z",
+    "submittedAt": "2026-10-24T12:04:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:05:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:05:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:05:00.900Z",
+    "sampleIndex": 6,
+    "sandboxCreatedAt": "2026-10-24T12:05:00.900Z",
+    "submittedAt": "2026-10-24T12:05:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:06:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:06:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:06:00.900Z",
+    "sampleIndex": 7,
+    "sandboxCreatedAt": "2026-10-24T12:06:00.900Z",
+    "submittedAt": "2026-10-24T12:06:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:07:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:07:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:07:00.900Z",
+    "sampleIndex": 8,
+    "sandboxCreatedAt": "2026-10-24T12:07:00.900Z",
+    "submittedAt": "2026-10-24T12:07:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:08:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:08:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:08:00.900Z",
+    "sampleIndex": 9,
+    "sandboxCreatedAt": "2026-10-24T12:08:00.900Z",
+    "submittedAt": "2026-10-24T12:08:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:09:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:09:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:09:00.900Z",
+    "sampleIndex": 10,
+    "sandboxCreatedAt": "2026-10-24T12:09:00.900Z",
+    "submittedAt": "2026-10-24T12:09:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:10:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:10:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:10:00.900Z",
+    "sampleIndex": 11,
+    "sandboxCreatedAt": "2026-10-24T12:10:00.900Z",
+    "submittedAt": "2026-10-24T12:10:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:11:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:11:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:11:00.900Z",
+    "sampleIndex": 12,
+    "sandboxCreatedAt": "2026-10-24T12:11:00.900Z",
+    "submittedAt": "2026-10-24T12:11:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:12:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:12:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:12:00.900Z",
+    "sampleIndex": 13,
+    "sandboxCreatedAt": "2026-10-24T12:12:00.900Z",
+    "submittedAt": "2026-10-24T12:12:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:13:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:13:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:13:00.900Z",
+    "sampleIndex": 14,
+    "sandboxCreatedAt": "2026-10-24T12:13:00.900Z",
+    "submittedAt": "2026-10-24T12:13:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:14:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:14:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:14:00.900Z",
+    "sampleIndex": 15,
+    "sandboxCreatedAt": "2026-10-24T12:14:00.900Z",
+    "submittedAt": "2026-10-24T12:14:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:15:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:15:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:15:00.900Z",
+    "sampleIndex": 16,
+    "sandboxCreatedAt": "2026-10-24T12:15:00.900Z",
+    "submittedAt": "2026-10-24T12:15:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:16:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:16:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:16:00.900Z",
+    "sampleIndex": 17,
+    "sandboxCreatedAt": "2026-10-24T12:16:00.900Z",
+    "submittedAt": "2026-10-24T12:16:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:17:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:17:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:17:00.900Z",
+    "sampleIndex": 18,
+    "sandboxCreatedAt": "2026-10-24T12:17:00.900Z",
+    "submittedAt": "2026-10-24T12:17:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:18:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:18:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:18:00.900Z",
+    "sampleIndex": 19,
+    "sandboxCreatedAt": "2026-10-24T12:18:00.900Z",
+    "submittedAt": "2026-10-24T12:18:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:19:03.350Z",
+    "attempts": 1,
+    "cohort": "cold_2u",
+    "executionCompletedAt": "2026-10-24T12:19:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:19:00.900Z",
+    "sampleIndex": 20,
+    "sandboxCreatedAt": "2026-10-24T12:19:00.900Z",
+    "submittedAt": "2026-10-24T12:19:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:00:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:00:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:00:00.900Z",
+    "sampleIndex": 1,
+    "sandboxCreatedAt": "2026-10-24T12:00:00.900Z",
+    "submittedAt": "2026-10-24T12:00:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:01:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:01:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:01:00.900Z",
+    "sampleIndex": 2,
+    "sandboxCreatedAt": "2026-10-24T12:01:00.900Z",
+    "submittedAt": "2026-10-24T12:01:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:02:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:02:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:02:00.900Z",
+    "sampleIndex": 3,
+    "sandboxCreatedAt": "2026-10-24T12:02:00.900Z",
+    "submittedAt": "2026-10-24T12:02:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:03:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:03:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:03:00.900Z",
+    "sampleIndex": 4,
+    "sandboxCreatedAt": "2026-10-24T12:03:00.900Z",
+    "submittedAt": "2026-10-24T12:03:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:04:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:04:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:04:00.900Z",
+    "sampleIndex": 5,
+    "sandboxCreatedAt": "2026-10-24T12:04:00.900Z",
+    "submittedAt": "2026-10-24T12:04:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:05:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:05:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:05:00.900Z",
+    "sampleIndex": 6,
+    "sandboxCreatedAt": "2026-10-24T12:05:00.900Z",
+    "submittedAt": "2026-10-24T12:05:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:06:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:06:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:06:00.900Z",
+    "sampleIndex": 7,
+    "sandboxCreatedAt": "2026-10-24T12:06:00.900Z",
+    "submittedAt": "2026-10-24T12:06:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:07:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:07:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:07:00.900Z",
+    "sampleIndex": 8,
+    "sandboxCreatedAt": "2026-10-24T12:07:00.900Z",
+    "submittedAt": "2026-10-24T12:07:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:08:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:08:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:08:00.900Z",
+    "sampleIndex": 9,
+    "sandboxCreatedAt": "2026-10-24T12:08:00.900Z",
+    "submittedAt": "2026-10-24T12:08:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:09:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:09:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:09:00.900Z",
+    "sampleIndex": 10,
+    "sandboxCreatedAt": "2026-10-24T12:09:00.900Z",
+    "submittedAt": "2026-10-24T12:09:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:10:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:10:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:10:00.900Z",
+    "sampleIndex": 11,
+    "sandboxCreatedAt": "2026-10-24T12:10:00.900Z",
+    "submittedAt": "2026-10-24T12:10:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:11:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:11:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:11:00.900Z",
+    "sampleIndex": 12,
+    "sandboxCreatedAt": "2026-10-24T12:11:00.900Z",
+    "submittedAt": "2026-10-24T12:11:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:12:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:12:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:12:00.900Z",
+    "sampleIndex": 13,
+    "sandboxCreatedAt": "2026-10-24T12:12:00.900Z",
+    "submittedAt": "2026-10-24T12:12:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:13:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:13:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:13:00.900Z",
+    "sampleIndex": 14,
+    "sandboxCreatedAt": "2026-10-24T12:13:00.900Z",
+    "submittedAt": "2026-10-24T12:13:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:14:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:14:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:14:00.900Z",
+    "sampleIndex": 15,
+    "sandboxCreatedAt": "2026-10-24T12:14:00.900Z",
+    "submittedAt": "2026-10-24T12:14:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:15:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:15:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:15:00.900Z",
+    "sampleIndex": 16,
+    "sandboxCreatedAt": "2026-10-24T12:15:00.900Z",
+    "submittedAt": "2026-10-24T12:15:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:16:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:16:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:16:00.900Z",
+    "sampleIndex": 17,
+    "sandboxCreatedAt": "2026-10-24T12:16:00.900Z",
+    "submittedAt": "2026-10-24T12:16:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:17:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:17:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:17:00.900Z",
+    "sampleIndex": 18,
+    "sandboxCreatedAt": "2026-10-24T12:17:00.900Z",
+    "submittedAt": "2026-10-24T12:17:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:18:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:18:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:18:00.900Z",
+    "sampleIndex": 19,
+    "sandboxCreatedAt": "2026-10-24T12:18:00.900Z",
+    "submittedAt": "2026-10-24T12:18:00.000Z",
+  },
+  {
+    "answerPublishedAt": "2026-10-24T12:19:03.350Z",
+    "attempts": 1,
+    "cohort": "warm_2u",
+    "executionCompletedAt": "2026-10-24T12:19:03.000Z",
+    "outcome": "succeeded",
+    "retryEndToEndMs": null,
+    "runningCodeAt": "2026-10-24T12:19:00.900Z",
+    "sampleIndex": 20,
+    "sandboxCreatedAt": "2026-10-24T12:19:00.900Z",
+    "submittedAt": "2026-10-24T12:19:00.000Z",
+  },
+]
+
++ Received:
+undefined
+
+ ❯ packages/evals/test/code-execution-performance.test.ts:335:35
+    333|       expect(result.status).toBe(0);
+    334|       const report = JSON.parse(readFileSync(join(out, "v3-code-execut…
+    335|       expect(report.observations).toEqual(allPassingObservations());
+       |                                   ^
+    336|       expect(report.provenance).toMatchObject({ collector: "external-o…
+    337|       writeFileSync(input, JSON.stringify([{ ...allPassingObservations…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/7]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  7 failed | 7 passed (14)
+   Start at  21:31:09
+   Duration  343ms (tests 87%, transform 9%, import 3%, worker 2%)
+

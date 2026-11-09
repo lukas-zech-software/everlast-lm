@@ -4,7 +4,7 @@
  * Clocks and rules (spec FR-004, SC-003, SC-004; plan.md):
  * 1. Submission → real `running_code` status: ≤ 2,500 ms (`RUNNING_CODE_TARGET_MS`) from sufficient-intent submission.
  * 2. Sandbox create → execution completion: ≤ 4,000 ms nearest-rank P95 (`BOOT_EXECUTION_P95_TARGET_MS`).
- * 3. Predeclared cohorts (`cold_1u`, `warm_1u`, `cold_2u`, `warm_2u`) with fixed sample count (default N = 20).
+ * 3. Predeclared cohorts (`cold_1u`, `warm_1u`, `cold_2u`, `warm_2u`) with fixed sample count (N >= 20).
  * 4. Nearest-rank P95: `Math.ceil(0.95 * N)`.
  * 5. Every attempted sample stays in its cohort; failed or timed-out samples record duration `+Infinity` and fail
  *    that cohort (`pass = false`, `status = "FAIL"`).
@@ -79,6 +79,7 @@ export interface CohortBenchmarkResult {
 
 export interface CodeExecutionBenchmarkReport {
   plan: CodeExecutionBenchmarkPlan;
+  observations: CodeExecutionBenchmarkObservation[];
   status: "PASS" | "FAIL" | "UNAVAILABLE";
   pass: boolean;
   countsAsAnswerTtft: false;
@@ -96,17 +97,22 @@ export function nearestRankP95(samples: number[]): number {
 }
 
 export function validateCodeExecutionPlan(plan: CodeExecutionBenchmarkPlan): true {
-  if (!plan.fixture?.id || !Number.isInteger(plan.fixture.version) || plan.fixture.version < 1 || !plan.fixture.question) {
+  if (!plan?.fixture?.id || !Number.isInteger(plan.fixture.version) || plan.fixture.version < 1 || !plan.fixture.question) {
     throw new Error("Plan must declare fixture id, version and question");
   }
   if (!/^[0-9a-f]{64}$/.test(plan.fixture.sha256)) {
     throw new Error("Plan must declare a 64-hex fixture sha256");
   }
-  if (!plan.provider?.service || !plan.provider?.region || !plan.provider?.cpu || !plan.provider?.memory) {
-    throw new Error("Plan must declare provider service, region, cpu and memory profile");
+  if (plan.provider?.service !== "aiplatform.googleapis.com/AgentEngineSandbox" || plan.provider.region !== "europe-west4" ||
+      plan.provider.cpu !== "2 vCPU" || plan.provider.memory !== "1.5 GB") {
+    throw new Error("Plan provider must match the accepted AgentEngineSandbox europe-west4 2 vCPU / 1.5 GB profile");
   }
   if (!plan.environment || !plan.declaredAt) {
     throw new Error("Plan must declare environment and declaredAt timestamp");
+  }
+  timestamp(plan.declaredAt, "Plan declaredAt");
+  if (Object.keys(plan.cohorts ?? {}).some((name) => !COHORT_NAMES.includes(name as CohortName))) {
+    throw new Error("Plan contains an undeclared cohort");
   }
   const expectedSpec: Record<CohortName, { warm: boolean; concurrency: number }> = {
     cold_1u: { warm: false, concurrency: 1 },
@@ -116,8 +122,8 @@ export function validateCodeExecutionPlan(plan: CodeExecutionBenchmarkPlan): tru
   };
   for (const name of COHORT_NAMES) {
     const decl = plan.cohorts?.[name];
-    if (!decl || !Number.isInteger(decl.repetitions) || decl.repetitions < 1) {
-      throw new Error(`Cohort ${name} must declare a positive integer repetitions count`);
+    if (!decl || !Number.isSafeInteger(decl.repetitions) || decl.repetitions < DEFAULT_COHORT_REPETITIONS) {
+      throw new Error(`Cohort ${name} must declare an integer repetitions count of at least ${DEFAULT_COHORT_REPETITIONS}`);
     }
     const spec = expectedSpec[name];
     if (decl.warm !== spec.warm || decl.concurrency !== spec.concurrency) {
@@ -127,11 +133,53 @@ export function validateCodeExecutionPlan(plan: CodeExecutionBenchmarkPlan): tru
   return true;
 }
 
+/** FR-GC-08/NFR-PERF-01: never derive passing timings from malformed or post-hoc evidence. */
+function timestamp(value: string, label: string): number {
+  const ms = Date.parse(value);
+  if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value) ||
+      !Number.isFinite(ms) || new Date(ms).toISOString() !== value) {
+    throw new Error(`${label} must be a valid UTC timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)`);
+  }
+  return ms;
+}
+
+function validateObservations(plan: CodeExecutionBenchmarkPlan, observations: CodeExecutionBenchmarkObservation[]): void {
+  if (!Array.isArray(observations)) throw new Error("Observations must be an array of cohort samples");
+  const seen = new Set<string>();
+  for (const item of observations) {
+    if (!item || !COHORT_NAMES.includes(item.cohort)) throw new Error("Observation has an undeclared cohort");
+    if (!Number.isSafeInteger(item.sampleIndex) || item.sampleIndex < 1 || item.sampleIndex > plan.cohorts[item.cohort].repetitions) {
+      throw new Error(`Cohort ${item.cohort} sampleIndex is outside its declared range`);
+    }
+    const identity = `${item.cohort}:${item.sampleIndex}`;
+    if (seen.has(identity)) throw new Error(`Duplicate cohort sample ${identity}`);
+    seen.add(identity);
+    if (!["succeeded", "failed", "timed_out", "unfinished"].includes(item.outcome)) throw new Error(`Sample ${identity} has an invalid outcome`);
+    if (item.attempts !== 1 && item.attempts !== 2) throw new Error(`Sample ${identity} must record one or two attempts`);
+    if ((item.attempts === 2 && (typeof item.retryEndToEndMs !== "number" || !Number.isFinite(item.retryEndToEndMs) || item.retryEndToEndMs < 0)) ||
+        (item.attempts === 1 && item.retryEndToEndMs !== null)) {
+      throw new Error(`Sample ${identity} has invalid retry metadata`);
+    }
+    let previous = timestamp(item.submittedAt, `Sample ${identity} submittedAt`);
+    if (previous < timestamp(plan.declaredAt, "Plan declaredAt")) throw new Error(`Sample ${identity} precedes its plan declaration`);
+    // Creation is the creation-request boundary; running_code is emitted after creation, before completion.
+    for (const key of ["sandboxCreatedAt", "runningCodeAt", "executionCompletedAt", "answerPublishedAt"] as const) {
+      const value = item[key];
+      if (value === null && item.outcome !== "succeeded") continue;
+      if (value === null) throw new Error(`Successful sample ${identity} requires all event timestamps`);
+      const current = timestamp(value, `Sample ${identity} ${key}`);
+      if (current < previous) throw new Error(`Sample ${identity} has invalid event chronology at ${key}`);
+      previous = current;
+    }
+  }
+}
+
 export function evaluateCodeExecutionBenchmark(
   plan: CodeExecutionBenchmarkPlan,
   observations: CodeExecutionBenchmarkObservation[]
 ): CodeExecutionBenchmarkReport {
   validateCodeExecutionPlan(plan);
+  validateObservations(plan, observations);
 
   const cohorts = {} as Record<CohortName, CohortBenchmarkResult>;
   for (const name of COHORT_NAMES) {
@@ -213,6 +261,7 @@ export function evaluateCodeExecutionBenchmark(
 
   return {
     plan,
+    observations,
     status,
     pass: status === "PASS",
     countsAsAnswerTtft: false,

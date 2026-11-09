@@ -11,7 +11,7 @@ node scripts/check-spec-integrity.mjs
 git diff --check
 ```
 
-No cloud API is enabled or deployed here. Existing test runners exist, but package 3.2 tests, deployed sandbox, sandbox-specific startup/migration wiring and integration results are UNAVAILABLE. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or its integration results. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
+Package 3.2 contract, runtime, API, database, browser and aggregation tests are implemented; the dated verification records below distinguish their local-double results from live managed-service acceptance. No API enablement or deployment was performed by this execution. The managed sandbox and live integration results remain UNAVAILABLE until the prerequisites below are supplied. Do not report broad existing suite passes as sandbox acceptance. `pnpm dev` now starts the real local PostgreSQL/API/web/worker path; `pnpm db:migrate` applies migrations. Neither supplies managed sandbox execution or its integration results. `pnpm dev -- --offline` uses a test embedder and returns chat-not-configured errors instead of fabricated answers.
 
 ## Implementation-time prerequisites (FR-GC-08, NFR-SEC-01/02)
 
@@ -26,7 +26,7 @@ pnpm eval:deterministic
 pnpm eval:judged
 ```
 
-These new test paths are planned, not present. Missing files/harness/environment mean UNAVAILABLE, not success. Use `TEST_DATABASE_URL` for evals and an isolated PostgreSQL instance (`pnpm db:test:up`); real judged runs additionally require approved Vertex/ADC. Never substitute a passing baseline test run for sandbox acceptance.
+These test paths exist. A missing target environment means UNAVAILABLE, not success. Use `TEST_DATABASE_URL` for evals and an isolated PostgreSQL instance (`pnpm db:test:up`); real judged runs additionally require approved Vertex/ADC. Never substitute a passing baseline test run for sandbox acceptance.
 
 ## Acceptance scenarios (FR-GC-08, NFR-EVAL-01..04)
 
@@ -62,11 +62,11 @@ Future package tests must use the applied 0005–0008 baseline plus new ordered 
 
 ## Final main baseline (ce3626b; FR-GC-08, CC-02, CC-08)
 
-Use the workspace-selected Node 26 runtime. API infrastructure sets `MIGRATE_ON_START=true`: pending application migrations run at startup before traffic admission; the advisory-locked runner applies each file once. Future sandbox migrations must extend the numbered migration sequence and preserve compatibility with the previous revision when a new revision fails readiness. General startup migration wiring is present; sandbox-specific schema and recovery remain unimplemented. The changed dev project example is configuration guidance, not an approval to enable APIs or deploy the sandbox.
+Use the workspace-selected Node 26 runtime. API infrastructure sets `MIGRATE_ON_START=true`: pending application migrations run at startup before traffic admission; the advisory-locked runner applies each file once. Future sandbox migrations must extend the numbered migration sequence and preserve compatibility with the previous revision when a new revision fails readiness. General startup migration wiring is present; sandbox-specific schema and recovery are implemented in migration 0010 and the execution reconciler. The changed dev project example is configuration guidance, not an approval to enable APIs or deploy the sandbox.
 
 ## Task-analysis command and timing corrections (FR-GC-08, CC-01/02)
 
-Task generation reserves 0010_code_execution.sql after predecessor 0009. New browser files belong in apps/web/test under the existing Playwright config. Future validation uses the exact task paths; the new eval/performance suites and scripts/eval-v3-code-execution.mjs are planned, not existing runners. Freeze cohort sample counts, fixtures and runtime configuration before collecting data; nearest-rank P95 uses ceil(0.95*N), any failed/timeout attempt fails its cohort, and missing declared samples are UNAVAILABLE. Record all attempts and retry totals; never drop failures/reset the submission clock or treat progress as answer TTFT. These are ordinary integration/release tests under D19.
+Task generation reserves 0010_code_execution.sql after predecessor 0009. New browser files belong in apps/web/test under the existing Playwright config. Validation uses the exact task paths; the eval/performance suites and scripts/eval-v3-code-execution.mjs exist. The script aggregates supplied observations and does not itself collect live measurements. Freeze cohort sample counts, fixtures and runtime configuration before collecting data; nearest-rank P95 uses ceil(0.95*N), any failed/timeout attempt fails its cohort, and missing declared samples are UNAVAILABLE. Record all attempts and retry totals; never drop failures/reset the submission clock or treat progress as answer TTFT. These are ordinary integration/release tests under D19.
 
 ## Implementation prerequisites record (2026-10-23; [010-code-execution-sandbox] T001, T003)
 
@@ -114,3 +114,37 @@ Executed on branch `feat/v3-010-complete` (`/private/tmp/everlast-impl-010-compl
 - `pnpm eval:deterministic`: **PASS** (exit `0`; `citation_precision = 1.0` `160/160`, `scoping_leakage_count = 0` including 60-draft adversarial pass; Studio Gate v2.0 #3 deterministic PASS).
 - `pnpm eval:v3-code-execution` (`node scripts/eval-v3-code-execution.mjs`): **UNAVAILABLE** (exit `2`: `[UNAVAILABLE] eval:v3-code-execution: Agent Platform Code Execution sandbox is not configured`).
 - `pnpm eval:judged`: **UNAVAILABLE** (exit `2`: `[UNAVAILABLE] eval:judged: VERTEX_PROJECT (or GCP_PROJECT_ID) is required for Vertex AI`). Fixed 50-case stratified sample IDs and category counts (`unanswerable: 25`, `deselection: 11`, `history: 4`, `synthesis: 14`) are recorded in [gate-v3-code-execution.md](evidence/gate-v3-code-execution.md).
+
+
+## Current benchmark import contract (2026-11-05; FR-GC-08, NFR-PERF-01, Gate v3.0 #2)
+
+The CLI is an evidence aggregator, not a live application collector. Both unconfigured and configured-without-observations invocations write `v3-code-execution-benchmark.json`, report UNAVAILABLE and exit 2. Merely setting `CODE_EXECUTION_IT=1` does not execute or accept a live benchmark.
+
+```sh
+node scripts/eval-v3-code-execution.mjs --plan <predeclared-plan.json> --observations <observations.json> --out <private-output-directory>
+```
+
+Freeze the plan before collection: accepted AgentEngineSandbox `europe-west4`, 2 vCPU / 1.5 GB profile, fixture ID/version/SHA-256/question and four cold/warm 1u/2u cohorts, each N≥20. Use canonical UTC timestamps (`YYYY-MM-DDTHH:mm:ss.sssZ`). Each `(cohort, sampleIndex)` is unique, 1-based and within the declared range. Creation-request, real-running, completion and validated-publication events are chronological after submission/declaration. Successful samples require every event; failures retain nullable events. Record one or two attempts; retries require a finite nonnegative end-to-end duration. Invalid imported evidence yields FAIL (exit 1), missing cohorts UNAVAILABLE (exit 2), and complete threshold-compliant observations PASS (exit 0). Reports retain original observations, plan/input SHA-256, source revision and dirty state; failed unbounded durations serialize as `"Infinity"` rather than an ambiguous JSON null.
+
+An imported PASS verifies consistency and thresholds only. Release acceptance also needs the collector implementation/version, immutable raw observations, fixture hashes, deployed revisions, model/runtime/configuration and declared readiness/cohort classification. Do not treat manually generated unit-test samples as live measurements.
+
+Live prerequisites confirmed by controller on 2026-11-05: project `lukas-gcloud-playground` has no Agent Engine parent runtime in `europe-west4`; Cloud SQL `everlast-dev-pg` is STOPPED with activation NEVER; API/worker still run image `51f78ab`. Prepare the existing opt-in OpenTofu code-execution module with `enable_v3_code_execution`, its EU parent runtime and API configuration, plus a matching candidate deployment and migration/readiness check. Obtain owner approval before new billable resources/API enablement. No R6 qualification gate is reinstated. T052 remains open until the authorized live application cohorts, normal isolation/limits tests and common judged report actually pass.
+
+
+## Execution checkpoint (2026-11-05; [010-code-execution-sandbox] T049–T052)
+
+Candidate parent: `77bac2b62586bce6bf81c9a7efbb42febc862a22`; isolated branch `codex/pre-v4-package-3-2-20261105`, worktree `/private/tmp/everlast-lm-pre-v4-package-3-2-20261105`. Node26/pnpm12 frozen install; disposable PostgreSQL16/pgvector at local port54331, separate test schemas. The package commit contains the repaired runner and this checkpoint; no cloud candidate deployment occurred.
+
+| Check | Outcome |
+| --- | --- |
+| `pnpm exec vitest run --project unit packages/evals/test/code-execution-performance.test.ts` before repair | RED: 7 newly added tests failed on intended gaps; 7 legacy tests passed. |
+| Same focused command after repair | PASS: 14/14 tests. |
+| Package contract/runtime/API/DB/web/eval regressions using TEST_DATABASE_URL | PASS: 18 suites, 172 tests. |
+| `E2E_PORT=4332 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium` with local TEST_DATABASE_URL | PASS: 6/6 tests, 14.4s (after resolving sandbox Chromium launch restriction). |
+| `pnpm eval:deterministic` with local TEST_DATABASE_URL | PASS: citation precision 160/160, leakage 0; package structure/reports deterministic gates pass. Judged metrics remain UNAVAILABLE. |
+| `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `git diff --check` | PASS. |
+| Unconfigured runner | UNAVAILABLE: writes report and exits 2. |
+| Configured runner without observations (CLI regression) | UNAVAILABLE: writes report and exits 2; no successful no-op. |
+| Live managed service, all four real N≥20 application cohorts, common fixed50 judged gate | UNAVAILABLE: no approved parent runtime or matching deployment; T052 remains open. |
+
+T049–T051 complete the local evidence safeguards and documentation reconciliation. Original T044–T047 checkmarks record historical implementation/check attempts, including their documented unavailability; they do not imply live acceptance. T052 is the current open acceptance obligation. The benchmark import contract and exact command are in the quickstart; reports retain original valid observations plus plan/input hashes, source revision and dirty state. A passing aggregate of supplied samples alone is not real-service proof.

@@ -199,3 +199,11 @@ The project owner decided that, for now, the managed sandbox defines the limits.
 
 - SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
 - Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.
+
+
+## CC-09 recovery scope (2026-11-09; FR-GC-08, NFR-PERF-01)
+
+Resume the existing benchmark evidence and default-off managed-parent infrastructure.
+Use canonical C-01/C-02, preserve execution isolation/publication fences and D16.
+No new deployment-app dependency, public telemetry bypass or policy exception is permitted.
+Historical completion markers do not establish live T052 acceptance.

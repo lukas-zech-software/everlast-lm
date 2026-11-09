@@ -105,3 +105,28 @@ Re-executed read-only cross-artifact analysis (`check-prerequisites.sh --json --
 - **Tasks Completed**: `48/48` (`[x] T001`..`T048` in `tasks.md`).
 - **Critical / High / Medium / Ambiguity / Duplication Findings**: `0`.
 - **Convergence Status**: **CONVERGED** for Package 3.2 local implementation, deterministic verification, and documentation flow-back. Next package (`specs/011-studio-structure-extraction`) branches cleanly from this completed branch and starts migrations at `0011`.
+
+
+## Read-only recovery analysis — 2026-11-09 (FR-GC-08, CC-01..CC-09)
+
+Reviewed current spec/plan/tasks, D18-D20 and the proposed recovery diff before
+implementation. Boundary inventory maps the pure evaluator, CLI and optional IaC
+composition; no new app/shared edge, exception or workflow extraction is proposed.
+CC-01/02: recovered tests provide seven actual failing behaviors against current
+code; strict validation and truthful uncollected-path refusal are traced to T049/T050.
+CC-03/04/05/07: runtime source scope, citation/publication, isolation and auth paths
+are unchanged, not newly certified by this recovery. CC-06/08: approved provider
+8.10 constraints and default-off creation preserved; no R6 gate or apply.
+CC-09: graph and changed artifacts pass, 186 approved records unchanged.
+No high/critical scoped design finding blocks recovering the reviewed safeguard.
+T063 remains open: true collection needs serving/runtime provenance and ordinary
+application event observations; configured flags must never substitute for this.
+Only optional Git hooks are configured; before_analyze ran with auto-commit disabled.
+
+
+Post-recovery CC-09 review: actual source diff is the pure observation validator
+and existing CLI report path; no new workflow, infrastructure client or import
+boundary was introduced. Graph0 findings and 186 unchanged approved exceptions.
+T061 recovery complete locally; T062/T063/T052 remain open, not waived by this
+checkpoint. Optional before_implement/after_implement hooks use disabled auto-commit;
+manual reviewed commit records this bounded recovery.
