@@ -1,0 +1,13 @@
+specs/006-source-guide-chat-control/spec.md: missing CC-09
+specs/006-source-guide-chat-control/plan.md: missing CC-09
+specs/006-source-guide-chat-control/plan.md: missing or unfilled Architecture Boundary Evidence inventory
+specs/006-source-guide-chat-control/tasks.md: missing CC-09
+specs/008-studio-text-reports/spec.md: missing CC-09
+specs/008-studio-text-reports/plan.md: missing CC-09
+specs/008-studio-text-reports/plan.md: missing or unfilled Architecture Boundary Evidence inventory
+specs/008-studio-text-reports/tasks.md: missing CC-09
+specs/009-multimodal-ingestion-sync/spec.md: missing CC-09
+specs/009-multimodal-ingestion-sync/plan.md: missing CC-09
+specs/009-multimodal-ingestion-sync/plan.md: missing or unfilled Architecture Boundary Evidence inventory
+specs/009-multimodal-ingestion-sync/tasks.md: missing CC-09
+Architecture artifacts: 12 finding(s).

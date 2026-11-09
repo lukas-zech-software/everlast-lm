@@ -220,3 +220,10 @@ Source: first live Gate v2.0 run (2026-10-20). Gate v2.0 #1 rejected 6/20 guides
 - [X] T092 Add spec-derived Red tests for bounded judge transient retries, retained attempt/elapsed evidence, invalid-verdict immediate failure and exhausted judge errors producing a failing report without case loss (FR-GC-07, NFR-EVAL-01..04, CC-02).
 - [X] T093 Pass T092 with private-safe attempt records and case-local failure capture; keep refusal/citation validation and original denominators unchanged (FR-GC-07, NFR-EVAL-01..04).
 - [X] T094 Verify integrated 006 checkpoint and harness regressions locally, reconcile evidence applicability and preserve all historical live failures without a new paid run (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-06).
+
+
+## Phase 15: Resumed CC-09 reconciliation (FR-SI-02, FR-GC-07, NFR-EVAL-01..04)
+
+- [x] T095 [specs/006-source-guide-chat-control] Record current 006 artifact-check failure, inventory typed ports/composition/workflow ownership and exact unchanged D21 migration debt before resuming; refresh spec/plan and rerun read-only analyze (CC-09, C-02, FR-SI-02, FR-GC-07).
+- [x] T096 [specs/006-source-guide-chat-control] Run existing judge/Guide/length/refusal regressions on upgraded dependencies and disposable local PostgreSQL; preserve scoped behavior without new paid runs or invented Red tests for unchanged code (CC-02, CC-09, NFR-EVAL-01..04).
+- [x] T097 [specs/006-source-guide-chat-control] Validate actual final006 artifact diff, inspect graph against origin/main, record manual versus automated results and outstanding008/009 failures; retain release/checklist boundaries and commit handoff (CC-09, CC-01, CC-06, C-01..03).

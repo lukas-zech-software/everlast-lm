@@ -210,3 +210,20 @@ fail immediately; product citation validation is never retried. Exhausted provid
 errors must produce a failing report retaining the affected case and the original
 case population, rather than aborting before a report or omitting failed cases.
 Attempt records contain no prompts, source text or raw provider error messages.
+
+
+## CC-09 resumed boundary scope (2026-11-09; FR-SI-02, FR-GC-07, NFR-EVAL-01..04)
+
+The resumed 006 scope documents and verifies the already integrated Guide/Shorter and
+judge-report repairs against Constitution 2.1.0. No behavior, deployment placement,
+public export or dependency is added. Source reads remain through C-02 and request
+snapshots; immediate invalid-output/citation failure and original evaluation case
+populations are unchanged. Existing cross-application and eval-to-application
+coupling is migration debt under canonical D21, not a pattern authorized for new
+consumers. The exact unchanged encountered records and their owner, task, baseline
+and expiry are retained in evidence/cc09-20261109/legacy-exceptions.json.
+
+Boundary acceptance requires a populated plan inventory, manual workflow review,
+scoped 006 artifact validation and current graph output. A global checker failure in
+008/009remains FAIL even when the006scoped evidence passes. This reconciliation
+does not certify release acceptance or mark reviewer checklists approved.

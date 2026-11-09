@@ -84,3 +84,57 @@ fail immediately; product citation validation is never retried. Exhausted provid
 errors must produce a failing report retaining the affected case and the original
 case population, rather than aborting before a report or omitting failed cases.
 Attempt records contain no prompts, source text or raw provider error messages.
+
+
+## Architecture Boundary Evidence — CC-09 (2026-11-09; FR-SI-02, FR-GC-07, NFR-EVAL-01..04)
+
+Resumed base 935eabe includes canonical D21/Constitution 2.1.0 and current dependency
+upgrades. The original 2026-10-19 technical context above is historical: current
+runtime is Node 26 / TypeScript 7 / pnpm 12, and D16/specs013persist v2 records in PostgreSQL
+while retaining single-API placement. This slice changes006 documents/evidence only;
+product and harness repairs from 0e77ebb are inherited unchanged.
+
+Pre-research assessment: the inherited006 artifacts lack CC-09 evidence; record FAIL
+until inventory and scoped artifact validation are complete. Post-design manual
+assessment: no new edge, public interface or workflow is proposed; characterize
+current behavior with existing tests rather than manufacture behavioral Red. The
+automated artifact failure supplies the actual governance Red evidence.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-GC-07, FR-GC-01/02, C-02 | apps/api/src/chat/model.ts and prompt.ts;006 model adapter | Request-local trusted length instruction and ADK adapter; no transport orchestration | GroundedModel.generate and validated ResponsePreferences; fixed Shorter enum only | ChatService calls GroundedModel; adapter uses ADK/GenAI and canonical contracts; no new cross-module consumer | apps/api/src/server.ts wires AdkGroundedModel; model.ts builds request-local adapter sessions | apps/api/test/chat-length-instruction.test.ts, chat-preferences.test.ts and chat-verifier.test.ts: concurrent Default/Shorter isolation, untrusted source/custom text, immediate refusal |
+| FR-SI-02, FR-GC-04/05, C-02 | apps/worker/src/package-v2-2.ts and package-v2-2-runtime.ts;006 workflow | Deterministic generation, scope/read/recheck and state coordination | StructuredGenerationClient and PackageV22SourceReader; PackageV22RuntimeOptions injects provider/validateScope/getSourceMetadata/model | Canonical contracts; existing named DB get/save methods own persistence, pipeline never embeds SQL; current API consumption is unchanged D21 debt | apps/api/src/server.ts wires Vertex adapter; apps/api/src/v2/runtime.ts wires provider/authorization/repository context and Ready dispatch | apps/worker/test/package-v2-2.test.ts and package-v2-2-context.test.ts; apps/api/test/package-v2-2-runtime.test.ts: scoped revisions, cache invalidation, failure and publication rechecks without HTTP |
+| FR-SI-02, NFR-SEC-01 | apps/worker/src/package-v2-2-gemini.ts;006 model adapter | Vertex structured call, limits/instructions, transport error classification | VertexStructuredGenerationClient implements StructuredGenerationClient; injected GenAiFactory/GenAiClientLike | @google/genai and Zod-like schema input; source/custom content stays structured data | createVertexStructuredGenerationFromEnv in API server composition | apps/worker/test/package-v2-2-gemini.test.ts: fixed system Guide instructions, injected SDK transport, hard limits and fail-closed invalid output |
+| NFR-EVAL-01..04, FR-GC-07 | packages/evals/src/judge.ts, runner.ts, report.ts;006 repair of quality harness | Eval workflow uses Judge port; VertexJudge adapter uses injected client; report serializes observed attempts/errors | Judge.judgeClaims/judgeSupport/judgeRejection and JudgeAttempt; EvalEnvironment injects judge/model/embedder/ocr/pool | Judge interface and canonical contracts; unchanged runner imports API/worker under exact D21 records; no new consumer/export | packages/evals/src/cli.ts constructs enterprise client/VertexJudge and runEvaluation inputs; integration fixtures inject fakes | packages/evals/test/judge-resilience.test.ts and judge-report.integration.test.ts: bounded 429/5xx, cumulative time, invalid-verdict failure, per-run isolation and case-preserving GateFailed |
+| NFR-EVAL-01..04, FR-GC-07 | packages/evals/test/judge-report.integration.test.ts;006 regression fixture | Disposable PostgreSQL setup and injected provider failure | Explicit @everlast/db/testing and cloud root exports; local judge/runner/report imports | Test-only fixture consumes named public DBtesting interface fixed by001; no application production dependency | Test beforeAll creates disposable database; fake client contains no cloud calls | Existing case survives 403 and report omits private provider detail; inherited001runtime-exports.log proves named public export resolution |
+
+**Workflow ownership (manual):** API remains owner of request authorization, Ready
+watcher/dispatch and current runtime lifecycle. Source reader uses C-02 and exact
+revision snapshots; generation rechecks them before DB publication. Named DB adapter
+methods retain SQL, transactions and persistence fencing. The Guide workflow uses
+injected model/source ports; model adapters own SDK construction, not business
+workflows. ChatService owns validated request publication; Shorter changes only
+trusted request-local composition. Eval runner owns test-case coordination through
+typed Judge/model/embedding/OCR interfaces; VertexJudge owns provider calls/retries
+and report code owns serialization. No auth, transaction, quota, cancellation,
+dispatch, recovery or publication responsibility moves in this slice. D16 and C-01..03
+are unchanged. No new direct CRUD call or forwarding layer is introduced.
+
+**Exact unchanged debt:** see evidence/cc09-20261109/legacy-exceptions.json. The
+reviewed runner imports API chat service/model/verifier and worker ingestion;
+evals manifest depends on API/worker and still exposes its legacy wildcard. API
+server/runtime and old runtime tests consume006 worker modules. These are existing
+no-shared-to-app/no-cross-app/public-entrypoint/wildcard-export records, not approved
+new architecture. Each retains baseline 13e76bd5229af7d52146456297e1aa92a220908d, owner
+@lukas-zech-software, canonical D21, expiry 2027-02-05 and qualified removal tasks
+specs/004-ui-skeleton-quality-gates T035 (R1) or T036 (R3). No exception is added,
+updated, self-approved or broadened; no export tree grows. Existing repository
+interfaces and placement are described, not claimed to be a completed R1 extraction.
+
+**Automated versus manual evidence:** run the actual graph with --base-ref origin/main
+and scoped 006 artifact validation. Preserve global failures for008 fixture/dependency
+and008/009 artifact work. The unchanged checker/build and deterministic160/160,
+leakage 0 results from001 evidence/cc09-20261109remain applicable because this 006 diff
+changes no implementation/checker/manifest/runtime configuration. Still run focused
+006 behavior and type/spec checks on current dependencies. Manual review cannot
+replace a failed automated gate. Results and exact evidence are in validation.md.

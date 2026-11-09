@@ -194,3 +194,39 @@ prerequisites are resolved and assess current-candidate evidence applicability.
 Full deterministic evaluation passes citation160/160 and leakage0, with 60/60
 adversarial out-of-prompt drafts blocked. Labelled report/structure model doubles
 pass; judged metrics remain UNAVAILABLE and report GatePending, as expected.
+
+
+## CC-09 reconciliation on current dependencies, 2026-11-09 (T095–T097)
+
+Reviewer: package006agent (`/root/package_006`); inspected base 935eabe and final
+006document/evidence diff. See [boundary inventory](plan.md#architecture-boundary-evidence--cc-09-2026-11-09-fr-si-02-fr-gc-07-nfr-eval-0104)
+and [exact encountered policy records](evidence/cc09-20261109/legacy-exceptions.json).
+No policy, importer, export, workflow or runtime configuration is changed.
+
+| Check | Status | Evidence / applicability |
+| --- | --- | --- |
+| Manual workflow/port review | PASS (manual, scoped) | Named Judge/StructuredGenerationClient/source-reader ports, SDK adapters and CLI/API roots; persistence/authorization/publication and D16 placement unchanged |
+| Scoped 006artifact validation | PASS | evidence/cc09-20261109/artifacts-scoped.log; all 006 spec/plan/tasks fields present |
+| Global artifacts vs origin/main | FAIL | evidence/cc09-20261109/artifacts-after.log;12 before → 8 after; remaining findings only 008/009 |
+| Global graph vs origin/main | FAIL | evidence/cc09-20261109/architecture.log;2 known 008 guide-admission fixture findings,186 exact legacy exceptions; none new 006 |
+| Current focused regression | PASS | evidence/cc09-20261109/focused.log; Vitest 5.1.0, 12 files / 66 tests, disposable local PostgreSQL; judge retry/report, Guide/client/context/runtime, concurrent length and verifier |
+| Typecheck | PASS | evidence/cc09-20261109/typecheck.log |
+| 39 architecture checker fixtures | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/architecture-fixtures.log at935eabe; checker/policy/manifest/production source unchanged in 006 slice |
+| Integrated build | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/build.log at935eabe; no runtime/source/config diff |
+| Deterministic eval | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/deterministic.log at935eabe; citation160/160, leakage0; no behavior/source/config change to invalidate applicability |
+
+The focused command names judge-resilience, judge-report.integration,
+chat-length-instruction, chat-preferences, package-v2-2-gemini, package-v2-2,
+package-v2-2-context, worker/API package-v2-2-runtime, contract package-v2-2,
+response-length and chat-verifier tests. All cloud/model behavior is injected/faked;
+no paid calls occur. Named @everlast/db/testing resolves through 001's explicit
+public export; no new migration exception is needed.
+
+Historical passing Guide/length cohorts and failed full judged report remain dated
+support only. This checkpoint is neither new live acceptance nor Gate v3 PASS.
+Global lint cannot be declared passing while008/009 gates remain failing.
+
+Final spec-integrity check PASS (201 Markdown files,55 SRS links,39 feature
+artifacts); whitespace check PASS after normalizing a captured log's trailing
+blank line. Actual diff against 935eabe contains 006 documents/evidence only;
+application/package/checker/policy/lockfile diff is empty.

@@ -98,3 +98,35 @@ judged/report/OCR failures remain. CC-07: attempt records omit prompts, source t
 and raw provider error messages. CC-08: no runtime dependency, service or datastore
 is added. Reviewer-owned checklists retain 18 unchecked entries and were not edited.
 No further high/critical finding in this scoped integration.
+
+
+## Resumed CC-09 analysis, 2026-11-09 (T095–T097)
+
+Read-only analysis was rerun after refreshing spec/plan/tasks and before the
+verification stage. Scope: 006 Guide/Shorter/judge repairs inherited at base 935eabe;
+this reconciliation changes documents/evidence only. Boundary inventory names
+workflow, transport, adapter and composition ownership, exact public ports and
+regression paths. No new runtime implementation is needed for 006.
+
+| Finding | Severity | Result |
+| --- | --- | --- |
+| Missing resumed 006 CC-09 spec/plan/tasks and inventory | CRITICAL before refresh | RESOLVED: actual artifact Red captured; scoped validator now reports no findings |
+| Existing eval-to-app, API-to-worker and wildcard interface debt | Unchanged D21 migration debt |25 exact policy records copied with baseline, owner, removal task and expiry; no policy or edge changed |
+| Global 008/009artifact and008 fixture graph defects | Out of this package; remains FAIL | Eight artifact findings and two graph findings preserved and assigned to later package agents |
+
+CC-01: artifacts cite FR-SI-02/FR-GC-07/NFR-EVAL-01..04 and canonical D21; no behavior
+refinement requires new upstream scope. CC-02: existing regression tests characterize
+unchanged code; governance Red precedes artifact repair. CC-03/04: exact scope,
+request-local length, invalid-output/refusal and publication guards remain unchanged.
+CC-05: existing typed ports and contracts retained. CC-06: Gate v3 still pending and
+legacy v2 owner override preserved. CC-07: no new cloud, credentials or authorization
+behavior. CC-08: no runtime/dependency/export modification. CC-09 pre-research FAIL
+for missing evidence; post-design manual PASS for this docs-only slice, scoped
+artifact PASS. Global automated gates remain FAIL as recorded; manual review does
+not substitute for them. No remaining scoped high/critical finding or new exception.
+
+The manual review describes current owner placement; it does not claim that the
+existing R1/R3migration has been completed. Eighteen reviewer checklist entries stay
+unchecked and unchanged. Before/after analyze and implement hooks are optional Git
+commit hooks only; no mandatory hook applies. Final checkpoint commit records this
+package completion; no paid release run or live acceptance was performed.
