@@ -11,3 +11,10 @@
 /.specify/                          @lukas-zech-software
 /.github/                           @lukas-zech-software
 /package.json                       @lukas-zech-software
+
+# CC-09: explicit enforcement surfaces; retain the default owner above.
+/scripts/                           @lukas-zech-software
+/pnpm-lock.yaml                     @lukas-zech-software
+/pnpm-workspace.yaml                @lukas-zech-software
+/tsconfig*.json                     @lukas-zech-software
+/docs/agent-architecture-guardrails.md @lukas-zech-software

@@ -138,3 +138,12 @@
 
 - **In-Scope Release Constraints**: [Document assumptions grounded in `spec/requirements/README.md` and `docs/solution-architecture.md`]
 - **Out of Scope / Deferred**: [List features explicitly excluded by the FR cards or deferred by architecture decisions `D5`/`DEV-03`, `D8`/`DEV-02`, `D10`]
+
+## Architecture Impact (mandatory; CC-09)
+
+- **Affected invariants / SRS IDs**: [C-01..C-03 and assigned business requirements; preserve
+  scope, authorization, atomicity, cancellation and publication behavior where affected.]
+- **Review relevance**: [R1 shared workflows / R2 workflow ownership / R3 boundaries, or
+  reason none applies; see `docs/agent-architecture-guardrails.md`.]
+- **Unresolved ownership questions**: [Resolve material ambiguities before planning; record
+  implementation boundaries in plan.md rather than inventing product requirements here.]

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `spec/v1-functional-requirements`
 **Created**: 2026-10-17
-**Status**: Specification reviewed; implementation not started
+**Status**: Architecture enforcement amendment implemented; see architecture-validation.md for scope and remaining migration debt
 **Package Source**: `spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md`
 **SRS IDs in Scope**: FR-UI-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01; C-01, C-02; Gate v1.0
 **Release & Gate**: v1.0 (Gate v1.0)
@@ -230,3 +230,27 @@ Scenario: Deselected source does not leak via conversation history
 - Q: How do viewport breakpoints and `localStorage` panel preferences interact with citation click-through (`FR-UI-01`, `FR-SI-04`, `FR-GC-03`)? → A: Default layout is tabbed at `< 1024 px`, 3-column with `Studio` collapsed at `1024–1279 px`, and 3-column with both side panels expanded at `>= 1280 px`; explicit user collapse/expand preferences persist in browser `localStorage`, but clicking an inline citation `[n]` always un-collapses/switches to the `Sources` panel, opens the Source Inspector, and scrolls deterministically to `[data-chunk-id]` without losing chat draft or scroll state.
 - Q: How is `NFR-SEC-01` enterprise no-training compliance verified independently of zero-retention claims (`NFR-SEC-01`, `D14`)? → A: Automated security checks verify that all LLM, OCR, and embedding endpoints use Vertex AI / Google Cloud enterprise APIs in `europe-west4` with no consumer/developer API keys (`GEMINI_API_KEY` / `GOOGLE_API_KEY` forbidden in runtime env/config), and audit reports separate no-training verification from data-retention settings.
 
+
+## Architecture enforcement amendment (2026-11-07; CC-09; C-01..C-03, NFR-EVAL-02/04)
+
+Scope: only quality-gate infrastructure and governance; no application behavior changes.
+Clarifications resolved: preserve feature modules and current deployment; TypeScript AST resolution;
+use the already-required GitHub check context; exact time-bounded debt records instead of global
+allowlists. This is maintenance of Package 1.4, not implementation of a later release.
+
+- **ARCH-01 (C-01..C-03)**: Reject cross-app and shared-to-app dependencies, contracts-to-runtime,
+  browser-to-server and production-to-test-only edges, private/deep cross-package imports,
+  wildcard public exports and package cycles, including type imports/re-exports/aliases.
+- **ARCH-02 (C-01..C-03)**: Permit public contract imports, local module imports and composition
+  wiring of public adapters. Fail unresolved internal imports and computed module loads with
+  source/target/rule diagnostics and nonzero CLI exit.
+- **ARCH-03 (C-01..C-03)**: An exception matches one exact violation fingerprint and count; require
+  baseline, owner, D21, removal task, rationale and expiry. Expired, duplicate, stale, broadened,
+  or malformed records fail. PR comparison disallows exception additions or metadata widening.
+- **ARCH-04 (NFR-EVAL-02/04)**: Run fixtures and enforcement within lint and the existing required
+  CI check, retaining existing checks. Require CC-09 evidence in changed/new feature artifacts;
+  unchanged historical artifacts are not retroactively certified.
+
+Acceptance: fixtures demonstrate each forbidden case fails, allowed cases pass, expanding an
+existing import or duplicating it fails, removed debt requires record removal, expiry day fails,
+changed/new features without CC-09 evidence fail, and CLI/CI propagate nonzero status.
