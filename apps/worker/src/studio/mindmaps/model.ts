@@ -29,6 +29,7 @@ export interface MindmapFinding {
 
 export interface MindmapExtractRequest {
   chunks: UnifiedDocumentChunk[];
+  cached_context?:string|undefined;
   output_language?: string | undefined;
   signal: AbortSignal;
 }

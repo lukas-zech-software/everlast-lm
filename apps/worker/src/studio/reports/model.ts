@@ -40,6 +40,7 @@ export interface ExtractRequest {
   /** Effective output language (FR-UI-02). */
   output_language?: string | undefined;
   chunks: UnifiedDocumentChunk[];
+  cached_context?:string|undefined;
   signal: AbortSignal;
 }
 

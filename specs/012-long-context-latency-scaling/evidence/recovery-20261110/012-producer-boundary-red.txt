@@ -1,0 +1,37 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+ ❯ |unit| apps/api/test/code-execution-runtime.test.ts (22 tests | 1 failed) 514ms
+   × NFR-PERF-01 FR-GC-08 observes create invocation and execute settlement before cleanup, including rejected execution 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/code-execution-runtime.test.ts > NFR-PERF-01 FR-GC-08 observes create invocation and execute settlement before cleanup, including rejected execution
+AssertionError: expected [ 'create', 'execute', 'destroy' ] to deeply equal [ Array(5) ]
+
+- Expected
++ Received
+
+  [
+-   "sandbox_created_at",
+    "create",
+    "execute",
+-   "execution_completed_at",
+    "destroy",
+  ]
+
+ ❯ apps/api/test/code-execution-runtime.test.ts:378:20
+    376|       onBoundary:(event:{phase:string;at:string})=>{expect(Number.isFi…
+    377|     } as Parameters<typeof runAttempt>[0]);
+    378|     expect(events).toEqual(['sandbox_created_at','create','execute','e…
+       |                    ^
+    379|     expect(result.kind).toBe('failed'); // invalid output / explicit p…
+    380|   }
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 passed (22)
+   Start at  15:10:16
+   Duration  766ms (tests 75%, import 21%, transform 4%, worker 1%)

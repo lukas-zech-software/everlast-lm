@@ -1,6 +1,7 @@
 import type { ReportSubtype, StudioFailureCode, StudioGenerationOutcome, StudioProgress, StudioReportPayload } from "@everlast/contracts";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import { batchChunks, type BatchLimits } from "./batching.ts";
+import type { BatchLimits } from "./batching.ts";
+import { processAllOriginalEvidenceBatches } from "../evidence.ts";
 import type { Finding, ReportBlock, ReportModelClient } from "./model.ts";
 import { renderReport } from "./render.ts";
 import { TEMPLATES } from "./templates.ts";
@@ -8,7 +9,12 @@ import { validateReportBlocks } from "./validation.ts";
 
 export interface GenerateReportInput {
   subtype: ReportSubtype;
+  snapshot?:import("@everlast/contracts").SourceRevisionPair[]|undefined;
   chunks: UnifiedDocumentChunk[];
+  original_chunks?:AsyncIterable<UnifiedDocumentChunk[]>|undefined;
+  cached_context?:string|undefined;
+  before_model_call?:(()=>Promise<void>)|undefined;
+  load_cited_chunks?:((ids:string[])=>Promise<UnifiedDocumentChunk[]>)|undefined;
   model: ReportModelClient;
   custom_prompt?: string | undefined;
   /** Effective output language (FR-UI-02): passed to the model and used for section headings. */
@@ -46,36 +52,64 @@ const filled = (b: ReportBlock | undefined): boolean => !!b && (b.items.length >
 
 /** Map-reduce over bounded batches of ALL scoped chunks (D12); no agent loop, no sampling. */
 export async function generateReport(input: GenerateReportInput): Promise<StudioGenerationOutcome<StudioReportPayload>> {
-  const { subtype, chunks, model, signal, output_language } = input;
+  let chunks=input.chunks;
+  const { subtype, model, signal, output_language } = input;
   const guard = (): void => signal.throwIfAborted();
   const template = TEMPLATES[subtype];
-  if (chunks.length === 0) return refuse("InsufficientEvidence", "The selected sources contain no readable content.");
+  if (chunks.length === 0 && !input.original_chunks) return refuse("InsufficientEvidence", "The selected sources contain no readable content.");
 
-  const batches = input.limits ? batchChunks(chunks, input.limits) : batchChunks(chunks);
   input.reportProgress("reading", 5);
-  const perBatch: Finding[][] = new Array(batches.length);
-  let next = 0;
-  let done = 0;
-  let failed = false;
-  const worker = async (): Promise<void> => {
-    while (next < batches.length && !failed) {
-      const i = next++;
-      guard();
-      try {
-        perBatch[i] = await model.extract({ subtype, custom_prompt: input.custom_prompt, output_language, chunks: batches[i]!, signal });
-      } catch (error) {
-        failed = true; // no further batches are started once one fails
-        throw error;
+  let findings:Finding[]=[];
+  // NFR-PERF-01 / D12: reduce grounded extracted findings before they can grow into an unbounded final request.
+  // Every original batch, including one with no findings, is visited; a non-compressing model fails explicitly.
+  const maxComposeBytes=512_000;
+  const composeRequest=(fs:Finding[])=>({subtype,custom_prompt:input.custom_prompt,output_language,findings:fs,signal});
+  const compact=async()=>{
+    let rounds=0;
+    while(Buffer.byteLength(JSON.stringify(composeRequest(findings)))>maxComposeBytes){
+      if(++rounds>16)throw new Error('Bounded recursive compose did not converge');
+      const before=Buffer.byteLength(JSON.stringify(findings));
+      const groups:Finding[][]=[];let group:Finding[]=[],bytes=0;
+      for(const finding of findings){
+        const size=Buffer.byteLength(JSON.stringify(finding));
+        if(size>maxComposeBytes/2)throw new Error('Individual finding exceeds model envelope capacity');
+        if(bytes+size>maxComposeBytes/2&&group.length){groups.push(group);group=[];bytes=0;}
+        group.push(finding);bytes+=size;
       }
-      done += 1;
-      input.reportProgress("extracting", 10 + Math.round((done / batches.length) * 60));
+      if(group.length)groups.push(group);
+      const next:Finding[]=[];
+      for(const batch of groups){
+        guard();
+        const originals=new Map(batch.map(f=>[f.chunk_id,f]));
+        await input.before_model_call?.();
+        const blocks=await model.compose(composeRequest(batch));
+        for(const block of blocks){
+          for(const item of block.items){
+            const parent=originals.get(item.chunk_id);if(!parent)throw new Error('Reduction cited non-original evidence');
+            next.push({...parent,text:item.text,...(item.quote!==undefined?{quote:item.quote}:{}),...(item.date!==undefined?{date:item.date}:{})});
+          }
+          for(const row of block.table?.rows??[]){
+            const parent=originals.get(row.chunk_id);if(!parent)throw new Error('Reduction table cited non-original evidence');
+            next.push({...parent,text:row.cells.join(' | ')});
+          }
+        }
+      }
+      findings=dedupe(next);
+      if(Buffer.byteLength(JSON.stringify(findings))>=before)throw new Error('Model cannot reduce findings within complete envelope capacity');
     }
   };
-  await Promise.all(Array.from({ length: Math.min(EXTRACT_CONCURRENCY, batches.length) }, worker));
-  const findings = perBatch.flat();
+  await processAllOriginalEvidenceBatches({chunks,original_chunks:input.original_chunks,snapshot:chunks.map(c=>({source_id:c.source_id,revision:c.revision})).filter((p,i,ps)=>ps.findIndex(x=>x.source_id===p.source_id)===i),
+    ...(input.snapshot?{snapshot:input.snapshot}:{}),limits:input.limits,signal,
+    extractBatch:async batch=>{await input.before_model_call?.();return model.extract({subtype,custom_prompt:input.custom_prompt,output_language,chunks:batch,signal,cached_context:input.cached_context});},
+    consumeItems:async rows=>{findings.push(...rows);await compact();},
+    onBatchComplete:(done,total)=>input.reportProgress("extracting",10+Math.round(done/Math.max(1,total)*60)),
+  });
+  if(!findings.length)return refuse("InsufficientEvidence",INSUFFICIENT);
+  if(input.load_cited_chunks)chunks=await input.load_cited_chunks([...new Set(findings.map(f=>f.chunk_id))]);
 
   guard();
   input.reportProgress("composing", 75);
+  await input.before_model_call?.();
   let blocks = await model.compose({ subtype, custom_prompt: input.custom_prompt, output_language, findings: dedupe(findings), signal });
   blocks = blocks.map((b) => (b.id === "events" ? sortEvents(b) : b));
 

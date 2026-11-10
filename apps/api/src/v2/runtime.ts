@@ -40,6 +40,8 @@ import {
   claimPendingPublicationEvents,
   completePublicationEvent,
   listAllSnapshotChunks,
+  buildScopedCorpusLedger,
+  streamSnapshotChunks,
   listSnapshotChunks,
   listSources,
   listThreadMessages,
@@ -90,6 +92,7 @@ import type { StudioServiceDeps } from "../studio/service.ts";
 export type V2Handler = (req: IncomingMessage, res: ServerResponse, userId: string) => Promise<boolean>;
 
 export interface V2RuntimeOptions {
+  studioContext?:ConstructorParameters<typeof StudioJobRunner>[0]["contextRuntime"]|undefined;
   pool: Pool;
   sourceLimit: number;
   guideAdmission?: GuideAdmissionLimits;
@@ -124,6 +127,8 @@ export interface V2RuntimeOptions {
 }
 
 export interface V2Runtime {
+  /** NFR-PERF-01: actual recovery-sweep result, false on any startup sweep failure. */
+  recoveryReady():Promise<boolean>;
   workspace: WorkspacePreferencesService;
   handlers: V2Handler[];
   /** Mirrors an authorized PostgreSQL notebook into the PoC bridge. */
@@ -156,8 +161,10 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
   // specs/013 R5 (FR-010, FR-011): resolve background work a stopped process left behind (one API instance, D16).
   // v2 requests, Ready dispatch and the watcher wait for it, so nothing this process starts is swept.
+  let recoverySucceeded=false;
   const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool), recoverOnDemandGuides(pool)])
     .then(([reports, guides]) => {
+      recoverySucceeded=true;
       if (reports + guides > 0) console.info(JSON.stringify({ severity: "INFO", message: "v2 restart sweep", interrupted_reports: reports, orphaned_guides: guides }));
     })
     .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 restart sweep failed: ${(err as Error).message}` })));
@@ -447,13 +454,29 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
   // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
   const studioContext = {
+    buildLedger:(ownerId:string,notebookId:string,sources:SourceRevisionPair[],tokenizer:import("@everlast/db").CorpusTokenizer)=>buildScopedCorpusLedger(pool,{owner_id:ownerId,notebook_id:notebookId,sources},tokenizer),
+    async *streamOriginals(ownerId:string,notebookId:string,sources:SourceRevisionPair[]){
+      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
+      for await(const page of streamSnapshotChunks(pool,captured,16))yield page;
+    },
+    async loadCitedChunks(ownerId:string,notebookId:string,sources:SourceRevisionPair[],ids:string[]){
+      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
+      await verifyScopeSnapshot(pool,captured);
+      const chunks:UnifiedDocumentChunk[]=[];let bytes=0;
+      for(let offset=0;offset<ids.length;offset+=16){
+        await verifyScopeSnapshot(pool,captured);
+        const page=await getSnapshotChunksByIds(pool,captured,ids.slice(offset,offset+16));
+        for(const chunk of page){bytes+=Buffer.byteLength(JSON.stringify(chunk));if(bytes>32_000_000)throw new Error("Cited original validation memory capacity exceeded");chunks.push(chunk);}
+      }
+      await verifyScopeSnapshot(pool,captured);return chunks;
+    },
     async getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]> {
       const owner = ownerId ?? (await ownerOf(notebookId));
       if (!owner) throw new InvalidScopeError("Notebook is not available");
       return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
     },
   };
-  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access });
+  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access, contextRuntime:options.studioContext });
   // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
   const runAndTouch = {
     async run(id: string) {
@@ -519,6 +542,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   return {
     workspace,
+    recoveryReady:async()=>{await swept;return recoverySucceeded;},
     handlers: [
       (req, res, userId) => afterSweep(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
       (req, res, userId) => afterSweep(() => handlePackageV22Route(req, res, userId, v22Deps)),

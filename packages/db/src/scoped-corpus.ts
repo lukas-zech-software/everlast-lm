@@ -5,7 +5,7 @@ import { verifyScopeSnapshot, type ScopeSnapshot } from './scope-guard.ts';
 import { streamSnapshotChunks } from './scoped-context.ts';
 
 /** C-02, NFR-PERF-01: caller supplies a qualified tokenizer, never an inferred token count. */
-export interface CorpusTokenizer { model:string; version:string; count(text:string):Promise<number>; }
+export interface CorpusTokenizer { model:string; version:string; qualification?:'enterprise-eu'|'local-double'|'unqualified'; count(text:string):Promise<number>; }
 const digest=(text:string)=>createHash('sha256').update(text).digest('hex');
 export async function buildScopedCorpusLedger(db:Queryable,captured:ScopeSnapshot,tokenizer:CorpusTokenizer):Promise<ScopedCorpusManifest> {
  const snapshot={...captured,sources:captured.sources.map(s=>({...s})).sort((a,b)=>a.source_id.localeCompare(b.source_id))};
@@ -34,7 +34,7 @@ export async function buildScopedCorpusLedger(db:Queryable,captured:ScopeSnapsho
  await verifyScopeSnapshot(db,snapshot);
  const record={notebook_id:snapshot.notebook_id,principal_subject:snapshot.owner_id,
   effective_authorization_fingerprint:digest(JSON.stringify({owner:snapshot.owner_id,notebook:snapshot.notebook_id,sources:snapshot.sources})),
-  sources:snapshot.sources,token_counting_model:tokenizer.model,token_counting_version:tokenizer.version,
+  sources:snapshot.sources,token_counting_model:tokenizer.model,token_counting_version:tokenizer.version,token_counting_qualification:tokenizer.qualification??'unqualified',
   source_token_total:pages.reduce((n,p)=>n+p.token_count,0),pages,chunks};
  return ScopedCorpusManifestSchema.parse({...record,manifest_hash:digest(JSON.stringify(record))});
 }

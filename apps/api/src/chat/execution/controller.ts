@@ -57,6 +57,7 @@ export interface ExecutionStatus {
 }
 
 export interface ControllerInput {
+  onTiming?: (event:{phase:"sandbox_created_at"|"execution_completed_at"|"running_code_at";at:string;attempt_id:string;ordinal:1|2})=>void;
   thread: ChatThreadRecord;
   requestId: string;
   snapshot: SourceRevisionPair[];
@@ -131,6 +132,7 @@ export class CodeExecutionController {
         await registerSandbox(pool, { attemptId, executionId, notebookId: input.thread.notebook_id });
         const outcome: AttemptOutcome = await runAttempt({
           runtime: this.deps.runtime,
+          onBoundary:event=>{try{input.onTiming?.({...event,attempt_id:attemptId,ordinal});}catch{/* Private evidence unavailable. */}},
           attemptId,
           code,
           files: [...input.manifest.files],
@@ -140,6 +142,7 @@ export class CodeExecutionController {
           onRunning: async () => {
             const running: CodeExecutionAttempt = { attempt_id: attemptId, ordinal, code, stdout: "", stderr: "", exit_code: null, started_at: startedAt, ended_at: null, terminal_reason: null, artifacts: [] };
             await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease, state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
+            try{input.onTiming?.({phase:"running_code_at",at:now(),attempt_id:attemptId,ordinal});}catch{/* Private evidence unavailable. */}
             input.onStatus({ type: "status", phase: "running_code", execution_id: executionId, attempt: ordinal });
           },
           onDestroyed: async ({ destroyed }) => {

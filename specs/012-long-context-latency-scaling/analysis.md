@@ -63,3 +63,35 @@ Task IDs below are local to `[012-long-context-latency-scaling]`. Each mapped Re
 Static validation confirms task format, contiguous IDs, backward local dependencies, source IDs/file paths, story labels/headings, exact feature pin with environment variable absent, and byte-identical reviewer checklists. All 38 custom checklist items remain unchecked; built-in 16-item requirements checklist is unchanged. Spec integrity and whitespace checks pass. No application code or runtime test was executed.
 
 MVP is foundation + US1 precise retrieval and benchmark; independent story checks cover US1 needle/timing, US2 all-Guide synthesis/detail follow-up, and US3 complete original evidence with bounded memory. Later stories and integrated release checks remain necessary for full delivery. Implementation can follow these tasks in package order. Deployed benchmark, model/cache capacity, memory, performance and quality proof remain UNAVAILABLE until implemented and run on an approved environment; document completion is not Gate v3.0 acceptance.
+
+## Resumption read-only analysis (2026-11-10; CC-01..CC-09)
+
+Reviewed current spec/plan/tasks, governing card/README, Constitution2.1 and procedure before runtime edits. Recovered own feature text is additive, historical T046–T048 ticks corrected, T060 remains open. T051/T055/T058/T061 precede implementation. Boundary inventory now names actual owners, ports, composition and regressions; recovery's new API-to-worker context-session edge is rejected, to be replaced by structural injected runtime ports through the existing constructor. No exception is requested. Existing D16 publication/recovery, C-02 snapshots and 0012 Guide admission remain authoritative.
+
+CC-01 PASS design traceability/flow-back; CC-02 PASS test ordering (execution pending); CC-03 PASS exact snapshots/read/publication verification; CC-04 PASS buffered validation/no leakage; CC-05 PASS additive canonical contracts/explicit ports; CC-06 PASS ordered package recovery, live gate remains incomplete; CC-07 PASS private evidence/enterprise EU and authorization; CC-08 PASS current stack/Node26 correction; CC-09 PASS design inventory/no new exceptions, final automated graph and behavior results pending. No unresolved design-level critical findings. Runtime qualification is UNAVAILABLE until independently measured; constructed clients and fixture labels are not qualification.
+
+## Final resumption analysis and convergence (2026-11-10; CC-01..CC-09)
+
+Read-only analysis reviewed actual runtime sources, feature artifacts, card/README/SRS/D12/D13/D16/D17/D18/D19/D21/D22 and final evidence before this report was saved. Manual reviewer: package012 agent. Scope: parent-bound3326d8d plus this recovery diff. No unapproved architecture exception, package scope expansion, framework/datastore or deployment change was found.
+
+| Gate | Current conclusion |
+| --- | --- |
+| CC-01 | PASS local traceability and additive governing flow-back; frozen exact revisions/ledger now required, historical acceptance ticks corrected. |
+| CC-02 | PASS requirement-related Red→Green: private missing/mismatched evidence, exact citation/revision, transport bounds, atomic file and lifecycle boundaries; actual PG canonical abandoned-trace mismatch characterized before repair. Existing historical behaviors are regression evidence, not artificial Red. |
+| CC-03 | PASS local exact C-02 snapshots and streaming/read/publication checks; source replacement never substitutes newer content. |
+| CC-04 | PASS deterministic160/160citation,0leakage,60invalid drafts/0publication; full semantic judged campaign UNAVAILABLE. |
+| CC-05 | PASS additive canonical contracts, existing deterministic model/workflow ports, no new alternate chunk contract. |
+| CC-06 | PASS package order and scope; Gatev3 remains OPEN, no V4 work or release qualification claimed. |
+| CC-07 | PASS local Owner boundaries/private evidence; actual enterprise/runtime/deployment/calibrated qualification UNAVAILABLE. No constructed-client defaults qualify. |
+| CC-08 | PASS current stack, actual Node26image mechanics, no new migration/cloud/cost resource. |
+| CC-09 | PASS local39fixtures, actual graph0/185unchanged and artifacts0 vs origin/main; manual workflow/boundary review of API chat/execution/observability/composition, worker context/cache/evidence/report/map/table, canonical contracts/db ledger and eval ports. Missing live evidence is not covered by these static checks. |
+
+Final behavior ownership: API ChatService coordinates request scope, cancellation, actual controller and fenced publication; controller owns admission/attempts/status/cleanup, db owns SQL transactions and canonical terminal trace. Instrumentation does not own or alter those effects. Worker runner preserves lease/authorization/publication and loads only cited originals for validation after complete streaming; model adapters enforce bounded envelopes. Evals use ordinary HTTP plus explicit private-reader ports, never production eval/testkit imports or new cross-app test/type edges. Existing composition imports are retained without new import names/paths; no wildcard path set or185record changes.
+
+Convergence assessed all FR-001..010/SC-001..005 and historical tasks regardless of ticks. Local T051–T052/T054–T059/T061–T063 implementation diagnostics are complete; T053 remains partial for the missing production qualification path with evidence in quickstart. Remaining partial/missing release work: T046–T048/T060 and newT064 operational producer qualification. NewT064 is appended under the convergence contract; it does not duplicate the acceptance report or invent probes. The normal server cannot emit qualified code evidence while model/retrieval/cache operational probes are absent. All current collected scale/import reports remain release_eligible:false. No local pass, configuration hash, profile literal or mounted label is independent immutable deployment/provider attestation.
+
+Historical011viewer P95=16.734000000000037ms FAIL; corrected16.733999999999924ms FAIL. Historical008report504 and inherited judged/release gaps remain. Common50-case judged campaign not run. Preserve all failures/denominators and immutable candidate qualification before Gatev3.
+
+### Explicit remaining implementation (2026-11-10; FR-GC-08, NFR-PERF-01)
+
+T053 is PARTIAL/OPEN: private persistence is repaired, but no production caller supplies or refreshes actual model/retrieval/cache probes. The current server therefore keeps beginExecution undefined even after an otherwise approved deployment/workload. NewT064 requires a spec/analyze/test-first operational trusted qualification code path, without fabricating readiness or executing unapproved paid probes, before subsequent authorized actual qualification. This is missing code plus missing runtime evidence, not a cloud-only prerequisite. T062 records capture/atomic file/canonical-trace integration mechanics only; local012implementation is not complete at this checkpoint. Parent will resume the same sequential agent after integrating this reviewed checkpoint while usage permits.

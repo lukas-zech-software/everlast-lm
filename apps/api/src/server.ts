@@ -1,10 +1,10 @@
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
-import { createPool, runMigrations } from "@everlast/db";
+import { createPool, runMigrations, getAvailableMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
 import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig, loadGuideAdmissionConfig } from "./config.ts";
-import { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
+import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
@@ -19,7 +19,7 @@ import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlas
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 
 /**
- * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 24 (type stripping, no build step).
+ * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 26 (type stripping, no build step).
  */
 
 /**
@@ -123,6 +123,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
   const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
   const storage = extra.storage ?? createObjectStorage(env);
+  const reportModel = createV2ReportModel(env, modelConfigured);
+  const studioContext=reportModel?.contextRuntime;
   const notifyJobs = extra.notifyJobs ?? createJobNotifier(env);
   // Release v2 features (D16): stores in PostgreSQL since specs/013; set V2_POC=off to serve v1 only.
   const v2 =
@@ -135,7 +137,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           guideAdmission: loadGuideAdmissionConfig(env),
           model,
           generation: createV2Generation(env, modelConfigured),
-          reportModel: createV2ReportModel(env, modelConfigured),
+          reportModel,
+          studioContext,
           // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
           readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
           // FR-NM-03 (owner decision 2026-10-20): note-sources run the v1 ingestion with this storage and embedder.
@@ -152,22 +155,25 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     ? new PrivateBenchmarkRecorder({
         approved_notebook_ids: benchmarkConfig.approvedNotebookIds,
         revision: benchmarkConfig.revision,
-        sink: () => {},
+        sink: createPrivateBenchmarkSink(benchmarkConfig.evidenceFile),
+        fixtures: benchmarkConfig.fixtures,
+        executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, sandboxRuntime ? {reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine,region:"europe-west4",vcpu:2,memory_gb:1.5,network:"none",file_io_mb:100,deadline_ms:15000}:undefined),
+        ...(studioContext?{tokenizer:studioContext.tokenizer}:{}),
       })
     : undefined);
-  if (benchmark) {
-    benchmark.qualify({
-      ready_at_ms: Date.now(),
-      dependencies: {
-        sql: true,
-        model: Boolean(model),
-        retrieval: Boolean(embedder),
-        cache: true,
-        migrations: true,
-        recovery: true,
-      },
-    });
-  }
+  // NFR-PERF-01 / D17: constructing clients is not dependency qualification.
+  // Defaults remain unqualified until trusted operator/in-process probes supply actual evidence.
+  if (benchmark && !extra.benchmark) await benchmark.qualifyDependencies({
+    sql:async()=>{await pool.query("SELECT 1");return true;},
+    migrations:async()=>{
+      const rows=await pool.query<{version:string}>("SELECT version FROM schema_migrations");
+      const applied=new Set(rows.rows.map(row=>row.version));
+      return getAvailableMigrations().every(file=>applied.has(file.split("/").pop()!));
+    },
+    recovery:async()=>v2?await v2.recoveryReady():false,
+    // Model, retrieval and provider cache need explicit approved qualification; no paid startup probe.
+  });
+
   const chat =
     extra.chat ??
     (embedder && model
