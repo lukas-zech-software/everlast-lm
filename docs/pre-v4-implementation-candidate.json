@@ -1,6 +1,6 @@
 {
   "record_type": "implementation_checkpoint_not_release_acceptance",
-  "date": "2026-11-10",
+  "date": "2026-11-11",
   "traceability": [
     "CC-01",
     "CC-06",
@@ -8,7 +8,7 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-resume-20261110c",
+  "coordinator_branch": "codex/pre-v4-resume-20261111",
   "integrated_checkpoint": "ce3cd955c970d9d09dc504a0aedb4c33695e0fe1",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
@@ -227,7 +227,9 @@
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
-  "active_package_agents": [],
+  "active_package_agents": [
+    "/root/package_012"
+  ],
   "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
   "global_architecture_status": {
     "dependency_findings": 0,
@@ -236,7 +238,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": "Corrected usercutoff reached:30%five-hour/2%weekly; no newimplementation/tests/checks afterwards; onlysafeintegration/handoff",
+  "stop_reason": null,
   "goal_complete": false,
   "published_changes": [
     {
@@ -252,15 +254,15 @@
       "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
     }
   ],
-  "next_package": "Resume SAME012agent forT068CloudRunprivateinbox/exportbridge;003GC-E04 and004T035/T036 coordination remainqueued",
+  "next_package": "012T068bridge active; then serializedapprovedGeminiEUdecision andowningpackage modelmigration/003refusal/011numericfidelity/004remediation",
   "usage_observation": {
-    "five_hour_remaining_percent": 30,
-    "weekly_remaining_percent": 2,
-    "note": "Stop atfive-hour<=10 OR weekly<=2; noresetcredits"
+    "five_hour_remaining_percent": 100,
+    "weekly_remaining_percent": 100,
+    "note": "Initialresumedread;recheckbeforecontinuation;cutoffs10five-hour/2weekly;noresetcredits"
   },
   "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
-  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10c.md",
-  "cutoff_audit_in_current_resumed_run": 1,
+  "current_handoff": "docs/pre-v4-resume-20261111.md",
+  "cutoff_audit_in_current_resumed_run": 0,
   "usage_cutoff_remaining_percent": {
     "five_hour": 10,
     "weekly": 2
@@ -290,5 +292,12 @@
     "004T035": 97,
     "004T036": 88,
     "note": "Owningpackagecoordinationrequired; notwaivedbyguardrails"
+  },
+  "model_region_decision": {
+    "status": "owner_approved_awaiting_serialized_authority_flowback",
+    "approval": "Approve Gemini EU exception,2026-11-11",
+    "record": "docs/pre-v4-model-region-proposal-20261111.md",
+    "scope": "enterpriseGeminiinference/tokenizer/cache eu;otherapprovedregionsunchanged;no global/DeveloperAPI fallback",
+    "cloud_or_paid_execution_approved": false
   }
 }
