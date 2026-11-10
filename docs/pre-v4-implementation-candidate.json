@@ -9,7 +9,7 @@
     "NFR-EVAL-01..04"
   ],
   "coordinator_branch": "codex/pre-v4-resume-20261110b",
-  "integrated_checkpoint": "14217ea0f0f7f7e7d392ee726dfece28cd5f8c0a",
+  "integrated_checkpoint": "3326d8d4e13215f13e1dfab6021d31a14c66bb88",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -149,6 +149,32 @@
         "graph_findings": 0,
         "artifact_findings": 0
       }
+    },
+    {
+      "feature": "011-studio-mindmaps-data-tables",
+      "branch": "codex/pre-v4-011-20261110",
+      "checkpoint": "d5697e8b30812e7280a11b7c52954564f88177a5",
+      "current_handoff": "/private/tmp/everlast-pre-v4-011-handoff-20261110.md",
+      "status": "local_implementation_verified_acceptance_failed_or_pending",
+      "checks": {
+        "numeric_export": "PASS including independent CSV/OOXML inspection",
+        "unit_regressions": "PASS",
+        "postgresql_tests": 10,
+        "chromium_journeys": 4,
+        "lint_type_spec": "PASS",
+        "architecture_findings": 0,
+        "approved_records_unchanged": 185
+      },
+      "open": [
+        "T061 viewer frame gate FAIL and matching live generation/common judged acceptance pending"
+      ],
+      "viewer": {
+        "historical_p95_ms": 16.734000000000037,
+        "corrected_p95_ms": 16.733999999999924,
+        "threshold_ms": 16,
+        "result": "FAIL",
+        "release_eligible": false
+      }
     }
   ],
   "cloud_writes": false,
@@ -156,7 +182,7 @@
   "github_writes": true,
   "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
   "active_package_agents": [
-    "/root/package_011"
+    "/root/package_012"
   ],
   "refreshed_main": "c7f9b5f3e5b33770f5372f532cf231b3d3e331a3",
   "global_architecture_status": {
@@ -176,7 +202,7 @@
       "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
     }
   ],
-  "next_package": "012-long-context-latency-scaling after011 fully finishes",
+  "next_package": "012-long-context-latency-scaling active; remaining acceptance and003GC-E04 thereafter",
   "usage_observation": {
     "five_hour_remaining_percent": 70,
     "weekly_remaining_percent": 24,

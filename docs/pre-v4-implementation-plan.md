@@ -1,7 +1,17 @@
 # Pre-V4 implementation and acceptance plan
 
 Prepared 2026-11-07 (Europe/Berlin). Traceability: Gate v1.0/v2.0/v3.0,
-NFR-EVAL-01..04, NFR-PERF-01, C-01/C-02/C-03, CC-01..CC-08.
+NFR-EVAL-01..04, NFR-PERF-01, C-01/C-02/C-03, CC-01..CC-09.
+
+Execution update (2026-11-10): PR #174 is merged at `1957b3a`; refreshed main
+is `c7f9b5f`. Local package checkpoints through 011 are integrated into coordinator
+`3326d8d`; 012 starts from that ancestry in its own worktree. Numeric exports are
+verified locally. Corrected viewer P95 `16.733999999999924ms > 16ms` remains FAIL;
+historical `16.734000000000037ms` is preserved. These checkpoints do not establish
+release acceptance. See the [candidate record](pre-v4-implementation-candidate.json)
+and [continuation handoff](pre-v4-implementation-handoff-2026-11-10.md) for retained
+obligations; recheck current usage and agent state before resuming. The inspected
+baseline below is historical, rather than a statement that PR #174 remains open.
 
 ## Outcome and scope — Gate v3.0, CC-06
 
@@ -74,7 +84,7 @@ Each package reads its FR card with the requirements README and existing feature
 artifacts. Use package-local converge to inventory gaps, then separate flow-back to
 spec/plan/upstream cards/SRS/architecture, refine tasks, analyze, and implement.
 Preserve IDs; append missing tasks rather than assigning old IDs to new work.
-Require spec-derived Red evidence before fixes. Evaluate CC-01..CC-08 in the
+Require spec-derived Red evidence before fixes. Evaluate CC-01..CC-09 in the
 package plan and analysis. Do not approve reviewer-owned checklists on their behalf.
 
 ## Work packages — CC-01, CC-06
@@ -323,7 +333,7 @@ reopen accepted work or infer future release completion.
 - The 006/009/010 unchecked requirement-review checklists retain reviewer ownership.
   Obtain their review disposition before claiming those reviews complete.
 
-## Constitution checks for execution — CC-01..CC-08
+## Constitution checks for execution — CC-01..CC-09
 
 These are planning constraints, not certification of the recovered code. Every
 package must repeat its checks before research and after design, and in analyze.
@@ -338,6 +348,7 @@ package must repeat its checks before research and after design, and in analyze.
 | CC-06 | One package per branch, serialized dependent agents, retained gate override and evidence-backed Gate v3 before V4 implementation. |
 | CC-07 | Owner authorization, atomic admission, revocation/purge, no secrets in evidence, enterprise EU endpoints and exact approval scope. |
 | CC-08 | Node26/pnpm locked stack, existing PostgreSQL and Cloud Run; IaC review without unrecorded datastore/framework/idle-cost additions. |
+| CC-09 | Load current Constitution IV and architecture procedure; refresh resumed package boundary inventories and analyze before code. Require actual graph/artifact checks, behavior evidence and manual responsibility review. Preserve exact approved legacy exceptions; no new or widened violations. Governance-only records do not certify runtime architecture. |
 
 The first implementation action is recovery preservation and lineage review, followed
 by the already-completed 006 checkpoint integration. No fresh V4 feature is part of
