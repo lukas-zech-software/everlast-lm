@@ -8,7 +8,7 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-resume-20261110b",
+  "coordinator_branch": "codex/pre-v4-resume-20261110c",
   "integrated_checkpoint": "e71645fbd4822b93c096a5c2c64a5f2dee9ebddf",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
@@ -206,7 +206,9 @@
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
-  "active_package_agents": [],
+  "active_package_agents": [
+    "/root/package_012"
+  ],
   "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
   "global_architecture_status": {
     "dependency_findings": 0,
@@ -215,7 +217,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": "User cutoff observed:9%five-hour/14%weekly; no newimplementation/tests/checks afterwards; resetcredits untouched",
+  "stop_reason": null,
   "goal_complete": false,
   "published_changes": [
     {
@@ -231,11 +233,11 @@
       "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
     }
   ],
-  "next_package": "Resume SAME012agent from RED509067d in a NEWworktree after usage permits;003GC-E04 still queued",
+  "next_package": "SAME012agent implementing signed operationalcore from509067d;productionwiring andcanonicalruntimeadapter remainmissing;003queued",
   "usage_observation": {
-    "five_hour_remaining_percent": 9,
-    "weekly_remaining_percent": 14,
-    "note": "Cutoff reached; only safe checkpoint/handoff and separately explicitly approved PR188 merge followed."
+    "five_hour_remaining_percent": 95,
+    "weekly_remaining_percent": 12,
+    "note": "Five-hour reset; weekly limiting. Stop at<=10either. No resetcredits used."
   },
   "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
   "partial_checkpoint_not_integrated": {
@@ -254,6 +256,6 @@
       "canonical managed lifecycle observations; noalternatecreate/delete"
     ]
   },
-  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10b.md",
-  "cutoff_audit_in_current_resumed_run": 1
+  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10c.md",
+  "cutoff_audit_in_current_resumed_run": 0
 }
