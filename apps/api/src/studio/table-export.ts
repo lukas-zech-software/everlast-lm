@@ -10,20 +10,12 @@ import {
   type StudioEvidenceRef,
 } from "@everlast/contracts";
 
-/**
- * [011-studio-mindmaps-data-tables] T044 — Deterministic safe CSV & OOXML `.xlsx` serializer
- * (FR-ST-18, NFR-SEC-02; FR-008, FR-009, FR-016, SC-005, SC-006, SC-010).
- *
- * Security & Grounding Invariants:
- * - Never executes formulas or mutates stored payload data.
- * - Prefixes any cell value, column header, or row item label whose raw or whitespace/control-trimmed
- *   form begins with `=`, `+`, `-`, or `@` with a single leading apostrophe (`'`).
- * - Emits UTF-8 BOM (`\uFEFF`) + RFC 4180 CRLF (`\r\n`) CSV with equal field count across all records.
- * - Emits OOXML `.xlsx` via ExcelJS with explicit string cells (zero formula cells, zero macros, zero external links).
- * - Preserves full canonical values, conflicting alternatives, missing markers (`N/A (Not in sources)`), and citation references.
+/** [011-studio-mindmaps-data-tables] T063 — FR-ST-18, C-03, NFR-SEC-02.
+ * Export-only numeric/string projection; canonical values and authorization are unchanged.
+ * Logical columns each have separate citation fields. No formulas, macros or external links.
  */
 
-const FORMULA_DANGER_REGEX = /^[\s\u0000-\u001f]*[=+\-@]/;
+const FORMULA_DANGER_REGEX = /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@]/;
 
 /**
  * Export-only formula-injection neutralization:
@@ -43,36 +35,34 @@ function formatCiteBadges(cites: readonly StudioEvidenceRef[]): string {
   return nums.map((n) => `[${n}]`).join("");
 }
 
-function formatCellExportText(cell: DataTableCell): string {
-  if (cell.state === "missing") {
-    return DATA_TABLE_MISSING_MARKER;
-  }
-  if (cell.state === "supported") {
-    const entry = cell.values[0];
-    if (!entry) return sanitizeSpreadsheetText(cell.display_text);
-    const safeVal = sanitizeSpreadsheetText(entry.value);
-    const badges = formatCiteBadges(entry.citations);
-    return badges ? `${safeVal} ${badges}` : safeVal;
-  }
-  // Conflict cell: preserve all conflicting values with their individual citation badges
-  const parts = cell.values.map((v) => {
-    const safeVal = sanitizeSpreadsheetText(v.value);
-    const badges = formatCiteBadges(v.citations);
-    return badges ? `${safeVal} ${badges}` : safeVal;
-  });
-  return sanitizeSpreadsheetText(`[Conflict] ${parts.join(" | ")}`);
+type ExportValue = string | number;
+
+/** Conservative spreadsheet decimal projection: Excel retains at most 15 significant digits.
+ * Identity columns bypass this classifier. Noncanonical/format-bearing values stay text.
+ */
+function numericValue(raw: string): number | null {
+  if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) return null;
+  const significant = raw.replace(/^-/, "").replace(".", "").replace(/^0+/, "");
+  if (significant.length > 15) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || String(value) !== raw) return null;
+  return value;
 }
 
-function formatHeaderText(label: string, cites: readonly StudioEvidenceRef[]): string {
-  const safeLabel = sanitizeSpreadsheetText(label);
-  const badges = formatCiteBadges(cites);
-  return badges ? `${safeLabel} ${badges}` : safeLabel;
+function formatCellExportValue(cell: DataTableCell, identity: boolean): ExportValue {
+  if (cell.state === "missing") return DATA_TABLE_MISSING_MARKER;
+  if (cell.state === "conflict") {
+    // The literal prefix makes the whole cell inert, preserving alternatives byte-for-byte.
+    return `[Conflict] ${JSON.stringify(cell.values.map(v => v.value))}`;
+  }
+  const raw = cell.values[0]?.value ?? cell.display_text;
+  return (!identity ? numericValue(raw) : null) ?? sanitizeSpreadsheetText(raw);
 }
 
-function formatRowItemText(row: DataTableRow): string {
-  const safeLabel = sanitizeSpreadsheetText(row.item_label);
-  const badges = formatCiteBadges(row.item_citations);
-  return badges ? `${safeLabel} ${badges}` : safeLabel;
+function formatCellCitations(cell: DataTableCell): string {
+  if (cell.state === "missing") return "";
+  if (cell.state === "conflict") return cell.values.map((v, i) => `${i + 1}: ${formatCiteBadges(v.citations)}`).join(" | ");
+  return formatCiteBadges(cell.values[0]?.citations ?? []);
 }
 
 function resolveOrderedRows(payload: StudioDataTablePayload, orderedRowIds?: readonly string[]): DataTableRow[] {
@@ -94,62 +84,52 @@ function escapeCsvField(field: string): string {
   return field;
 }
 
-function padRecord(fields: string[], totalColumns: number): string[] {
-  const out = fields.slice(0, totalColumns);
-  while (out.length < totalColumns) {
-    out.push("");
-  }
-  return out;
+function padRecord(fields: ExportValue[], totalColumns: number): ExportValue[] {
+  if (fields.length > totalColumns) throw new Error("Citation record exceeds export width");
+  return [...fields, ...Array<string>(totalColumns - fields.length).fill("")];
 }
 
-/**
- * Builds the 2D string grid (header row + sorted item rows + citation reference rows)
- * where every row has the exact same column count (`1 + payload.columns.length` or `payload.columns.length` if `entity` is already column 0).
+/** Row identity plus paired logical value/citation columns; metadata follows the data records.
+ * Physical width 2+2N is independent of the canonical 25-column generation limit.
  */
 export function buildDataTableExportGrid(
   payload: StudioDataTablePayload,
   orderedRowIds?: readonly string[]
 ): {
   headers: string[];
-  dataRows: string[][];
-  citationRows: string[][];
-  allRecords: string[][];
+  dataRows: ExportValue[][];
+  headerCitationRow: ExportValue[];
+  citationRows: ExportValue[][];
+  allRecords: ExportValue[][];
 } {
   const orderedRows = resolveOrderedRows(payload, orderedRowIds);
-  const hasEntityCol = payload.columns[0]?.id === "entity";
-  const headers: string[] = hasEntityCol
-    ? payload.columns.map((c) => formatHeaderText(c.label, c.citations))
-    : ["Entity", ...payload.columns.map((c) => formatHeaderText(c.label, c.citations))];
-
+  const headers = ["Row item", "Row item citations", ...payload.columns.flatMap(c => [
+    sanitizeSpreadsheetText(c.label), sanitizeSpreadsheetText(`${c.label} citations`),
+  ])];
   const colCount = headers.length;
-
-  const dataRows: string[][] = orderedRows.map((row) => {
-    const cells = payload.columns.map((col) => {
+  const dataRows = orderedRows.map(row => [
+    sanitizeSpreadsheetText(row.item_label), formatCiteBadges(row.item_citations),
+    ...payload.columns.flatMap(col => {
       const cell = row.cells[col.id];
-      return cell ? formatCellExportText(cell) : DATA_TABLE_MISSING_MARKER;
-    });
-    return hasEntityCol ? cells : [formatRowItemText(row), ...cells];
-  });
-
-  const sortedCitations = [...payload.citations].sort((a, b) => a.badge_number - b.badge_number);
-  const citationRows: string[][] = sortedCitations.map((cite) =>
-    padRecord(
-      [
-        sanitizeSpreadsheetText(`[${cite.badge_number}]`),
-        sanitizeSpreadsheetText(`Source ${cite.source_id} (rev ${cite.revision}, chunk ${cite.chunk_id})`),
-        sanitizeSpreadsheetText(cite.snippet),
-      ],
-      colCount
-    )
+      return cell ? [formatCellExportValue(cell, col.id === "entity" || /(?:^|_)(?:id|identifier|code|isbn|sku)(?:_|$)/i.test(col.id) || /\b(?:id|identifier|code|isbn|sku)\b/i.test(col.label)), formatCellCitations(cell)] : [DATA_TABLE_MISSING_MARKER, ""];
+    }),
+  ]);
+  const headerCitationRow = ["[Header citations]", "", ...payload.columns.flatMap(c => ["", formatCiteBadges(c.citations)])];
+  const citationRows = [...payload.citations].sort((a, b) => a.badge_number - b.badge_number).map(cite =>
+    padRecord([
+      `[${cite.badge_number}]`, sanitizeSpreadsheetText(cite.source_id), sanitizeSpreadsheetText(cite.chunk_id),
+      String(cite.revision), sanitizeSpreadsheetText(cite.snippet),
+    ], colCount)
   );
-
-  const allRecords: string[][] = [headers, ...dataRows, ...citationRows];
-  return { headers, dataRows, citationRows, allRecords };
+  const allRecords = [headers, ...dataRows, headerCitationRow,
+    padRecord(["[Citation references]"], colCount),
+    padRecord(["Badge", "Source ID", "Chunk ID", "Revision", "Snippet"], colCount), ...citationRows];
+  return { headers, dataRows, headerCitationRow, citationRows, allRecords };
 }
 
 export function serializeDataTableCsv(payload: StudioDataTablePayload, orderedRowIds?: readonly string[]): Uint8Array {
   const { allRecords } = buildDataTableExportGrid(payload, orderedRowIds);
-  const csvBody = allRecords.map((rec) => rec.map(escapeCsvField).join(",")).join("\r\n") + "\r\n";
+  const csvBody = allRecords.map((rec) => rec.map(value => escapeCsvField(String(value))).join(",")).join("\r\n") + "\r\n";
   const withBom = `\uFEFF${csvBody}`;
   return new TextEncoder().encode(withBom);
 }
@@ -158,7 +138,7 @@ export async function serializeDataTableXlsx(
   payload: StudioDataTablePayload,
   orderedRowIds?: readonly string[]
 ): Promise<Uint8Array> {
-  const { headers, dataRows } = buildDataTableExportGrid(payload, orderedRowIds);
+  const { headers, dataRows, headerCitationRow } = buildDataTableExportGrid(payload, orderedRowIds);
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Everlast Studio";
   workbook.created = new Date("2026-01-01T00:00:00.000Z");
@@ -174,11 +154,14 @@ export async function serializeDataTableXlsx(
   for (const rowValues of dataRows) {
     const r = dataSheet.addRow(rowValues);
     r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      const textVal = rowValues[colNumber - 1] ?? "";
-      cell.value = String(textVal);
-      cell.numFmt = "@";
+      const value = rowValues[colNumber - 1] ?? "";
+      cell.value = value;
+      cell.numFmt = typeof value === "number" ? "General" : "@";
     });
   }
+
+  const headerCites = dataSheet.addRow(headerCitationRow);
+  headerCites.eachCell(cell => { cell.numFmt = "@"; });
 
   const citeSheet = workbook.addWorksheet("Citations");
   const citeHeader = citeSheet.addRow(["Badge", "Source ID", "Chunk ID", "Revision", "Snippet"]);
@@ -200,6 +183,16 @@ export async function serializeDataTableXlsx(
       cell.numFmt = "@";
     });
   }
+
+  // OOXML ST_Xstring escaping: ExcelJS drops XML-illegal controls and decodes literal
+  // _xNNNN_ sequences on read. Encode both once to retain the exact inert text.
+  workbook.eachSheet(sheet => sheet.eachRow(row => row.eachCell(cell => {
+    if (typeof cell.value === "string") {
+      cell.value = cell.value.replace(/_x[0-9a-f]{4}_/gi, match => `_x005F_${match.slice(1)}`)
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/g,
+          char => `_x${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}_`);
+    }
+  })));
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer);

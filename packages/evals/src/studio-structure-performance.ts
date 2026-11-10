@@ -15,6 +15,7 @@ export const MINDMAP_MIN_COHORT_SIZE = 20;
 
 export interface MindmapLatencySample {
   sample_id: string;
+  artifact_id?: string;
   stratum: "cold" | "warm";
   status: "Completed" | "Failed" | "Cancelled" | "Running" | "Queued";
   submitted_at_ms: number;
@@ -44,6 +45,19 @@ export function aggregateMindmapLatencyCohort(
     throw new Error(
       `Mindmap latency cohort requires at least ${MINDMAP_MIN_COHORT_SIZE} predeclared runs (received ${samples.length}).`
     );
+  }
+
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("Invalid latency budget");
+  const identities = new Set<string>();
+  for (const sample of samples) {
+    if (!sample.sample_id?.trim() || identities.has(sample.sample_id)) throw new Error("Expected unique sample identities; duplicate or empty ID");
+    identities.add(sample.sample_id);
+    if (!["cold", "warm"].includes(sample.stratum) || !["Completed", "Failed", "Cancelled", "Running", "Queued"].includes(sample.status)) throw new Error("Invalid sample status or stratum");
+    if (!Number.isFinite(sample.submitted_at_ms) || sample.submitted_at_ms < 0) throw new Error("Invalid submission timestamp");
+    if (sample.status === "Completed") {
+      if (sample.completed_at_ms === null || !Number.isFinite(sample.completed_at_ms) || sample.completed_at_ms < sample.submitted_at_ms || sample.duration_ms === null || !Number.isFinite(sample.duration_ms) || Math.abs(sample.duration_ms - (sample.completed_at_ms - sample.submitted_at_ms)) > 0.001) throw new Error("Completed duration must match ordered timestamps");
+      if (!Number.isInteger(sample.node_count) || sample.node_count! < 2 || sample.node_count! > 120) throw new Error("Invalid Completed mindmap node count");
+    }
   }
 
   const durations = samples.map((s) => {

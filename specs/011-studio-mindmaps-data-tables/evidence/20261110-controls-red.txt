@@ -1,0 +1,70 @@
+Evidence display: literal NUL bytes below are rendered as \u0000. Original byte log remains /private/tmp/011-export-controls-red.log.
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-011-20261110
+
+ ❯ |unit| apps/api/test/studio-table-export-numeric.test.ts (7 tests | 3 failed) 68ms
+   ❯ [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations (7)
+     × keeps all formula-risk strings and bypasses inert in data, headings and labels 11ms
+     × preserves literal OOXML escapes and illegal XML controls instead of dropping canonical text 7ms
+     × keeps explicit identifier columns textual even when their values look numeric 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > keeps all formula-risk strings and bypasses inert in data, headings and labels
+AssertionError: expected '\'-1' to be '\'\u0000-1' // Object.is equality
+
+Expected: "'\u0000-1"
+Received: "'-1"
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:72:70
+     70|     const wb = await workbook(p); const sheet = wb.getWorksheet("Data …
+     71|     expect(sheet.getCell("C1").value).toBe("'=Identity");
+     72|     values.forEach((raw, i) => expect(sheet.getCell(i + 2, 5).value).t…
+       |                                                                      ^
+     73|     wb.eachSheet(s => s.eachRow(r => r.eachCell(c => { expect(c.type).…
+     74|     const records = parseCsv(serializeDataTableCsv(p)); values.forEach…
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:72:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > preserves literal OOXML escapes and illegal XML controls instead of dropping canonical text
+AssertionError: expected '\u0000' to be '_x0000_' // Object.is equality
+
+Expected: "_x0000_"
+Received: "\u0000"
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:79:39
+     77|     const p = fixture(["_x0000_", "\u0000=1"]);
+     78|     const wb = await workbook(p); const sheet = wb.getWorksheet("Data …
+     79|     expect(sheet.getCell("E2").value).toBe("_x0000_"); expect(sheet.ge…
+       |                                       ^
+     80|   });
+     81|   it("keeps explicit identifier columns textual even when their values…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > keeps explicit identifier columns textual even when their values look numeric
+AssertionError: expected 2 to be 3 // Object.is equality
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:84:93
+     82|     const p = fixture(["12345"]); p.columns[1] = { ...p.columns[1]!, i…
+     83|     p.rows[0]!.cells.account_id = p.rows[0]!.cells.amount!; delete p.r…
+     84|     const wb = await workbook(p); expect(wb.getWorksheet("Data Table")…
+       |                                                                                             ^
+     85|   });
+     86|   it("uses 52 physical columns at the valid 25 logical-column boundary…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 4 passed (7)
+   Start at  14:51:05
+   Duration  334ms (import 62%, tests 26%, transform 11%, worker 1%)
+

@@ -1,0 +1,118 @@
+{
+  "srs_ids": [
+    "FR-ST-08",
+    "FR-ST-09",
+    "FR-ST-18",
+    "NFR-EVAL-02",
+    "NFR-EVAL-04",
+    "Gate v3.0 #3"
+  ],
+  "recorded_at": "2026-11-05T06:13:23.274843+00:00",
+  "base_commit": "a6a38e55c19102c7f3aaf1b37b917a000579ac18",
+  "candidate_state": "working tree repair on the recorded base; candidate file hashes below",
+  "environment": "local disposable PG16+pgvector at localhost:54331; synthetic fixtures and deterministic model; no cloud run",
+  "implementation_status": "local repairs verified; live release acceptance open T061",
+  "validation": {
+    "regression": {
+      "status": "PASS",
+      "suites": 22,
+      "tests": 85
+    },
+    "browser_journeys": {
+      "status": "PASS",
+      "tests": 4
+    },
+    "deterministic": {
+      "status": "PASS",
+      "citation_precision": {
+        "numerator": 160,
+        "denominator": 160
+      },
+      "leakage": 0
+    },
+    "red_first": {
+      "assertion_failures_observed": 6,
+      "browser_collector_missing_before_implementation": true
+    },
+    "viewer_performance_diagnostic": {
+      "kind": "local synthetic fixture / headless Chromium / diagnostic only",
+      "sample_count": 20,
+      "node_count": 120,
+      "p95_ms": 16.734000000000037,
+      "budget_ms": 16,
+      "performance_pass": false,
+      "failed_actions": 0,
+      "raw_sha256": "266aef3ec15c1185a698ac6bf4bb72bfd4ac00fc1e50a4e1ad9d91d44a041fbb",
+      "raw_path": "pre-v4-frame-observations.json"
+    },
+    "independent_export_inspection": {
+      "kind": "local synthetic fixture / deterministic model; not release acceptance",
+      "csv": {
+        "records": 9,
+        "columns": 4,
+        "bom": true,
+        "rectangular": true
+      },
+      "xlsx": {
+        "text_cells_only": true,
+        "formula_elements": 0,
+        "external_links": 0,
+        "missing_and_conflict_values_preserved": true
+      },
+      "sha256": {
+        "comparison.xlsx": "6885e1bd10ad7f5e7b2f74e78fe7d034fc1482024a10a394e9cf8573de3c92e1",
+        "comparison.csv": "af9bffe27029895d1acd5226bd575f6d926768778c273b3584088e1b8f204c0d"
+      }
+    },
+    "live_release": {
+      "status": "UNAVAILABLE",
+      "reason": "matching approved deployment/provider environment and fixed50case judged release run pending",
+      "task": "[011-studio-mindmaps-data-tables] T061"
+    },
+    "typecheck": {
+      "status": "PASS",
+      "exit_code": 0
+    },
+    "lint": {
+      "status": "PASS",
+      "exit_code": 0
+    },
+    "spec_integrity": {
+      "status": "PASS",
+      "exit_code": 0,
+      "markdown_files": 193,
+      "requirement_ids": 55,
+      "feature_artifacts": 39
+    },
+    "whitespace": {
+      "status": "PASS",
+      "exit_code": 0
+    }
+  },
+  "commands": [
+    "TEST_DATABASE_URL=<disposable-local-db> pnpm vitest run --project unit --project integration <22 package regression files>",
+    "TEST_DATABASE_URL=<disposable-local-db> E2E_PORT=4333 pnpm playwright test apps/web/test/mindmap-collector.spec.ts apps/web/test/studio-mindmap.spec.ts apps/web/test/studio-mindmap-export.spec.ts apps/web/test/studio-table.spec.ts --project=chromium",
+    "pnpm typecheck",
+    "pnpm lint",
+    "TEST_DATABASE_URL=<disposable-local-db> pnpm eval:deterministic",
+    "node scripts/check-spec-integrity.mjs",
+    "git diff --check"
+  ],
+  "log_sha256": {
+    "pre-v4-011-red.log": "a866ca8a9ad70b3bba0d49b94b5b0d489937dbe899d31460103b66ec47fd5f3f",
+    "pre-v4-011-collector-red.log": "b029f51c1d8fc557968191fc81e3e2ff2085f108e5666d5a314afd9290b8198e",
+    "pre-v4-011-admission-red.log": "819f528ee987aa86a202534ea948ee0b36b0472b0e46c2e48d167b3a96ac030b",
+    "pre-v4-011-regression.log": "f57765fc1dfecfb0a3a08f803110443604886c28f3ac5d1e3f21767b8adad347",
+    "pre-v4-011-browser.log": "8e7b876ee695189377ceb8376799b40b85567d46a92b72e9cb7f17a7b1e9a05a",
+    "pre-v4-011-deterministic.log": "7baa7a6f0ce4b67a05ea6cf72cec5c50bdeba57fcb8d8d8977a027913605a242",
+    "pre-v4-011-lint.log": "527c9cfd9d740852a0e763f61c2d595d44a33d238bf2207c46b30ea959b02535"
+  },
+  "candidate_file_sha256": {
+    "apps/web/src/studio/mindmap-viewer.ts": "48dda6ec3d2d33cdae00a01da370716cc56091069fbf4e476822731372e5df7c",
+    "packages/evals/src/studio-structure-performance.ts": "7f49a8344604091f27320662ef076008e610141f04e248515ac4b17e1a29222e",
+    "packages/evals/src/studio-benchmark-collector.ts": "04ab31681d60da82638713447c15f8abe3013f8f1fdbafff97fa726d59a1e783",
+    "apps/web/test/mindmap-browser-collector.ts": "af68e9c718588c17c65e0ff96c2e538d6aaf7b0350c3d84ba8bd5d413bbba0fb",
+    "scripts/eval-v3-studio.mjs": "7b04e3eb568d3c56333385a40c981688927fee0927f91329282977f9075548c3",
+    "scripts/eval-v3-mindmap-viewer.mjs": "91dc4ddd43ca6e10219d914f18695eb28c7ce807c78e55bc72cde2cda17c943e"
+  }
+}

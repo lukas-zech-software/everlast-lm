@@ -1,0 +1,175 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-011-20261110
+
+ ❯ |unit| apps/api/test/studio-table-export-numeric.test.ts (5 tests | 5 failed) 57ms
+   ❯ [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations (5)
+     × round-trips supported decimals as real numeric XLSX cells and plain parseable CSV fields without mutating C-03 35ms
+     × preserves numeric-looking text, identifiers, unsafe precision and non-finite values losslessly 9ms
+     × retains per-alternative conflict association, missing semantics, and header/row references separately 1ms
+     × keeps all formula-risk strings and bypasses inert in data, headings and labels 10ms
+     × uses 52 physical columns at the valid 25 logical-column boundary and rejects partial row orders 1ms
+ ❯ |unit| packages/evals/test/studio-collector.test.ts (3 tests | 3 failed) 471ms
+   ❯ [011-studio-mindmaps-data-tables] T059: real collector mechanics (FR-ST-08, C-03, SC-002) (3)
+     × submits the declared scope once per run, checkpoints actual failed jobs and returns FAIL rather than UNAVAILABLE or success 181ms
+     × records a complete local API cohort as diagnostic evidence with consistent measured timestamps 145ms
+     × cannot pass with fewer accepted jobs than the declared cohort even when nearest-rank P95 alone would pass 134ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 8 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > round-trips supported decimals as real numeric XLSX cells and plain parseable CSV fields without mutating C-03
+AssertionError: expected +0 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 0
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:40:38
+     38|     const p = fixture(); const original = structuredClone(p);
+     39|     const wb = await workbook(p, ["r1", "r0"]); const sheet = wb.getWo…
+     40|     expect(sheet.getCell("E2").type).toBe(ExcelJS.ValueType.Number); e…
+       |                                      ^
+     41|     expect(sheet.getCell("E3").value).toBe(-12.5); expect(sheet.getCel…
+     42|     expect(sheet.getCell("C2").value).toBe("00123"); expect(sheet.getC…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > preserves numeric-looking text, identifiers, unsafe precision and non-finite values losslessly
+AssertionError: expected null to be '0012' // Object.is equality
+
+- Expected:
+"0012"
+
++ Received:
+null
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:54:45
+     52|     values.forEach((raw, i) => {
+     53|       const expected = /^[+\-]/.test(raw) ? `'${raw}` : raw;
+     54|       expect(sheet.getCell(i + 2, 5).value).toBe(expected); expect(she…
+       |                                             ^
+     55|     });
+     56|   });
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:52:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > retains per-alternative conflict association, missing semantics, and header/row references separately
+AssertionError: expected undefined to be '[Conflict] -12.5 | =2+2' // Object.is equality
+
+- Expected:
+"[Conflict] -12.5 | =2+2"
+
++ Received:
+undefined
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:61:34
+     59|     p.rows[1]!.cells.amount = { state: "missing", display_text: "N/A (…
+     60|     const grid = buildDataTableExportGrid(p);
+     61|     expect(grid.dataRows[0]![4]).toBe("[Conflict] -12.5 | =2+2"); expe…
+       |                                  ^
+     62|     expect(grid.dataRows[1]!.slice(4)).toEqual(["N/A (Not in sources)"…
+     63|     expect(grid.dataRows[0]!.slice(0, 2)).toEqual(["'+Item 0", "[3]"]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > keeps all formula-risk strings and bypasses inert in data, headings and labels
+AssertionError: expected null to be '\'=Identity' // Object.is equality
+
+- Expected:
+"'=Identity"
+
++ Received:
+null
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:71:39
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > uses 52 physical columns at the valid 25 logical-column boundary and rejects partial row orders
+AssertionError: expected 26 to be 52 // Object.is equality
+
+- Expected
++ Received
+
+- 52
++ 26
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:80:33
+     78|     for (const row of p.rows) row.cells = Object.fromEntries(p.columns…
+     79|     const canonical = StudioDataTablePayloadSchema.parse(p); const gri…
+     80|     expect(grid.headers.length).toBe(52); expect(grid.allRecords.every…
+       |                                 ^
+     81|     expect(() => buildDataTableExportGrid(canonical, ["r0"])).toThrow(…
+     82|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  |unit| packages/evals/test/studio-collector.test.ts > [011-studio-mindmaps-data-tables] T059: real collector mechanics (FR-ST-08, C-03, SC-002) > submits the declared scope once per run, checkpoints actual failed jobs and returns FAIL rather than UNAVAILABLE or success
+AssertionError: [UNAVAILABLE] eval:v3-studio: live STUDIO_BENCHMARK_IT=1 requires --samples or configured cloud runner.
+: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ packages/evals/test/studio-collector.test.ts:66:40
+     64|     const file = join(dir, "plan.json"); writeFileSync(file, JSON.stri…
+     65|     const result = await cli(["--collect", "--plan", file, "--out", di…
+     66|     expect(result.code, result.output).toBe(1);
+       |                                        ^
+     67|     expect(posts).toBe(20);
+     68|     const report = JSON.parse(readFileSync(join(dir, "v3-studio-benchm…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  |unit| packages/evals/test/studio-collector.test.ts > [011-studio-mindmaps-data-tables] T059: real collector mechanics (FR-ST-08, C-03, SC-002) > records a complete local API cohort as diagnostic evidence with consistent measured timestamps
+AssertionError: [UNAVAILABLE] eval:v3-studio: live STUDIO_BENCHMARK_IT=1 requires --samples or configured cloud runner.
+: expected 2 to be +0 // Object.is equality
+
+- Expected
++ Received
+
+- 0
++ 2
+
+ ❯ packages/evals/test/studio-collector.test.ts:81:40
+     79|     const file = join(dir, "completed-plan.json"); writeFileSync(file,…
+     80|     const result = await cli(["--collect", "--plan", file, "--out", di…
+     81|     expect(result.code, result.output).toBe(0);
+       |                                        ^
+     82|     const report = JSON.parse(readFileSync(join(dir, "v3-studio-benchm…
+     83|     expect(report.status).toBe("DIAGNOSTIC_PASS");
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  |unit| packages/evals/test/studio-collector.test.ts > [011-studio-mindmaps-data-tables] T059: real collector mechanics (FR-ST-08, C-03, SC-002) > cannot pass with fewer accepted jobs than the declared cohort even when nearest-rank P95 alone would pass
+AssertionError: [UNAVAILABLE] eval:v3-studio: live STUDIO_BENCHMARK_IT=1 requires --samples or configured cloud runner.
+: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ packages/evals/test/studio-collector.test.ts:93:40
+     91|     const file = join(dir, "rejected-plan.json"); writeFileSync(file, …
+     92|     const result = await cli(["--collect", "--plan", file, "--out", di…
+     93|     expect(result.code, result.output).toBe(1);
+       |                                        ^
+     94|     const report = JSON.parse(readFileSync(join(dir, "v3-studio-benchm…
+     95|     expect(report.accepted_count).toBe(19);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  8 failed (8)
+   Start at  14:49:19
+   Duration  789ms (tests 45%, import 41%, transform 14%, worker 1%)
+

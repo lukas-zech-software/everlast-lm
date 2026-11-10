@@ -1,0 +1,10 @@
+{
+  "status": "PASS",
+  "kind": "independent_python_csv_and_OOXML",
+  "numeric_cell": "E2=-12.5(type=n)",
+  "identifier_cell": "C2=00123(type=s)",
+  "formula_cells": 0,
+  "macro_external_parts": 0,
+  "csv_numeric_roundtrip": -12.5,
+  "xlsx_sha256": "23bae66e8a93da622fbf93c0353897de5497856f92a23056512de89aca7d51b6"
+}

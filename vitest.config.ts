@@ -29,6 +29,8 @@ const UNIT = [
   "packages/evals/test/code-execution-collector.test.ts",
   "packages/evals/test/code-execution-collection-cli.test.ts",
   // Package 3.3 (specs/011 T003): pure mindmap/table pipeline, viewer layout, eval and performance aggregation tests.
+  "apps/api/test/studio-table-export-numeric.test.ts",
+  "packages/evals/test/studio-collector.test.ts",
   "apps/worker/test/mindmap.test.ts",
   "apps/worker/test/studio-evidence.test.ts",
   "apps/worker/test/data-table.test.ts",
