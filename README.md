@@ -13,7 +13,8 @@
   <a href="https://github.com/users/lukas-zech-software/projects/2"><img alt="Roadmap" src="https://img.shields.io/badge/roadmap-GitHub%20Project-24292f?logo=github"></a>
 </p>
 <p>
-  <img alt="Releases" src="https://img.shields.io/badge/releases-v1.0%E2%80%93v3.0%20implemented%20(13%20packages)-2ea44f">
+  <img alt="Implementation" src="https://img.shields.io/badge/implementation-v1.0%E2%80%93v3.0%20code%20present-2ea44f">
+  <a href="docs/pre-v4-readiness.md"><img alt="Gate v3.0 pending" src="https://img.shields.io/badge/Gate%20v3.0-pending-dfb317"></a>
   <a href="docs/gate-v1-live-evaluation.md"><img alt="Gate v1.0" src="https://img.shields.io/badge/Gate%20v1.0-passed%20live%20on%20Vertex%20AI%20(0%25%20hallucination)-2ea44f"></a>
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
   <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v2.1.0%20%C2%B7%20CC--01..CC--09-informational"></a>
@@ -32,7 +33,7 @@
 >
 > **Why I built it this way:** Rather than building a quick demo, I used this open-ended challenge to deeply learn and stress-test **spec-driven, multi-agent software engineering at production scale**—finding out first-hand what it takes to steer autonomous coding agents from a blank repository to a multi-service cloud platform without writing application code by hand.
 >
-> First, the entire reference product was decomposed into a formal specification (55 requirement IDs, 150 EARS statements, 96 Gherkin scenarios), a project constitution, and a binding solution architecture. Then, autonomous agent sessions implemented **Releases v1.0 through v3.0** test-first across isolated Git worktrees. When scaling across parallel agents exposed real architectural drift despite 100 % passing functional and LLM-judged tests, I diagnosed the failure modes and engineered AST-level boundary guardrails ([`LESSONS_LEARNED.md`](LESSONS_LEARNED.md)). Nearly every file in this repository was authored by coding agents—my role was **systems architecture, governance design, verification, and course-correction**.
+> First, the entire reference product was decomposed into a formal specification (55 requirement IDs, 150 EARS statements, 96 Gherkin scenarios), a project constitution, and a binding solution architecture. Then, autonomous agent sessions implemented **Releases v1.0 through v3.0** test-first across isolated Git worktrees. When scaling across parallel agents exposed real architectural drift despite passing local functional checks and the recorded Gate v1.0 live evaluation, I diagnosed the failure modes and engineered AST-level boundary guardrails ([`LESSONS_LEARNED.md`](LESSONS_LEARNED.md)). Nearly every file in this repository was authored by coding agents—my role was **systems architecture, governance design, verification, and course-correction**.
 
 ---
 
@@ -52,7 +53,7 @@
 
 | Area | Current state on `main` |
 | :- | :- |
-| **Implemented scope** | **Releases v1.0, v2.0 & v3.0 complete** across 13 Spec Kit feature packages ([`specs/001`..`013`](specs/)): grounded chat with inline citations, PDF/Markdown/Office/Drive/Web/Audio/Video ingestion, Source Guides, Notes pinboard, Studio reports, interactive SVG Mindmaps, Data Tables, Agent Platform Python sandbox, and ≥ 1M-token context scaling |
+| **Implemented scope** | **v1–v3 implementation is present; release acceptance is separate** across 13 Spec Kit feature packages ([`specs/001`..`013`](specs/)): grounded chat with inline citations, PDF/Markdown/Office/Drive/Web/Audio/Video ingestion, Source Guides, Notes pinboard, Studio reports, interactive SVG Mindmaps, Data Tables, Agent Platform Python sandbox, and long-context tooling; [Gate v3.0 live qualification remains pending](docs/pre-v4-readiness.md) |
 | **Codebase scale** | **429 TypeScript files**, **228 test suites** (unit, contract, PostgreSQL integration, Playwright E2E, and AST architecture fixtures), **11 SQL migrations** (`0001`..`0011`), 4 deployable services (`apps/*`) + 5 shared packages (`packages/*`) |
 | **Live AI evaluation** | **[Gate v1.0 passed live on Vertex AI (`europe-west4`)](docs/gate-v1-live-evaluation.md)**: **0 % hallucination** (`NFR-EVAL-01`), **100 % citation precision & support** (`NFR-EVAL-02`), **100 % out-of-source refusal** (`NFR-EVAL-03`), **0 deselected-source leakage** (`NFR-EVAL-04`), and **54 ms P95** citation scroll-to-passage; 222-case deterministic golden suite runs on every PR |
 | **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) + 3 core contracts (`C-01`..`C-03`) in the [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md); **53 FR cards** (~36,000 words, **150 EARS statements**, **96 Gherkin scenarios**) audited across all 19 packages ([audit log](docs/requirements-consistency-audit.md)) |
@@ -100,7 +101,7 @@ With the specification locked and test-first (`CC-02`, Red → Green → Refacto
 
 ### Phase 3: Why passing tests and `tsc -b` were not enough ([`LESSONS_LEARNED.md`](LESSONS_LEARNED.md))
 
-The most valuable engineering lesson happened after Releases v1.0 through v3.0 were feature-complete. Every functional spec check, TypeScript build (`tsc -b`), integration test, and `NFR-EVAL-01..04` grounding benchmark was green. Yet a dedicated static architecture review ([`docs/architecture-refactoring-baseline.md`](docs/architecture-refactoring-baseline.md)) uncovered **293 architectural boundary violations** across three systemic patterns:
+The most valuable engineering lesson happened after initial v1–v3 implementation had landed. Passing local functional checks, TypeScript builds (`tsc -b`), integration suites and the recorded Gate v1.0 live evaluation did not establish architectural compliance. Gate v2.0 was accepted by owner override, and Gate v3.0 still lacked qualifying live evidence ([readiness audit](docs/pre-v4-readiness.md)). A dedicated static architecture review ([`docs/architecture-refactoring-baseline.md`](docs/architecture-refactoring-baseline.md)) uncovered **293 architectural boundary violations** across three systemic patterns:
 
 1. **Deployment apps imported as shared libraries (`R1` — 58 cross-app & 39 shared-to-app imports):** `apps/api` depended directly on `@everlast/worker` to reuse Studio dispatchers and Source Guide runtime helpers, while `packages/evals` reached directly into `apps/api/src/*` and `apps/worker/src/*`.
 2. **Wildcard exports & deep-import bypasses (`R3` — 186 deep imports & 7 `"./*"` wildcards):** Workspace `package.json` files exposed `"./*": "./src/*.ts"`, allowing agents to bypass public `index.ts` entrypoints (including 50+ cross-package imports of `@everlast/db/testing`).
@@ -167,7 +168,7 @@ everlast-lm/
 │   ├── cloud/                         ← Vertex AI Gemini, Document AI OCR, Drive, Speech & Agent Platform sandbox adapters
 │   ├── evals/                         ← 222-case golden dataset, deterministic PR checks & Vertex AI LLM-as-a-judge runner
 │   └── testkit/                       ← shared test fixtures and deterministic doubles
-├── specs/                             ← 13 completed Spec Kit feature directories (001-workspace-foundation .. 013-v2-persistence-postgres)
+├── specs/                             ← 13 Spec Kit feature directories (completion and evidence vary) (001-workspace-foundation .. 013-v2-persistence-postgres)
 ├── spec/
 │   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: 55 IDs, contracts C-01..C-03, release gates & DEV-01..05
 │   └── requirements/                  ← 53 EARS + Gherkin FR cards across v1/ .. v6/ + cross-package rules
@@ -281,8 +282,8 @@ Progress is tracked in the **[Everlast LM – Produkt-Roadmap](https://github.co
 | Release | Milestone focus | Spec Kit packages | Status |
 | :- | :- | :- | :- |
 | **v1.0 MVP** | Workspace foundation, PDF/text ingestion, Source Inspector, Grounded Chat & Citation Engine, 3-panel UI & eval harness | `001` (`1.1`), `002` (`1.2`), `003` (`1.3`), `004` (`1.4`) | **Implemented & [Gate v1.0 Passed Live](docs/gate-v1-live-evaluation.md)** |
-| **v2.0** | UI comfort & language prefs, automatic Source Guides, chat style controls, Notes pinboard & AI actions, `C-03` Studio text reports + Postgres persistence | `005` (`2.1`), `006` (`2.2`), `007` (`2.3`), `008` (`2.4`), `013` (Postgres migration) | **Implemented & [Deployed to Dev Cloud Run](docs/gate-v2-live-evaluation.md)** |
-| **v3.0** | Multimodal ingestion (audio/video transcript sync, Office, Drive, safe Web), Agent Platform Python code sandbox, interactive SVG Mindmaps & Data Tables, ≥ 1M-token context scaling | `009` (`3.1`), `010` (`3.2`), `011` (`3.3`), `012` (`3.4`) | **Implemented on `main` (4/4 packages merged)** |
+| **v2.0** | UI comfort & language prefs, automatic Source Guides, chat style controls, Notes pinboard & AI actions, `C-03` Studio text reports + Postgres persistence | `005` (`2.1`), `006` (`2.2`), `007` (`2.3`), `008` (`2.4`), `013` (Postgres migration) | **Implementation deployed; [Gate v2 accepted by owner override](docs/gate-v2-live-evaluation.md), with [live follow-ups open](docs/pre-v4-readiness.md)** |
+| **v3.0** | Multimodal ingestion (audio/video transcript sync, Office, Drive, safe Web), Agent Platform Python code sandbox, interactive SVG Mindmaps & Data Tables, ≥ 1M-token context scaling | `009` (`3.1`), `010` (`3.2`), `011` (`3.3`), `012` (`3.4`) | **Initial implementation merged (4/4 packages); [Gate v3 pending](docs/pre-v4-readiness.md)** |
 | **Pre-v4 Refactoring** | Burn down the 293 fingerprinted `D21` migration records: extract shared API/worker workflows (`R1`), tighten public package exports (`R3`), and unify notebook route services (`R2`) | Governed by [`CC-09` & `D21`](docs/architecture-refactoring-baseline.md) | **Guardrails active in CI (`PR #187`); extraction queued** |
 | **v4.0** | Studio Active Learning Suite (Flashcards, Quizzes, Learning Overview) & Deterministic Visuals (`.pptx`/`.pdf` Slide Decks, SVG Infographics) | Packages `4.1` – `4.2` | **FR cards audited & ready for `/speckit-specify`** |
 | **v5.0** | Dialogic Audio Overviews, single-host Gemini Live "Join-In" voice (`D7`/`DEV-01`), and narrated Video Overviews | Packages `5.1` – `5.2` | **FR cards audited & ready for `/speckit-specify`** |
