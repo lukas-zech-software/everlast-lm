@@ -162,7 +162,7 @@ export class ChatService {
     signal: AbortSignal;
   }): AsyncGenerator<TurnEvent> {
     const { pool } = this.deps;
-    const execution = new CodeExecutionController({ pool, ...this.deps.codeExecution! });
+    const execution = new CodeExecutionController({ pool, ...this.deps.codeExecution!, evidenceIdentity:this.deps.benchmark?.executionIdentity(input.thread.notebook_id) });
     const privateExecution=this.deps.benchmark?.beginExecution({notebook_id:input.thread.notebook_id,owner_id:input.thread.user_id,request_id:input.request.requestId,source_snapshot:input.provider.snapshot.sources});
     const messageId = randomUUID();
     const queue: TurnEvent[] = [];

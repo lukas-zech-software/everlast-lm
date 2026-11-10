@@ -129,3 +129,13 @@ describe("Security review fix — citation/marker forgery in model text (FR-GC-0
     expect(fake.content).not.toMatch(/\(\s*computed\s*\)/i);
   });
 });
+
+it('NFR-PERF-01 trusted operational model setup has a fixed output/RPC budget without changing ordinary requests (LOCAL ADK transport double)',async()=>{
+ const model=new AdkGroundedModel({project:'local-fixture',location:'europe-west4',model:'gemini-2.5-flash'}) as any;
+ const configs:any[]=[];
+ model.llm.generateContentAsync=async function*(request:any){configs.push(request.config);yield {content:{role:'model',parts:[{text:JSON.stringify({status:'not_in_sources',sentences:[]})}]},turnComplete:true};};
+ await model.generate({question:'Bounded setup',chunks:[],history:[],operationalProbe:true});
+ expect(configs[0].maxOutputTokens).toBe(512);
+ await model.generate({question:'Ordinary request',chunks:[],history:[]});expect(configs[1].maxOutputTokens).toBeUndefined();
+ expect(model.llm.getHttpOptions().retryOptions.attempts).toBe(1);
+});

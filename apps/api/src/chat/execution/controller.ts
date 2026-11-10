@@ -28,7 +28,7 @@ import type { SourceRevisionPair } from "@everlast/contracts";
 import type { CodeCorrectionInput } from "../model.ts";
 import type { InputManifest } from "./manifest.ts";
 import { OutputError, validateChartFiles, validateComputedResults } from "./output.ts";
-import { EXECUTION_DEADLINE_MS, REQUIRED_LIBRARIES, runAttempt, SANDBOX_PROFILE, type AttemptOutcome, type SandboxRuntime } from "./runtime.ts";
+import { EXECUTION_DEADLINE_MS, REQUIRED_LIBRARIES, runAttempt, SANDBOX_PROFILE, type AttemptOutcome, type SandboxHandle, type SandboxRuntime } from "./runtime.ts";
 
 /**
  * Deterministic execution controller (FR-GC-08, FR-GC-06, C-02; specs/010 T019/T028).
@@ -41,6 +41,7 @@ import { EXECUTION_DEADLINE_MS, REQUIRED_LIBRARIES, runAttempt, SANDBOX_PROFILE,
 export const MAX_ATTEMPTS = 2;
 
 export interface CodeExecutionDeps {
+  evidenceIdentity?:{instance_boot_id:string;candidate_commit:string;runtime_config_sha256:string}|undefined;
   pool: Pool;
   runtime: SandboxRuntime;
   storage: ObjectStorage;
@@ -112,7 +113,7 @@ export class CodeExecutionController {
     };
     await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease,
       state: "CodeGenerating",
-      runtimeMetadata: { runtime: this.deps.runtime.id, profile: SANDBOX_PROFILE, libraries: REQUIRED_LIBRARIES, deadline_ms: this.deps.deadlineMs ?? EXECUTION_DEADLINE_MS, manifest_digest: input.manifest.entries[0]?.digest },
+      runtimeMetadata: { ...this.deps.evidenceIdentity, runtime: this.deps.runtime.id, profile: SANDBOX_PROFILE, libraries: REQUIRED_LIBRARIES, deadline_ms: this.deps.deadlineMs ?? EXECUTION_DEADLINE_MS, manifest_digest: input.manifest.entries[0]?.digest },
     });
 
     // Heartbeat: the correction call and sandbox creation can outlast one lease period between progress writes,
@@ -130,6 +131,7 @@ export class CodeExecutionController {
         const attemptId = randomUUID();
         const startedAt = now();
         await registerSandbox(pool, { attemptId, executionId, notebookId: input.thread.notebook_id });
+        let profileObservation:SandboxHandle["profileObservation"];
         const outcome: AttemptOutcome = await runAttempt({
           runtime: this.deps.runtime,
           onBoundary:event=>{try{input.onTiming?.({...event,attempt_id:attemptId,ordinal});}catch{/* Private evidence unavailable. */}},
@@ -138,10 +140,13 @@ export class CodeExecutionController {
           files: [...input.manifest.files],
           signal: input.signal,
           ...(this.deps.deadlineMs ? { deadlineMs: this.deps.deadlineMs } : {}),
-          onCreated: (handle) => markSandboxActive(pool, attemptId, handle.name),
+          onCreated: async(handle) => {
+            await markSandboxActive(pool, attemptId, handle.name);
+            if(this.deps.evidenceIdentity)profileObservation=handle.profileObservation;
+          },
           onRunning: async () => {
             const running: CodeExecutionAttempt = { attempt_id: attemptId, ordinal, code, stdout: "", stderr: "", exit_code: null, started_at: startedAt, ended_at: null, terminal_reason: null, artifacts: [] };
-            await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease, state: "SandboxRunning", attemptOrdinal: ordinal, trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
+            await recordCodeExecutionProgress(pool, executionId, leaseToken, { ...lease, state: "SandboxRunning", attemptOrdinal: ordinal, ...(profileObservation?{runtimeMetadata:{profile_observation:profileObservation}}:{}), trace: { ...trace("SandboxRunning"), attempts: [...attempts, running] } });
             try{input.onTiming?.({phase:"running_code_at",at:now(),attempt_id:attemptId,ordinal});}catch{/* Private evidence unavailable. */}
             input.onStatus({ type: "status", phase: "running_code", execution_id: executionId, attempt: ordinal });
           },

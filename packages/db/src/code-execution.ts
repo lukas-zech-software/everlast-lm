@@ -1,7 +1,9 @@
+import { verifyScopeSnapshot } from './scope-guard.ts';
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import {
   AppError,
+  CodeExecutionTraceSchema,
   type ChartArtifactRecord,
   type CodeExecutionFailureCode,
   type CodeExecutionState,
@@ -440,4 +442,30 @@ export async function chartProvenanceAvailable(db: Queryable, notebookId: string
     [notebookId, snapshot.map((p) => p.source_id), snapshot.map((p) => p.revision)]
   );
   return result.rows[0]?.ok === true;
+}
+
+/** FR-GC-08 / NFR-PERF-01: readonly canonical runtime observation, never a new sandbox. */
+export async function hasOperationalExecutionEvidence(db:Pool,input:{owner_id:string;notebook_id:string;sources:SourceRevisionPair[];instance_boot_id:string;candidate_commit:string;runtime_config_sha256:string;observed_after:number}):Promise<boolean>{
+ if(!Number.isFinite(input.observed_after)||input.observed_after>Date.now())return false;
+ try{await verifyScopeSnapshot(db,input);}catch{return false;}
+ const result=await db.query<{id:string;trace:unknown;profile:unknown}>(`
+ SELECT e.id,e.trace,e.runtime_metadata->'profile_observation' AS profile FROM code_executions e
+ WHERE e.user_id=$1 AND e.notebook_id=$2 AND e.source_snapshot=$3::jsonb
+ AND e.state='Succeeded' AND e.failure_code IS NULL AND e.message_id IS NOT NULL
+ AND e.finished_at>=to_timestamp($4/1000.0) AND e.finished_at<=now()
+ AND e.runtime_metadata->>'instance_boot_id'=$5 AND e.runtime_metadata->>'candidate_commit'=$6
+ AND e.runtime_metadata->>'runtime_config_sha256'=$7 AND e.runtime_metadata->>'runtime'='agent-platform-code-execution'
+ AND e.runtime_metadata->'profile_observation'->>'runtime_config_sha256'=$7
+ AND e.runtime_metadata->'profile_observation'->>'machine_config'='default'
+ AND jsonb_array_length(e.trace->'attempts')>0
+ AND (SELECT count(*) FROM code_execution_sandboxes s WHERE s.execution_id=e.id)=jsonb_array_length(e.trace->'attempts')
+ AND NOT EXISTS(SELECT 1 FROM code_execution_sandboxes s WHERE s.execution_id=e.id AND s.state<>'Destroyed')
+ AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(e.trace->'attempts') a WHERE NOT EXISTS(SELECT 1 FROM code_execution_sandboxes s WHERE s.execution_id=e.id AND s.attempt_id::text=a->>'attempt_id' AND s.state='Destroyed'))
+ ORDER BY e.finished_at DESC LIMIT 1`,[input.owner_id,input.notebook_id,JSON.stringify(input.sources),input.observed_after,input.instance_boot_id,input.candidate_commit,input.runtime_config_sha256]);
+ const row=result.rows[0];if(!row)return false;
+ const trace=CodeExecutionTraceSchema.safeParse(row.trace),profile=row.profile as {observed_at?:unknown};
+ if(!trace.success||trace.data.execution_id!==row.id||trace.data.state!=='Succeeded'||!trace.data.attempts.every(a=>a.ended_at!==null&&a.terminal_reason!==null))return false;
+ const observed=typeof profile?.observed_at==='string'?Date.parse(profile.observed_at):NaN;
+ if(!Number.isFinite(observed)||observed<input.observed_after||observed>Date.now())return false;
+ try{await verifyScopeSnapshot(db,input);return true;}catch{return false;}
 }

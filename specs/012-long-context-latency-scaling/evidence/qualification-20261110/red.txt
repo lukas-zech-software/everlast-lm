@@ -1,0 +1,32 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-qualification-20261110
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (7 tests | 1 failed) 39ms
+   × NFR-PERF-01 operational signed approval invokes actual ports only after exact boot/scope binding; missing/failed/stale/timeout stays unavailable 6ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 operational signed approval invokes actual ports only after exact boot/scope binding; missing/failed/stale/timeout stays unavailable
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ apps/api/test/benchmark-readiness.test.ts:94:55
+     92|  expect(await invoke({...plan(),instance_boot_id:randomUUID()})).toBe(…
+     93|  expect(await invoke({...plan(),expires_at:Date.now()-1})).toBe(false)…
+     94|  const accepted=plan();expect(await invoke(accepted)).toBe(true);expec…
+       |                                                       ^
+     95|  expect(await invoke(accepted)).toBe(false);expect(calls).toBe(8);
+     96|  expect(await recorder.refreshOperational({payload:JSON.stringify(plan…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 6 passed (7)
+   Start at  15:35:45
+   Duration  418ms (transform 50%, import 37%, tests 12%, worker 2%)

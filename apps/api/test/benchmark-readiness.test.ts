@@ -1,5 +1,7 @@
-import { describe,expect,it } from 'vitest';
-import { classifyReadiness, PrivateBenchmarkRecorder } from '../src/observability/benchmark.ts';
+import { describe,expect,it,vi } from 'vitest';
+import { classifyReadiness, PrivateBenchmarkRecorder, OPERATIONAL_PROVIDER_BUDGET } from '../src/observability/benchmark.ts';
+const cacheSdk=vi.hoisted(()=>({embed:vi.fn(),options:vi.fn(),countTokens:vi.fn(),create:vi.fn(),delete:vi.fn()}));
+vi.mock('@google/genai',async importOriginal=>({...await importOriginal<typeof import('@google/genai')>(),GoogleGenAI:class{constructor(options:unknown){cacheSdk.options(options);}models={countTokens:cacheSdk.countTokens,embedContent:cacheSdk.embed};caches={create:cacheSdk.create,delete:cacheSdk.delete};}}));
 const evidence={instance_boot_id:'boot',revision:'rev',ready_at_ms:90,dependencies:{sql:true,model:true,retrieval:true,cache:true,migrations:true,recovery:true}};
 describe('NFR-PERF-01 D17 prospective serving-instance readiness',()=>{
  it('requires same boot/revision and every dependency before submission, including uncertainty',()=>{
@@ -68,6 +70,7 @@ it('FR-GC-08 NFR-PERF-01 binds canonical private trace, requires actual dependen
  const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[notebook,other],revision:'local',sink:()=>{},executionEvidence:{file,metadata,runtime,calibration,qualification}});
  const input={notebook_id:notebook,owner_id:owner,request_id:request,source_snapshot:[{source_id:source,revision:1}]};
  try{
+  expect(recorder.executionIdentity(notebook)).toBeDefined();expect(recorder.executionIdentity(randomUUID())).toBeUndefined();
   expect(recorder.beginExecution(input)).toBeUndefined(); // constructor/configuration never qualifies.
   await recorder.qualifyDependencies({sql:async()=>true,model:async()=>true,retrieval:async()=>true,cache:async()=>true,migrations:async()=>true,recovery:async()=>true});
   const span=recorder.beginExecution(input)!;expect(span).toBeDefined();
@@ -79,4 +82,76 @@ it('FR-GC-08 NFR-PERF-01 binds canonical private trace, requires actual dependen
   expect(readFileSync(file,'utf8')).not.toContain('reasoningEngines');
   expect(recorder.beginExecution({...input,notebook_id:randomUUID()})).toBeUndefined();
  }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+it('NFR-PERF-01 operational signed approval invokes actual ports only after exact boot/scope binding; missing/failed/stale/timeout stays unavailable',async()=>{
+ const {generateKeyPairSync,sign,randomUUID}=await import('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ed25519');
+ const key=publicKey.export({type:'spki',format:'pem'}).toString(),a=randomUUID(),b=randomUUID();
+ const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[a,b],revision:'serving',sink:()=>{}});
+ await recorder.qualifyDependencies({sql:async()=>true,migrations:async()=>true,recovery:async()=>true});
+ const plan=()=>({id:randomUUID(),instance_boot_id:recorder.readiness().instance_boot_id,revision:'serving',issued_at:Date.now()-5,expires_at:Date.now()+60000,timeout_ms:50,operations:['retrieval','model','cache','runtime_observation'],actors:[a,b].map(notebook_id=>({owner_id:randomUUID(),notebook_id,sources:[{source_id:randomUUID(),revision:1}]}))});
+ let calls=0;const probe=async()=>{calls++;};const ports={retrieval:probe,model:probe,cache:probe,runtime_observation:probe};
+ const invoke=(body:unknown,p=ports)=>{const payload=JSON.stringify(body);return recorder.refreshOperational({payload,signature:sign(null,Buffer.from(payload),privateKey).toString('base64'),publicKey:key,ports:p});};
+ expect(await invoke({...plan(),instance_boot_id:randomUUID()})).toBe(false);expect(calls).toBe(0);
+ expect(await invoke({...plan(),expires_at:Date.now()-1})).toBe(false);expect(calls).toBe(0);
+ const accepted=plan();expect(await invoke(accepted)).toBe(true);expect(calls).toBe(8);expect(recorder.readiness().dependencies.model).toBe(true);
+ expect(await invoke(accepted)).toBe(false);expect(calls).toBe(8);
+ expect(await recorder.refreshOperational({payload:JSON.stringify(plan()),signature:'bad',publicKey:key,ports})).toBe(false);expect(calls).toBe(8);
+ expect(await invoke(plan(),{...ports,model:async()=>{throw new Error('actual model failed');}})).toBe(false);expect(recorder.readiness().ready_at_ms).toBeNull();
+ expect(await invoke({...plan(),timeout_ms:5},{...ports,model:()=>new Promise(()=>{})})).toBe(false);expect(recorder.readiness().ready_at_ms).toBeNull();
+});
+
+it('NFR-PERF-01 keeps the effect lock after timeout until an abort-ignoring port actually settles; late success never qualifies',async()=>{
+ const {generateKeyPairSync,sign,randomUUID}=await import('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ed25519');const key=publicKey.export({type:'spki',format:'pem'}).toString();const ids=[randomUUID(),randomUUID()];
+ const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:ids,revision:'r',sink:()=>{}});await recorder.qualifyDependencies({sql:async()=>true,migrations:async()=>true,recovery:async()=>true});
+ const plan=()=>({id:randomUUID(),instance_boot_id:recorder.readiness().instance_boot_id,revision:'r',issued_at:Date.now()-1,expires_at:Date.now()+60000,timeout_ms:5,operations:['retrieval','model','cache','runtime_observation'],actors:ids.map(notebook_id=>({owner_id:randomUUID(),notebook_id,sources:[{source_id:randomUUID(),revision:1}]}))});
+ let release!:()=>void,calls=0;const blocked=new Promise<void>(resolve=>{release=resolve;});const noop=async()=>{};const ports={retrieval:async()=>{calls++;await blocked;},model:noop,cache:noop,runtime_observation:noop};
+ const invoke=()=>{const payload=JSON.stringify(plan());return recorder.refreshOperational({payload,signature:sign(null,Buffer.from(payload),privateKey).toString('base64'),publicKey:key,ports});};
+ expect(await invoke()).toBe(false);expect(calls).toBe(1);expect(await invoke()).toBe(false);expect(calls).toBe(1);
+ release();await new Promise(resolve=>setTimeout(resolve,1));expect(recorder.readiness().ready_at_ms).toBeNull();
+});
+
+it('NFR-PERF-01 private coordinator pins its trust root, binds all configured hashes, refreshes once and expires without public proof',async()=>{
+ const {createHash,generateKeyPairSync,sign,randomUUID}=await import('node:crypto');const {mkdtempSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');const {join}=await import('node:path');const {tmpdir}=await import('node:os');
+ const {publicKey,privateKey}=generateKeyPairSync('ed25519'),rogue=generateKeyPairSync('ed25519');const dir=mkdtempSync(join(tmpdir(),'012-coordinator-')),ids=[randomUUID(),randomUUID()],now=Date.now();
+ const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+ const runtime={reasoning_engine:'projects/test/locations/europe-west4/reasoningEngines/123',region:'europe-west4' as const,vcpu:2 as const,memory_gb:1.5 as const,network:'none' as const,file_io_mb:100 as const,deadline_ms:15000 as const};
+ const calibration={offset_ms:0,uncertainty_ms:1,measured_at_ms:now-10,expires_at_ms:now+60000,measurement_id:'LOCAL clock double'};const qualification='LOCAL port doubles, not deployed acceptance';
+ const metadata={schema_version:1 as const,candidate_commit:'a'.repeat(40),serving_revision:'serving',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness' as const,qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:digest(runtime),clock_calibration_sha256:digest(calibration),approved_notebook_ids:ids};
+ const source='c'.repeat(64),config='d'.repeat(64);
+ const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:ids,revision:'serving',sink:()=>{},sourceTreeSha256:source,operationalConfigSha256:config,executionEvidence:{file:join(dir,'code.json'),metadata,runtime,calibration,qualification}});
+ await recorder.qualifyDependencies({sql:async()=>true,migrations:async()=>true,recovery:async()=>true});
+ writeFileSync(join(dir,'trusted-public-key.pem'),publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
+ let calls=0;const probe=async()=>{calls++;};const ports={retrieval:probe,model:probe,cache:probe,runtime_observation:probe};const stop=recorder.startOperationalCoordinator(dir,ports);
+ const plan=()=>({provider_budget:OPERATIONAL_PROVIDER_BUDGET,...metadata, schema_version:undefined,approved_notebook_ids:undefined,serving_revision:undefined,id:randomUUID(),instance_boot_id:recorder.readiness().instance_boot_id,revision:'serving',issued_at:Date.now()-1,expires_at:Date.now()+5000,timeout_ms:100,source_tree_sha256:source,operational_config_sha256:config,operations:['retrieval','model','cache','runtime_observation'],actors:ids.map(notebook_id=>({owner_id:randomUUID(),notebook_id,sources:[{source_id:randomUUID(),revision:1}]}))});
+ const publish=(body:unknown,key=privateKey)=>{const payload=JSON.stringify(body);writeFileSync(join(dir,'authorization.json'),payload,{mode:0o600});writeFileSync(join(dir,'authorization.sig'),sign(null,Buffer.from(payload),key).toString('base64'),{mode:0o600});};
+ try{
+  const challenge=JSON.parse(readFileSync(join(dir,'challenge.json'),'utf8'));expect(challenge).toMatchObject({source_tree_sha256:source,operational_config_sha256:config});
+  publish(plan(),rogue.privateKey);await new Promise(resolve=>setTimeout(resolve,1100));expect(calls).toBe(0);
+  publish({...plan(),candidate_commit:'b'.repeat(40)});await new Promise(resolve=>setTimeout(resolve,1100));expect(calls).toBe(0);
+  const accepted=plan();publish(accepted);await new Promise(resolve=>setTimeout(resolve,1100));expect(calls).toBe(8);
+  const status=JSON.parse(readFileSync(join(dir,'status.json'),'utf8'));expect(status).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
+  await new Promise(resolve=>setTimeout(resolve,1100));expect(calls).toBe(8);
+  const actor=accepted.actors[0]!;expect(recorder.beginExecution({notebook_id:actor.notebook_id,owner_id:actor.owner_id,request_id:randomUUID(),source_snapshot:actor.sources})).toBeDefined();
+  expect(recorder.beginExecution({notebook_id:actor.notebook_id,owner_id:randomUUID(),request_id:randomUUID(),source_snapshot:actor.sources})).toBeUndefined();
+  const clock=vi.spyOn(Date,'now').mockReturnValue(accepted.expires_at+1);try{expect(recorder.readiness().ready_at_ms).toBeNull();}finally{clock.mockRestore();}
+ }finally{stop();rmSync(dir,{recursive:true,force:true});}
+ expect(recorder.readiness().ready_at_ms).toBeNull();
+},10000);
+
+it('NFR-PERF-01 API-owned cache adapter counts actual scoped bytes and enforces a finite provider TTL without worker imports (SDK double)',async()=>{
+ const {createOperationalCacheFromEnv}=await import('../src/observability/benchmark.ts');const {randomUUID}=await import('node:crypto');
+ cacheSdk.countTokens.mockResolvedValue({totalTokens:100});cacheSdk.create.mockResolvedValue({name:'LOCAL-private-cache',expireTime:new Date(Date.now()+60000).toISOString()});
+ const cache=createOperationalCacheFromEnv({VERTEX_PROJECT:'local-fixture',VERTEX_LOCATION:'europe-west4'});
+ const pages=[[{chunk_id:randomUUID(),source_id:randomUUID(),revision:1,text:'Original scoped fact.',token_count:4,locator:{page_number:1,start_offset:0,end_offset:21}}]];
+ const result=await cache.create({pages,signal:new AbortController().signal});expect(result.handle).toBe('LOCAL-private-cache');expect(cacheSdk.create.mock.calls[0]?.[0].config.ttl).toBe('60s');expect(JSON.stringify(cacheSdk.countTokens.mock.calls[0])).toContain('Original scoped fact.');
+ cacheSdk.countTokens.mockResolvedValue({totalTokens:1048576});await expect(cache.create({pages,signal:new AbortController().signal})).rejects.toThrow(/envelope/);
+ expect(cacheSdk.create).toHaveBeenCalledTimes(1);await cache.delete(result.handle);expect(cacheSdk.delete).toHaveBeenCalledWith({name:result.handle});
+});
+
+it('NFR-PERF-01 signed retrieval setup limits actual embedding RPC attempts and carries abort, preserving ordinary retry defaults (SDK double)',async()=>{
+ const {VertexEmbedder,createVertexClient}=await import('@everlast/cloud');
+ const embedder:any=new VertexEmbedder({client:createVertexClient({project:'local',location:'europe-west4'})});cacheSdk.embed.mockReset();cacheSdk.embed.mockRejectedValue(Object.assign(new Error('provider429'),{status:429}));
+ const signal=new AbortController().signal;vi.useFakeTimers();
+ try{const pending=expect(embedder.embed(['setup'],'RETRIEVAL_QUERY',{signal,maxAttempts:1})).rejects.toThrow('provider429');await vi.runAllTimersAsync();await pending;expect(cacheSdk.embed).toHaveBeenCalledTimes(1);expect(cacheSdk.embed.mock.calls[0]?.[0].config.abortSignal).toBe(signal);}finally{vi.useRealTimers();}
 });

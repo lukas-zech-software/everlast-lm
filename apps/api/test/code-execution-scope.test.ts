@@ -9,6 +9,7 @@ import { uuidv7 } from "@everlast/contracts";
 import { seedReadySource } from "@everlast/db/testing";
 import {
   claimSourceOperation,
+  hasOperationalExecutionEvidence,
   commitSyncReplacement,
   deleteSource,
   requestSourceSync,
@@ -51,7 +52,9 @@ class ScriptedModel implements GroundedModel {
 // NFR-PERF-01 observer double only; no release qualification or private-file proof is claimed.
 const observedTraces:unknown[]=[];
 const benchmark=new PrivateBenchmarkRecorder({approved_notebook_ids:[],revision:'local',sink:()=>{}});
+benchmark.executionIdentity=()=>proofIdentity;
 benchmark.beginExecution=()=>({timing:()=>{},finish:trace=>{observedTraces.push(structuredClone(trace));}});
+const proofIdentity={instance_boot_id:randomUUID(),candidate_commit:'a'.repeat(40),runtime_config_sha256:'b'.repeat(64)};
 let api: TestApi;
 let storage: LocalObjectStorage;
 const model = new ScriptedModel();
@@ -102,7 +105,7 @@ beforeAll(async () => {
         benchmark,
         embedder,
         model,
-        codeExecution: { runtime: sandbox, storage },
+        codeExecution: {runtime:{id:'agent-platform-code-execution',create:async(id,signal)=>({...await sandbox.create(),profileObservation:{...proofIdentity,observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args)=>sandbox.execute(...args),destroy:(...args)=>sandbox.destroy(...args)},storage},
         resolvePreferences: (ownerId, notebookId, locale) => v2.chatPreferences(ownerId, notebookId, locale),
       }),
     };
@@ -467,3 +470,81 @@ describe("T032 overview/follow-up cache-key composition and provenance-eligible 
     expect(selectEligibleHistory(messages, [{ source_id: s1, revision: 2 }])).toEqual([]);
   });
 });
+
+it('FR-GC-08 NFR-PERF-01 canonical operational proof binds actual stored profile/boot/scope and confirmed cleanup',async()=>{
+ const nb=await createOwnedNotebook('operational-proof');const src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
+ const since=Date.now()-1000;const outcome=await turn('operational-proof',nb.id,[src.sourceId]);expect(outcome.final).not.toBeNull();
+ const input={...proofIdentity,owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}],observed_after:since};
+ expect(await hasOperationalExecutionEvidence(api.db.pool,input)).toBe(true);
+ expect(await hasOperationalExecutionEvidence(api.db.pool,{...input,instance_boot_id:randomUUID()})).toBe(false);
+ expect(await hasOperationalExecutionEvidence(api.db.pool,{...input,sources:[{source_id:src.sourceId,revision:2}]})).toBe(false);
+ await api.db.pool.query("UPDATE code_execution_sandboxes SET state='DestroyPending' WHERE notebook_id=$1",[nb.id]);
+ expect(await hasOperationalExecutionEvidence(api.db.pool,input)).toBe(false);
+});
+
+it('NFR-PERF-01 actual API-owned operational adapters read scoped data and clean a cache created after cancellation (LOCAL model/cache doubles)',async()=>{
+ const {createOperationalProbePorts}=await import('../src/services/source-context.ts');
+ const nb=await createOwnedNotebook('operational-adapters'),src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
+ const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[nb.id],revision:'local',sink:()=>{}});
+ // Observer/identity seam only for this LOCAL adapter integration; no deployed qualification is claimed.
+ recorder.executionIdentity=()=>proofIdentity;
+ const actor={owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}]};
+ const signal=new AbortController().signal,deleted:string[]=[];
+ const scripted={id:'LOCAL-factual-port',generate:async(input:GroundedModelInput)=>({status:'answered' as const,sentences:[{kind:'claim' as const,text:'The source contains latency data.',citations:[input.chunks[0]!.chunk_id]}]})};
+ const cache={identity:'LOCAL cache double',create:async({pages}:{pages:unknown[]})=>{expect(pages.length).toBeGreaterThan(0);return {handle:'LOCAL-private-cache',expiresAt:Date.now()+60000};},delete:async(handle:string)=>{deleted.push(handle);}};
+ const ports=createOperationalProbePorts({pool:api.db.pool,benchmark:recorder,model:scripted,embedder,cache});
+ await expect(ports.runtime_observation(actor,signal)).rejects.toThrow(/lifecycle/);
+ expect((await turn('operational-adapters',nb.id,[src.sourceId])).final).not.toBeNull();
+ await ports.runtime_observation(actor,signal);await ports.retrieval(actor,signal);await ports.model(actor,signal);await ports.cache(actor,signal);
+ expect(deleted).toEqual(['LOCAL-private-cache']);
+ let release!:(value:{handle:string;expiresAt:number})=>void,started!:()=>void;const entered=new Promise<void>(resolve=>{started=resolve;});
+ const late=createOperationalProbePorts({pool:api.db.pool,benchmark:recorder,model:scripted,embedder,cache:{...cache,create:async()=>{started();return new Promise(resolve=>{release=resolve;});}}});
+ await late.retrieval(actor,signal);const controller=new AbortController(),pending=late.cache(actor,controller.signal);await entered;controller.abort();release({handle:'LOCAL-late-cache',expiresAt:Date.now()+60000});
+ await expect(pending).rejects.toThrow();expect(deleted).toContain('LOCAL-late-cache');
+ await expect(ports.retrieval({...actor,sources:[{source_id:src.sourceId,revision:2}]},signal)).rejects.toThrow(/revision/);
+});
+
+it('FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or optional failure write to ordinary execution',async()=>{
+ const disabled=await startTestApi({},db=>({embedder,storage,chat:new ChatService({pool:db.pool,embedder,model,codeExecution:{runtime:{id:'agent-platform-code-execution',create:async()=>({...await sandbox.create(),profileObservation:{...proofIdentity,observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args)=>sandbox.execute(...args),destroy:(...args)=>sandbox.destroy(...args)},storage}})}));
+ try{
+  const notebookResponse=await disabled.fetch('/api/notebooks',{method:'POST',as:'disabled-proof',json:{}});const notebook=(await notebookResponse.json()).notebook.id;
+  const owner=(await disabled.db.pool.query("SELECT id FROM users WHERE subject='local:disabled-proof'")).rows[0].id;
+  const src=await seedReadySource(disabled.db.pool,owner,notebook,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
+  const response=await disabled.fetch(`/api/notebooks/${notebook}/chat/turns`,{method:'POST',as:'disabled-proof',json:{message:POPULATION_STDDEV_QUESTION,active_source_ids:[src.sourceId],request_id:randomUUID()}});
+  expect(await response.text()).toContain('event: final');
+  const row=(await disabled.db.pool.query('SELECT runtime_metadata FROM code_executions WHERE notebook_id=$1',[notebook])).rows[0];expect(row.runtime_metadata.profile_observation).toBeUndefined();expect(row.runtime_metadata.instance_boot_id).toBeUndefined();
+ }finally{await disabled.close();}
+});
+
+it('NFR-PERF-01 actual server wiring stays disabled without authorization, then executes signed private adapters with LOCAL providers and no extra benchmark override',async()=>{
+ const {startApiServer}=await import('../src/server.ts');const {OPERATIONAL_PROVIDER_BUDGET}=await import('../src/observability/benchmark.ts');
+ const {generateKeyPairSync,sign,createHash}=await import('node:crypto');const {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');
+ const dir=mkdtempSync(join(tmpdir(),'012-server-')),channel=join(dir,'private'),publicDir=join(dir,'public');mkdirSync(channel,{mode:0o700});mkdirSync(publicDir);
+ const actors=[];
+ for(const who of ['server-proof-a','server-proof-b']){const nb=await createOwnedNotebook(who),src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});actors.push({who,owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}]});}
+ const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');const runtimeConfig={reasoning_engine:'projects/test/locations/europe-west4/reasoningEngines/123',region:'europe-west4',vcpu:2,memory_gb:1.5,network:'none',file_io_mb:100,deadline_ms:15000};
+ const calibration={offset_ms:0,uncertainty_ms:1,measured_at_ms:Date.now()-10,expires_at_ms:Date.now()+60000,measurement_id:'LOCAL clock double'},qualification='LOCAL provider doubles; not release evidence';
+ const metadata={schema_version:1,candidate_commit:'a'.repeat(40),serving_revision:'server-test',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness',qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:hash(runtimeConfig),clock_calibration_sha256:hash(calibration),approved_notebook_ids:actors.map(a=>a.notebook_id)};
+ const configFile=join(channel,'execution-config.json');writeFileSync(configFile,JSON.stringify({file:join(channel,'code.json'),metadata,runtime:runtimeConfig,calibration,qualification}),{mode:0o600});
+ const keys=generateKeyPairSync('ed25519');writeFileSync(join(channel,'trusted-public-key.pem'),keys.publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
+ let modelProbes=0,cacheCreates=0,cacheDeletes=0;
+ const servingModel:GroundedModel={id:'LOCAL-serving-model',generate:async input=>{if(input.operationalProbe){modelProbes++;return {status:'answered',sentences:[{kind:'claim',text:'The source contains latency data.',citations:[input.chunks[0]!.chunk_id]}]};}return latencyComputeDraft(input.chunks,'pstdev');}};
+ const localRuntime={id:'agent-platform-code-execution',create:async()=>({...await sandbox.create(),profileObservation:{runtime_config_sha256:hash(runtimeConfig),observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args:Parameters<typeof sandbox.execute>)=>sandbox.execute(...args),destroy:(...args:Parameters<typeof sandbox.destroy>)=>sandbox.destroy(...args)};
+ const localCache={identity:'LOCAL cache double',create:async()=>{cacheCreates++;return {handle:'LOCAL-cache',expiresAt:Date.now()+60000};},delete:async()=>{cacheDeletes++;}};
+ const env={NODE_ENV:'test',AUTH_MODE:'local',PORT:'0',V2_POC:'off',EVERLAST_DEV_TEST_EMBEDDER:'1',WEB_DIST_DIR:publicDir,BENCHMARK_APPROVED_NOTEBOOKS:actors.map(a=>a.notebook_id).join(','),BENCHMARK_EXECUTION_CONFIG_FILE:configFile,BENCHMARK_EVIDENCE_FILE:join(channel,'records.jsonl'),CODE_EXECUTION_ENABLED:'true',CODE_EXECUTION_REASONING_ENGINE:runtimeConfig.reasoning_engine,COMMIT_SHA:metadata.candidate_commit,K_REVISION:metadata.serving_revision};
+ const extra={pool:api.db.pool,embedder,storage,v2:api.deps.v2};let running:Awaited<ReturnType<typeof startApiServer>>|undefined;
+ const close=async()=>{if(running){const current=running;running=undefined;await new Promise<void>(resolve=>current.server.close(()=>resolve()));}};
+ try{
+  running=await startApiServer(env,extra,{model:servingModel,runtime:localRuntime,cache:localCache});expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();expect(modelProbes+cacheCreates).toBe(0);await close();
+  running=await startApiServer({...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache});
+  await new Promise(resolve=>setTimeout(resolve,1100));expect(modelProbes+cacheCreates).toBe(0);
+  const port=(running.server.address() as {port:number}).port;
+  for(const actor of actors){const token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');}
+  const challenge=JSON.parse(readFileSync(join(channel,'challenge.json'),'utf8'));
+  const plan={id:randomUUID(),instance_boot_id:challenge.instance_boot_id,revision:metadata.serving_revision,candidate_commit:metadata.candidate_commit,fixture_sha256:metadata.fixture_sha256,classification_basis:metadata.classification_basis,runtime_config_sha256:metadata.runtime_config_sha256,clock_calibration_sha256:metadata.clock_calibration_sha256,qualification_sha256:metadata.qualification_sha256,source_tree_sha256:challenge.source_tree_sha256,operational_config_sha256:challenge.operational_config_sha256,provider_budget:OPERATIONAL_PROVIDER_BUDGET,issued_at:Date.now()-1,expires_at:Date.now()+30000,timeout_ms:10000,operations:['retrieval','model','cache','runtime_observation'],actors:actors.map(({who:_who,...actor})=>actor)};
+  const payload=JSON.stringify(plan);writeFileSync(join(channel,'authorization.json'),payload,{mode:0o600});writeFileSync(join(channel,'authorization.sig'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});
+  await new Promise(resolve=>setTimeout(resolve,1500));expect(running.deps.benchmark!.readiness().ready_at_ms).not.toBeNull();expect({modelProbes,cacheCreates,cacheDeletes}).toEqual({modelProbes:2,cacheCreates:2,cacheDeletes:2});
+  expect(JSON.parse(readFileSync(join(channel,'status.json'),'utf8'))).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
+  const recorder=running.deps.benchmark!;await close();expect(recorder.readiness().ready_at_ms).toBeNull();
+ }finally{await close();rmSync(dir,{recursive:true,force:true});}
+},20000);

@@ -12,6 +12,8 @@ import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, 
  */
 
 export interface GroundedModelInput {
+  /** Trusted private setup only; never copied from public request DTOs. */
+  operationalProbe?: boolean | undefined;
   question: string;
   chunks: UnifiedDocumentChunk[];
   history: HistoryTurn[];
@@ -66,6 +68,9 @@ export interface AdkModelConfig {
   codeExecution?: boolean;
 }
 
+class SingleAttemptGemini extends Gemini {
+  protected override getHttpOptions(){return {...super.getHttpOptions(),retryOptions:{attempts:1}};}
+}
 export class AdkGroundedModel implements GroundedModel {
   readonly id: string;
   private readonly runner: InMemoryRunner;
@@ -77,9 +82,17 @@ export class AdkGroundedModel implements GroundedModel {
     this.id = `vertex:${config.location}:${config.model}`;
     this.timeoutMs = config.timeoutMs ?? 60_000;
     // Explicit vertexai + project + location: the SDK uses ADC and ignores any API key in the environment.
-    this.llm = new Gemini({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    this.llm = new SingleAttemptGemini({ model: config.model, vertexai: true, project: config.project, location: config.location });
     const agent = new LlmAgent({
       name: "grounded_chat",
+      beforeModelCallback:({context,request})=>{
+        if(context.state.get('operational_probe')!==true)return undefined;
+        const calls=Number(context.state.get('operational_model_calls')??0);if(calls>=1)throw new ModelUnavailableError('Operational model RPC budget exceeded');
+        context.state.set('operational_model_calls',calls+1);
+        if(Buffer.byteLength(JSON.stringify({contents:request.contents,config:request.config}))>100000)throw new ModelUnavailableError('Operational complete model byte budget exceeded');
+        request.config={...request.config,maxOutputTokens:512,httpOptions:{...request.config?.httpOptions,retryOptions:{attempts:1}}};
+        return undefined;
+      },
       description: "Answers strictly from scoped source chunks with chunk-level citations.",
       model: this.llm,
       instruction: (context) => {
@@ -153,7 +166,7 @@ export class AdkGroundedModel implements GroundedModel {
     input.signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const userId = "chat";
-      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID(), state: { response_length: input.preferences?.response_length ?? "default" } });
+      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID(), state: { response_length: input.preferences?.response_length ?? "default", operational_probe:input.operationalProbe??false,operational_model_calls:0 } });
       let text = "";
       for await (const event of this.runner.runAsync({
         userId,
