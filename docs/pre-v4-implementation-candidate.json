@@ -8,8 +8,8 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-resume-20261110",
-  "integrated_checkpoint": "b1c9df7e52d85b02463c3d3cfb8ebf9076bc7649",
+  "coordinator_branch": "codex/pre-v4-resume-20261110b",
+  "integrated_checkpoint": "14217ea0f0f7f7e7d392ee726dfece28cd5f8c0a",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -155,8 +155,10 @@
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
-  "active_package_agents": [],
-  "refreshed_main": "1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f",
+  "active_package_agents": [
+    "/root/package_011"
+  ],
+  "refreshed_main": "c7f9b5f3e5b33770f5372f532cf231b3d3e331a3",
   "global_architecture_status": {
     "dependency_findings": 0,
     "artifact_findings": 0,
@@ -164,7 +166,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": "User cutoff observed: 10% five-hour remaining /30% weekly",
+  "stop_reason": null,
   "goal_complete": false,
   "published_changes": [
     {
@@ -174,5 +176,18 @@
       "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
     }
   ],
-  "next_package": "011-studio-mindmaps-data-tables"
+  "next_package": "012-long-context-latency-scaling after011 fully finishes",
+  "usage_observation": {
+    "five_hour_remaining_percent": 70,
+    "weekly_remaining_percent": 24,
+    "note": "Continuing above cutoff; no reset credits used. Snapshot only, recheck before continuation."
+  },
+  "pending_publication": {
+    "pr": 188,
+    "head": "2c54da370fad8abba7ba6bc133532c75927bbcd0",
+    "scope": "README/journal acceptance wording only",
+    "ci": "PASS",
+    "spec_integrity": "PASS",
+    "merge_authorization": "Pending separate explicit user approval; PR174 approval does not extend to188."
+  }
 }
