@@ -1,0 +1,45 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-011-20261110
+
+ ❯ |unit| apps/api/test/studio-table-export-numeric.test.ts (8 tests | 2 failed) 70ms
+   ❯ [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations (8)
+     × retains per-alternative conflict association, missing semantics, and header/row references separately 4ms
+     × keeps conflict alternatives unambiguous when canonical text contains separators, quotes or newlines 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > retains per-alternative conflict association, missing semantics, and header/row references separately
+AssertionError: expected '[Conflict] -12.5 | =2+2' to be '[Conflict] ["-12.5","=2+2"]' // Object.is equality
+
+Expected: "[Conflict] ["-12.5","=2+2"]"
+Received: "[Conflict] -12.5 | =2+2"
+
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:61:34
+     59|     p.rows[1]!.cells.amount = { state: "missing", display_text: "N/A (…
+     60|     const grid = buildDataTableExportGrid(p);
+     61|     expect(grid.dataRows[0]![4]).toBe('[Conflict] ["-12.5","=2+2"]' );…
+       |                                  ^
+     62|     expect(grid.dataRows[1]!.slice(4)).toEqual(["N/A (Not in sources)"…
+     63|     expect(grid.dataRows[0]!.slice(0, 2)).toEqual(["'+Item 0", "[3]"]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |unit| apps/api/test/studio-table-export-numeric.test.ts > [011-studio-mindmaps-data-tables] T062 numeric downloads and independent citations > keeps conflict alternatives unambiguous when canonical text contains separators, quotes or newlines
+SyntaxError: Unexpected token 'A', "A | B | "quoted"
+C" is not valid JSON
+ ❯ apps/api/test/studio-table-export-numeric.test.ts:90:17
+     88|     p.rows[0]!.cells.amount = { state: "conflict", display_text: "Conf…
+     89|     const records = parseCsv(serializeDataTableCsv(p));
+     90|     expect(JSON.parse(records[1]![4]!.slice("[Conflict] ".length))).to…
+       |                 ^
+     91|     expect(records[1]![5]).toBe("1: [1] | 2: [2]");
+     92|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 6 passed (8)
+   Start at  14:54:48
+   Duration  346ms (import 61%, tests 26%, transform 11%, worker 1%)
+

@@ -14,6 +14,8 @@ export interface MindmapFrameSample {
   frame_index: number;
   operation: "pan" | "zoom" | "expand" | "collapse";
   node_count: number;
+  rendered_nodes_before?: number;
+  rendered_nodes_after?: number;
   duration_ms: number;
   dropped: boolean;
 }
@@ -37,6 +39,18 @@ export function evaluateMindmapFrameSamples(
       `Mindmap frame benchmark requires at least ${MINDMAP_MIN_FRAME_SAMPLES} frame samples (received ${samples.length}).`
     );
   }
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("Invalid frame budget");
+  const identities = new Set<number>();
+  const operations = new Set<string>();
+  for (const sample of samples) {
+    if (!Number.isInteger(sample.frame_index) || sample.frame_index < 1 || identities.has(sample.frame_index)) throw new Error("Expected unique positive frame indices; duplicate index");
+    identities.add(sample.frame_index);
+    if (sample.node_count !== 120) throw new Error("The declared viewer benchmark requires 120 nodes");
+    if (!["pan", "zoom", "expand", "collapse"].includes(sample.operation)) throw new Error("Invalid frame operation");
+    operations.add(sample.operation);
+    if (!Number.isFinite(sample.duration_ms) || sample.duration_ms < 0 || typeof sample.dropped !== "boolean") throw new Error("Invalid frame duration or dropped flag");
+  }
+  if (operations.size !== 4) throw new Error("Frame population must include all four operations");
   const durations = samples.map((s) =>
     !Number.isFinite(s.duration_ms) || s.duration_ms < 0 ? Number.POSITIVE_INFINITY : s.duration_ms
   );
@@ -51,7 +65,7 @@ export function evaluateMindmapFrameSamples(
     max_frame_ms: max,
     estimated_fps: p95 <= budgetMs ? 60 : fps,
     budget_ms: budgetMs,
-    passed: Number.isFinite(p95) && p95 <= budgetMs && !samples.some((s) => s.dropped && s.duration_ms > budgetMs),
+    passed: Number.isFinite(p95) && p95 <= budgetMs && !samples.some((s) => s.dropped),
     samples: [...samples],
   };
 }
@@ -181,6 +195,35 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
     options.onExport?.("png", [...visibleIds]);
   });
 
+  // Pan from the canvas background only: dragging a factual node must not create a chat turn (FR-ST-09).
+  let pan: { pointerId: number; clientX: number; clientY: number; x: number; y: number } | null = null;
+  sceneHost.style.touchAction = "none";
+  sceneHost.style.cursor = "grab";
+  const pointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || (event.target as Element | null)?.closest?.("button")) return;
+    pan = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: transform.x, y: transform.y };
+    if (event.isTrusted) sceneHost.setPointerCapture?.(event.pointerId);
+    sceneHost.style.cursor = "grabbing";
+    event.preventDefault();
+  };
+  const pointerMove = (event: PointerEvent) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    transform = { ...transform, x: pan.x + event.clientX - pan.clientX, y: pan.y + event.clientY - pan.clientY };
+    applyTransform();
+    event.preventDefault();
+  };
+  const pointerEnd = (event: PointerEvent) => {
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    if (sceneHost.hasPointerCapture?.(event.pointerId)) sceneHost.releasePointerCapture(event.pointerId);
+    pan = null;
+    sceneHost.style.cursor = "grab";
+  };
+  sceneHost.addEventListener("pointerdown", pointerDown);
+  sceneHost.addEventListener("pointermove", pointerMove);
+  sceneHost.addEventListener("pointerup", pointerEnd);
+  sceneHost.addEventListener("pointercancel", pointerEnd);
+  sceneHost.addEventListener("lostpointercapture", pointerEnd);
+
   const toggleSubtree = (node: MindmapNode) => {
     const anyChildVisible = node.children.some((c) => visibleIds.has(c.id));
     if (anyChildVisible) {
@@ -285,6 +328,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
       class: "studio-mindmap-viewer",
       "data-testid": "studio-mindmap-viewer",
       "data-artifact-id": options.artifactId,
+      "data-node-count": String(payload.node_count),
     },
     h("div", { class: "studio-viewer-head" }, ...headItems),
     aiBadge,
@@ -305,6 +349,12 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
       applyTransform();
     },
     destroy() {
+      sceneHost.removeEventListener("pointerdown", pointerDown);
+      sceneHost.removeEventListener("pointermove", pointerMove);
+      sceneHost.removeEventListener("pointerup", pointerEnd);
+      sceneHost.removeEventListener("pointercancel", pointerEnd);
+      sceneHost.removeEventListener("lostpointercapture", pointerEnd);
+      pan = null;
       clear(sceneHost);
     },
   };

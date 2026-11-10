@@ -156,7 +156,7 @@ Das Studio ist eine dedizierte Werkzeugleiste zur asynchronen Generierung komple
 #### 3.5.6 Präsentationen, Infografiken & Datentabellen
 * **FR-ST-16 (Slide Decks):** Generierung strukturierter Präsentationsfolien (Titel, Bullet-Points, visuelle Layouts, Sprechernotizen) mit Exportmöglichkeit (PPTX / PDF; Google Slides ist gemäß D8/DEV-02 zurückgestellt). → FR-Karte: [FR-ST-16](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-16--studio-slide-decks-with-pptx--pdf-export)
 * **FR-ST-17 (Infografiken):** Generierung visueller Übersichten und Prozessgrafiken zu Kernaussagen der Quellen. → FR-Karte: [FR-ST-17](requirements/v4/package_4_2_studio_visuals_presentations.md#fr-st-17--studio-visual-infographics)
-* **FR-ST-18 (Data Tables):** Gezielte Extraktion strukturierter Daten, Vergleiche und Metriken über mehrere Dokumente hinweg in ein interaktives Tabellenformat (inkl. CSV-/Excel-Export). → FR-Karte: [FR-ST-18](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-18--studio-structured-data-tables--csvxlsx-export)
+* **FR-ST-18 (Data Tables):** Gezielte Extraktion strukturierter Daten, Vergleiche und Metriken über mehrere Dokumente hinweg in ein interaktives Tabellenformat (inkl. CSV-/Excel-Export). → FR-Karte: [FR-ST-18](requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md#fr-st-18--studio-structured-data-tables--csvxlsx-export) Numeric CSV/XLSX downloads preserve supported numeric values and separate citation columns; canonical table payloads remain unchanged. Unsafe or lossy numeric-looking values remain inert text; conflict alternatives keep individual references (owner decision 2026-11-06, #153).
 
 ---
 
