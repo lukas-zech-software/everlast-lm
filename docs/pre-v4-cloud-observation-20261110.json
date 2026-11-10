@@ -1,0 +1,84 @@
+{
+  "record_type": "read_only_cloud_observation_not_release_acceptance",
+  "date": "2026-11-10",
+  "traceability": [
+    "CC-06",
+    "CC-08",
+    "NFR-PERF-01",
+    "Gate v3.0"
+  ],
+  "project": "lukas-gcloud-playground",
+  "region": "europe-west4",
+  "resources": [
+    {
+      "metadata": {
+        "name": "everlast-dev-api"
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [
+              {
+                "image": "europe-west4-docker.pkg.dev/lukas-gcloud-playground/everlast-dev-containers/everlast:51f78ab"
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "latestReadyRevisionName": "everlast-dev-api-00013-kzh",
+        "traffic": [
+          {
+            "latestRevision": true,
+            "percent": 100,
+            "revisionName": "everlast-dev-api-00013-kzh"
+          }
+        ]
+      }
+    },
+    {
+      "metadata": {
+        "name": "everlast-dev-worker"
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [
+              {
+                "image": "europe-west4-docker.pkg.dev/lukas-gcloud-playground/everlast-dev-containers/everlast:51f78ab"
+              }
+            ]
+          }
+        }
+      },
+      "status": {
+        "latestReadyRevisionName": "everlast-dev-worker-00009-5m2",
+        "traffic": [
+          {
+            "latestRevision": true,
+            "percent": 100,
+            "revisionName": "everlast-dev-worker-00009-5m2"
+          }
+        ]
+      }
+    },
+    {
+      "databaseVersion": "POSTGRES_16",
+      "name": "everlast-dev-pg",
+      "region": "europe-west4",
+      "settings": {
+        "activationPolicy": "NEVER",
+        "userLabels": {
+          "app": "everlast-lm",
+          "environment": "dev",
+          "managed_by": "opentofu",
+          "release": "v1-0"
+        }
+      },
+      "state": "STOPPED"
+    }
+  ],
+  "mutations": false,
+  "conclusion": "Existing API/worker still use historical image51f78ab; SQL is STOPPED/NEVER. Ready revision metadata is not dependency readiness. No current immutable pre-V4 candidate is deployed or accepted.",
+  "next": "Prepare exact target-platform immutable images, saved resource/configuration plan, activation/rollback window and bounded approved workload after package012 local completion; obtain applicable owner approval before cloud changes/paid runs."
+}

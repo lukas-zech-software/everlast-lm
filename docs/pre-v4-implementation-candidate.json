@@ -215,5 +215,6 @@
     "ci": "PASS",
     "spec_integrity": "PASS",
     "merge_authorization": "Pending separate explicit user approval; PR174 approval does not extend to188."
-  }
+  },
+  "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json"
 }
