@@ -48,6 +48,12 @@ function checkExecutionConfig(config:ExecutionEvidenceConfig,revision:string){
  if(!Number.isFinite(clock.offset_ms)||!Number.isFinite(clock.uncertainty_ms)||clock.uncertainty_ms<0||clock.uncertainty_ms>1000||!Number.isFinite(clock.measured_at_ms)||clock.measured_at_ms<0||clock.measured_at_ms>Date.now()||!Number.isFinite(clock.expires_at_ms)||clock.expires_at_ms<=Date.now()||typeof clock.measurement_id!=='string'||!clock.measurement_id||clock.measurement_id.length>200)throw new Error('Private execution calibration unavailable');
  readPrivateFile(config.file);return meta;
 }
+export interface OperationalProbePorts {
+ retrieval:(actor:{owner_id:string;notebook_id:string;sources:{source_id:string;revision:number}[]},signal:AbortSignal)=>Promise<void>;
+ model:OperationalProbePorts['retrieval'];cache:OperationalProbePorts['retrieval'];
+ /** Read actual same-boot canonical managed lifecycle evidence; MUST NOT create another sandbox. */
+ runtime_observation:OperationalProbePorts['retrieval'];
+}
 export class PrivateBenchmarkRecorder {
  private readonly options:BenchmarkRecorderOptions;private readonly approved:Set<string>;private readonly boot=randomUUID();private readonly clock:()=>number;private evidence:ReadinessEvidence;
  private readonly ledgers=new Map<string,ScopedCorpusManifest>();
@@ -90,6 +96,7 @@ export class PrivateBenchmarkRecorder {
    },
   };
  }
+ async refreshOperational(_input:{payload:string;signature:string;publicKey:string;ports:OperationalProbePorts}):Promise<boolean>{return false;}
  readiness():ReadinessEvidence{return structuredClone(this.evidence);}
  /** Qualified original-only metadata may be prepared privately before submission; every use rechecks current C-02 scope. */
  async corpusLedger(pool:Pool,snapshot:ScopeSnapshot):Promise<ScopedCorpusManifest>{

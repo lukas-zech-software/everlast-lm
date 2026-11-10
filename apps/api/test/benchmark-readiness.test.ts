@@ -80,3 +80,20 @@ it('FR-GC-08 NFR-PERF-01 binds canonical private trace, requires actual dependen
   expect(recorder.beginExecution({...input,notebook_id:randomUUID()})).toBeUndefined();
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+it('NFR-PERF-01 operational signed approval invokes actual ports only after exact boot/scope binding; missing/failed/stale/timeout stays unavailable',async()=>{
+ const {generateKeyPairSync,sign,randomUUID}=await import('node:crypto');const {publicKey,privateKey}=generateKeyPairSync('ed25519');
+ const key=publicKey.export({type:'spki',format:'pem'}).toString(),a=randomUUID(),b=randomUUID();
+ const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[a,b],revision:'serving',sink:()=>{}});
+ await recorder.qualifyDependencies({sql:async()=>true,migrations:async()=>true,recovery:async()=>true});
+ const plan=()=>({id:randomUUID(),instance_boot_id:recorder.readiness().instance_boot_id,revision:'serving',issued_at:Date.now()-5,expires_at:Date.now()+60000,timeout_ms:50,operations:['retrieval','model','cache','runtime_observation'],actors:[a,b].map(notebook_id=>({owner_id:randomUUID(),notebook_id,sources:[{source_id:randomUUID(),revision:1}]}))});
+ let calls=0;const probe=async()=>{calls++;};const ports={retrieval:probe,model:probe,cache:probe,runtime_observation:probe};
+ const invoke=(body:unknown,p=ports)=>{const payload=JSON.stringify(body);return recorder.refreshOperational({payload,signature:sign(null,Buffer.from(payload),privateKey).toString('base64'),publicKey:key,ports:p});};
+ expect(await invoke({...plan(),instance_boot_id:randomUUID()})).toBe(false);expect(calls).toBe(0);
+ expect(await invoke({...plan(),expires_at:Date.now()-1})).toBe(false);expect(calls).toBe(0);
+ const accepted=plan();expect(await invoke(accepted)).toBe(true);expect(calls).toBe(8);expect(recorder.readiness().dependencies.model).toBe(true);
+ expect(await invoke(accepted)).toBe(false);expect(calls).toBe(8);
+ expect(await recorder.refreshOperational({payload:JSON.stringify(plan()),signature:'bad',publicKey:key,ports})).toBe(false);expect(calls).toBe(8);
+ expect(await invoke(plan(),{...ports,model:async()=>{throw new Error('actual model failed');}})).toBe(false);expect(recorder.readiness().ready_at_ms).toBeNull();
+ expect(await invoke({...plan(),timeout_ms:5},{...ports,model:()=>new Promise(()=>{})})).toBe(false);expect(recorder.readiness().ready_at_ms).toBeNull();
+});
