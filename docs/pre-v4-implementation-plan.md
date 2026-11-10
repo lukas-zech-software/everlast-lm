@@ -16,6 +16,21 @@ and [continuation handoff](pre-v4-implementation-handoff-2026-11-10.md) for reta
 obligations; recheck current usage and agent state before resuming. The inspected
 baseline below is historical, rather than a statement that PR #174 remains open.
 
+Current continuation: [resumed handoff](pre-v4-implementation-handoff-2026-11-10c.md).
+The user corrected the usage stop policy to five-hour remaining<=10% OR weekly
+remaining<=2%. Older cutoff observations are historical and do not override this.
+
+The README also explicitly queues pre-V4 architecture remediation. At coordinator
+checkpoint `9d70a39`,185 exact migration records remain:97 assigned to
+`specs/004-ui-skeleton-quality-gates T035` and88 to T036. These tasks are explicitly
+outside the completed tooling amendment and route remediation through the owning
+packages. Keep this work in the pre-V4 inventory; activating guardrails or passing
+Gate v3 does not itself retire those records. After current012 and003 work, use a
+separate004 coordination agent to map each remaining edge to its owning package,
+then resume those package agents sequentially with boundary/behavior plans and
+tests before extraction. Do not implement all FR packages in one004 branch,
+approve new exceptions, waive debt or claim the advisory baseline certifies runtime.
+
 ## Outcome and scope — Gate v3.0, CC-06
 
 Complete the retained v1–v3 implementation and acceptance obligations, integrate the
