@@ -206,10 +206,8 @@
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
-  "active_package_agents": [
-    "/root/package_012"
-  ],
-  "refreshed_main": "c7f9b5f3e5b33770f5372f532cf231b3d3e331a3",
+  "active_package_agents": [],
+  "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
   "global_architecture_status": {
     "dependency_findings": 0,
     "artifact_findings": 0,
@@ -217,7 +215,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": null,
+  "stop_reason": "User cutoff observed:9%five-hour/14%weekly; no newimplementation/tests/checks afterwards; resetcredits untouched",
   "goal_complete": false,
   "published_changes": [
     {
@@ -225,21 +223,37 @@
       "status": "merged",
       "sha": "1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f",
       "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
+    },
+    {
+      "pr": 188,
+      "status": "merged",
+      "sha": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
+      "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
     }
   ],
-  "next_package": "012 operational qualification code in progress;003GC-E04 queued",
+  "next_package": "Resume SAME012agent from RED509067d in a NEWworktree after usage permits;003GC-E04 still queued",
   "usage_observation": {
-    "five_hour_remaining_percent": 25,
-    "weekly_remaining_percent": 17,
-    "note": "Continuing above cutoff; recheck before continuation. No reset credits used."
+    "five_hour_remaining_percent": 9,
+    "weekly_remaining_percent": 14,
+    "note": "Cutoff reached; only safe checkpoint/handoff and separately explicitly approved PR188 merge followed."
   },
-  "pending_publication": {
-    "pr": 188,
-    "head": "2c54da370fad8abba7ba6bc133532c75927bbcd0",
-    "scope": "README/journal acceptance wording only",
-    "ci": "PASS",
-    "spec_integrity": "PASS",
-    "merge_authorization": "Pending separate explicit user approval; PR174 approval does not extend to188."
+  "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
+  "partial_checkpoint_not_integrated": {
+    "feature": "012-long-context-latency-scaling",
+    "branch": "codex/pre-v4-012-qualification-20261110",
+    "commit": "509067dc999ba52918f01ef37421e57cce77216d",
+    "base": "e71645fbd4822b93c096a5c2c64a5f2dee9ebddf",
+    "status": "RED DO NOT MERGE",
+    "handoff": "/private/tmp/everlast-pre-v4-012-qualification-handoff-20261110.md",
+    "observed_tests": "1failed/6passed: activation absent; validplan expects8calls but scaffold false/0",
+    "static_checks": "Already-running lint/type/spec/39fixtures and graph0/185+artifacts0 finishedPASS",
+    "missing_code": [
+      "signature/schema validation and exactbindings",
+      "replay/expiry tracking and bounded orchestration",
+      "realserveradapters/private refresh wiring",
+      "canonical managed lifecycle observations; noalternatecreate/delete"
+    ]
   },
-  "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json"
+  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10b.md",
+  "cutoff_audit_in_current_resumed_run": 1
 }

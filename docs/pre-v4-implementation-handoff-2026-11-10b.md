@@ -2,7 +2,12 @@
 
 Traceability: CC-01..CC-09, C-01/C-02/C-03, NFR-EVAL-01..04, NFR-PERF-01, Gate v3.0.
 
-This is a working continuation record, not release acceptance. The goal is still
+Stopped at the user usage cutoff: 9% five-hour /14% weekly remaining was observed.
+No new implementation or checks were started after cutoff; already-running checks
+finished and clean handoffs were saved. Reset credits were not used. This is the
+first cutoff observation in the current resumed goal run; do not mark the goal
+complete. The later PR #188 approval authorizes that merge, not implementation
+resumption or a change to the cutoff. This is not release acceptance. The goal is still
 incomplete and V4 implementation remains blocked. See the [implementation plan](pre-v4-implementation-plan.md),
 [candidate index](pre-v4-implementation-candidate.json) and
 [previous handoff](pre-v4-implementation-handoff-2026-11-10.md) for earlier package evidence.
@@ -16,11 +21,12 @@ incomplete and V4 implementation remains blocked. See the [implementation plan](
   All new repository tasks begin by creating another dedicated worktree; never
   edit root/main. Pin the target feature immediately through temporary
   `SPECIFY_FEATURE_DIRECTORY`, write `.specify/feature.json`, then unset.
-- Latest fetched main `c7f9b5f3e5b33770f5372f532cf231b3d3e331a3` was merged into
-  coordinator at `14217ea`. Recheck main before publication/final candidate freeze.
+- Latest fetched main is `3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86`, the approved
+  PR #188 documentation merge; it is also merged into coordinator. Application
+  code remains the passing `e71645f` tree. Recheck main before final candidate freeze.
 - Exactly one package subagent may be active. Reuse the existing package agent
   when resuming. Dependent packages branch from the previous integrated checkpoint.
-- Latest observed usage: 25% five-hour /17% weekly remaining. This is a snapshot,
+- Cutoff observation: 9% five-hour /14% weekly remaining. This is a snapshot,
   not permission to assume availability later. Recheck usage at every major phase;
   at <=10% in either window stop starting implementation/tests, let running checks
   finish, save a clean checkpoint and update this handoff. Never use reset credits.
@@ -31,11 +37,10 @@ incomplete and V4 implementation remains blocked. See the [implementation plan](
   `1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f`. A duplicate approval reply does not require another merge.
   Roadmap acceptance and unresolved failures remain preserved; no Gate v3 pass.
 - [PR #188](https://github.com/lukas-zech-software/everlast-lm/pull/188), head
-  `2c54da370fad8abba7ba6bc133532c75927bbcd0`, corrects only README/journal unsupported
-  release-complete claims. CI and spec integrity passed. Separate explicit merge
-  approval is pending in the asynchronous question; PR #174 approval covers #174 only.
-  PR #188 itself has not been rejected by auto-review. Revalidate head/checks before
-  an approved merge. Do not bypass protection or invent authorization.
+  `2c54da370fad8abba7ba6bc133532c75927bbcd0`, corrected only README/journal unsupported
+  release-complete claims. After separate explicit user approval, head and green CI/
+  spec results were revalidated and the PR was squash-merged at
+  `3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86`. No bypass or unrelated authorization.
 - Package fixes are local checkpoints. Publish separate package PRs, preserving
   one package per feature branch/diff and required CI. A coordinator branch is
   an integration/recovery record, not a combined feature PR.
@@ -98,12 +103,30 @@ Node24.22.2 engine Red was observed. Node26.13.0 local `linux/arm64` image
 passed network-disabled API/worker native TypeScript imports. This is a local
 code-build identity, not a final target-platform/deployed release attestation.
 
-## Active Package 012 operational qualification
+## Unfinished Package 012 operational qualification — do not merge
 
 Same agent `/root/package_012` resumed after the clean recovery integration.
 Assigned new worktree `/private/tmp/everlast-pre-v4-012-qualification-20261110`,
 branch `codex/pre-v4-012-qualification-20261110`, base exact `e71645f`.
-Pin `specs/012-long-context-latency-scaling`. No other package agent is active.
+Pin `specs/012-long-context-latency-scaling`. The agent has now finished its safe
+cutoff checkpoint; no package agent or test/build/browser command remains active.
+Shared disposable PostgreSQL remains available.
+
+Partial RED commit `509067dc999ba52918f01ef37421e57cce77216d` is clean on that
+branch and MUST NOT be merged into the passing coordinator. It adds only typed
+operational ports, a disabled always-false scaffold and upstream design/T065–T067.
+Activation, signature/schema validation, exact bindings, replay/expiry handling,
+bounded orchestration, real server adapters and refresh are still unimplemented.
+The meaningful test is 1 failed/6 passed: valid plan expects true and eight port
+calls; scaffold returns false and zero calls. Later negative assertions were
+written but not reached; they are not executed evidence. Already-started lint/
+types/spec/39 architecture fixtures, graph0/185 unchanged and artifacts0 finished
+PASS. No further tests or implementation started after cutoff.
+
+Signature authorizes exact bounded operations only; it cannot attest actual
+provider/runtime behavior by itself. Runtime proof must use authoritative same-boot
+canonical execution/cleanup evidence. Do not create a second raw managed create/
+delete path bypassing durable lifecycle, cancellation or orphan cleanup.
 
 The recovery added real lifecycle capture and private atomic0600 scoped files.
 `sandbox_created_at` is immediately BEFORE runtime.create (RPC/queue/boot/poll
@@ -128,10 +151,14 @@ observations. No public bypass, fabricated readiness, constructed-client proof,
 source contents or raw provider handles in ordinary reports. Live qualification,
 012T060,010T052/T064 and011T061 remain separate unfinished acceptance obligations.
 
-Latest active-agent handoff target:
+Exact partial-agent handoff:
 `/private/tmp/everlast-pre-v4-012-qualification-handoff-20261110.md`.
-Read it and agent status before any continuation. Do not start another package
-until this agent completely finishes.
+Read it before continuation. In a permitted usage window, reuse the same012 agent
+and explicitly choose the RED509067d lineage in a NEW worktree; never accidentally
+replace the passing coordinator with it. Bring newer documentation ancestry forward
+separately as needed. Finish/analyze/TDD the missing operational code and applicable
+checks before integrating it or starting the next package. The prepared003 brief
+remains queued and was not dispatched.
 
 ## Remaining work after operational code
 
@@ -162,7 +189,7 @@ until this agent completely finishes.
 ## Cloud and authorization boundary
 
 [Fresh read-only observation](pre-v4-cloud-observation-20261110.json): project
-`lukas-gcloud-playground`, regioneurope-west4. API `everlast-dev-api-00013-kzh`
+`lukas-gcloud-playground`, region `europe-west4`. API `everlast-dev-api-00013-kzh`
 and worker `everlast-dev-worker-00009-5m2` still image `everlast:51f78ab`; SQL
 `everlast-dev-pg` PostgreSQL16 is STOPPED/activationNEVER. Ready revision metadata
 does not establish dependency readiness. Previously approved Drive/ModelArmor/
@@ -180,3 +207,7 @@ in existing private/keyless/SecretManager flows; never request them in chat.
 No reset credit, paid model/sandbox/audio run, resource creation, deployment or
 identity-policy apply was used. Shared local disposable PostgreSQL54329 remains
 available. Each agent must report any remaining test/build process at checkpoint.
+
+Final handoff-only edits and the approved two-file PR #188 ancestry merge were
+saved after cutoff; no new test/check suite was launched. Before cutoff, staged
+coordinator integrity covered208Markdown/55SRS/39features and artifacts had0findings.

@@ -3,9 +3,12 @@
 Prepared 2026-11-07 (Europe/Berlin). Traceability: Gate v1.0/v2.0/v3.0,
 NFR-EVAL-01..04, NFR-PERF-01, C-01/C-02/C-03, CC-01..CC-09.
 
-Execution update (2026-11-10): PR #174 is merged at `1957b3a`; refreshed main
-is `c7f9b5f`. Local package checkpoints through 011 are integrated into coordinator
-`3326d8d`; 012 starts from that ancestry in its own worktree. Numeric exports are
+Execution update (2026-11-10): PR #174 is merged at `1957b3a`; approved PR #188
+is merged at `3f4d7fd`, the refreshed main. Local package recovery through 012 is
+integrated at `e71645f`; unfinished operational qualification is isolated in RED
+checkpoint `509067d` and must not be merged. Work stopped at the usage cutoff;
+see the [current handoff](pre-v4-implementation-handoff-2026-11-10b.md).
+Numeric exports are
 verified locally. Corrected viewer P95 `16.733999999999924ms > 16ms` remains FAIL;
 historical `16.734000000000037ms` is preserved. These checkpoints do not establish
 release acceptance. See the [candidate record](pre-v4-implementation-candidate.json)
