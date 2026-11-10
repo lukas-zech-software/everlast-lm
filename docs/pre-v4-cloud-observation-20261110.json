@@ -86,5 +86,15 @@
     "modelarmor.googleapis.com",
     "speech.googleapis.com",
     "youtube.googleapis.com"
-  ]
+  ],
+  "resumed_run_confirmation": {
+    "mode": "read_only_gcloud",
+    "api_revision": "everlast-dev-api-00013-kzh",
+    "api_image": "europe-west4-docker.pkg.dev/lukas-gcloud-playground/everlast-dev-containers/everlast:51f78ab",
+    "sql": "everlast-dev-pg",
+    "sql_state": "STOPPED",
+    "activation_policy": "NEVER",
+    "worker_rechecked": false,
+    "api_registrations_rechecked": false
+  }
 }

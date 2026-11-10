@@ -1,84 +1,141 @@
-# Pre-V4 resumed continuation
+# Pre-V4 cutoff handoff — resumed run
 
 Traceability: CC-01..CC-09, C-01/C-02/C-03, NFR-PERF-01, NFR-EVAL-01..04, Gate v3.0.
 
-This record supplements the [previous complete handoff](pre-v4-implementation-handoff-2026-11-10b.md)
-and [candidate index](pre-v4-implementation-candidate.json). The goal is incomplete;
-V4 implementation remains blocked. Temporary private handoffs from the previous
-run are gone. Use tracked artifacts and Git commits, not those temporary paths.
+Stopped at the corrected user cutoff: **30% five-hour /2% weekly remaining**.
+Five-hour cutoff remains10%; weekly cutoff is2%, superseding historical10% notes.
+No new implementation/tests/checks started after cutoff. Already-running checks
+finished; only safe checkpoint integration and handoff records followed. No reset
+credits were used. This is the first cutoff observation in this reactivated run.
+The goal is incomplete; V4 implementation remains blocked.
 
-## Refreshed state
+## Exact continuation
 
-- New coordinator worktree `/private/tmp/everlast-pre-v4-resume-20261110c`, branch
-  `codex/pre-v4-resume-20261110c`, created first from clean `9d70a39`.
-- Main refreshed over HTTPS at `3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86`, unchanged.
-  SSH fetch failed with `Permission denied (publickey)`; HTTPS fetch succeeded
-  without changing remote configuration. Root checkout remains untouched.
-- Passing application integration remains `e71645fbd4822b93c096a5c2c64a5f2dee9ebddf`;
-  Package012 recovery `57fcfdcb67f988665d2490a3f911a8ff7bb009ea` is preserved.
-- Isolated RED predecessor `509067dc999ba52918f01ef37421e57cce77216d` contains the
-  always-false operational scaffold, requirement flow-back and a meaningful test:
-  valid plan expects true/eight calls, scaffold returns false/zero calls. It was
-  not merged into the passing coordinator. Original test was1failed/6passed;
-  later negative assertions were written but not reached.
-- Prior merged PRs174 and188 remain merged; no new GitHub mutation this run.
+- Coordinator: `/private/tmp/everlast-pre-v4-resume-20261110c`, branch
+  `codex/pre-v4-resume-20261110c`, created first from9d70a39. Root checkout untouched.
+- Main refreshed successfully through HTTPS at
+  `3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86`, unchanged. SSH failed with
+  Permission denied(publickey); HTTPS fetch worked without remote reconfiguration.
+- Previous passing application e71645f and recovery57fcfdc remain preserved.
+  RED509067d was resolved by tested CODE
+  `01383115e522090550518e31b7b367a09e7ed97b`, handoff-only successor
+  `e6642640b7faf18c416becf5e48dc79448aadfa6`. These are integrated into this
+  coordinator at `ce3cd955c970d9d09dc504a0aedb4c33695e0fe1`. Later coordinator
+  commits only update handoff records; source/runtime bytes are unchanged.
+- Same agent `/root/package_012` worked sequentially in
+  `/private/tmp/everlast-pre-v4-012-qualification-20261110c`, branch
+  `codex/pre-v4-012-qualification-20261110c`, from RED509067d. It created the
+  worktree first and immediately pinned specs/012-long-context-latency-scaling
+  through temporary SPECIFY_FEATURE_DIRECTORY, then unset it. Current AGENTS,
+  Constitution IV/CC09, procedure, card+README, artifacts and skills/hooks loaded.
+- No package agent or launched test/server/build process remains active. Shared
+  disposable PostgreSQL54329/Docker remain available. No new package was started.
+- Temporary private handoffs from the previous run vanished. Use Git commits,
+  [tracked qualification handoff](../specs/012-long-context-latency-scaling/qualification-handoff-20261110c.md)
+  and committed evidence; do not depend on temporary files surviving.
 
-## Active work and usage policy
+## Implemented locally
 
-The same `/root/package_012` agent resumes sequentially, with no other package
-agent active. Assigned worktree `/private/tmp/everlast-pre-v4-012-qualification-20261110c`,
-branch `codex/pre-v4-012-qualification-20261110c`, starts from RED509067d. It created
-the worktree first and immediately pinned `specs/012-long-context-latency-scaling`
-using temporary `SPECIFY_FEATURE_DIRECTORY`, then unset it. Current instructions,
-Constitution IV/CC09, guardrail procedure, card/README, artifacts and skills/hooks
-were loaded before implementation. Exact185 approved migration records remain
-the baseline; no new or widened exceptions are allowed.
+Bounded Ed25519 operational qualification now has actual server wiring. Independent
+pinned trust root authorizes exact boot/revision/candidate/runtime/fixture/clock/
+source-tree/operational-config/provider-budget effects; it does not attest actual
+provider behavior by itself. Exact isolated Owner/revision actors, expiry, replay,
+consume-before-effects, timeout lock, late-result rejection and close invalidation
+are tested. Default startup remains unqualified without actual observations.
 
-The five-hour limit reset; initial remaining usage was99%five-hour/13%weekly.
-Latest observation before this record:95%five-hour/12%weekly. The user corrected the weekly cutoff to2% remaining. Five-hour cutoff remains10%.
-Stop when five-hour remaining<=10% OR weekly remaining<=2%; stop starting implementation/tests/checks,
-let already-running checks finish and save clean checkpoint/handoff. Never use
-reset credits. This reactivation starts a fresh blocked audit; earlier blocked
-turns do not count toward this resumed run.
+API-owned model/cache adapters read original data through explicit C-02 capture,
+get, verify and streamOriginals; no new worker implementation use. Source measurement
+and adapter wiring remain in server composition.185 exact approved migration records
+remain unchanged; no new cross-app/test/type dependency or export path.
 
-Immediate scope is meaningful Red-to-Green for bounded signed operational probe
-orchestration. Signature authorizes exact bounded operations; it never attests
-actual provider/runtime/deployment behavior. Validate candidate/boot/runtime/
-calibration/actor/scope/expiry/replay before effects, consume IDs before calls,
-invalidate old readiness on failure/staleness, and reject late success. Default
-startup must remain unqualified until actual trusted observations.
+Managed runtime proof uses the existing canonical controller and durable ledger,
+actual validated profile response, current boot/candidate/runtime/source revisions,
+Succeeded published trace, matching attempts and confirmed Destroyed cleanup.
+Approved ordinary warmup can provide this observation without retroactively becoming
+qualified. Metadata is gated to approved notebooks and piggybacks an existing
+required progress write; default-disabled instrumentation adds no SQL/failure path.
+No alternate raw sandbox creation or lifecycle bypass was introduced.
 
-Production private refresh/server wiring and canonical managed-lifecycle proof
-adapter are separate missing work. A core-only Green is not operational completion. Continue the complete operational path
-while above the corrected cutoffs; do not defer server wiring merely because core tests pass.
-Runtime proof must use actual same-boot canonical execution/cleanup evidence;
-never add another raw managed create/delete path bypassing scope, cancellation,
-publication or orphan cleanup. No paid/provider/cloud/GitHub operations are allowed
-in this local implementation; tests use injected local doubles only.
+Actual startApiServer tests use private in-process provider doubles, without an
+extra.benchmark bypass: disabled or missing authorization causes zero probes;
+approved warmups traverse the existing controller; signed approval reaches the
+C-02/model/cache chain; readiness follows real adapter observations; close invalidates.
 
-Save the next agent handoff BOTH tracked in the012 feature and in
-`/private/tmp/everlast-pre-v4-012-qualification-handoff-20261110c.md`. Do not merge
-an unfinished/unverified/failing checkpoint into the passing coordinator. Record
-all remaining code explicitly.003GC-E04 remains queued until012 finishes.
+Signed provider budget counts actual effects:2embedding RPCs,2model RPCs with512
+output tokens/100000request bytes,2cache count/create/delete operations, TTL60,
+32MBoriginal/40MBserialized limits and actual countTokens+18kreserve<=1048576,
+zero managed creates. Private attempts1; ordinary defaults unchanged. Optional
+signed sameOwner/notebook cache_sources supports explicit diagnostic cache fixtures.
+Setup deadline<=240s/lifetime<=15min is separate from unchanged2.5s/15s cohort limits.
+Actual provider minimums/latency/capacity are still unmeasured and cannot pass.
 
-## Retained acceptance obligations
+## Evidence actually observed
 
-See the previous handoff for exact earlier package checkpoints and permissions.
-Operational012T053/T064,010T052/T064,011T061,012T046–T048/T060 and all matching live
-acceptance remain open. Historical viewer P95 `16.734000000000037ms` and corrected
-`16.733999999999924ms` remain FAIL against16ms. Report504/75%validity stays a failure.
-Local model/tokenizer/cache doubles and signed authorization do not qualify live
-readiness. No schema, denominator, threshold or metric weakening is authorized.
+Feature evidence: specs/012-long-context-latency-scaling/evidence/qualification-20261110c/.
 
-Still required:003refusal browser coverage;001real disposable identity/storage/
-signup policy proof;008report reliability;009audio/timestamp/provider fixtures;
-qualified managed sandbox/security/cohorts; qualified generation/context/latency;
-one common fixed stratified50-case judged run on the immutable candidate; separate
-package PRs/CI/explicit merge approval and acceptance-based roadmap reconciliation.
-Gatev2 owner override remains an override; Gatev3 is not accepted.
+- Original meaningful Red1failed/6passed resolved; additional Red/Green covers
+  abort-ignoring timeout lock, canonical DB proof, disabled profile instrumentation,
+  model512token/singleRPC and embedding5attempts to private1attempt behavior.
+- Latest focused units45tests/3files PASS; PostgreSQL regressions28tests/3files PASS;
+  expanded actual-server file12tests PASS. Counts overlap and must not be summed.
+- Types/lint PASS, including39architecture fixtures, graph0findings/185 unchanged,
+  changed-feature artifacts0 versus origin/main. Manual boundary findings resolved.
+- Fresh deterministic PASS: citation160/160, leakage0,60invalid drafts/0published;
+  report/structure checks use labelled local doubles. No judged/provider run or
+  redundant full505unit repetition. Staged integrity208Markdown/55SRS/39features
+  and whitespace passed before cutoff. No new check suite followed cutoff.
+- Historical viewer P95=16.734000000000037ms and corrected16.733999999999924ms
+  remain FAIL against16ms, without rounding/population/metric substitution.
+  Historical report504/75%validity and live Gatev3 failures remain unresolved.
 
-No new cloud observations are made here. The previous stopped SQL/old-image
-observation must be refreshed before actual deployment planning. Prepare exact
-images/resource plans/fixtures/workload and obtain applicable approval before
-cloud apply, deployment or paid calls. Existing four-API approval is not general
-cloud/workload authorization. All original preservation requirements remain.
+## Next missing implementation
+
+**012T068 is missing CODE/configuration:** target CloudRun has no implemented secure
+challenge retrieval, authorization inbox or private evidence export bridge. Container
+files do not automatically reach the operator host. The tested private-file mechanism
+is local; do not claim full CloudRun operational completion. T053/T064/T066 remain
+partial for target deployment, plus T060 and matching010/011live obligations.
+
+In a permitted usage window, reuse the SAME012agent in a NEW dedicated worktree
+from the current integrated checkpoint, immediately pin012, load instructions,
+current T068/spec/plan/card/README and rerun analysis before implementation. Evaluate
+existing keyless ObjectStorage for private candidate/boot prefixes, bounded
+signed/generation-bound inbox and allowlisted evidence export, separately pinned
+trust root and0600operator downloads. This is a design option, not implemented or
+cloud-authorized. Preserve C-02/private trace/durable cleanup and no public debug
+endpoint or new raw managed-create path. Capture actual RPC budgets/expiry/cleanup
+and tests before implementation; do not weaken scope to obtain a convenient pass.
+
+003GC-E04 apps/web/test/chat.spec.ts:86 remains test.fixme and queued. After012,
+restore refusal/no-badge/explicit-selection browser coverage in its own sequential
+package worktree. Existing003 checklists had no unchecked items at earlier inspection.
+README pre-V4 architecture work also remains:185 exact records,97 assigned004T035,
+88 assigned004T036. A separate004 coordination agent must map edges to owning
+packages, then resume those package workflows sequentially. Guardrails do not waive
+extraction; do not lump all packages into004 or create/widen exceptions.
+
+See the [previous complete handoff](pre-v4-implementation-handoff-2026-11-10b.md),
+[implementation plan](pre-v4-implementation-plan.md) and
+[candidate index](pre-v4-implementation-candidate.json) for exact earlier package
+checkpoints and all retained obligations:001identity/storage/signup proof,
+008report reliability,009audio/timestamp/adapter prerequisites,010managed security
+and cohorts,011generation/viewer acceptance,012context/latency and the single common
+fixed stratified50-case judged release run. Gatev2 owner override stays an override;
+Gatev3 acceptance/issue closure cannot follow merely from local checks or merges.
+
+## Cloud and publication boundary
+
+Fresh read-only gcloud checks confirmed API everlast-dev-api-00013-kzh still uses
+image everlast:51f78ab; SQL everlast-dev-pg POSTGRES16 is STOPPED/activationNEVER.
+Worker/API-registration observations were not refreshed this run. Recheck all needed
+resources before deployment planning. No cloud create/apply/deploy/API enablement,
+paid model/cache/sandbox/audio, GitHub mutation or external message occurred this run.
+PRs174/188 remain previously merged; fixes remain local and need separate package
+PRs/CI/explicit final merge approval. SSH push authentication remains unverified;
+GitHub connector Git-data tools are available if HTTPS/SSH writing is unavailable.
+
+Before actual deployment/paid calls, prepare immutable target images, exact saved
+resource/configuration plan, private fixtures, canonical warmup/probe workload and
+rollback; obtain applicable owner approval. Four-API approval is not general
+resource/workload authorization. Keep credentials in private/keyless flows. Never
+use reset credits. No new tests/checks are authorized while the cutoff persists.

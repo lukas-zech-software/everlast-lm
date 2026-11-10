@@ -4,9 +4,10 @@ Prepared 2026-11-07 (Europe/Berlin). Traceability: Gate v1.0/v2.0/v3.0,
 NFR-EVAL-01..04, NFR-PERF-01, C-01/C-02/C-03, CC-01..CC-09.
 
 Execution update (2026-11-10): PR #174 is merged at `1957b3a`; approved PR #188
-is merged at `3f4d7fd`, the refreshed main. Local package recovery through 012 is
-integrated at `e71645f`; unfinished operational qualification is isolated in RED
-checkpoint `509067d` and must not be merged. Work stopped at the usage cutoff;
+is merged at `3f4d7fd`, the refreshed main. Local package recovery and private-file
+qualification through 012 are integrated at `ce3cd95`; the old RED509067d is resolved
+by tested code0138311/handoff successor e664264. CloudRun bridge T068 remains missing
+code/configuration. Work stopped at the corrected weekly2% usage cutoff;
 see the [current handoff](pre-v4-implementation-handoff-2026-11-10b.md).
 Numeric exports are
 verified locally. Corrected viewer P95 `16.733999999999924ms > 16ms` remains FAIL;

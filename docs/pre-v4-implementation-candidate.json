@@ -9,7 +9,7 @@
     "NFR-EVAL-01..04"
   ],
   "coordinator_branch": "codex/pre-v4-resume-20261110c",
-  "integrated_checkpoint": "e71645fbd4822b93c096a5c2c64a5f2dee9ebddf",
+  "integrated_checkpoint": "ce3cd955c970d9d09dc504a0aedb4c33695e0fe1",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -181,7 +181,7 @@
       "branch": "codex/pre-v4-012-20261110",
       "checkpoint": "57fcfdcb67f988665d2490a3f911a8ff7bb009ea",
       "current_handoff": "/private/tmp/everlast-pre-v4-012-handoff-20261110.md",
-      "status": "recovery_verified_operational_qualification_code_incomplete",
+      "status": "localqualification_verified_targetbridge_code_and_live_acceptance_pending",
       "checks": {
         "unit_tests": 505,
         "postgresql_regressions": 21,
@@ -196,19 +196,38 @@
       },
       "local_image": "sha256:56b30d24965ae2c249eb7dba25f143133812c580e90da4011b4906bcd370e11b",
       "open": [
-        "T053 partial and T064 missing operational trusted qualification CODE; same agent resumed",
-        "T046/T047/T048 and T060 live/common judged/integrated acceptance pending",
-        "010T064 qualification/T052 and011T061 remain open"
-      ]
+        "T068missingCloudRunsecurechallenge/inbox/evidenceexportCODE",
+        "T053/T064/T066partialfortargetdeployment",
+        "T046/T047/T048/T060livecommonjudgedintegratedacceptancepending",
+        "010T052/T064and011T061remainopen"
+      ],
+      "qualification_checkpoint": {
+        "code": "01383115e522090550518e31b7b367a09e7ed97b",
+        "handoff_successor": "e6642640b7faf18c416becf5e48dc79448aadfa6",
+        "branch": "codex/pre-v4-012-qualification-20261110c",
+        "status": "localprivatefilepathverified_targetCloudRunbridgeMISSINGCODE",
+        "handoff": "specs/012-long-context-latency-scaling/qualification-handoff-20261110c.md",
+        "checks": {
+          "focused_unit": 45,
+          "postgresql_regressions": 28,
+          "actual_server_file_tests": 12,
+          "note": "PG counts overlap; not additive",
+          "citation": "160/160",
+          "leakage": 0,
+          "invalid_drafts": 60,
+          "invalid_drafts_published": 0,
+          "architecture_findings": 0,
+          "approved_records_unchanged": 185,
+          "lint_type_spec": "PASS"
+        }
+      }
     }
   ],
   "cloud_writes": false,
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
-  "active_package_agents": [
-    "/root/package_012"
-  ],
+  "active_package_agents": [],
   "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
   "global_architecture_status": {
     "dependency_findings": 0,
@@ -217,7 +236,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": null,
+  "stop_reason": "Corrected usercutoff reached:30%five-hour/2%weekly; no newimplementation/tests/checks afterwards; onlysafeintegration/handoff",
   "goal_complete": false,
   "published_changes": [
     {
@@ -233,33 +252,43 @@
       "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
     }
   ],
-  "next_package": "SAME012agent implementing signed operationalcore from509067d;productionwiring andcanonicalruntimeadapter remainmissing;003queued",
+  "next_package": "Resume SAME012agent forT068CloudRunprivateinbox/exportbridge;003GC-E04 and004T035/T036 coordination remainqueued",
   "usage_observation": {
-    "five_hour_remaining_percent": 95,
-    "weekly_remaining_percent": 12,
-    "note": "Five-hour reset; weekly limiting. Stop at<=10either. No resetcredits used."
+    "five_hour_remaining_percent": 30,
+    "weekly_remaining_percent": 2,
+    "note": "Stop atfive-hour<=10 OR weekly<=2; noresetcredits"
   },
   "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
-  "partial_checkpoint_not_integrated": {
-    "feature": "012-long-context-latency-scaling",
-    "branch": "codex/pre-v4-012-qualification-20261110",
-    "commit": "509067dc999ba52918f01ef37421e57cce77216d",
-    "base": "e71645fbd4822b93c096a5c2c64a5f2dee9ebddf",
-    "status": "RED DO NOT MERGE",
-    "handoff": "/private/tmp/everlast-pre-v4-012-qualification-handoff-20261110.md",
-    "observed_tests": "1failed/6passed: activation absent; validplan expects8calls but scaffold false/0",
-    "static_checks": "Already-running lint/type/spec/39fixtures and graph0/185+artifacts0 finishedPASS",
-    "missing_code": [
-      "signature/schema validation and exactbindings",
-      "replay/expiry tracking and bounded orchestration",
-      "realserveradapters/private refresh wiring",
-      "canonical managed lifecycle observations; noalternatecreate/delete"
-    ]
-  },
   "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10c.md",
-  "cutoff_audit_in_current_resumed_run": 0,
+  "cutoff_audit_in_current_resumed_run": 1,
   "usage_cutoff_remaining_percent": {
     "five_hour": 10,
     "weekly": 2
+  },
+  "qualification_checkpoint": {
+    "code": "01383115e522090550518e31b7b367a09e7ed97b",
+    "handoff_successor": "e6642640b7faf18c416becf5e48dc79448aadfa6",
+    "branch": "codex/pre-v4-012-qualification-20261110c",
+    "status": "localprivatefilepathverified_targetCloudRunbridgeMISSINGCODE",
+    "handoff": "specs/012-long-context-latency-scaling/qualification-handoff-20261110c.md",
+    "checks": {
+      "focused_unit": 45,
+      "postgresql_regressions": 28,
+      "actual_server_file_tests": 12,
+      "note": "PG counts overlap; not additive",
+      "citation": "160/160",
+      "leakage": 0,
+      "invalid_drafts": 60,
+      "invalid_drafts_published": 0,
+      "architecture_findings": 0,
+      "approved_records_unchanged": 185,
+      "lint_type_spec": "PASS"
+    }
+  },
+  "architecture_remediation_remaining": {
+    "records": 185,
+    "004T035": 97,
+    "004T036": 88,
+    "note": "Owningpackagecoordinationrequired; notwaivedbyguardrails"
   }
 }
