@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { CodeExecutionRuntimeConfigSchema } from '@everlast/contracts';
 import type { CodeExecutionFailureCode } from "@everlast/contracts";
 
 /**
@@ -34,6 +36,8 @@ export class SandboxError extends Error {
 
 export interface SandboxHandle {
   name: string;
+  /** Internal observation emitted only after the actual managed provider response passed profile validation. */
+  profileObservation?:{runtime_config_sha256:string;observed_at:string;machine_config:'default'};
 }
 
 export interface SandboxFile {
@@ -201,7 +205,8 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
       await this.destroy(handle).catch(() => undefined);
       throw new SandboxError("SecurityViolation", "sandbox profile differs from the approved managed default");
     }
-    return handle;
+    const configured=CodeExecutionRuntimeConfigSchema.parse({reasoning_engine:this.options.reasoningEngine,region:this.options.location,vcpu:2,memory_gb:1.5,network:'none',file_io_mb:100,deadline_ms:15000});
+    return {...handle,profileObservation:{runtime_config_sha256:createHash('sha256').update(JSON.stringify(configured)).digest('hex'),observed_at:new Date().toISOString(),machine_config:'default'}};
   }
 
   async execute(handle: SandboxHandle, input: { code: string; files: SandboxFile[] }, signal: AbortSignal): Promise<RawExecution> {

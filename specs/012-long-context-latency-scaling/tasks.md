@@ -157,4 +157,14 @@ Local T051–T052/T054–T059/T061–T063 checks are implementation diagnostics 
 
 - [ ] T065 Write meaningful failing disabled/missing/unsigned/mismatched/stale/failed/timeout/replay/refresh tests for trusted private operational qualification in apps/api/test/benchmark-readiness.test.ts beforeT066 (NFR-PERF-01, FR-GC-08, NFR-SEC-02, CC-02/09).
 - [ ] T066 Implement signed boot-bound bounded probe workflow and real server composition/private refresh coordinator, leaving default startup unqualified and live qualification open (NFR-PERF-01, FR-GC-08, C-02, NFR-SEC-01/02); depends onT065.
-- [ ] T067 Verify affected behavior, lint/type/spec/architecture and deterministic applicability, record exact missing code/evidence and preserve all historical failures (NFR-EVAL-02/04, CC-09); depends onT066.
+- [X] T067 Verify affected behavior, lint/type/spec/architecture and deterministic applicability, record exact missing code/evidence and preserve all historical failures (NFR-EVAL-02/04, CC-09); depends onT066.
+
+### 2026-11-10c code/evidence split
+
+T053/T065/T066 local operational implementation is complete with actual server composition and canonical runtime observation adapters, tested with LOCAL providers. T064 remainsOPEN for actual authorized deployment qualification; its missing-code component is resolved. T067 final checks/evidence are recorded in qualification-handoff-20261110c.md. No live gates/checklists were approved. Historical earlier disabled-scaffold descriptions remain historical and are superseded by the current checkpoint.
+
+## Phase 10: Deployment-channel convergence (2026-11-10c; NFR-PERF-01, FR-GC-08, CC-09)
+
+- [ ] T068 HIGH Implement/test a secure target-CloudRun private challenge/inbox/evidence delivery/export adapter, or verify and configure an actually available private mount/delivery path. Local ephemeral files are not present on the operator host automatically. Pin separate trusted key, candidate/boot/scope/config and bounded signed bytes; generation-pin remote reads, retain outcomes and preserve canonical private-file permissions/hash bindings after export. No public endpoint, signed-URL bypass, new resource/IAM/cloud action or paid run is authorized by this task. Verify actual existing storage channel/IAM and prepare exact owner-reviewed configuration/workload before real use (NFR-PERF-01, FR-GC-08, NFR-SEC-01/02; missing); depends on T065,T067.
+
+T053/T066 are locally implemented and characterized but remain PARTIAL for the target deployment because T068 code/configuration is missing. T064 remainsOPEN for both that delivery gap and actual deployed qualification. T065/T067 local focused tests/static/deterministic evidence are complete; no live acceptance is inferred.

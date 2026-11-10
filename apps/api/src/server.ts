@@ -1,16 +1,20 @@
+import { readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join, resolve } from 'node:path';
+import { createOperationalProbePorts } from './services/source-context.ts';
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
 import { createPool, runMigrations, getAvailableMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
 import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig, loadGuideAdmissionConfig } from "./config.ts";
-import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink } from "./observability/benchmark.ts";
+import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperationalCacheFromEnv, type OperationalCachePort } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
 import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
-import { createGroundedModelFromEnv } from "./chat/model.ts";
+import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { GoogleDelegationBroker } from "./routes/connections.ts";
 import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
@@ -100,9 +104,22 @@ export function createSandboxRuntime(env: NodeJS.ProcessEnv): SandboxRuntime | u
   });
 }
 
-export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}) {
+/** NFR-PERF-01: binds signed approval to actual runtime source bytes; no Git/environment value is treated as code proof. */
+export function measureOperationalSourceTree(root:string):string{
+ const hash=createHash('sha256');let total=0;
+ const visit=(relative:string)=>{
+  const path=join(root,relative),stat=lstatSync(path);
+  if(stat.isSymbolicLink())throw new Error('Operational source symlinks are not qualified');
+  if(stat.isDirectory()){for(const name of readdirSync(path).sort())visit(relative+'/'+name);return;}
+  if(!stat.isFile()||stat.size>10000000||(total+=stat.size)>100000000)throw new Error('Operational source manifest bounds exceeded');
+  hash.update(relative+'\0');hash.update(readFileSync(path));hash.update('\0');
+ };
+ for(const relative of ['apps/api/src','apps/worker/src','packages/contracts/src','packages/db/src','packages/cloud/src','package.json','pnpm-lock.yaml'])visit(relative);
+ return hash.digest('hex');
+}
+export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}, privateComposition?:{model?:GroundedModel;cache?:OperationalCachePort;runtime?:SandboxRuntime}) {
   const config = loadApiConfig(env);
-  const pool = createPool();
+  const pool = extra.pool ?? createPool();
   if (env.MIGRATE_ON_START === "true") await runMigrations(pool);
   const localIssuer = config.authMode === "local" ? new LocalIdentityIssuer(env) : undefined;
   const verifier =
@@ -121,7 +138,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         ? new VertexEmbedder({ client: createVertexClient(vertexConfigFromEnv(env)), model: env.EMBEDDING_MODEL })
         : undefined);
   const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
-  const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
+  const model = privateComposition?.model ?? (modelConfigured ? createGroundedModelFromEnv(env) : undefined);
   const storage = extra.storage ?? createObjectStorage(env);
   const reportModel = createV2ReportModel(env, modelConfigured);
   const studioContext=reportModel?.contextRuntime;
@@ -147,9 +164,16 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           notifyJobs,
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
-  const sandboxRuntime = createSandboxRuntime(env);
+  const sandboxRuntime = privateComposition?.runtime ?? createSandboxRuntime(env);
   const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;
-  if (codeExecution) startCodeExecutionReconciler({ pool, ...codeExecution });
+  const stopReconciler=codeExecution?startCodeExecutionReconciler({pool,...codeExecution}):undefined;
+  const operationalDirectory=env.BENCHMARK_OPERATIONAL_DIRECTORY;
+  if(operationalDirectory){
+    const directory=realpathSync(operationalDirectory),publicRoot=realpathSync(resolve(env.WEB_DIST_DIR??'apps/web/dist'));
+    if(directory===publicRoot||directory.startsWith(publicRoot+'/'))throw new Error('Operational private directory cannot be publicly served');
+  }
+  const operationalCache=privateComposition?.cache??(operationalDirectory&&modelConfigured?createOperationalCacheFromEnv(env):undefined);
+  const operationalConfigSha256=operationalDirectory&&model&&embedder&&operationalCache?createHash('sha256').update(JSON.stringify({model:model.id,retrieval:embedder.model,cache:operationalCache.identity})).digest('hex'):undefined;
   const benchmarkConfig = loadBenchmarkConfig(env);
   const benchmark = extra.benchmark ?? (benchmarkConfig
     ? new PrivateBenchmarkRecorder({
@@ -157,6 +181,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         revision: benchmarkConfig.revision,
         sink: createPrivateBenchmarkSink(benchmarkConfig.evidenceFile),
         fixtures: benchmarkConfig.fixtures,
+        operationalConfigSha256,
+        sourceTreeSha256:env.BENCHMARK_OPERATIONAL_DIRECTORY?measureOperationalSourceTree(fileURLToPath(new URL('../../../',import.meta.url))):undefined,
         executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, sandboxRuntime ? {reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine,region:"europe-west4",vcpu:2,memory_gb:1.5,network:"none",file_io_mb:100,deadline_ms:15000}:undefined),
         ...(studioContext?{tokenizer:studioContext.tokenizer}:{}),
       })
@@ -215,7 +241,11 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     notifyJobs,
     ...extra,
   };
+  // No public route; the fixed private trust-root/approval files only authorize bounded operations.
+  const stopOperational=env.BENCHMARK_OPERATIONAL_DIRECTORY&&benchmark&&!extra.benchmark
+    ?benchmark.startOperationalCoordinator(env.BENCHMARK_OPERATIONAL_DIRECTORY,createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache})):undefined;
   const server = http.createServer(createApp(deps));
+  server.once("close",()=>{stopOperational?.();stopReconciler?.();});
   await new Promise<void>((resolve) => server.listen(config.port, resolve));
   console.log(JSON.stringify({ severity: "INFO", message: `API listening on :${config.port} (auth=${config.authMode})` }));
   return { server, pool, deps };
