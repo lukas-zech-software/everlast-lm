@@ -1,8 +1,14 @@
 # Proposed Gemini model and processing-region decision
 
-Status: **PROPOSED — owner decision required; no region or model policy changed**.
+Status: **OWNER APPROVED — awaiting serialized decision/region-map flow-back and local migration**.
 Date:2026-11-11. Traceability: Constitution VI/CC-07/CC-08, D3, NFR-SEC-01,
 NFR-PERF-01, NFR-EVAL-01..04, Gate v3.0.
+
+Owner approval: explicit response “Approve Gemini EU exception” to this exact
+proposal on2026-11-11. This approves the described exception and local migration;
+it does not approve cloud changes, paid execution or a shared-main merge. The
+coordinator will allocate a canonical D-number and update affected authoritative
+maps after the active012 bridge finishes, preserving serialized shared-file ownership.
 
 ## Concrete decision requested
 
@@ -94,5 +100,6 @@ Primary pages above were retrieved with Ketch on2026-11-11 using bounded scrapes
 no provider inference, cache creation or cloud mutation occurred. Earlier search
 snippets mentioned a different retirement date; the matching lifecycle/card date
 above is authoritative for this proposal. No full third-party page is copied here.
-Governance proposal only: no application, deployment, constitution, SRS, authority
-decision or feature pin was changed by this document.
+Decision record only: no application, deployment, constitution, SRS or feature pin
+was changed by this document. Canonical decision/region-map updates are the next
+serialized step; no unrecorded endpoint switch is authorized.
