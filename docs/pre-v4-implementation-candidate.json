@@ -1,6 +1,6 @@
 {
   "record_type": "implementation_checkpoint_not_release_acceptance",
-  "date": "2026-11-09",
+  "date": "2026-11-10",
   "traceability": [
     "CC-01",
     "CC-06",
@@ -8,8 +8,8 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-resume-20261109",
-  "integrated_checkpoint": "a922c6382fb8034a43668f7a428a439ac2380dda",
+  "coordinator_branch": "codex/pre-v4-resume-20261110",
+  "integrated_checkpoint": "b1c9df7e52d85b02463c3d3cfb8ebf9076bc7649",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -119,11 +119,11 @@
     },
     {
       "feature": "010-code-execution-sandbox",
-      "status": "partial_local_recovery_verified_live_pending",
-      "branch": "codex/pre-v4-010-resume-20261109",
+      "status": "local_implementation_verified_producer_and_live_pending",
+      "branch": "codex/pre-v4-010-complete-20261110",
       "base": "62b2974",
-      "checkpoint": "a922c6382fb8034a43668f7a428a439ac2380dda",
-      "current_handoff": "/private/tmp/everlast-pre-v4-010-resume-handoff-20261109.md",
+      "checkpoint": "f2d82bafc4e054c3cb00faa9993ac9741e440d1e",
+      "current_handoff": "/private/tmp/everlast-pre-v4-010-complete-handoff-20261110.md",
       "checks_20261109": {
         "validator_tests": 14,
         "red_failures_before_fix": 7,
@@ -135,25 +135,44 @@
         "spec_integrity": "PASS"
       },
       "open": [
-        "T062 optional parent infrastructure recovery",
-        "T063 actual ordinary-application cohort collector",
-        "T052 live security/four-cohort/common judged acceptance"
-      ]
+        "T064 trusted production private producer/012 qualification",
+        "T052 live security/four cohorts/common judged acceptance"
+      ],
+      "checks_20261110": {
+        "collector_tests": 35,
+        "api_db_regressions": 23,
+        "parent_mock_plans": 7,
+        "module_policy_tests": 4,
+        "typecheck": "PASS",
+        "lint": "PASS",
+        "spec_integrity": "PASS",
+        "graph_findings": 0,
+        "artifact_findings": 0
+      }
     }
   ],
   "cloud_writes": false,
   "paid_runs": false,
-  "github_writes": false,
+  "github_writes": true,
   "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
   "active_package_agents": [],
-  "refreshed_main": "5f44947",
+  "refreshed_main": "1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f",
   "global_architecture_status": {
     "dependency_findings": 0,
     "artifact_findings": 0,
-    "remaining_owners": [],
+    "approved_records_unchanged": 185,
     "policy_expanded": false,
-    "scope": "changed features and actual dependency graph; approved legacy debt remains"
+    "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": "User usage cutoff observed: 9% five-hour remaining /45% weekly",
-  "goal_complete": false
+  "stop_reason": "User cutoff observed: 10% five-hour remaining /30% weekly",
+  "goal_complete": false,
+  "published_changes": [
+    {
+      "pr": 174,
+      "status": "merged",
+      "sha": "1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f",
+      "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
+    }
+  ],
+  "next_package": "011-studio-mindmaps-data-tables"
 }
