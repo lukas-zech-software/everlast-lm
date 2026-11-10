@@ -35,8 +35,8 @@ were loaded before implementation. Exact185 approved migration records remain
 the baseline; no new or widened exceptions are allowed.
 
 The five-hour limit reset; initial remaining usage was99%five-hour/13%weekly.
-Latest observation before this record:95%five-hour/12%weekly. The weekly window
-is limiting. At<=10% in EITHER window, stop starting implementation/tests/checks,
+Latest observation before this record:95%five-hour/12%weekly. The user corrected the weekly cutoff to2% remaining. Five-hour cutoff remains10%.
+Stop when five-hour remaining<=10% OR weekly remaining<=2%; stop starting implementation/tests/checks,
 let already-running checks finish and save clean checkpoint/handoff. Never use
 reset credits. This reactivation starts a fresh blocked audit; earlier blocked
 turns do not count toward this resumed run.
@@ -49,7 +49,8 @@ invalidate old readiness on failure/staleness, and reject late success. Default
 startup must remain unqualified until actual trusted observations.
 
 Production private refresh/server wiring and canonical managed-lifecycle proof
-adapter are separate missing work. A core-only Green is not operational completion.
+adapter are separate missing work. A core-only Green is not operational completion. Continue the complete operational path
+while above the corrected cutoffs; do not defer server wiring merely because core tests pass.
 Runtime proof must use actual same-boot canonical execution/cleanup evidence;
 never add another raw managed create/delete path bypassing scope, cancellation,
 publication or orphan cleanup. No paid/provider/cloud/GitHub operations are allowed

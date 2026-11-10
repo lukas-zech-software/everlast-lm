@@ -205,7 +205,7 @@
   "cloud_writes": false,
   "paid_runs": false,
   "github_writes": true,
-  "usage_policy": "Checkpoint/handoff when any relevant available usage window has <=10% remaining; do not use reset credits.",
+  "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
   "active_package_agents": [
     "/root/package_012"
   ],
@@ -257,5 +257,9 @@
     ]
   },
   "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-10c.md",
-  "cutoff_audit_in_current_resumed_run": 0
+  "cutoff_audit_in_current_resumed_run": 0,
+  "usage_cutoff_remaining_percent": {
+    "five_hour": 10,
+    "weekly": 2
+  }
 }
