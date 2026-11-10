@@ -55,6 +55,8 @@ export interface CodeExecutionBenchmarkObservation {
   outcome: "succeeded" | "failed" | "timed_out" | "unfinished";
   attempts: number;
   retryEndToEndMs: number | null;
+  /** Client monotonic submission-to-received-status duration when collected over HTTP. */
+  clientRunningCodeMs?: number;
 }
 
 export interface CohortBenchmarkResult {
@@ -155,9 +157,10 @@ function validateObservations(plan: CodeExecutionBenchmarkPlan, observations: Co
     if (seen.has(identity)) throw new Error(`Duplicate cohort sample ${identity}`);
     seen.add(identity);
     if (!["succeeded", "failed", "timed_out", "unfinished"].includes(item.outcome)) throw new Error(`Sample ${identity} has an invalid outcome`);
-    if (item.attempts !== 1 && item.attempts !== 2) throw new Error(`Sample ${identity} must record one or two attempts`);
-    if ((item.attempts === 2 && (typeof item.retryEndToEndMs !== "number" || !Number.isFinite(item.retryEndToEndMs) || item.retryEndToEndMs < 0)) ||
-        (item.attempts === 1 && item.retryEndToEndMs !== null)) {
+    if (![0,1,2].includes(item.attempts) || (item.outcome === "succeeded" && item.attempts === 0)) throw new Error(`Sample ${identity} has invalid actual attempt count`);
+    if (item.clientRunningCodeMs !== undefined && (!Number.isFinite(item.clientRunningCodeMs) || item.clientRunningCodeMs < 0)) throw new Error(`Sample ${identity} has invalid client status timing`);
+    if ((item.attempts === 2 && !((item.retryEndToEndMs === null && item.outcome !== "succeeded") || (typeof item.retryEndToEndMs === "number" && Number.isFinite(item.retryEndToEndMs) && item.retryEndToEndMs >= 0))) ||
+        (item.attempts < 2 && item.retryEndToEndMs !== null)) {
       throw new Error(`Sample ${identity} has invalid retry metadata`);
     }
     let previous = timestamp(item.submittedAt, `Sample ${identity} submittedAt`);
@@ -206,6 +209,7 @@ export function evaluateCodeExecutionBenchmark(
 
     const runningCodeSamplesMs = items.map((o) => {
       if (!o.runningCodeAt) return Infinity;
+      if (o.clientRunningCodeMs !== undefined) return o.clientRunningCodeMs;
       const ms = Date.parse(o.runningCodeAt) - Date.parse(o.submittedAt);
       return Number.isFinite(ms) && ms >= 0 ? ms : Infinity;
     });

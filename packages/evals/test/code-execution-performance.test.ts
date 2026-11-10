@@ -342,3 +342,10 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     } finally { rmSync(out, { recursive: true, force: true }); }
   });
 });
+
+/** FR-GC-08: failure before any actual code attempt never fabricates attempt1. */
+it("retains a failed zero-attempt observation without inventing an execution",()=>{
+ const p:CodeExecutionBenchmarkPlan={fixture:{id:"f",version:1,sha256:"a".repeat(64),question:"q"},provider:{service:"aiplatform.googleapis.com/AgentEngineSandbox",region:"europe-west4",cpu:"2 vCPU",memory:"1.5 GB"},environment:"test",declaredAt:"2026-11-10T00:00:00.000Z",cohorts:{cold_1u:{repetitions:20,warm:false,concurrency:1},warm_1u:{repetitions:20,warm:true,concurrency:1},cold_2u:{repetitions:20,warm:false,concurrency:2},warm_2u:{repetitions:20,warm:true,concurrency:2}}};
+ const o={cohort:"cold_1u" as const,sampleIndex:1,submittedAt:"2026-11-10T00:00:01.000Z",runningCodeAt:null,sandboxCreatedAt:null,executionCompletedAt:null,answerPublishedAt:null,outcome:"failed" as const,attempts:0,retryEndToEndMs:null};
+ expect(evaluateCodeExecutionBenchmark(p,[o]).observations[0]!.attempts).toBe(0);
+});

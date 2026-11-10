@@ -2590,20 +2590,6 @@
       "expires": "2027-02-05",
       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
-    },
-    {
-      "rule": "wildcard-export",
-      "from": "packages/evals/package.json",
-      "to": "./*",
-      "fingerprint": "17cb7a23238cae12b92a5569b9a68a083573832211882a24c0299ede7d6fc14e",
-      "line": 1,
-      "count": 1,
-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
-      "owner": "@lukas-zech-software",
-      "decision": "D21",
-      "expires": "2027-02-05",
-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
     }
   ]
 }

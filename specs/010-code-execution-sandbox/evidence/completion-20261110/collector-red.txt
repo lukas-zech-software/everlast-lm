@@ -1,0 +1,92 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-010-complete-20261110
+
+ ❯ |integration| packages/evals/test/code-execution-collector.test.ts (6 tests | 4 failed) 8ms
+   × collects all four declared cohorts through the port and actually overlaps paired owners 4ms
+   × retains all requests when private evidence is missing instead of inferring warmth 0ms
+   × rejects a paired credential that resolves to the same actual owner 1ms
+   × retains transport errors without leaking provider text or selecting replacement successes 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| packages/evals/test/code-execution-collector.test.ts > collects all four declared cohorts through the port and actually overlaps paired owners
+AssertionError: expected [] to have a length of 80 but got +0
+
+- Expected
++ Received
+
+- 80
++ 0
+
+ ❯ packages/evals/test/code-execution-collector.test.ts:28:22
+     26| it("collects all four declared cohorts through the port and actually o…
+     27|   const f=fixture();const r=await collectCodeExecutionCohorts(plan,man…
+     28|   expect(r.attempts).toHaveLength(80);expect(r.observations).toHaveLen…
+       |                      ^
+     29|   expect(f.counts()).toEqual({count:80,maxActive:2});
+     30| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  |integration| packages/evals/test/code-execution-collector.test.ts > retains all requests when private evidence is missing instead of inferring warmth
+AssertionError: expected [] to have a length of 80 but got +0
+
+- Expected
++ Received
+
+- 80
++ 0
+
+ ❯ packages/evals/test/code-execution-collector.test.ts:33:22
+     31| it("retains all requests when private evidence is missing instead of i…
+     32|   const f=fixture({missing:true});const r=await collectCodeExecutionCo…
+     33|   expect(r.attempts).toHaveLength(80);expect(r.status).toBe("UNAVAILAB…
+       |                      ^
+     34| });
+     35| it("rejects a paired credential that resolves to the same actual owner…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  |integration| packages/evals/test/code-execution-collector.test.ts > rejects a paired credential that resolves to the same actual owner
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ packages/evals/test/code-execution-collector.test.ts:37:103
+     35| it("rejects a paired credential that resolves to the same actual owner…
+     36|   const f=fixture({wrongOwner:true});const r=await collectCodeExecutio…
+     37|   expect(r.status).toBe("UNAVAILABLE");expect(r.attempts.some(a=>a.dia…
+       |                                                                                                       ^
+     38| });
+     39| it("retains transport errors without leaking provider text or selectin…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  |integration| packages/evals/test/code-execution-collector.test.ts > retains transport errors without leaking provider text or selecting replacement successes
+AssertionError: expected [] to have a length of 80 but got +0
+
+- Expected
++ Received
+
+- 80
++ 0
+
+ ❯ packages/evals/test/code-execution-collector.test.ts:41:22
+     39| it("retains transport errors without leaking provider text or selectin…
+     40|   const f=fixture({throwTransport:true});const r=await collectCodeExec…
+     41|   expect(r.attempts).toHaveLength(80);expect(r.status).not.toBe("PASS"…
+       |                      ^
+     42| });
+     43| it("does not qualify warm samples from post-hoc readiness",async()=>{
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 2 passed (6)
+   Start at  09:03:46
+   Duration  266ms (transform 50%, import 43%, tests 4%, worker 2%)

@@ -33,7 +33,7 @@ variable "enable" {
 }
 
 variable "reasoning_engine_name" {
-  description = "Parent Agent Platform runtime (reasoningEngines/...) without deployed agent code, created by the owner (see infra/README.md)."
+  description = "Existing bare Agent Engine parent resource name; mutually exclusive with create_parent_runtime."
   type        = string
   default     = ""
 
@@ -41,4 +41,23 @@ variable "reasoning_engine_name" {
     condition     = var.reasoning_engine_name == "" || can(regex("^projects/[a-z0-9-]+/locations/europe-west4/reasoningEngines/[0-9]+$", var.reasoning_engine_name))
     error_message = "reasoning_engine_name must be projects/<project>/locations/europe-west4/reasoningEngines/<id> (D3)."
   }
+}
+
+# [010-code-execution-sandbox] T054 — FR-GC-08, D18–D20: default-off managed parent proposal.
+variable "create_parent_runtime" {
+  description = "Default-off managed bare parent proposal; requires enable and excludes reasoning_engine_name."
+  type        = bool
+  default     = false
+}
+
+variable "deletion_protection" {
+  description = "Protect the managed parent against deletion using the existing stack policy (FR-GC-08)."
+  type        = bool
+  default     = true
+}
+
+variable "labels" {
+  description = "Existing non-sensitive stack labels applied to the optional parent (FR-GC-08)."
+  type        = map(string)
+  default     = {}
 }

@@ -130,3 +130,31 @@ boundary was introduced. Graph0 findings and 186 unchanged approved exceptions.
 T061 recovery complete locally; T062/T063/T052 remain open, not waived by this
 checkpoint. Optional before_implement/after_implement hooks use disabled auto-commit;
 manual reviewed commit records this bounded recovery.
+
+
+## Completion re-analysis — 2026-11-10 (FR-GC-08, CC-01..CC-09)
+
+Read current constitution/procedure/card/README and analyzed T062/T063 design before
+implementation; the prior approved recovery remains intact. No high/critical scoped
+design conflict was found. New pure collector/HTTP/private-file adapters use public
+contracts and explicit effect ports; production producers have canonical private
+contracts without depending on eval/testkit. Root eval exports are explicit; its
+unused wildcard and exactly one now-stale exception were removed, never widened.
+
+Actual initial collector scaffold: four failing behavior assertions, two passing;
+not an import-only failure. Final collector/transport/CLI/evaluator suite35PASS,
+typecheckPASS; local API/DB retry/scope/history regressions23PASS using disposable
+PostgreSQL54329. Original managed-parent mock dev plans7PASS and standalone policies
+4PASS, provider validation/fmtPASS. Lint includes39architecturefixturesPASS, graph0
+findings/185 unchanged retained records, changed-feature artifacts0 and spec checks.
+
+CC-03/04/05/07: source reads remain ordinary API C-02 admission; private files contain
+only identifiers/digests/timestamps. Public DTOs and execution/publication behavior
+are unchanged. Known failed/unknown executions are retained; missing evidence does
+not pass. CC-06/08: no V4, apply, API enablement, paid model/runtime call, framework
+or datastore change. CC-09 final diff records schema/port/CLI/IaC ownership and
+behavior tests; no new forbidden edge or policy expansion.
+
+T062 and T063 are locally implemented. T064 producer integration and T052 live
+cohorts/security/common judged acceptance remain OPEN. No full release convergence
+or measured provider performance/security pass is inferred.

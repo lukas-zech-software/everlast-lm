@@ -57,3 +57,8 @@ output "workload_identity_provider_name" {
   description = "GitHub Actions Workload Identity Provider resource name (when enabled)."
   value       = module.iam_identity.workload_identity_provider_name
 }
+
+output "code_execution_reasoning_engine" {
+  description = "Selected public bare Agent Engine parent resource name; no readiness or live sandbox result is implied (FR-GC-08)."
+  value       = module.code_execution.reasoning_engine_name
+}

@@ -139,3 +139,28 @@ D21 migration exceptions are neither widened nor renewed. New infrastructure has
 no source-content access. Reuse 009's unchanged architecture fixtures/deterministic
 evidence; rerun graph and changed-artifact checks on the actual diff. Post-design
 CC-09 review must report live collection still unavailable if not implemented.
+
+
+## Completion design — 2026-11-10 (FR-GC-08, NFR-PERF-01, CC-09)
+
+T062 selectively restores the already specified typed Google 8.10 bare parent,
+default off, without importing old provider locks or preceding package changes.
+T063 separates deterministic cohort orchestration from effects: a focused eval
+collector owns sequencing and evidence checks through transport and private-evidence
+ports. Its HTTP adapter calls the ordinary authenticated /chat/turns SSE endpoint;
+its private reader consumes bounded identifier/count/timestamp records, never a
+public telemetry endpoint. API source/snapshot authorization remains server-owned.
+
+| SRS / contract | Module / owner | Responsibility | Public ports | Dependencies / composition | Regression evidence |
+| --- | --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-collector.ts, 010 | Predeclared attempts/cohorts and provenance validation | collectCodeExecutionCohorts; explicit transport/evidence ports | Canonical contracts, local evaluator; CLI wires adapters | Pure fake-port collector tests including actual paired scheduling |
+| FR-GC-08, NFR-SEC-02 | packages/evals/src/code-execution-transport.ts, 010 | Bounded authenticated ordinary SSE and private file evidence | HTTP transport/private evidence reader | Fetch, Node file reads, canonical trace schema; no app imports | Local HTTP server and file-reader tests |
+| FR-GC-08, D18-D20 | infra/modules/code_execution, 010 | Default-off bare parent and environment outputs | Existing module variables/outputs | Google provider 8.10, existing identity; no agent code | Recovered mocked policy/wiring tests |
+
+No API workflow, transport route, deployment placement or public DTO is replaced.
+Server qualification remains an explicit integration dependency: each attempted
+request requires trusted private serving boot/revision, owner/notebook, fixture
+identity, measured readiness and exact trace correlation. Missing evidence makes
+the collection UNAVAILABLE while retaining attempted requests; client labels or
+latency never establish cold/warm status. Later012 can supply its private qualified
+serving records via this port, without importing API implementation into evals.

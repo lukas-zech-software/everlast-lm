@@ -118,7 +118,7 @@ Executed on branch `feat/v3-010-complete` (`/private/tmp/everlast-impl-010-compl
 
 ## Current benchmark import contract (2026-11-05; FR-GC-08, NFR-PERF-01, Gate v3.0 #2)
 
-The CLI is an evidence aggregator, not a live application collector. Both unconfigured and configured-without-observations invocations write `v3-code-execution-benchmark.json`, report UNAVAILABLE and exit 2. Merely setting `CODE_EXECUTION_IT=1` does not execute or accept a live benchmark.
+Historical 2026-11-05 aggregator-only checkpoint: configuration alone writes UNAVAILABLE and exits2. The 2026-11-10 collector below now submits ordinary authenticated SSE requests, but requires an explicitly approved frozen scope and a trusted private producer. Merely setting CODE_EXECUTION_IT=1 still cannot start or accept a live benchmark.
 
 ```sh
 node scripts/eval-v3-code-execution.mjs --plan <predeclared-plan.json> --observations <observations.json> --out <private-output-directory>
@@ -148,3 +148,115 @@ Candidate parent: `77bac2b62586bce6bf81c9a7efbb42febc862a22`; isolated branch `c
 | Live managed service, all four real N≥20 application cohorts, common fixed50 judged gate | UNAVAILABLE: no approved parent runtime or matching deployment; T052 remains open. |
 
 T049–T051 complete the local evidence safeguards and documentation reconciliation. Original T044–T047 checkmarks record historical implementation/check attempts, including their documented unavailability; they do not imply live acceptance. T052 is the current open acceptance obligation. The benchmark import contract and exact command are in the quickstart; reports retain original valid observations plus plan/input hashes, source revision and dirty state. A passing aggregate of supplied samples alone is not real-service proof.
+
+
+## Ordinary-application collector — 2026-11-10 (FR-GC-08, T063, CC-09)
+
+The HTTP adapter calls the existing POST /api/notebooks/{id}/chat/turns with normal
+Bearer authentication, explicit source IDs and a fresh request UUID. Public finals
+use the actual VisibleMessage projection (no invented request_id). Correlation is
+through the initiated stream, replayed=false, matching running execution identity,
+canonical trace digest and private request/scope evidence. Two-user cohorts submit
+actual paired requests with distinct proven Owner notebooks; one-user cohorts are
+serial. There are no replacement successes after failures. An unqualified batch
+stops further dispatch and retains every request already attempted.
+
+Prepare a fixed plan and collection manifest before measurement. The manifest
+contains two actors (application owner UUID, notebook UUID, exact source/revision
+snapshot, expected citation chunk IDs, credential environment-variable name),
+api_base_url, candidate_commit, serving_revision, classification_basis, expected
+computed-result string and max_total_requests. At least20 samples per each of the
+four cohorts are still required; the default qualifying population is80 requests.
+The manifest also binds qualification_sha256, runtime_config_sha256 and a retained
+clock_calibration plus its SHA256. Calibration fields are offset_ms (server minus
+client), uncertainty_ms, measured_at_ms, expires_at_ms and measurement_id. Hash the
+parsed calibration object using the documented collectionDigest helper. It must
+predate the plan and cover every client submission; no zero uncertainty is inferred.
+
+Use CodeExecutionRuntimeConfigSchema from @everlast/contracts to canonicalize the
+actual server config before hashing: reasoning_engine, region=europe-west4,
+vcpu=2, memory_gb=1.5, network=none, file_io_mb=100, deadline_ms=15000. SHA256 of
+JSON.stringify(parsedConfig) binds the exact parent without putting its provider
+handle in reports. The CLI verifies its configured engine/profile matches this
+digest, and the producer must emit the digest of its actual serving configuration.
+
+The private producer file implements CodeExecutionPrivateEvidenceFileSchema from
+@everlast/contracts, in a regular owner-private0600 file, written atomically. Its
+header binds candidate, revision, fixture, classification basis, qualification,
+runtime and calibration hashes plus approved notebook IDs. Each measurement uses
+CodeExecutionPrivateMeasurementSchema: exact request/owner/notebook/source snapshot,
+real boot ID, measured readiness/qualification times, actual create/running/complete/
+publication times, safe attempt summaries and canonical trace hash. No prompts,
+Python, stdout, bearer tokens or raw provider handles belong in this file.
+
+Classification is declared before collection. Application-serving-readiness and
+managed-runtime-readiness are distinct bases; neither is silently substituted for
+the other. Warm requires ready and qualified before submission minus measured
+uncertainty; cold requires readiness after submission plus uncertainty. Unknown or
+post-hoc qualification is UNAVAILABLE. Server times are mapped using the retained
+calibration; actual client submission and monotonic status-receipt clocks are never
+reset. Boot/execution durations remain server-domain differences. Slow receipt is
+retained even if server execution was fast.
+
+Trusted API producer integration remains T064, owned jointly with012 qualification.
+It must observe the real runAttempt create boundary, first Running-code emission,
+execution completion, canonical trace and final publication/failure under the same
+authorization/snapshot. It must emit failed/unknown attempts too, including zero
+actual attempts, without inventing end times. The normal final stream or SSE error
+can be retained as a failed observation when authoritative private evidence proves
+failure. Missing evidence never becomes a passing zero. The producer must probe
+real dependencies and retain immutable qualification evidence; environment flags,
+constructed clients and client-provided IDs are not qualification. No producer
+or public telemetry endpoint was added by this consumer implementation.
+
+Only after approval of the concrete plan, manifest, runtime and bounded paid scope:
+
+```sh
+node scripts/eval-v3-code-execution.mjs --collect --plan /private/plan.json \
+  --collection-manifest /private/manifest.json --private-evidence /private/evidence.json \
+  --out /private/results
+```
+
+Securely inject CODE_EXECUTION_IT=1, the matching CODE_EXECUTION_REASONING_ENGINE,
+both actor token variables and CODE_EXECUTION_BENCHMARK_APPROVED_PLAN_SHA256 /
+CODE_EXECUTION_BENCHMARK_APPROVED_MANIFEST_SHA256 (hashes of exact frozen file bytes).
+Never put tokens in CLI arguments or ordinary env files. No approval is inferred
+from this example. Preflight rejects missing/mismatched producer data before HTTP;
+HTTP/SSE and private reads are bounded and redirects are not followed. CLI outputs
+are owner-private and retain provenance, attempts, partial observations and failures.
+Live T052 acceptance remains open until the actual qualified deployment and cohorts.
+
+## Optional parent IaC — T062 (FR-GC-08, D18-D20)
+
+The existing Google8.10 module now supports create_parent_runtime, default false.
+Dev exposes create_code_execution_parent_runtime. Enabled mode requires exactly
+one existing parent name or managed-parent creation, never both; disabled mode
+cannot create a parent. The typed EU parent omits agent code/spec/context; it adds
+no role or machine override. Existing8.10 locks, ingestion and render wiring remain.
+Run node scripts/test-v3-code-execution-infra.mjs after backend-disabled init for
+the seven mocked dev policy checks. A mock plan is not a saved cloud-state plan or
+approval to create the resource.
+
+
+### Exact timing capture contract for T064 (FR-GC-08 SC-003)
+
+Despite its historical name, sandbox_created_at is the **creation-request start**,
+not a created/ready notification. Capture on the server immediately BEFORE
+runAttempt calls input.runtime.create(input.attemptId, input.signal) in
+apps/api/src/chat/execution/runtime.ts. The onCreated callback is AFTER awaiting
+creation and MUST NOT start this clock: that would remove provider RPC, queue,
+boot and polling cost. AttemptOutcome.startedAt is set before validation; it is
+only a trace consistency bound and MUST NOT be silently substituted for the exact
+create capture point. Preserve null when creation was never invoked.
+
+Capture execution_completed_at immediately after the runtime.execute result
+settles inside runAttempt, using the SAME server clock as creation; never use a
+post-create timestamp or subtract creation time. The interval therefore includes
+creation/boot plus execution and remains the unchanged <=4.0s P95 population.
+Capture first running_code_at at ExecutionController's actual onStatus emission
+(onRunning); client Running-code receipt remains a separate monotonic interval
+from actual sufficient-intent HTTP submission, including the network. Publication
+and cleanup have their own milestones and do not redefine either start point.
+Map server epoch timestamps to the client epoch only through the retained measured
+calibration; duration differences use the original same-domain server captures.
+A producer that cannot capture these points is UNAVAILABLE, not a passing proxy.

@@ -148,7 +148,7 @@ variable "enable_v3_code_execution" {
 }
 
 variable "code_execution_reasoning_engine" {
-  description = "Owner-created parent Agent Platform runtime without agent code: projects/<p>/locations/europe-west4/reasoningEngines/<id>."
+  description = "Existing bare Agent Engine parent (alternative to managed creation): projects/<p>/locations/europe-west4/reasoningEngines/<id>."
   type        = string
   default     = ""
 }
@@ -203,6 +203,12 @@ variable "drive_webhook_address" {
 
 variable "create_model_armor_template" {
   description = "Default-off proposal to manage the EU prompt-injection/jailbreak screening template; requires ingestion enablement and excludes an existing template ID (FR-SI-01/05)."
+  type        = bool
+  default     = false
+}
+
+variable "create_code_execution_parent_runtime" {
+  description = "Default-off managed bare Agent Engine parent proposal; requires enable_v3_code_execution and excludes code_execution_reasoning_engine (FR-GC-08)."
   type        = bool
   default     = false
 }

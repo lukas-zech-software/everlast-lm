@@ -139,6 +139,54 @@ export const CodeExecutionTraceSchema = z
   });
 export type CodeExecutionTrace = z.infer<typeof CodeExecutionTraceSchema>;
 
+/** Canonical private runtime identity/profile input for SHA256(JSON.stringify(parse(value))). */
+export const CodeExecutionRuntimeConfigSchema = z.object({
+  reasoning_engine:z.string().regex(/^projects\/[a-z0-9-]+\/locations\/europe-west4\/reasoningEngines\/[0-9]+$/),
+  region:z.literal("europe-west4"),vcpu:z.literal(2),memory_gb:z.literal(1.5),
+  network:z.literal("none"),file_io_mb:z.literal(100),deadline_ms:z.literal(15000),
+}).strict();
+export type CodeExecutionRuntimeConfig = z.infer<typeof CodeExecutionRuntimeConfigSchema>;
+
+/** FR-GC-08 / NFR-PERF-01: private producer port, never serialized by public routes.
+ * Identifiers, hashes and measured timestamps only; no prompts, code, tokens or provider handles.
+ * The producer must qualify its real serving/runtime dependencies; consumers never infer qualification.
+ */
+export const CodeExecutionPrivateMeasurementSchema = z.object({
+  schema_version: z.literal(1),
+  request_id: uuid("request_id"), notebook_id: uuid("notebook_id"), owner_id: uuid("owner_id"),
+  execution_id: uuid("execution_id").nullable(),
+  fixture_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  source_snapshot: z.array(z.object({ source_id: uuid("source_id"), revision: z.number().int().positive() }).strict()).min(1).max(300),
+  instance_boot_id: uuid("instance_boot_id"), candidate_commit:z.string().regex(/^[0-9a-f]{40}$/), serving_revision: z.string().min(1).max(200),
+  classification_basis: z.enum(["application-serving-readiness", "managed-runtime-readiness"]),
+  qualification_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  runtime_config_sha256:z.string().regex(/^[0-9a-f]{64}$/),
+  clock_calibration_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  execution_state: z.enum(["Succeeded", "Failed", "TimedOut"]),
+  failure_code: CodeExecutionFailureCodeSchema.nullable(),
+  attempts: z.array(z.object({attempt_id:uuid("attempt_id"),ordinal:z.union([z.literal(1),z.literal(2)]),started_at:iso,ended_at:iso.nullable(),terminal_reason:z.union([z.literal("Succeeded"),CodeExecutionFailureCodeSchema]).nullable()}).strict()).max(2),
+  qualified: z.literal(true), ready_at_ms: z.number().finite().nonnegative(), qualified_at_ms: z.number().finite().nonnegative(),
+  /** Historical field name: timestamp immediately BEFORE invoking runtime.create; includes RPC/boot/poll. */
+  sandbox_created_at: iso.nullable(), running_code_at: iso.nullable(),
+  /** Same server clock, immediately after runtime.execute settles, before cleanup/publication. */
+  execution_completed_at: iso.nullable(), answer_published_at: iso.nullable(),
+  trace_sha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
+}).strict();
+export type CodeExecutionPrivateMeasurement = z.infer<typeof CodeExecutionPrivateMeasurementSchema>;
+/** Private file adapter contract shared with the trusted producer; not an HTTP response. */
+export const CodeExecutionPrivateEvidenceFileSchema = z.object({
+  schema_version:z.literal(1),candidate_commit:z.string().regex(/^[0-9a-f]{40}$/),serving_revision:z.string().min(1).max(200),
+  fixture_sha256:z.string().regex(/^[0-9a-f]{64}$/),
+  classification_basis:CodeExecutionPrivateMeasurementSchema.shape.classification_basis,
+  qualification_sha256:z.string().regex(/^[0-9a-f]{64}$/),
+  runtime_config_sha256:z.string().regex(/^[0-9a-f]{64}$/),
+  clock_calibration_sha256:z.string().regex(/^[0-9a-f]{64}$/),
+  approved_notebook_ids:z.array(uuid("notebook_id")).min(2).max(100),
+  measurements:z.array(CodeExecutionPrivateMeasurementSchema).max(2000),
+}).strict();
+export type CodeExecutionPrivateEvidenceFile = z.infer<typeof CodeExecutionPrivateEvidenceFileSchema>;
+
+
 const SourceRevisionSchema = z.object({ source_id: uuid("source_id"), revision: z.number().int().positive() }).strict();
 
 /** Private chart record (data-model.md Chart artifact); the object key/generation never leaves the server. */

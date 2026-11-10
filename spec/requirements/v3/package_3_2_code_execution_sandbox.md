@@ -142,3 +142,25 @@ The project owner decided that, for now, the managed sandbox defines the FR-GC-0
 ### Measurement evidence consistency (2026-11-05; FR-GC-08, NFR-PERF-01, Gate v3.0 #2)
 
 The code-execution latency aggregator is not a live application collector. Runtime configuration without measurements must report UNAVAILABLE (exit 2), never success. Imported observations require an explicit UTC-predeclared plan with the accepted D18–D20 provider profile, all four cold/warm one/two-user cohorts and at least 20 samples per cohort. Sample identities must be unique/in-range; undeclared cohorts, post-hoc declarations, invalid event chronology, incomplete successful samples and malformed one/two-attempt retry metadata are rejected. Retain original observations, fixture/plan/input hashes, candidate revision and collector/environment provenance. Aggregation consistency alone does not establish real-service acceptance.
+
+
+## Collector and private qualification refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09)
+
+Ordinary authenticated chat/SSE collection preserves every attempted request and
+uses separate proven Owner notebooks for paired concurrency. The fresh public
+execution trace is correlated to private request/owner/source revision, immutable
+candidate, serving boot/revision, fixture and runtime-config evidence. Both
+qualification and measured clock calibration are bound to the approved manifest.
+Cold/warm classification declares its measured basis in advance; application-serving
+and provider-runtime readiness are not silently substituted. Missing/contradictory
+evidence makes acceptance unavailable, never a passing zero or client-supplied label.
+
+Client submission-to-received Running-code timing remains independent of measured
+server creation-to-completion timing. Calibration maps clock domains without
+resetting submission or excluding slow samples. Failed SSE outcomes, zero actual
+attempts and unknown retry completion remain failures without invented end times.
+Unqualified collection stops further dispatch while retaining the partial population.
+All existing N>=20/four-cohort/2.5s/4s/isolation/deadline criteria remain unchanged.
+Canonical private evidence schemas are additive in packages/contracts; a trusted
+producer must observe actual execution and dependency qualification. The consumer
+implementation and default-off typed parent IaC do not constitute live acceptance.

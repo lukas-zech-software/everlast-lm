@@ -183,8 +183,8 @@ Deliver foundation→US1 MVP→retry/isolation→publication/history→integrate
 
 - [x] [010-code-execution-sandbox] T060 Refresh boundary inventory and read-only analysis before recovered changes (FR-GC-08, C-02, CC-09).
 - [x] [010-code-execution-sandbox] T061 Verify recovered observation-validator Red tests and recover strict evaluator/CLI safeguards, preserving all failures (FR-GC-08, NFR-PERF-01; depends on T060).
-- [ ] [010-code-execution-sandbox] T062 Recover default-off typed managed-parent infrastructure and validate schemas/mock policies under existing 8.10 locks (FR-GC-08, NFR-SEC-02; depends on T060).
-- [ ] [010-code-execution-sandbox] T063 Implement provenance-backed ordinary-application collection with declared cohorts; preserve UNAVAILABLE until all required evidence exists (FR-GC-08, NFR-PERF-01; depends on T061/T062).
+- [x] [010-code-execution-sandbox] T062 Recover default-off typed managed-parent infrastructure and validate schemas/mock policies under existing 8.10 locks (FR-GC-08, NFR-SEC-02; depends on T060).
+- [x] [010-code-execution-sandbox] T063 Implement provenance-backed ordinary-application collection with declared cohorts; preserve UNAVAILABLE until all required evidence exists (FR-GC-08, NFR-PERF-01; depends on T061/T062).
 
 
 ## Recovered Phase 7: Convergence
@@ -194,3 +194,9 @@ Deliver foundation→US1 MVP→retry/isolation→publication/history→integrate
 - [X] [010-code-execution-sandbox] T050 Pass T049 by making every uncollected CLI path write an explicit UNAVAILABLE report/exit 2 and by rejecting invalid observations instead of accepting a false latency pass; retain raw observations, declaration and report provenance (FR-GC-08, NFR-PERF-01, Gate v3.0 #2; depends on T049 Red; partial).
 - [X] [010-code-execution-sandbox] T051 Reconcile current quickstart, analysis and evidence with implemented local runners and explicit pending live acceptance; preserve dated historical results and rerun package checks (FR-GC-08, NFR-EVAL-01..04, Gate v3.0 #2; depends on T050; partial).
 - [ ] [010-code-execution-sandbox] T052 Obtain provenance-backed application observations for all four predeclared cohorts with at least 20 samples each, ordinary managed security/integration results and the common qualifying 50-case judged release report on the matching deployed candidate; configuration flags alone do not collect measurements (FR-GC-08, NFR-PERF-01, NFR-SEC-01/02, NFR-EVAL-01..04, Gate v3.0 #2; depends on T050/T051 and authorized live prerequisites; missing).
+
+
+Completion refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09): T063 must submit bounded authenticated ordinary SSE requests, run two-user samples concurrently with distinct proven owners/notebooks, and correlate trusted private serving/readiness/fixture evidence. Preserve every attempt. Missing evidence is UNAVAILABLE, never a label-derived pass.
+
+
+- [ ] [010-code-execution-sandbox] T064 Integrate the trusted API private producer through the canonical CodeExecutionPrivateMeasurement/EvidenceFile contracts during 012 qualification, observing actual creation/running/completion/publication and failed attempts, real boot/readiness/candidate/runtime and calibrated clocks; do not publish telemetry or infer qualification from flags. Final T052 acceptance requires that producer and authorized live cohorts (FR-GC-08, NFR-PERF-01, NFR-SEC-02; depends on T063 and integrated candidate).

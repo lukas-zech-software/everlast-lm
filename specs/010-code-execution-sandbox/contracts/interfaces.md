@@ -60,3 +60,61 @@ Before execution allocation, validation/scope/clarification rejection has no tra
 
 - **Chart route byte-range & invalidation semantics**: `GET /api/notebooks/{notebook_id}/chat/messages/{message_id}/charts/{artifact_id}` returns `200` for full delivery, `206 Partial Content` with `Content-Range: bytes start-end/total` and `Accept-Ranges: bytes` for valid single `Range: bytes=...` headers, `416 Range Not Satisfiable` with `Content-Range: bytes */total` for out-of-bounds or multi-range headers, `404` for unknown/unpublished/foreign-message artifacts, `403` for non-owners, and `410 Gone` (`ChartUnavailable`) immediately when any source in `chart_artifacts.source_snapshot` is deleted, replaced by a newer revision, or invalidated by `clearThread`/`deleteNotebook`.
 - **Saved-response & v2 projections**: `convertSavedResponseToNote` (`apps/api/src/routes/notes.ts`) strips `[[n]]` citation badges while preserving `(Computed)` value text and omitting `code_execution_trace` (Python code, stdout, stderr, and private chart URLs never enter note Markdown).
+
+
+## Private benchmark producer port (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09)
+
+The canonical additive CodeExecutionPrivateMeasurementSchema and
+CodeExecutionPrivateEvidenceFileSchema live in @everlast/contracts/package-v3-2
+(exported through the public contracts root). They are private infrastructure ports,
+not public request/response fields. Production producers import contracts only,
+never eval or testkit implementations. Producer ownership belongs to the API
+composition/observability layer with explicit measurement hooks in the execution
+workflow; no route owns timing or authorization orchestration.
+
+Required bindings: request UUID, actual owner/notebook and source revisions, fixture
+SHA256, immutable candidate commit, actual serving revision/process boot, predeclared
+classification basis, qualification digest, runtime-config digest and calibration
+digest. Readiness/qualification timestamps must come from real dependency probes.
+The runtime-config digest is SHA256(JSON.stringify(CodeExecutionRuntimeConfigSchema
+.parse(actualConfig))); accepted CPU/memory/network/file/deadline constants and the
+exact configured engine are bound without putting its raw handle in the evidence.
+
+For each allocated attempt, observe the actual creation-request boundary, first
+Running-code emission, execution completion and final publication/failure. Include
+safe ordered attempt IDs/start/end/terminal summaries and SHA256 of the canonical
+CodeExecutionTraceSchema.parse(trace) JSON. Do not export code/stdout/source text.
+Do not invent an attempt for pre-allocation failure or an end timestamp for unknown
+execution. If qualification or clock evidence is missing, emit no qualified record.
+Write approved-notebook private file envelopes atomically as owner-private0600
+files; records may not be assembled from client-supplied qualification fields.
+
+T063 implements the bounded consumer and ordinary HTTP adapter. T064 remains the
+explicit producer integration dependency for later012; T052 remains the live gate.
+C-01, C-02, public ChatMessage, source authorization and publication fences are
+unchanged. The public VisibleMessage has no request_id: the collector correlates
+its initiated fresh stream, execution identity/trace and private request record.
+
+
+### Exact timing capture contract for T064 (FR-GC-08 SC-003)
+
+Despite its historical name, sandbox_created_at is the **creation-request start**,
+not a created/ready notification. Capture on the server immediately BEFORE
+runAttempt calls input.runtime.create(input.attemptId, input.signal) in
+apps/api/src/chat/execution/runtime.ts. The onCreated callback is AFTER awaiting
+creation and MUST NOT start this clock: that would remove provider RPC, queue,
+boot and polling cost. AttemptOutcome.startedAt is set before validation; it is
+only a trace consistency bound and MUST NOT be silently substituted for the exact
+create capture point. Preserve null when creation was never invoked.
+
+Capture execution_completed_at immediately after the runtime.execute result
+settles inside runAttempt, using the SAME server clock as creation; never use a
+post-create timestamp or subtract creation time. The interval therefore includes
+creation/boot plus execution and remains the unchanged <=4.0s P95 population.
+Capture first running_code_at at ExecutionController's actual onStatus emission
+(onRunning); client Running-code receipt remains a separate monotonic interval
+from actual sufficient-intent HTTP submission, including the network. Publication
+and cleanup have their own milestones and do not redefine either start point.
+Map server epoch timestamps to the client epoch only through the retained measured
+calibration; duration differences use the original same-domain server captures.
+A producer that cannot capture these points is UNAVAILABLE, not a passing proxy.

@@ -15,3 +15,5 @@ export * from "./v3-scale-fixture.ts";
 export * from "./v3-scale-client.ts";
 export * from "./retrieval-calibration.ts";
 export * from "./v3-scale.ts";
+export * from "./code-execution-collector.ts";
+export * from "./code-execution-transport.ts";

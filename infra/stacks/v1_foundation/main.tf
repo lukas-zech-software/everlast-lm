@@ -96,6 +96,11 @@ module "code_execution" {
   api_service_account_email = module.iam_identity.api_service_account_email
   enable                    = var.enable_v3_code_execution
   reasoning_engine_name     = var.code_execution_reasoning_engine
+  create_parent_runtime     = var.create_code_execution_parent_runtime
+  deletion_protection       = var.deletion_protection
+  labels                    = local.common_labels
+
+  depends_on = [module.project_services]
 }
 
 # Package 3.1 (FR-SI-01/05, NFR-SEC-01/02): optional fail-closed EU screening template; no idle workload.

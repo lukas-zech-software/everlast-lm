@@ -41,3 +41,8 @@ google_oauth_client_id   = ""
 google_picker_api_key    = "" # Public, browser-restricted Picker identifier; never a model API key
 google_picker_app_id    = ""
 drive_webhook_address   = ""
+
+# Package 3.2 (FR-GC-08): proposal only; require explicit owner resource/deployment approval.
+enable_v3_code_execution              = false
+create_code_execution_parent_runtime = false # With enable=true, choose this OR an existing runtime name
+code_execution_reasoning_engine       = ""    # Existing bare parent in europe-west4; mutually exclusive with creation

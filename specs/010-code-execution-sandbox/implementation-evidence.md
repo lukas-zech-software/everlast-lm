@@ -229,3 +229,23 @@ T052 live security/four-cohort/common judged acceptance remains OPEN.
 No cloud/model/sandbox calls, resource apply, deployment or GitHub write occurred.
 No policy exception was added, modified or removed. Existing 8.10 provider locks,
 prior package fixes and render bootstrap remain unchanged.
+
+
+## Completion implementation checkpoint — 2026-11-10
+
+T062 selectively recovered only typed bare-parent code/wiring/tests from0e00bf8.
+Current8.10 constraints/locks and preceding ingestion/Guide/signup/render changes
+are preserved. Creation remains default-off; no backend/state/cloud mutation.
+T063 implements ordinary authenticated bounded HTTP/SSE collection, pure cohort
+orchestration and a private file adapter behind explicit ports. Canonical additive
+producer schemas are in contracts. The API producer/012 qualification is T064 and
+remains open, as does T052 live acceptance. No telemetry endpoint was added.
+
+Actual verification and reviewed boundary evidence are in analysis.md and
+evidence/completion-20261110/. Deterministic citation160/160 and leakage0 evidence
+from009 is reused for unchanged source/publication/model paths; the only shared
+contract changes are additive private schemas, and23current API/DB regressions pass.
+No fresh judged, sandbox/provider/model call, deployment or cloud apply is claimed.
+The initial mock command failed only because local modules were not initialized;
+backend-disabled readonly-lock init resolved setup and the actual policy suite passed.
+Reviewer-owned37item sandbox checklist remains unchanged.

@@ -207,3 +207,6 @@ Resume the existing benchmark evidence and default-off managed-parent infrastruc
 Use canonical C-01/C-02, preserve execution isolation/publication fences and D16.
 No new deployment-app dependency, public telemetry bypass or policy exception is permitted.
 Historical completion markers do not establish live T052 acceptance.
+
+
+Completion refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09): T063 must submit bounded authenticated ordinary SSE requests, run two-user samples concurrently with distinct proven owners/notebooks, and correlate trusted private serving/readiness/fixture evidence. Preserve every attempt. Missing evidence is UNAVAILABLE, never a label-derived pass.

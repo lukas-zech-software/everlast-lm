@@ -1,18 +1,30 @@
 # FR-GC-08 managed code-execution sandbox wiring (specs/010 T011; D18, D19, D20, NFR-SEC-01/02).
 #
-# Google's Agent Platform (Agent Engine) Code Execution needs one parent runtime (reasoningEngines/<id>) WITHOUT
-# deployed agent code; every attempt creates and deletes its own child sandbox through the API's runtime identity.
-# The pinned hashicorp/google ~> 6.0 provider has no reasoning-engine resource, so the parent runtime is created once
-# by the owner (infra/README.md) and passed in by name; switching to a provider resource is a later IaC change.
-# The API service account already holds roles/aiplatform.user (iam_identity), which covers sandbox create/execute/
-# delete; no new role, key or secret is added here. Nothing is created while `enable` is false.
+# Agent Engine Code Execution needs one bare parent runtime; each attempt creates/destroys its own child sandbox.
+# Google provider 8.10 supports the typed parent resource. Creation is optional, owner-gated and mutually exclusive
+# with a supplied existing runtime name. No deployed agent code, service account, IAM grant or machine override.
+# The API already holds roles/aiplatform.user and calls the child sandbox service with keyless ADC.
+
+resource "google_vertex_ai_reasoning_engine" "parent" {
+  count           = var.enable && var.create_parent_runtime ? 1 : 0
+  project         = var.project_id
+  region          = var.region
+  display_name    = "everlast-${var.environment}-code-execution"
+  description     = "Bare parent for isolated FR-GC-08 child sandbox attempts; no deployed agent code."
+  labels          = var.labels
+  deletion_policy = var.deletion_protection ? "PREVENT" : "DELETE"
+  # Omit spec/context_spec: no agent framework, package, container or deployed workload belongs on this parent.
+}
 
 locals {
-  enabled = var.enable && var.reasoning_engine_name != ""
+  enabled = var.enable && (var.create_parent_runtime || var.reasoning_engine_name != "")
+  reasoning_engine_name = var.enable && var.create_parent_runtime ? (
+    google_vertex_ai_reasoning_engine.parent[0].name
+  ) : var.reasoning_engine_name
 
   api_env_vars = local.enabled ? {
     CODE_EXECUTION_ENABLED          = "true"
-    CODE_EXECUTION_REASONING_ENGINE = var.reasoning_engine_name
+    CODE_EXECUTION_REASONING_ENGINE = local.reasoning_engine_name
     CODE_EXECUTION_LOCATION         = var.region
   } : {}
 
@@ -24,12 +36,5 @@ locals {
     network          = "none"
     file_io_mb       = 100
     deadline_seconds = 15
-  }
-}
-
-check "enabled_requires_runtime" {
-  assert {
-    condition     = !var.enable || var.reasoning_engine_name != ""
-    error_message = "enable=true needs reasoning_engine_name (the owner-created parent runtime)."
   }
 }

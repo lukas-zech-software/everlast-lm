@@ -39,6 +39,7 @@ module "v1_foundation" {
   drive_webhook_address       = var.drive_webhook_address
 
   # Package 3.2 (FR-GC-08, specs/010): default off; dev is the only planned target.
-  enable_v3_code_execution        = var.enable_v3_code_execution
-  code_execution_reasoning_engine = var.code_execution_reasoning_engine
+  enable_v3_code_execution             = var.enable_v3_code_execution
+  code_execution_reasoning_engine      = var.code_execution_reasoning_engine
+  create_code_execution_parent_runtime = var.create_code_execution_parent_runtime
 }
