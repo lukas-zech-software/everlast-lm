@@ -18,6 +18,7 @@ import { loadScaleFixture } from '../packages/evals/src/v3-scale-fixture.ts';
 import { aggregateScaleLatency, aggregateScaleConcurrency } from '../packages/evals/src/latency.ts';
 import { buildScaleBenchmarkReport } from '../packages/evals/src/report.ts';
 import { runScaleBenchmark } from '../packages/evals/src/v3-scale.ts';
+import { importScaleCapture } from '../packages/evals/src/v3-scale-import.ts';
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -37,19 +38,16 @@ try {
   process.exit(2);
 }
 
+const profile=arg('profile')??'core';
+if(!['core','concurrency'].includes(profile)){console.error('[UNAVAILABLE] Unknown profile');process.exit(2);}
 const observationsPath = arg('observations');
 if (observationsPath) {
   try {
     const rawObs = JSON.parse(readFileSync(observationsPath, 'utf8'));
-    const core = Array.isArray(rawObs) ? rawObs : (rawObs.observations ?? rawObs.core ?? []);
-    const report = buildScaleBenchmarkReport({
-      benchmark_id: `scale-${fixture.fixture_hash.slice(0, 8)}`,
-      manifest_hash: fixture.fixture_hash,
-      coreObservations: core,
-    });
+    const report = importScaleCapture(rawObs,fixture,profile);
     const outFile = join(outDir, 'v3-scale-benchmark.json');
     writeFileSync(outFile, JSON.stringify(report, null, 2) + '\n');
-    console.log(JSON.stringify({ result: report.result, p95_ms: report.core.p95_ms, warm_count: report.core.warm_count }));
+    console.log(JSON.stringify({ result: report.result==='PASS'&&report.evidence_kind==='imported-diagnostic'?'DIAGNOSTIC_PASS':report.result, evidence_kind:report.evidence_kind, release_eligible:false, p95_ms: report.core.p95_ms, warm_count: report.core.warm_count }));
     process.exit(report.result === 'PASS' ? 0 : report.result === 'FAIL' ? 1 : 2);
   } catch (err) {
     console.error(`[UNAVAILABLE] Failed to evaluate observations: ${err.message}`);
@@ -60,16 +58,20 @@ if (observationsPath) {
 const baseUrl = arg('url') ?? process.env.BENCHMARK_BASE_URL ?? process.env.API_URL;
 const token = arg('token') ?? process.env.BENCHMARK_TOKEN ?? process.env.AUTH_TOKEN;
 const notebookId = arg('notebook') ?? process.env.BENCHMARK_NOTEBOOK_ID;
-const profile = arg('profile') === 'concurrency' ? 'concurrency' : 'core';
+const evidencePath=arg('evidence')??process.env.BENCHMARK_EVIDENCE_FILE;
+const uncertainty=Number(arg('clock-uncertainty-ms')??process.env.BENCHMARK_CLOCK_UNCERTAINTY_MS);
+const secondNotebook=arg('concurrency-notebook')??process.env.BENCHMARK_CONCURRENCY_NOTEBOOK_ID;
+const secondToken=process.env.BENCHMARK_CONCURRENCY_TOKEN;
+const secondManifest=arg('concurrency-manifest');
 
-if (!baseUrl || !token || !notebookId) {
+if (!baseUrl || !token || !notebookId || !evidencePath || !Number.isFinite(uncertainty) || uncertainty<0 || !fixture.scope_manifest_hash || !fixture.source_snapshot || fixture.tokenizer_qualification==='UNAVAILABLE' || fixture.runtime_qualification==='UNAVAILABLE' || (profile==='concurrency'&&(!secondNotebook||!secondToken||!secondManifest))) {
   const unavailableReport = {
     schema: 'everlast.scale-v3-report/1',
     benchmark_id: `scale-${fixture.fixture_hash.slice(0, 8)}`,
     manifest_hash: fixture.fixture_hash,
     timestamp: new Date().toISOString(),
     result: 'UNAVAILABLE',
-    missing_prerequisites: 'Live deployed benchmark environment not configured (API_URL/BENCHMARK_TOKEN/BENCHMARK_NOTEBOOK_ID required)',
+    missing_prerequisites: 'Qualified deployment/tokenizer/runtime, private evidence, clock uncertainty and requested profile scopes required',
     core: { result: 'UNAVAILABLE', p95_ms: null, percentile_method: 'nearest_rank', p95_rank: 19, warm_count: 0, wake_count: 0, attempt_count: 0, observations: [], wake_latencies_ms: [], budget_ms: 2500 }
   };
   const outFile = join(outDir, 'v3-scale-benchmark.json');
@@ -79,15 +81,31 @@ if (!baseUrl || !token || !notebookId) {
 }
 
 try {
+  const privateRecords=[];
+  const secondFixture=secondManifest?loadScaleFixture(JSON.parse(readFileSync(secondManifest,'utf8'))):undefined;
   const report = await runScaleBenchmark(fixture, {
     baseUrl,
     token,
     notebookId,
     profile,
+    clockUncertaintyMs:uncertainty,
+    concurrencyNotebookId:secondNotebook,
+    concurrencyToken:secondToken,
+    concurrencyFixture:secondFixture,
+    evidence:async ({requestId})=>{
+      // Operator-private sidecar/export only. Malformed lines invalidate collection rather than disappearing.
+      const text=readFileSync(evidencePath,'utf8');
+      if(Buffer.byteLength(text)>50_000_000)throw new Error('Private evidence file exceeds bound');
+      const rows=text.split('\n').filter(Boolean).map(line=>JSON.parse(line));
+      const matched=rows.filter(row=>row.request_id===requestId);
+      if(matched.length!==1)throw new Error('Missing/duplicate private request evidence');
+      privateRecords.push(matched[0]);return matched[0];
+    },
   });
+  writeFileSync(join(outDir,'v3-scale-capture.json'),JSON.stringify({schema:'everlast.scale-v3-capture/1',profile,manifest_hash:fixture.fixture_hash,observations:report.core.observations,...(profile==='concurrency'?{concurrency_observations:report.concurrency?.observations,concurrency_fixture:secondFixture}:{}),private_evidence:privateRecords},null,2)+'\n',{mode:0o600});
   const outFile = join(outDir, 'v3-scale-benchmark.json');
-  writeFileSync(outFile, JSON.stringify(report, null, 2) + '\n');
-  console.log(JSON.stringify({ result: report.result, p95_ms: report.core.p95_ms, warm_count: report.core.warm_count }));
+  writeFileSync(outFile, JSON.stringify(report, null, 2) + '\n',{mode:0o600});
+  console.log(JSON.stringify({ result: report.result==='PASS'&&report.evidence_kind==='imported-diagnostic'?'DIAGNOSTIC_PASS':report.result, evidence_kind:report.evidence_kind, release_eligible:false, p95_ms: report.core.p95_ms, warm_count: report.core.warm_count }));
   process.exit(report.result === 'PASS' ? 0 : report.result === 'FAIL' ? 1 : 2);
 } catch (err) {
   console.error(`[ERROR] eval:v3-scale failed: ${err.message}`);

@@ -1,3 +1,4 @@
+import { PrivateBenchmarkRecorder } from '../src/observability/benchmark.ts';
 import { randomUUID } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -47,6 +48,10 @@ class ScriptedModel implements GroundedModel {
   }
 }
 
+// NFR-PERF-01 observer double only; no release qualification or private-file proof is claimed.
+const observedTraces:unknown[]=[];
+const benchmark=new PrivateBenchmarkRecorder({approved_notebook_ids:[],revision:'local',sink:()=>{}});
+benchmark.beginExecution=()=>({timing:()=>{},finish:trace=>{observedTraces.push(structuredClone(trace));}});
 let api: TestApi;
 let storage: LocalObjectStorage;
 const model = new ScriptedModel();
@@ -94,6 +99,7 @@ beforeAll(async () => {
       v2,
       chat: new ChatService({
         pool: db.pool,
+        benchmark,
         embedder,
         model,
         codeExecution: { runtime: sandbox, storage },
@@ -108,6 +114,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
+  observedTraces.length=0;
   sandbox.reset();
   model.calls = [];
   model.script = ({ chunks }) => latencyComputeDraft(chunks, "pstdev");
@@ -283,6 +290,8 @@ describe("T032 source replacement, deletion and revocation fences (FR-010, C-02)
     expect(exec.rows[0]).toEqual({ state: "Failed", failure_code: "ScopeChanged" });
     const charts = await api.db.pool.query("SELECT state FROM chart_artifacts WHERE notebook_id = $1", [nb.id]);
     expect(charts.rows.every((r) => r.state === "invalidated")).toBe(true);
+    const canonical=await api.db.pool.query('SELECT trace FROM code_executions WHERE notebook_id=$1',[nb.id]);
+    expect(observedTraces).toEqual([canonical.rows[0].trace]);
   });
 
   it("CE-SCP-05: deleting a captured source before whole-table read or before commit aborts publication with zero messages or published charts", async () => {

@@ -163,6 +163,7 @@ const request = (subtype: ReportSubtype, customPrompt: string | undefined) =>
   customPrompt ? { custom_prompt: customPrompt, applies_to: "structure, tone and target audience only", report_type: subtype } : undefined;
 
 export class VertexReportModel implements ReportModelClient {
+  contextRuntime?: StudioContextRuntime;
   readonly id: string;
   private readonly client: VertexStructuredGenerationClient;
   private readonly retryDelaysMs: readonly number[];
@@ -185,11 +186,13 @@ export class VertexReportModel implements ReportModelClient {
     contents: Record<string, unknown>,
     responseSchema: object,
     schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } },
-    signal: AbortSignal
+    signal: AbortSignal,
+    cachedContent?:string
   ): Promise<T> {
+    if(Buffer.byteLength(JSON.stringify(contents))+Buffer.byteLength(REPORT_SYSTEM_INSTRUCTION)+REPORT_GENERATION_CONFIG.maxOutputTokens!>1_048_576)throw new ReportGenerationError("Complete serialized model envelope exceeds capacity");
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema, generationConfig: REPORT_GENERATION_CONFIG });
+        return await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema, generationConfig: REPORT_GENERATION_CONFIG, cachedContent });
       } catch (error) {
         const transient = error instanceof StructuredGenerationError && error.transient;
         if (transient && attempt < this.retryDelaysMs.length && !signal.aborted) {
@@ -211,11 +214,12 @@ export class VertexReportModel implements ReportModelClient {
         report_type: req.subtype,
         output_language: req.output_language ?? "en-US",
         report_request: request(req.subtype, req.custom_prompt),
-        sources: req.chunks.map((c) => ({ chunk_id: c.chunk_id, text: c.text })),
+        sources: req.chunks.map((c) => ({ chunk_id: c.chunk_id,...(req.cached_context?{}:{text:c.text}) })),
       },
       EXTRACT_RESPONSE_SCHEMA,
       ReportExtractOutputSchema,
-      req.signal
+      req.signal,
+      req.cached_context
     );
     const findings: Finding[] = [];
     for (const f of out.findings) {
@@ -280,5 +284,39 @@ export class VertexReportModel implements ReportModelClient {
 export function createVertexReportModelFromEnv(env: NodeJS.ProcessEnv = process.env, createClient?: GenAiFactory): VertexReportModel | undefined {
   if (!(env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)) return undefined;
   const config = vertexConfigFromEnv(env);
-  return VertexReportModel.fromFactory(config.project, createClient, { location: config.location, model: env.REPORT_MODEL ?? REPORT_MODEL });
+  const model=VertexReportModel.fromFactory(config.project, createClient, { location: config.location, model: env.REPORT_MODEL ?? REPORT_MODEL });
+  model.contextRuntime=createVertexStudioContextFromEnv(env);
+  return model;
+}
+
+import { GoogleGenAI } from '@google/genai';
+import type { StudioContextRuntime } from '../context-cache.ts';
+/** NFR-PERF-01 / NFR-SEC-01 / D3: native enterprise EU cache/tokenizer, invoked only by ordinary Studio work. */
+export function createVertexStudioContextFromEnv(env:NodeJS.ProcessEnv):StudioContextRuntime{
+ const config=vertexConfigFromEnv(env),model=env.REPORT_MODEL??REPORT_MODEL;
+ const client=new GoogleGenAI({vertexai:true,project:config.project,location:config.location,httpOptions:{timeout:30000}});
+ const inputLimit=1_048_576,outputReserve=8192,instructionTokens=10000;
+ return {model,modelVersion:env.REPORT_MODEL_VERSION??model,inputLimit,outputReserve,instructionTokens,ttlSeconds:300,
+  tokenizer:{model,qualification:'enterprise-eu',version:`vertex-countTokens:${env.REPORT_MODEL_VERSION??model}`,count:async text=>{
+   const result=await client.models.countTokens({model,contents:text});
+   if(!Number.isSafeInteger(result.totalTokens)||result.totalTokens!<0)throw new Error('Qualified token count unavailable');return result.totalTokens!;
+  }},
+  provider:{
+   create:async({chunks,ttlSeconds,signal})=>{
+    const parts:{text:string}[]=[];let bytes=0;
+    for await(const page of chunks){signal.throwIfAborted();for(const chunk of page){const text=JSON.stringify({chunk_id:chunk.chunk_id,source_id:chunk.source_id,revision:chunk.revision,text:chunk.text});bytes+=Buffer.byteLength(text);if(bytes>32_000_000)throw new Error('Full-context serialized memory capacity exceeded');parts.push({text});}}
+    const contents=[{role:'user',parts}];
+    const tokens=(await client.models.countTokens({model,contents})).totalTokens;
+    if(tokens===undefined || tokens+outputReserve+instructionTokens>inputLimit)throw new Error('Complete cached model envelope exceeds capacity');
+    const cached=await client.caches.create({model,config:{contents,ttl:`${ttlSeconds}s`}});
+    const expiresAt=Date.parse(cached.expireTime??'');
+    if(!cached.name||!Number.isFinite(expiresAt)||expiresAt<=Date.now()){
+     if(cached.name)await client.caches.delete({name:cached.name}).catch(()=>undefined);
+     throw new Error('Provider-confirmed cache handle/expiry unavailable');
+    }
+    return {handle:cached.name,expiresAt};
+   },
+   delete:async handle=>{await client.caches.delete({name:handle});},
+  },
+ };
 }

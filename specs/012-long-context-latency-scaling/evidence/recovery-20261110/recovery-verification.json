@@ -1,0 +1,285 @@
+{
+  "base": "0e00bf88bb73a92163c57887a5d77f666b7648ac",
+  "manifest_sha256": "7025c979bb4f2c71435f0a1bddf350e4efab66dce3dec8dcbe2a588054c19706",
+  "patch_sha256": "db83d82ad0990184ee4b928d6d1fb1ad6d151b716772048ca58fdd197e4d2f3e",
+  "archive_sha256": "820b684a7063725ca735d2165d7eb5336ed67b8ef13de78c6cc3ba4bee40f2f2",
+  "members_verified": 55,
+  "members": [
+    {
+      "path": "Dockerfile",
+      "sha256": "928ad74acf2891b8e39c37bc95263bff0cd61fc376ab969008a4f9d4fcf364e1",
+      "bytes": 547
+    },
+    {
+      "path": "apps/api/src/chat/service.ts",
+      "sha256": "bfc7f92e5d4c5b94dad4bc6c2a0955b5a34db01f76bb4f61b536d078276a7437",
+      "bytes": 18679
+    },
+    {
+      "path": "apps/api/src/config.ts",
+      "sha256": "5882ba2b5d563472881732bac3f779ae79f20b2990f65202152cdfc7c4502cc6",
+      "bytes": 4881
+    },
+    {
+      "path": "apps/api/src/observability/benchmark.ts",
+      "sha256": "d6996cf6698736006346d256fb0edf1ad753c47fe4feed9380ffa0156343376b",
+      "bytes": 6455
+    },
+    {
+      "path": "apps/api/src/server.ts",
+      "sha256": "92ed668662cb9d3f719133cd992f95ca2e0869d11f40b9e070f29abedf325ad2",
+      "bytes": 11141
+    },
+    {
+      "path": "apps/api/src/v2/runtime.ts",
+      "sha256": "a7eb8fdb3b6a694378d2ec14467bfbe39526eb83f9f054b8e5186a6b4bfa4055",
+      "bytes": 30616
+    },
+    {
+      "path": "apps/api/test/benchmark-readiness.test.ts",
+      "sha256": "c4435ee821a231876e12fa5946ddbab2fc7ff7625d7865b0b4f2f1dff73b0930",
+      "bytes": 3531
+    },
+    {
+      "path": "apps/api/test/studio-scale-api.integration.test.ts",
+      "sha256": "c13553d4446bde4f6fdc15b957f56c01d9dd1c55c97f22d33b36a8df7abda71d",
+      "bytes": 1986
+    },
+    {
+      "path": "apps/api/test/v3-context-local.ts",
+      "sha256": "af6e1047a26ffb0039312a3e2119f9a57ac107ad0a5dd02aad14ce4253529d70",
+      "bytes": 13646
+    },
+    {
+      "path": "apps/render/Dockerfile",
+      "sha256": "2ae2d7e38c89056326bd0ffe04d28c04201aa9954763a9b7ff22c804ffa5f979",
+      "bytes": 896
+    },
+    {
+      "path": "apps/web/test/studio-scale.spec.ts",
+      "sha256": "34a4ad1bcee7074df44af26667b0e90a27c54e85e8661cd57ff28241757776d1",
+      "bytes": 1566
+    },
+    {
+      "path": "apps/worker/src/package-v2-2-gemini.ts",
+      "sha256": "18232f3147d82fafda76383d5e9af705c435475c633786267aa620eae4bb55f5",
+      "bytes": 15207
+    },
+    {
+      "path": "apps/worker/src/studio/context-cache.ts",
+      "sha256": "a1e1f71949b3297f0d8596151e06b90c417e582e81abd3deb6cf2071b1038058",
+      "bytes": 3914
+    },
+    {
+      "path": "apps/worker/src/studio/context-session.ts",
+      "sha256": "b8980ae0c54652235fdc86c01511e387faa4b263a7e4c1bdd509e69213b0da80",
+      "bytes": 3796
+    },
+    {
+      "path": "apps/worker/src/studio/context-vertex.ts",
+      "sha256": "7b6f43b6231316ad6f1bf90838590d543d4bc6cbc72799829b09a93e7917465d",
+      "bytes": 2434
+    },
+    {
+      "path": "apps/worker/src/studio/evidence.ts",
+      "sha256": "84effe5ad7f2a15aee2158ea1978650460410b9d88f1672a24a77c4e837cafa5",
+      "bytes": 7107
+    },
+    {
+      "path": "apps/worker/src/studio/mindmaps/model.ts",
+      "sha256": "99a758b6ff732b0409eb2c378d56ab8939ad7ec337494f67366789ececa3e292",
+      "bytes": 11124
+    },
+    {
+      "path": "apps/worker/src/studio/mindmaps/pipeline.ts",
+      "sha256": "d2a6457f99fed612f3ec97a4d8074808cb92e22d05565db97c9196c2091362f5",
+      "bytes": 4066
+    },
+    {
+      "path": "apps/worker/src/studio/mindmaps/plugin.ts",
+      "sha256": "db738262f0cff48c5e564f7d3091a55bf80f08b89c7c501e38ca2a9563732fa8",
+      "bytes": 2016
+    },
+    {
+      "path": "apps/worker/src/studio/reports/model.ts",
+      "sha256": "27eeb6826087ede5897769af89fe47ccd238cd0c9feac8479688c7419481e565",
+      "bytes": 2278
+    },
+    {
+      "path": "apps/worker/src/studio/reports/pipeline.ts",
+      "sha256": "0462fb8ad8fef54ced5715acba50c0c26b0186f31043329b028b77ba9b0d0699",
+      "bytes": 7646
+    },
+    {
+      "path": "apps/worker/src/studio/reports/plugin.ts",
+      "sha256": "c82176824c80741ffbaef3e3f346e90b4bc6be9808c786cda4f83f9c23289ee2",
+      "bytes": 2292
+    },
+    {
+      "path": "apps/worker/src/studio/reports/vertex-model.ts",
+      "sha256": "fc1800e443b9868a2d0e812fffd68859170c12dcdd01fd68f2fcaf7a49f68360",
+      "bytes": 14489
+    },
+    {
+      "path": "apps/worker/src/studio/runner.ts",
+      "sha256": "66859dd2428ab2ecb2f11fc8802fd582d0ccc6dd9b8d4ade7e9716ea4793f18f",
+      "bytes": 15388
+    },
+    {
+      "path": "apps/worker/src/studio/tables/model.ts",
+      "sha256": "5f093bde8526db70193e0d39d38e2d23777e0eee50c5fcd129555a8624702d8f",
+      "bytes": 14484
+    },
+    {
+      "path": "apps/worker/src/studio/tables/pipeline.ts",
+      "sha256": "8c3e22561504853f88bfc3228abf30b14aae240f12030e9ac743466a7d46f9cf",
+      "bytes": 4920
+    },
+    {
+      "path": "apps/worker/src/studio/tables/plugin.ts",
+      "sha256": "709199db379f6f6f5de8e67d28d69c6d5d48b39993e7a09661f369cdbb4ca25a",
+      "bytes": 3298
+    },
+    {
+      "path": "apps/worker/test/studio-context-cache.integration.test.ts",
+      "sha256": "09747289ea2f13a5c4194530f89d9547f1e33c5faee5c9af22d1eb1987dc28a7",
+      "bytes": 2250
+    },
+    {
+      "path": "apps/worker/test/studio-context-cache.test.ts",
+      "sha256": "3a56901a6cbeddd96a9332378f30301c402037442239fe8e94daf927d60199b9",
+      "bytes": 4331
+    },
+    {
+      "path": "apps/worker/test/studio-context-session.test.ts",
+      "sha256": "b3902a27eefae687621121c282ca1940b4e61df9cc3b47477cf40f72dba5b764",
+      "bytes": 2041
+    },
+    {
+      "path": "apps/worker/test/studio-context-vertex.test.ts",
+      "sha256": "753c66b17cba480fc9c1394cf7939d2b1ed850877694085c1b6d54ce230e1852",
+      "bytes": 1933
+    },
+    {
+      "path": "apps/worker/test/studio-evidence.test.ts",
+      "sha256": "9ea1105696012474ae357bd22facd8db792ecd66b88afde2bd23ef496a783f21",
+      "bytes": 4351
+    },
+    {
+      "path": "docs/gate-v3-live-evaluation.md",
+      "sha256": "eb1188d3570bb633589f7416b377f97b6596726310cde0ee4592bb82692a3197",
+      "bytes": 4483
+    },
+    {
+      "path": "docs/solution-architecture.md",
+      "sha256": "db073baa0791df89c6400ad4b1d10c2bf50847b643cb9f246451de01c9f69ac3",
+      "bytes": 94985
+    },
+    {
+      "path": "packages/contracts/src/package-v2-4.ts",
+      "sha256": "2b43db5194c83c4d306f7f58f7fa55616f30746ac36b9a584a1011384deefa1b",
+      "bytes": 20950
+    },
+    {
+      "path": "packages/contracts/src/package-v3-4.ts",
+      "sha256": "66e39c375f136e1b4acba472a46348f8dd134cca497a02b33e11849369420c28",
+      "bytes": 10138
+    },
+    {
+      "path": "packages/db/src/scoped-corpus.ts",
+      "sha256": "e59a93be9bb832e269af360f21152fa0d348ab7867c2f67208f4b13940e36511",
+      "bytes": 2826
+    },
+    {
+      "path": "packages/evals/src/latency.ts",
+      "sha256": "d96ad90028a4943e8842400a5b8953da2320597019018d4ed22b3fa5873af00f",
+      "bytes": 2969
+    },
+    {
+      "path": "packages/evals/src/report.ts",
+      "sha256": "a4e6bda097e05479db7945d0c521939d2c501d2cd21162f120a72a45a59c09ba",
+      "bytes": 11068
+    },
+    {
+      "path": "packages/evals/src/v3-scale-client.ts",
+      "sha256": "e2a9421b70719774d91eed99d05bc3d508aad2ccf063dcc652ce5b3f936deb67",
+      "bytes": 3285
+    },
+    {
+      "path": "packages/evals/src/v3-scale-import.ts",
+      "sha256": "ef115e2b4ad1827a0125e98a8d395b09aced4ade22ac0d9d5cf27884eaad2b16",
+      "bytes": 3886
+    },
+    {
+      "path": "packages/evals/src/v3-scale.ts",
+      "sha256": "236f8ba2990bec3b57617c4be272ae8338b93c6e42a5e8d8c52a6af3707395a7",
+      "bytes": 8221
+    },
+    {
+      "path": "packages/evals/test/v3-scale-runner.test.ts",
+      "sha256": "04244088e52ecc1a326ad7156a4669916ca42f97e581debd0bb4f9b6d16ab138",
+      "bytes": 7006
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "sha256": "4a5d707ab9925e9a85d8fc87a6a92ca75a874dc80f2d58e7e3d5ed0322245f2d",
+      "bytes": 173776
+    },
+    {
+      "path": "scripts/eval-v3-context.mjs",
+      "sha256": "0659d42c279ad4fed72317b085dd8021af26ea7845e993183dd3d0b94e4d600c",
+      "bytes": 1446
+    },
+    {
+      "path": "scripts/eval-v3-scale.mjs",
+      "sha256": "553484a97fa11e3f92771ac0edbe9297294de1a209f8e93365c5cc76207c2c24",
+      "bytes": 6406
+    },
+    {
+      "path": "scripts/start.mjs",
+      "sha256": "2d04f0a5b0ae3f63ffa7440154056279f1623c75e79f1ea4287908bdb7e1622d",
+      "bytes": 587
+    },
+    {
+      "path": "spec/System_Requirements_Specification_Gemeni_Notebook.md",
+      "sha256": "3b14c54891065645120ee8f6b4fe0aba9fa872edfa70b67c27f7a807d9df7b6b",
+      "bytes": 63152
+    },
+    {
+      "path": "spec/requirements/README.md",
+      "sha256": "93c683dc5d8c1e9d6417cad00cea3992fce0e4a3a3cea0242d1b81cf60e4737f",
+      "bytes": 14811
+    },
+    {
+      "path": "spec/requirements/v3/package_3_4_long_context_latency_scaling.md",
+      "sha256": "cac3902b4d1893fb497180b9b2d400726ee7aedd38b15b008dff6afd5957a960",
+      "bytes": 16062
+    },
+    {
+      "path": "specs/012-long-context-latency-scaling/analysis.md",
+      "sha256": "67491c2bba3e1fbc38c05ae7e5ce62d3d19eeacd2827e16a1efd7d3bfc215b14",
+      "bytes": 8623
+    },
+    {
+      "path": "specs/012-long-context-latency-scaling/plan.md",
+      "sha256": "4e4f82a1a08860d32567e46a2c66fd90ef3c8483bd75246c3a8a9d7188eb848b",
+      "bytes": 29429
+    },
+    {
+      "path": "specs/012-long-context-latency-scaling/spec.md",
+      "sha256": "4d5ef86a916a7e5a0f1065bd30ed9aec7447183a928e0a4738f57389e14e52ab",
+      "bytes": 25773
+    },
+    {
+      "path": "specs/012-long-context-latency-scaling/tasks.md",
+      "sha256": "2c3a4b68d95ffd1abfa6a18f510888737e2a5caa851085cf568373c0092bbee1",
+      "bytes": 33934
+    },
+    {
+      "path": "vitest.config.ts",
+      "sha256": "0b5c459c4de36c39d5da2661c17f8cd6d96f06f2140af7362a6bc2641a827d8f",
+      "bytes": 2761
+    }
+  ],
+  "reconciliation": "Base-aware three-way review; server/runtime conflicts manually retained Guide admission/recovery. No old lock/manifests/render provider changes copied. Session/provider helpers remain in existing worker modules; no additional cross-app import or wildcard path."
+}

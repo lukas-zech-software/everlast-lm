@@ -522,6 +522,11 @@ export interface StudioGenerationContext {
   snapshot: SourceRevisionPair[];
   /** Chunks obtained exclusively through C-02 getScopedContext. */
   chunks: UnifiedDocumentChunk[];
+  /** NFR-PERF-01 / D12: bounded original C-02 pages; legacy arrays remain a compatibility adapter. */
+  original_chunks?: AsyncIterable<UnifiedDocumentChunk[]> | undefined;
+  cached_context?:string|undefined;
+  before_model_call?:(()=>Promise<void>)|undefined;
+  load_cited_chunks?: ((ids:string[])=>Promise<UnifiedDocumentChunk[]>) | undefined;
   output_language?: string | undefined;
   signal: AbortSignal;
   reportProgress(stage: StudioProgress["stage"], percent: number): void;

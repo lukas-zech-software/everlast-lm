@@ -19,7 +19,7 @@ export const QualityRatioSchema = z.object({numerator:count,denominator:count.po
 export const BenchmarkPolicySchema = z.object({sample_count:z.literal(20),percentile_method:z.literal('nearest_rank'),max_attempts:z.literal(40)}).strict();
 export const ScopedCorpusManifestSchema = z.object({
  notebook_id:z.string().uuid(),principal_subject:z.string().min(1),effective_authorization_fingerprint:hash,
- sources:CanonicalScopeSchema,token_counting_model:z.string().min(1),token_counting_version:z.string().min(1),source_token_total:count,
+ sources:CanonicalScopeSchema,token_counting_model:z.string().min(1),token_counting_version:z.string().min(1),token_counting_qualification:z.enum(['enterprise-eu','local-double','unqualified']).optional(),source_token_total:count,
  pages:z.array(z.object({source_id:z.string().uuid(),revision:count.positive(),page_number:count.positive(),digest:hash,token_count:count}).strict()),
  chunks:z.array(z.object({chunk_id:z.string().uuid(),source_id:z.string().uuid(),revision:count.positive(),digest:hash,token_count:count,locator:ChunkLocatorSchema}).strict()),
  manifest_hash:hash,
@@ -41,7 +41,10 @@ export const BenchmarkObservationSchema = z.object({
  cohort:z.enum(['warm','wake','invalid_environment']),instance_boot_id:z.string().uuid().nullable(),replayed:z.boolean(),
  client_submission_monotonic_ms:z.number().finite().nonnegative(),client_first_validated_answer_ms:z.number().finite().nonnegative().nullable(),
  latency_ms:z.number().finite().nonnegative().nullable(),terminal_status:z.enum(['answer','refusal','error','cancelled','missing','replayed']),
- active_token_total:count,cited_chunk_ids:z.array(z.string().uuid()),needle_correct:z.boolean(),prompt_leakage_count:count,answer_leakage_count:count,
+ active_token_total:count.nullable(),cited_chunk_ids:z.array(z.string().uuid()),needle_correct:z.boolean(),prompt_leakage_count:count.nullable(),answer_leakage_count:count.nullable(),
+ diagnostic_pair_id:z.string().uuid().optional(),client_completion_monotonic_ms:z.number().finite().nonnegative().optional(),
+ client_submission_epoch_ms:z.number().finite().optional(),clock_uncertainty_ms:z.number().finite().nonnegative().nullable().optional(),
+ notebook_id:z.string().uuid().optional(),principal_subject:z.string().min(1).optional(),scope_manifest_hash:hash.optional(),revision:z.string().min(1).optional(),evidence_error:z.string().optional(),
 }).strict().superRefine((o,ctx)=>{
  const factual=o.terminal_status==='answer' && !o.replayed;
  if(factual ? o.latency_ms===null || o.client_first_validated_answer_ms===null : o.latency_ms!==null || o.client_first_validated_answer_ms!==null)
@@ -82,3 +85,23 @@ export const OriginalCoverageSchema=z.object({
  const batches=new Set(c.expected_batch_ids),done=new Set(c.completed_batch_ids);
  if(batches.size!==c.expected_batch_ids.length || done.size!==c.completed_batch_ids.length || done.size!==batches.size || [...done].some(id=>!batches.has(id))) fail('Incomplete or duplicate batch completion');
 });
+
+/** NFR-PERF-01 private identifier/count-only record, correlated outside the ordinary public API. */
+export const BenchmarkPrivateEvidenceSchema=z.object({
+ request_id:z.string().uuid(),notebook_id:z.string().uuid(),instance_boot_id:z.string().uuid(),revision:z.string().min(1),terminal_status:z.string(),
+ readiness:z.object({instance_boot_id:z.string().uuid(),revision:z.string().min(1),ready_at_ms:z.number().finite().nullable(),dependencies:z.object({sql:z.boolean(),model:z.boolean(),retrieval:z.boolean(),cache:z.boolean(),migrations:z.boolean(),recovery:z.boolean()}).strict()}).strict(),
+ stages:z.record(z.string(),z.number().finite().nonnegative()),fixture_hash:hash.nullable(),
+ scope:z.object({principal_subject:z.string().min(1),notebook_id:z.string().uuid(),sources:CanonicalScopeSchema,source_token_total:count,manifest_hash:hash,token_counting_model:z.string().min(1),token_counting_version:z.string().min(1),token_counting_qualification:z.enum(['enterprise-eu','local-double','unqualified'])}).strict().nullable(),
+ prompt_leakage_count:count.nullable(),
+}).strict();
+export type BenchmarkPrivateEvidence=z.infer<typeof BenchmarkPrivateEvidenceSchema>;
+
+export type ReadinessEvidence=BenchmarkPrivateEvidence['readiness'];
+/** NFR-PERF-01 / D17: uncertainty overlaps are unqualified, never guessed warm. */
+export function classifyReadiness(evidence:ReadinessEvidence,request:{instance_boot_id:string;revision:string;client_submission_epoch_ms:number;clock_uncertainty_ms:number}):'warm'|'wake'|'invalid_environment'{
+ const {clock_uncertainty_ms:u,client_submission_epoch_ms:t}=request;
+ if(evidence.instance_boot_id!==request.instance_boot_id || evidence.revision!==request.revision || !Number.isFinite(u) || u<0 || !Number.isFinite(t) || evidence.ready_at_ms===null || !Number.isFinite(evidence.ready_at_ms) || !Object.values(evidence.dependencies).every(v=>v===true)) return 'invalid_environment';
+ if(evidence.ready_at_ms<t-u) return 'warm';
+ if(evidence.ready_at_ms>t+u) return 'wake';
+ return 'invalid_environment';
+}

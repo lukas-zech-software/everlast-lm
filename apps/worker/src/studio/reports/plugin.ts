@@ -45,6 +45,11 @@ export class ReportGeneratorPlugin implements StudioGeneratorPlugin {
     return generateReport({
       subtype,
       chunks: ctx.chunks,
+      snapshot:ctx.snapshot,
+      original_chunks:ctx.original_chunks,
+      cached_context:ctx.cached_context,
+      before_model_call:ctx.before_model_call,
+      load_cited_chunks:ctx.load_cited_chunks,
       model: this.model,
       custom_prompt: ctx.params_json.custom_prompt,
       output_language: ctx.output_language,

@@ -1,0 +1,25 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (5 tests | 1 failed) 9ms
+   × NFR-SEC-02 persists private records by atomic replacement and rejects existing public/symlink targets 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-SEC-02 persists private records by atomic replacement and rejects existing public/symlink targets
+AssertionError: expected 184877007 not to be 184877007 // Object.is equality
+ ❯ apps/api/test/benchmark-readiness.test.ts:53:83
+     51|   const sink=createPrivateBenchmarkSink(file);const recorder=new Priva…
+     52|   recorder.begin(id,randomUUID())!.finish('error');const inode=statSyn…
+     53|   recorder.begin(id,randomUUID())!.finish('error');expect(statSync(fil…
+       |                                                                                   ^
+     54|   chmodSync(file,0o644);expect(()=>createPrivateBenchmarkSink(file)).t…
+     55|   const link=join(dir,'link');symlinkSync(file,link);expect(()=>create…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  15:10:48
+   Duration  247ms (import 65%, transform 28%, tests 5%, worker 2%)

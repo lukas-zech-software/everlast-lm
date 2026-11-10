@@ -1,0 +1,549 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (4 tests | 2 failed) 6ms
+   × NFR-PERF-01 C-02 retains private scoped ledger and observed prompt counts without content 2ms
+   × NFR-PERF-01 does not qualify omitted or failing dependency probes 0ms
+ ❯ |unit| apps/worker/test/studio-evidence.test.ts (3 tests | 1 failed) 12ms
+   × NFR-PERF-01 C-01/C-03 validates every oversized original interval, no-finding batch and scope 3ms
+ ❯ |unit| apps/worker/test/studio-context-cache.test.ts (6 tests | 1 failed) 22ms
+   × NFR-PERF-01 rejects missing provider-confirmed expiry rather than inventing it from requested TTL 5ms
+ ❯ |unit| packages/evals/test/v3-scale-runner.test.ts (9 tests | 7 failed) 5140ms
+   ❯ NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner (7)
+     × retains 40 invalid attempts and unknown values when private serving evidence is missing 26ms
+     × requires the needle citation and rejects mismatch of notebook, fixture or serving identity 1ms
+     × does not silently run core-only concurrency or fall back to the same credentials/scope 32ms
+     × runs genuine 10 request pairs with each Owner notebook fixture, and observes decoy leakage 57ms
+     × bounds a stalled SSE read 5003ms
+   × NFR-EVAL-02/04 rejects bare observation imports and wrong profile without dropping data 12ms
+   × NFR-PERF-01 excludes local/unknown tokenizer evidence and wrong serving candidate from release acceptance 3ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 C-02 retains private scoped ledger and observed prompt counts without content
+TypeError: span.observePrompt is not a function
+ ❯ apps/api/test/benchmark-readiness.test.ts:33:7
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 does not qualify omitted or failing dependency probes
+TypeError: recorder.qualifyDependencies is not a function
+ ❯ apps/api/test/benchmark-readiness.test.ts:41:33
+     39| it('NFR-PERF-01 does not qualify omitted or failing dependency probes'…
+     40|  const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[]…
+     41|  const readiness=await recorder.qualifyDependencies({sql:async()=>true…
+       |                                 ^
+     42|  expect(readiness.ready_at_ms).toBeNull();expect(readiness.dependencie…
+     43| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  |unit| apps/worker/test/studio-context-cache.test.ts > NFR-PERF-01 rejects missing provider-confirmed expiry rather than inventing it from requested TTL
+AssertionError: promise resolved "{ provider_handle: 'h', …(13) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "cache_key": "6c73dc3872290987499073d4f8a76f0bd410506a9fc51c6b4c844b9fbe27905a",
++   "content_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
++   "created_at": 1794319536360,
++   "effective_authorization_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
++   "expires_at": 1794319596360,
++   "generation_parameters_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
++   "model": "m",
++   "model_version": "1",
++   "notebook_id": "c2aa2380-5d26-4d74-b818-b3e7aa8ce2f7",
++   "output_language": "en",
++   "provider_handle": "h",
++   "scope_manifest_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
++   "status": "Ready",
++   "ttl_seconds": 60,
+  }
+
+ ❯ apps/worker/test/studio-context-cache.test.ts:131:293
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  |unit| apps/worker/test/studio-evidence.test.ts > NFR-PERF-01 C-01/C-03 validates every oversized original interval, no-finding batch and scope
+AssertionError: expected 6000 to be less than or equal to 4000
+ ❯ Object.extractBatch apps/worker/test/studio-evidence.test.ts:73:357
+
+ ❯ worker apps/worker/src/studio/evidence.ts:55:37
+ ❯ processAllOriginalEvidenceBatches apps/worker/src/studio/evidence.ts:66:29
+ ❯ apps/worker/test/studio-evidence.test.ts:73:21
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner > retains 40 invalid attempts and unknown values when private serving evidence is missing
+AssertionError: expected 'PASS' to be 'UNAVAILABLE' // Object.is equality
+
+Expected: "UNAVAILABLE"
+Received: "PASS"
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:19:20
+     17|   vi.stubGlobal('fetch',vi.fn(async()=>final()));
+     18|   const r=await runScaleBenchmark(fixture,{baseUrl:'http://localhost',…
+     19|   expect(r.result).toBe('UNAVAILABLE');expect(r.core.attempt_count).to…
+       |                    ^
+     20|   expect(r.core.observations.every(o=>o.cohort==='invalid_environment'…
+     21|  });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner > requires the needle citation and rejects mismatch of notebook, fixture or serving identity
+AssertionError: expected 'PASS' to be 'FAIL' // Object.is equality
+
+Expected: "FAIL"
+Received: "PASS"
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:30:69
+     28|   vi.stubGlobal('fetch',vi.fn(async()=>final('answer',randomUUID())));
+     29|   const options={baseUrl:'http://localhost',token:'a',notebookId:noteb…
+     30|   const r=await runScaleBenchmark(fixture,options);expect(r.result).to…
+       |                                                                     ^
+     31|   expect(r.core.observations.every(o=>!o.needle_correct&&o.active_toke…
+     32|   const mismatch=await runScaleBenchmark(fixture,{...options,evidence:…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner > does not silently run core-only concurrency or fall back to the same credentials/scope
+AssertionError: promise resolved "{ …(8) }" instead of rejecting
+
+- Expected
++ Received
+
+- Error {
+-   "message": "rejected promise",
++ {
++   "benchmark_id": "scale-11b27d26-cedb-4da6-91ab-367b81e224cb",
++   "concurrency": null,
++   "core": {
++     "attempt_count": 20,
++     "budget_ms": 2500,
++     "observations": [
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 284.096959,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "e876226d-2a15-41da-9a4c-fb514be45652",
++         "run_id": "5540a597-d02e-4add-9077-068a17328fd3",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 295.530459,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "5edb201c-d2f6-4746-b693-50061cf0c810",
++         "run_id": "1e74be7d-4345-49bc-a706-2c1211584265",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 296.841917,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "01358933-782a-40e3-9ba3-34784d7ee7ae",
++         "run_id": "e3d44f15-6327-42be-9e93-bde1b42b4935",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 297.809334,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "b9325109-9080-40ee-8e90-d91a423e0330",
++         "run_id": "f59a915f-43eb-435b-a71a-4dd3975a3cbd",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 298.682375,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "3cb471fb-4a21-4089-b024-622481b23d5c",
++         "run_id": "f6fc51b1-39c8-4a73-be7c-b1163d0c340b",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 299.602,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "6809fd84-1a51-4028-8fa9-7b3e8e38aab5",
++         "run_id": "f4ce0c78-e619-441a-9686-984da77e7e23",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 300.672,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "a10f44bb-02a3-4042-89f0-1ec1d2e50821",
++         "run_id": "16fb39e2-2440-4d5f-8e36-1643a3e2d1ec",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 301.497125,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "e61e1f4e-b0d0-4db3-bbc0-44979d577dec",
++         "run_id": "446f72b4-c335-4e18-b46d-25110edfb904",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 302.251209,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "c6846fbc-b4bd-415a-9614-1a4636056d58",
++         "run_id": "ce539c98-b95b-4e41-8494-04d5a67112de",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 303.087417,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "944ae739-6755-4c2d-a098-d5e2d369e80a",
++         "run_id": "deb95bea-ec3a-4389-9ae1-c65c7543960c",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 303.940875,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "bf224b27-5c69-4fd8-9609-c524af4a38eb",
++         "run_id": "af72ee3b-55ba-4178-b09c-79351b1061cb",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 304.792792,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "ca2d0fcb-a582-4ba0-94e6-6647ab6e5c08",
++         "run_id": "132e89ee-5b66-4850-9aa7-0a143ea82df6",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 305.590334,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "017ffdf2-72b1-48eb-9025-be6cdaa3cf74",
++         "run_id": "c715e868-7c06-4e0a-9234-868fed5da9c6",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 306.406,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "9bb3b43c-c956-470f-8c2c-b952aef23815",
++         "run_id": "bd6f07cf-65d0-4b78-8c3c-eab177740a4c",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 307.143084,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "531025f8-8220-4565-98bd-5afd7d75b66d",
++         "run_id": "b8a8c5d0-3ba3-4184-aeca-44a3b6f9455c",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 307.894917,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "7a58c386-1627-441b-bfa2-a641ff8ece89",
++         "run_id": "4ead685b-5f92-4aa6-8339-ce1c1f78da04",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 308.641959,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "49c40b8e-789f-49a4-acdf-3c84cb54e3d5",
++         "run_id": "31d6864d-6284-462e-8f78-05ec895d64c4",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 309.401042,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "d440eba6-b801-474c-b07d-2f39b97be994",
++         "run_id": "b025c266-5fcc-41e1-b10a-b1459ee492b3",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 310.18775,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "5be97bdf-40da-48aa-8c91-7af3fbebbb74",
++         "run_id": "acc7f438-e66f-4e1f-9d50-b16ddf2bb4d5",
++         "terminal_status": "error",
++       },
++       {
++         "active_token_total": 1050000,
++         "answer_leakage_count": 0,
++         "cited_chunk_ids": [],
++         "client_first_validated_answer_ms": null,
++         "client_submission_monotonic_ms": 310.975292,
++         "cohort": "warm",
++         "instance_boot_id": "a921bb79-c215-49c2-bdac-c7892f4ca138",
++         "latency_ms": null,
++         "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++         "needle_correct": false,
++         "prompt_leakage_count": 0,
++         "replayed": false,
++         "request_id": "1fbc96d5-4357-4b0f-ada8-625c01c7a675",
++         "run_id": "6fe74d62-8713-49be-92ce-19ab70f14139",
++         "terminal_status": "error",
++       },
++     ],
++     "p95_ms": null,
++     "p95_rank": 19,
++     "percentile_method": "nearest_rank",
++     "result": "FAIL",
++     "wake_count": 0,
++     "wake_latencies_ms": [],
++     "warm_count": 20,
++   },
++   "manifest_hash": "f0ee9ed2d3e70fdeabe18f410794b242e4549e0cea577c6a976e1e8a787d65a8",
++   "restart": null,
++   "result": "FAIL",
++   "schema": "everlast.scale-v3-report/1",
++   "timestamp": "2026-11-10T14:05:36.402Z",
+  }
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:36:124
+     34|  });
+     35|  it('does not silently run core-only concurrency or fall back to the s…
+     36|   await expect(runScaleBenchmark(fixture,{baseUrl:'http://localhost',t…
+       |                                                                                                                            ^
+     37|  });
+     38|  it('runs genuine 10 request pairs with each Owner notebook fixture, a…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner > runs genuine 10 request pairs with each Owner notebook fixture, and observes decoy leakage
+AssertionError: expected 1 to be 2 // Object.is equality
+
+- Expected
++ Received
+
+- 2
++ 1
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:51:15
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner > bounds a stalled SSE read
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ packages/evals/test/v3-scale-runner.test.ts:53:2
+     51|   expect(max).toBe(2);expect(r.concurrency?.count).toBe(20);expect(r.c…
+     52|  });
+     53|  it('bounds a stalled SSE read',async()=>{
+       |  ^
+     54|   const response=new Response(new ReadableStream({start(){}}),{headers…
+     55|   await expect(collectFreshFinal(response,0,()=>1,{timeoutMs:5})).reje…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-EVAL-02/04 rejects bare observation imports and wrong profile without dropping data
+Error: Cannot find module '/packages/evals/src/v3-scale-import.ts' imported from /private/tmp/everlast-pre-v4-012-20261110/packages/evals/test/v3-scale-runner.test.ts
+ ❯ packages/evals/test/v3-scale-runner.test.ts:63:29
+     61|
+     62| it('NFR-EVAL-02/04 rejects bare observation imports and wrong profile …
+     63|  const {importScaleCapture}=await import('../src/v3-scale-import.ts');
+       |                             ^
+     64|  expect(()=>importScaleCapture([],fixture,'core')).toThrow();
+     65|  expect(()=>importScaleCapture({schema:'everlast.scale-v3-capture/1',p…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > NFR-PERF-01 excludes local/unknown tokenizer evidence and wrong serving candidate from release acceptance
+AssertionError: expected 'PASS' to be 'UNAVAILABLE' // Object.is equality
+
+Expected: "UNAVAILABLE"
+Received: "PASS"
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:72:20
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  4 failed (4)
+      Tests  11 failed | 11 passed (22)
+   Start at  15:05:36
+   Duration  5.43s (tests 90%, transform 6%, import 4%)

@@ -166,6 +166,8 @@ import type { BenchmarkObservation } from "@everlast/contracts";
 import { aggregateScaleLatency, aggregateScaleConcurrency } from "./latency.ts";
 
 export interface ScaleBenchmarkReport {
+  evidence_kind:"aggregation-diagnostic"|"imported-diagnostic"|"ordinary-api-collected";
+  release_eligible:false;
   schema: "everlast.scale-v3-report/1";
   benchmark_id: string;
   manifest_hash: string;
@@ -181,6 +183,7 @@ export interface ScaleBenchmarkReport {
 }
 
 export function buildScaleBenchmarkReport(input: {
+  evidence_kind?:ScaleBenchmarkReport["evidence_kind"];
   benchmark_id: string;
   manifest_hash: string;
   coreObservations: readonly BenchmarkObservation[];
@@ -191,16 +194,15 @@ export function buildScaleBenchmarkReport(input: {
     interrupted_reports_failed_explicit_retry: boolean;
   } | undefined;
 }): ScaleBenchmarkReport {
+  if (input.coreObservations.some(o => o.manifest_hash !== input.manifest_hash)) throw new Error("Observation/report manifest mismatch");
   const core = aggregateScaleLatency(input.coreObservations);
   const concurrency = input.concurrencyObservations ? aggregateScaleConcurrency(input.concurrencyObservations) : null;
   let result: "PASS" | "FAIL" | "UNAVAILABLE" = "PASS";
-  if (core.result === "UNAVAILABLE" || (concurrency && concurrency.result === "UNAVAILABLE")) {
-    result = "UNAVAILABLE";
-  } else if (core.result === "FAIL" || (concurrency && concurrency.result === "FAIL")) {
-    result = "FAIL";
-  }
+  if (core.result === "FAIL" || concurrency?.result === "FAIL") result = "FAIL";
+  else if (core.result === "UNAVAILABLE" || concurrency?.result === "UNAVAILABLE") result = "UNAVAILABLE";
   return {
     schema: "everlast.scale-v3-report/1",
+    evidence_kind:input.evidence_kind??"aggregation-diagnostic",release_eligible:false,
     benchmark_id: input.benchmark_id,
     manifest_hash: input.manifest_hash,
     timestamp: new Date().toISOString(),

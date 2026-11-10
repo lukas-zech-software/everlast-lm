@@ -19,6 +19,7 @@ describe('NFR-PERF-01 NFR-SEC-01/02 Studio context cache lifecycle', () => {
     modelVersion: '002',
     contentDigest,
     ttlSeconds: 300,
+    providerExpiresAt:Date.now()+300000,
   };
 
   it('creates entry with finite positive TTL and transitions from Creating to Ready', async () => {
@@ -77,6 +78,7 @@ describe('NFR-PERF-01 NFR-SEC-01/02 Studio context cache lifecycle', () => {
     const entry = await cache.create({
       ...baseInput,
       providerHandle: 'handle-expire',
+      providerExpiresAt:Date.now()+1,
       ttlSeconds: 0.001, // 1 ms
     });
 
@@ -122,4 +124,9 @@ describe('NFR-PERF-01 NFR-SEC-01/02 Studio context cache lifecycle', () => {
     // Idempotent deletion
     await expect(cache.invalidate(entry.cache_key)).resolves.not.toThrow();
   });
+});
+
+it('NFR-PERF-01 rejects missing provider-confirmed expiry rather than inventing it from requested TTL',async()=>{
+ const cache=new StudioContextCache();
+ await expect(cache.create({notebookId:crypto.randomUUID(),scopeManifestHash:'a'.repeat(64),effectiveAuthorizationFingerprint:'b'.repeat(64),outputLanguage:'en',generationParametersHash:'c'.repeat(64),model:'m',modelVersion:'1',contentDigest:'d'.repeat(64),providerHandle:'h',ttlSeconds:60})).rejects.toThrow(/provider.*expiry/i);
 });

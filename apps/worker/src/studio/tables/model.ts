@@ -33,6 +33,7 @@ export interface TableObservation {
 
 export interface DataTableExtractRequest {
   chunks: UnifiedDocumentChunk[];
+  cached_context?:string|undefined;
   focus_prompt?: string | undefined;
   schema_id?: DataTableSchemaId | undefined;
   output_language?: string | undefined;

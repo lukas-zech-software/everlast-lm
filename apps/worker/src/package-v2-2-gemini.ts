@@ -53,7 +53,7 @@ export class StructuredGenerationError extends Error {
 }
 
 /** Server-side structured log of the upstream failure: status, error name and message; never prompt or source text. */
-function logUpstreamFailure(model: string, error: unknown): void {
+function logUpstreamFailure(model: string, error: unknown, privateCache=false): void {
   const { status, name, message } = (error ?? {}) as { status?: unknown; name?: unknown; message?: unknown };
   console.warn(JSON.stringify({
     severity: "WARNING",
@@ -61,7 +61,7 @@ function logUpstreamFailure(model: string, error: unknown): void {
     model,
     upstream_status: typeof status === "number" ? status : null,
     upstream_error: typeof name === "string" ? name : null,
-    upstream_message: typeof message === "string" ? message.slice(0, 500) : null,
+    upstream_message: !privateCache && typeof message === "string" ? message.slice(0, 500) : null,
   }));
 }
 
@@ -254,6 +254,7 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
     responseSchema: object;
     schema: ZodLike<T>;
     generationConfig?: StructuredGenerationConfig | undefined;
+    cachedContent?:string|undefined;
   }): Promise<T> {
     const extra = input.generationConfig;
     this.client ??= this.createClient({ vertexai: true, project: this.project, location: this.location, httpOptions: { timeout: this.timeoutMs } });
@@ -263,6 +264,7 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
         model: this.model,
         contents: JSON.stringify(input.contents),
         config: {
+          ...(input.cachedContent?{cachedContent:input.cachedContent}:{}),
           ...(input.systemInstruction ? { systemInstruction: input.systemInstruction } : {}),
           ...(extra?.thinkingConfig ? { thinkingConfig: { thinkingBudget: extra.thinkingConfig.thinkingBudget } } : {}),
           ...(extra?.maxOutputTokens !== undefined ? { maxOutputTokens: extra.maxOutputTokens } : {}),
@@ -274,7 +276,7 @@ export class VertexStructuredGenerationClient implements StructuredGenerationCli
       });
       text = response.text ?? "";
     } catch (error) {
-      logUpstreamFailure(this.model, error);
+      logUpstreamFailure(this.model, error,!!input.cachedContent);
       const status = typeof (error as { status?: unknown })?.status === "number" ? (error as { status: number }).status : undefined;
       const transient = isTransient(error);
       throw new StructuredGenerationError(transient ? "upstream_unavailable" : "upstream_rejected", transient, status);

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addTextSource, createNotebook, signIn, token as getToken, uniqueEmail } from "./helpers.ts";
+import { addTextSource, createNotebook, signIn, token as getToken, uniqueEmail, waitReady } from "./helpers.ts";
 
 /**
  * NFR-PERF-01 / C-02: browser regression test for chat scale timing,
@@ -12,15 +12,17 @@ test("SCALE-UI-01: send is enabled only when sources are ready; final SSE respon
   const id = await createNotebook(page.request, email);
   await addTextSource(page.request, email, id, "Reactor coolant pressure must be 142.8 bar. Operational limits apply.");
 
+  await waitReady(page.request, email, id, 1);
   await page.goto(`/notebook/${id}`);
   await expect(page.getByTestId("chat-input")).toBeVisible();
 
-  // Send button is available when sources are loaded
+  await expect(page.getByTestId("sources-pill")).toHaveText("1 source");
+  await page.getByTestId("chat-input").fill("What must the reactor coolant pressure be?");
+  // Source and history readiness gate submission; setup precedes the Send assertion.
   const sendButton = page.getByTestId("send");
   await expect(sendButton).toBeEnabled();
 
   const start = Date.now();
-  await page.getByTestId("chat-input").fill("What must the reactor coolant pressure be?");
   await sendButton.click();
 
   const assistantMessage = page.getByTestId("message-assistant").first();
