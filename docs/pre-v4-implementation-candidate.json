@@ -9,7 +9,7 @@
     "NFR-EVAL-01..04"
   ],
   "coordinator_branch": "codex/pre-v4-resume-20261110b",
-  "integrated_checkpoint": "3326d8d4e13215f13e1dfab6021d31a14c66bb88",
+  "integrated_checkpoint": "e71645fbd4822b93c096a5c2c64a5f2dee9ebddf",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -175,6 +175,31 @@
         "result": "FAIL",
         "release_eligible": false
       }
+    },
+    {
+      "feature": "012-long-context-latency-scaling",
+      "branch": "codex/pre-v4-012-20261110",
+      "checkpoint": "57fcfdcb67f988665d2490a3f911a8ff7bb009ea",
+      "current_handoff": "/private/tmp/everlast-pre-v4-012-handoff-20261110.md",
+      "status": "recovery_verified_operational_qualification_code_incomplete",
+      "checks": {
+        "unit_tests": 505,
+        "postgresql_regressions": 21,
+        "stream_report_regressions": 4,
+        "citation": "160/160",
+        "leakage": 0,
+        "architecture_findings": 0,
+        "approved_records_unchanged": 185,
+        "node26_local_image_smoke": "PASS linux/arm64,network disabled",
+        "ordinary_api_context_stress": "PASS local doubles;release UNAVAILABLE",
+        "ordinary_http_requests": 60
+      },
+      "local_image": "sha256:56b30d24965ae2c249eb7dba25f143133812c580e90da4011b4906bcd370e11b",
+      "open": [
+        "T053 partial and T064 missing operational trusted qualification CODE; same agent resumed",
+        "T046/T047/T048 and T060 live/common judged/integrated acceptance pending",
+        "010T064 qualification/T052 and011T061 remain open"
+      ]
     }
   ],
   "cloud_writes": false,
@@ -202,11 +227,11 @@
       "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
     }
   ],
-  "next_package": "012-long-context-latency-scaling active; remaining acceptance and003GC-E04 thereafter",
+  "next_package": "012 operational qualification code in progress;003GC-E04 queued",
   "usage_observation": {
-    "five_hour_remaining_percent": 70,
-    "weekly_remaining_percent": 24,
-    "note": "Continuing above cutoff; no reset credits used. Snapshot only, recheck before continuation."
+    "five_hour_remaining_percent": 25,
+    "weekly_remaining_percent": 17,
+    "note": "Continuing above cutoff; recheck before continuation. No reset credits used."
   },
   "pending_publication": {
     "pr": 188,

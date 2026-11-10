@@ -80,5 +80,11 @@
   ],
   "mutations": false,
   "conclusion": "Existing API/worker still use historical image51f78ab; SQL is STOPPED/NEVER. Ready revision metadata is not dependency readiness. No current immutable pre-V4 candidate is deployed or accepted.",
-  "next": "Prepare exact target-platform immutable images, saved resource/configuration plan, activation/rollback window and bounded approved workload after package012 local completion; obtain applicable owner approval before cloud changes/paid runs."
+  "next": "Prepare exact target-platform immutable images, saved resource/configuration plan, activation/rollback window and bounded approved workload after package012 local completion; obtain applicable owner approval before cloud changes/paid runs.",
+  "previously_approved_apis_verified_enabled": [
+    "drive.googleapis.com",
+    "modelarmor.googleapis.com",
+    "speech.googleapis.com",
+    "youtube.googleapis.com"
+  ]
 }
