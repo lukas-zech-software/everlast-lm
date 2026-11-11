@@ -164,3 +164,21 @@ identity, measured readiness and exact trace correlation. Missing evidence makes
 the collection UNAVAILABLE while retaining attempted requests; client labels or
 latency never establish cold/warm status. Later012 can supply its private qualified
 serving records via this port, without importing API implementation into evals.
+
+## Parallel collector hardening (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-09)
+
+| SRS / contract | Owned paths | Ownership and public ports | Allowed dependencies and composition | Regression evidence |
+| --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-collector.ts | Bounded orchestration via CollectionPorts; validate receipts, calibration continuity and private timing before appending an observation | Existing canonical schemas, Node crypto and local evaluator; CLI remains composition root | Collector fixtures for malformed receipts, clock expiry and guard invalidation during collection |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-performance.ts | Pure benchmark evaluation; report proven failures on incomplete cohorts without deriving a passing aggregate | No external dependency | Incomplete-cohort failure and denominator fixture |
+| FR-GC-08, NFR-SEC-02 | packages/evals/src/code-execution-transport.ts | Bounded private evidence file effect; reject nonregular objects before attempting to read content | Existing Node FS, fetch and canonical private evidence contract | Local private file tests including nonregular files |
+
+The collector checks its frozen clock window before dispatch and after private
+evidence retrieval. If the window expires or a continuity guard fails, retain
+the attempt and its valid private measurement as diagnostic evidence and stop
+dispatch. Reject timestamp evidence at or beyond conservative expiry. T075
+supplies the optional synchronous clock assertion on the same client process
+as clock acquisition and final export. The callback consumes the exact frozen
+calibration and has no imports across deployment applications. No existing
+authorization, C-02 source access, lease, transaction, cancellation, runtime
+budget or publication ownership moves. No D21 exception changes.

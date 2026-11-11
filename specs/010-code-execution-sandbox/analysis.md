@@ -158,3 +158,28 @@ behavior tests; no new forbidden edge or policy expansion.
 T062 and T063 are locally implemented. T064 producer integration and T052 live
 cohorts/security/common judged acceptance remain OPEN. No full release convergence
 or measured provider performance/security pass is inferred.
+
+## Parallel continuation analysis (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-01..CC-09)
+
+Reviewed the spec, plan, tasks, constitution, architecture procedure, FR card,
+cross-package rules and T075 clock handoff before changing implementation.
+The added local spec maps malformed and late evidence to T065/T066 with T065
+Red first. Frozen sample counts, 2.5-second status and 4-second P95 rules
+still map to T043, T049–T052 and T063–T066. Boundary and publication checks
+remain covered by the 010 API/DB tests. The scoped design has no local
+critical conflict. Two open live integration findings remain.
+
+| Finding | Severity | Covered by | Required evidence |
+| --- | --- | --- | --- |
+| Request-entry qualification time cannot satisfy warm readiness | High | T064 and 012 T075 | Preserve actual preceding qualification evidence per boot and declared readiness basis |
+| Single-boot clock bootstrap has no acquisition-to-export collector integration or full 80-request duration proof | High | T064 and 012 T075 | Verify the same-process clock port, actual cold setup and guarded final export within the conservative window or verified renewal |
+
+CC-01 traces the refinement through the feature and FR-card patch. CC-02 uses
+behavioral Red and Green. CC-03 and CC-04 retain existing source, publication,
+answer timing and population rules. CC-05 uses the canonical trace and private
+measurement schemas. CC-06 and CC-08 restrict work to the 010 local slice and
+existing stack. CC-07 leaves live acceptance open and retains identifier-only
+private evidence. For CC-09 the eval collector owns workflow and guard calls,
+the private file adapter owns file operations and the evaluator remains pure.
+No application import, public HTTP or storage API, lease, authorization,
+transaction, or publication changes. The checker is required on the final diff.

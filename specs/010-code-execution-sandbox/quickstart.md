@@ -260,3 +260,53 @@ and cleanup have their own milestones and do not redefine either start point.
 Map server epoch timestamps to the client epoch only through the retained measured
 calibration; duration differences use the original same-domain server captures.
 A producer that cannot capture these points is UNAVAILABLE, not a passing proxy.
+
+### Campaign inputs and T075 handoff (FR-GC-08, NFR-PERF-01, NFR-SEC-02)
+
+Use the versioned 12-month latency table and population standard deviation plus
+plot question in `packages/testkit/src/code-execution-fixtures.ts`. Bind the exact
+table hash, expected decimal representation, expected citations and final
+authenticated chart to two distinct Owner notebooks with independent
+source/revision snapshots. The collector verifies the number and citation scope
+in the private/public correlation. The live acceptance run must also retain
+the authenticated chart response and confirm its plotted series against the
+fixture. Freeze the candidate and serving revision, target/runtime identity,
+fixture/scope IDs and approved classification basis in the plan and manifest.
+
+| Cohort | Requests | In-flight limit | Evidence |
+| --- | ---: | ---: | --- |
+| cold_1u | 20 | 1 | Measured cold readiness for every submission |
+| warm_1u | 20 | 1 | Prior measured readiness and qualification |
+| cold_2u | 20 | 2 | Distinct simultaneous Owners with cold readiness evidence |
+| warm_2u | 20 | 2 | Distinct simultaneous Owners with prior readiness and qualification |
+
+This is 80 timing submissions in 60 serial batches at minimum. The separately
+approved ordinary security population covers HTTP, DNS, metadata, private
+address, inbound socket and install attempts, credential and cross-sandbox file
+isolation, timeout and deletion, memory/output caps, foreign access and final
+chart authorization. Record the attack and its observed result separately from
+timing. An unrelated setup or provider failure cannot attest blocked networking.
+Retain execution and publication failures and any attempted peer in its original
+cohort. Preserve declared counts when collection stops on unavailable evidence.
+
+The 010 consumer exposes the synchronous
+`CollectionPorts.assertClockCurrent(calibration, instanceBootId?)` seam. T075
+must run it on the client process that acquired and verified the signed clock
+proof. Assert continuity and the exact calibration before dispatch. After each
+private measurement, additionally bind the recorded server boot to that proof.
+Guard the final export with the same continuity state. The collector rejects
+late client receipts and server events at or after calibrated expiry minus
+uncertainty. It retains the attempt and parsed private record for diagnostics.
+A standalone CLI launch cannot establish acquisition-to-export continuity.
+
+On prepared base `14c88ee`, the API's `beginExecution` records
+`qualified_at_ms` at request entry. That value cannot prove qualification
+before warm submission. T064/012 must use the actual prior successful
+qualification time and the readiness time for the frozen basis. Since the
+serving recorder opens only after verified boot calibration and qualification,
+application-serving readiness needs an explicit cold setup that can prove the
+required ordering. A managed-runtime basis would require distinct measured
+managed-runtime readiness from the producer. T075 must prove that the complete
+approved setup, all batches and export fit the conservative single-boot
+validity window or deliver verified renewal. These integration and live
+acceptance steps remain open.

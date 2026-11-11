@@ -210,3 +210,13 @@ Historical completion markers do not establish live T052 acceptance.
 
 
 Completion refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09): T063 must submit bounded authenticated ordinary SSE requests, run two-user samples concurrently with distinct proven owners/notebooks, and correlate trusted private serving/readiness/fixture evidence. Preserve every attempt. Missing evidence is UNAVAILABLE, never a label-derived pass.
+
+## Local collector refinement (FR-GC-08, NFR-PERF-01, NFR-SEC-02)
+
+Malformed or late evidence invalidates the affected sample and stops new
+dispatch while retaining all attempted requests, including an in-flight peer.
+The frozen calibration must cover dispatch, server execution evidence and
+evidence receipt. A known failure remains visible even when later missing
+evidence leaves its cohort incomplete. An incomplete cohort has no qualifying
+percentiles and keeps its declared sample count. The release gate requires the
+guarded 012 timing campaign and private export on the calibrated client process.

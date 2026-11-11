@@ -200,3 +200,8 @@ Completion refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09): T063 must subm
 
 
 - [ ] [010-code-execution-sandbox] T064 Integrate the trusted API private producer through the canonical CodeExecutionPrivateMeasurement/EvidenceFile contracts during 012 qualification, observing actual creation/running/completion/publication and failed attempts, real boot/readiness/candidate/runtime and calibrated clocks; do not publish telemetry or infer qualification from flags. Final T052 acceptance requires that producer and authorized live cohorts (FR-GC-08, NFR-PERF-01, NFR-SEC-02; depends on T063 and integrated candidate).
+
+## Parallel local continuation (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-09)
+
+- [x] [010-code-execution-sandbox] T065 Write collector and evaluator Red fixtures for malformed receipts, expired evidence, client continuity loss and a known failure in a partial cohort. Cover nonregular private evidence file rejection in the transport tests (FR-GC-08, NFR-PERF-01, NFR-SEC-02).
+- [x] [010-code-execution-sandbox] T066 Harden local collector and private file handling, preserving declared denominators and known failed samples. Verify existing sandbox invocation, emission, settlement, publication, authorization and cleanup regressions with local fixtures. Document the T075 integration port and live campaign prerequisites without claiming deployed evidence (FR-GC-08, NFR-PERF-01, NFR-SEC-02; depends on T065 Red; T052/T064 stay open).

@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -23,19 +23,21 @@ it("rejects unapproved scope, a different runtime, and missing/malformed produce
   const planText=JSON.stringify(plan),planPath=join(dir,"plan.json"),manifestPath=join(dir,"manifest.json"),evidence=join(dir,"private.json"),out=join(dir,"out");
   await writeFile(planPath,planText);
   try {
-    for(const mode of ["approval","runtime","producer","malformed"]){
+    for(const mode of ["approval","runtime","producer","fifo","malformed"]){
       const m=mode==="runtime"?{...manifest,runtime_config_sha256:codeExecutionRuntimeConfigDigest(engine.replace(/1$/,"2"))}:manifest;
       const manifestText=JSON.stringify(m);await writeFile(manifestPath,manifestText);
+      if (mode === "fifo") execFileSync("mkfifo", ["-m", "600", evidence]);
       if(mode==="malformed")await writeFile(evidence,'{"private":"PRIVATE_ACTOR_SECRET"',{mode:0o600});
       const result=await new Promise<{code:number|null;output:string}>((resolve,reject)=>{
         const child=spawn(process.execPath,["scripts/eval-v3-code-execution.mjs","--collect","--plan",planPath,"--collection-manifest",manifestPath,"--private-evidence",evidence,"--out",out],{cwd:fileURLToPath(new URL("../../../",import.meta.url)),env:{...process.env,CODE_EXECUTION_IT:"1",CODE_EXECUTION_REASONING_ENGINE:engine,CODE_EXECUTION_BENCHMARK_APPROVED_PLAN_SHA256:mode==="approval"?"wrong":hash(planText),CODE_EXECUTION_BENCHMARK_APPROVED_MANIFEST_SHA256:hash(manifestText),CE_TEST_TOKEN_1:"PRIVATE_ACTOR_SECRET",CE_TEST_TOKEN_2:"PRIVATE_ACTOR_SECRET_TWO"},stdio:["ignore","pipe","pipe"]});
-        const timer=setTimeout(()=>{child.kill();reject(new Error("Local CLI exceeded bound"));},15000);let output="";
+        const timer=setTimeout(()=>{child.kill();reject(new Error("Local CLI exceeded bound"));}, mode === "fifo" ? 2_000 : 15_000);let output="";
         child.stdout.on("data",chunk=>{output+=String(chunk);});child.stderr.on("data",chunk=>{output+=String(chunk);});child.once("error",reject);child.once("close",code=>{clearTimeout(timer);resolve({code,output});});
       });
       expect(result.code).toBe(2);expect(result.output).toContain("UNAVAILABLE");
       expect(result.output).toContain(mode==="approval"?"frozen plan and manifest hashes":mode==="runtime"?"approved runtime configuration":"qualified private producer evidence");expect(result.output).not.toContain("PRIVATE_ACTOR_SECRET");
       expect(await readFile(join(out,"v3-code-execution-benchmark.json"),"utf8")).not.toContain("PRIVATE_ACTOR_SECRET");
       expect(requests).toBe(0);
+      if (mode === "fifo") await rm(evidence);
     }
   }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(dir,{recursive:true,force:true});}
 });

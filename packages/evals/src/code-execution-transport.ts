@@ -74,7 +74,8 @@ export function createCodeExecutionPrivateFileReader(path: string, manifest: Col
   const timeoutMs = options.timeoutMs ?? 10_000, maxBytes = options.maxBytes ?? 8_000_000;
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 30_000 || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 8_000_000) throw new Error("Invalid private evidence bounds");
   async function read(): Promise<CodeExecutionPrivateEvidenceFile> {
-    const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    // Opening a FIFO for reading would block before fstat can reject it.
+    const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
     try {
       const stat = await file.stat();
       if (!stat.isFile() || (stat.mode & 0o077) !== 0 || stat.size > maxBytes) throw new Error("Private evidence requires a bounded owner-private regular file");

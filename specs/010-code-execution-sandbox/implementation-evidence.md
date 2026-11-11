@@ -249,3 +249,30 @@ No fresh judged, sandbox/provider/model call, deployment or cloud apply is claim
 The initial mock command failed only because local modules were not initialized;
 backend-disabled readonly-lock init resolved setup and the actual policy suite passed.
 Reviewer-owned37item sandbox checklist remains unchanged.
+
+## Parallel collector checkpoint (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-09)
+
+Prepared base `14c88ee24e4e5c9ececb957e294b9af78f2cc800` in dedicated
+`codex/pre-v4-work-010`. T065/T066 finish the local collector slice. Actual
+managed isolation, trusted timed cohorts and judged release acceptance stay
+open under T052/T064. The 012 integration and four-cohort population are
+specified in [the quickstart](quickstart.md#campaign-inputs-and-t075-handoff-fr-gc-08-nfr-perf-01-nfr-sec-02).
+
+| Check | Local result |
+| --- | --- |
+| Spec-derived collector/CLI Red before implementation | Five failures. Malformed receipt aborted the campaign, expired server and late private evidence were accepted, continuity was unchecked, and FIFO preflight blocked. |
+| Collector, CLI and performance Vitest unit selection | 36 passed. Includes confirmed timed-out failures in partial cohorts, unchanged denominator and preservation of the other Owner's in-flight sample. |
+| Runtime, manifest, output, model and contract Vitest unit selection | 327 passed. Covers create invocation and execute settlement before cleanup, bounds, exact representation and chart validation. |
+| 010 API, DB, transport and deterministic code-execution Vitest integration selection | 75 passed on disposable PostgreSQL 16/pgvector. Covers exact computed output and chart, scoped Owner/foreign access, correction and timeout, lease and cleanup, durable traces and publication fencing. Eleven managed tests skipped with live opt-in disabled. |
+| `TEST_DATABASE_URL=<disposable-db> pnpm eval:deterministic` | 160/160 citation precision, zero leakage and deterministic Studio gates passed. The first invocation without the disposable database reported UNAVAILABLE. The rerun used only local adapters. |
+| `ARCHITECTURE_BASE_REF=14c88ee pnpm lint`, spec integrity and diff checks | Passed. Architecture fixtures 39/39, graph and feature artifact findings 0, exact legacy records unchanged at 184. |
+| Managed sandbox security, live four-cohort campaign and fixed-50 judged eval | UNAVAILABLE. No managed runtime, cloud deployment or paid workload executed. |
+
+The final diff preserves module ownership. The eval collector owns orchestration
+and calls the clock/evidence ports. The private reader owns nonblocking private
+file open and regular-file validation. The pure evaluator exposes known failures
+in partial cohorts and retains the declared denominator. The existing API
+controller, storage, C-02 authorization, cleanup and publication are unchanged.
+The optional T075 port is implemented on the consumer, with production guarded
+composition still open. The task used the prepared feature and left historical
+reviewer checklist markers intact.

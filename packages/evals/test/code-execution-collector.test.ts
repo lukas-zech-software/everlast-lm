@@ -7,7 +7,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}
 const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
 const start = Date.parse("2026-11-10T12:00:00.000Z");
 const plan: CodeExecutionBenchmarkPlan = {fixture:{id:"fixture",version:1,sha256:"a".repeat(64),question:"Calculate the population deviation."},provider:{service:"aiplatform.googleapis.com/AgentEngineSandbox",region:"europe-west4",cpu:"2 vCPU",memory:"1.5 GB"},environment:"test-double",declaredAt:new Date(start-100).toISOString(),cohorts:Object.fromEntries(COHORT_NAMES.map(c=>[c,{repetitions:20,warm:c.startsWith("warm"),concurrency:c.endsWith("2u")?2:1}])) as CodeExecutionBenchmarkPlan["cohorts"]};
-const manifest: CollectionManifest = {actors:[1,2].map(n=>({owner_id:id(n),notebook_id:id(n+10),source_snapshot:[{source_id:id(n+20),revision:1}],expected_citation_chunk_ids:[id(n+30)]})) as CollectionManifest["actors"],api_base_url:"http://127.0.0.1",candidate_commit:"d".repeat(40),serving_revision:"candidate-v1",classification_basis:"application-serving-readiness",qualification_sha256:"c".repeat(64),runtime_config_sha256:"e".repeat(64),clock_calibration:{offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+1000,measurement_id:"synthetic-clock"},clock_calibration_sha256:hash({offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+1000,measurement_id:"synthetic-clock"}),expected_result:"1.5",max_total_requests:80};
+const manifest: CollectionManifest = {actors:[1,2].map(n=>({owner_id:id(n),notebook_id:id(n+10),source_snapshot:[{source_id:id(n+20),revision:1}],expected_citation_chunk_ids:[id(n+30)]})) as CollectionManifest["actors"],api_base_url:"http://127.0.0.1",candidate_commit:"d".repeat(40),serving_revision:"candidate-v1",classification_basis:"application-serving-readiness",qualification_sha256:"c".repeat(64),runtime_config_sha256:"e".repeat(64),clock_calibration:{offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+10000,measurement_id:"synthetic-clock"},clock_calibration_sha256:hash({offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+10000,measurement_id:"synthetic-clock"}),expected_result:"1.5",max_total_requests:80};
 function fixture(options:{missing?:boolean;wrongOwner?:boolean;throwTransport?:boolean;posthoc?:boolean;errorEvent?:boolean;publicationFailure?:boolean;unknownRetry?:boolean;reuseIdentity?:"execution"|"attempt";manifest?:CollectionManifest;mutate?:(e:any)=>void}={}) {
   const frozen=options.manifest??manifest,serverStart=start+frozen.clock_calibration.offset_ms;
   let count=0, active=0,maxActive=0;
@@ -121,4 +121,88 @@ it("retains publication-fence failures and unknown retry completion without fabr
   expect(r.observations.every(o=>o.outcome==="failed")).toBe(true);
   if(options.unknownRetry){expect(r.observations[0]!.attempts).toBe(2);expect(r.observations[0]!.retryEndToEndMs).toBeNull();}
  }
+});
+
+/** [010-code-execution-sandbox] T065 — FR-GC-08, NFR-PERF-01. */
+it("retains malformed receipts as unavailable evidence instead of rejecting the entire campaign", async () => {
+  const f = fixture();
+  const submit = f.ports.submit;
+  f.ports.submit = async (...args) => {
+    await submit(...args);
+    return null as unknown as Awaited<ReturnType<CollectionPorts["submit"]>>;
+  };
+  const result = await collectCodeExecutionCohorts(plan, manifest, f.ports);
+  expect(result.status).toBe("UNAVAILABLE");
+  expect(result.attempts).toHaveLength(1);
+  expect(result.attempts[0]?.diagnostic).toBe("receipt_invalid");
+  expect(result.report.cohorts.cold_1u.declaredRepetitions).toBe(20);
+});
+
+it("retains private observations beyond conservative clock expiry without qualifying them (NFR-PERF-01)", async () => {
+  const clock = { ...manifest.clock_calibration, uncertainty_ms: 1, expires_at_ms: start + 19 };
+  const frozen = { ...manifest, clock_calibration: clock, clock_calibration_sha256: hash(clock) };
+  const f = fixture({ manifest: frozen });
+  const result = await collectCodeExecutionCohorts(plan, frozen, f.ports);
+  expect(result.status).toBe("UNAVAILABLE");
+  expect(result.observations).toHaveLength(0);
+  expect(result.attempts[0]).toMatchObject({
+    diagnostic: "clock_invalid",
+    measurement: { answer_published_at: new Date(start + 18).toISOString() },
+  });
+  expect(f.counts().count).toBe(1);
+});
+
+it("stops after private evidence receipt crosses expiry and retains an already proven failure (FR-GC-08, NFR-PERF-01)", async () => {
+  const f = fixture({ errorEvent: true });
+  const measurement = f.ports.measurement;
+  let now = start;
+  let count = 0;
+  f.ports.now = () => now;
+  f.ports.measurement = async (...args) => {
+    if (++count === 2) now = manifest.clock_calibration.expires_at_ms;
+    return measurement(...args);
+  };
+  const result = await collectCodeExecutionCohorts(plan, manifest, f.ports);
+  expect(result.status).toBe("UNAVAILABLE");
+  expect(result.attempts).toHaveLength(2);
+  expect(result.attempts[1]).toMatchObject({ diagnostic: "clock_invalid", measurement: { execution_state: "TimedOut" } });
+  expect(result.report.cohorts.cold_1u).toMatchObject({
+    declaredRepetitions: 20,
+    observedSamples: 1,
+    failedSamples: [{ sampleIndex: 1, outcome: "timed_out" }],
+    status: "UNAVAILABLE",
+  });
+});
+
+it("checks the integrated continuity guard before submission and after private evidence (NFR-PERF-01)", async () => {
+  const f = fixture();
+  const checks: [Readonly<CollectionManifest["clock_calibration"]>, string | undefined][] = [];
+  const ports = {
+    ...f.ports,
+    assertClockCurrent(calibration: Readonly<CollectionManifest["clock_calibration"]>, instanceBootId?: string) {
+      checks.push([calibration, instanceBootId]);
+      if (checks.length === 2) throw new Error("private proof invalidated");
+    },
+  };
+  const result = await collectCodeExecutionCohorts(plan, manifest, ports);
+  expect(checks).toEqual([[manifest.clock_calibration, undefined], [manifest.clock_calibration, id(99)]]);
+  expect(result.status).toBe("UNAVAILABLE");
+  expect(f.counts().count).toBe(1);
+  expect(result.attempts[0]).toMatchObject({ diagnostic: "clock_invalid", measurement: { execution_state: "Succeeded" } });
+  expect(JSON.stringify(result)).not.toContain("private proof invalidated");
+});
+
+it("retains the concurrent Owner's observation when its peer is missing (FR-GC-08, NFR-PERF-01)", async () => {
+  const f = fixture();
+  const measurement = f.ports.measurement;
+  let calls = 0;
+  f.ports.measurement = async (...args) => ++calls === 41 ? null : measurement(...args);
+  const result = await collectCodeExecutionCohorts(plan, manifest, f.ports);
+  expect(result.status).toBe("UNAVAILABLE");
+  expect(result.attempts).toHaveLength(42);
+  const pair = result.attempts.slice(-2);
+  expect(pair.map(sample => sample.owner_id)).toEqual(manifest.actors.map(actor => actor.owner_id));
+  expect(pair.map(sample => sample.diagnostic)).toEqual(["evidence_unavailable", null]);
+  expect(result.observations.at(-1)).toMatchObject({ cohort: "cold_2u", sampleIndex: 2 });
+  expect(result.report.cohorts.cold_2u).toMatchObject({ declaredRepetitions: 20, observedSamples: 1 });
 });

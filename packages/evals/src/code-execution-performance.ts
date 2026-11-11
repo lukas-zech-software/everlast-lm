@@ -188,6 +188,10 @@ export function evaluateCodeExecutionBenchmark(
   for (const name of COHORT_NAMES) {
     const decl = plan.cohorts[name];
     const items = observations.filter((o) => o.cohort === name);
+    const failedSamples = items
+      .filter((o) => o.outcome !== "succeeded" || !o.sandboxCreatedAt || !o.executionCompletedAt || !o.runningCodeAt)
+      .map((o) => ({ sampleIndex: o.sampleIndex, outcome: o.outcome }));
+
     if (items.length !== decl.repetitions) {
       cohorts[name] = {
         cohort: name,
@@ -200,7 +204,7 @@ export function evaluateCodeExecutionBenchmark(
         runningCodeP95Ms: null,
         bootExecutionSamplesMs: [],
         bootExecutionP95Ms: null,
-        failedSamples: [],
+        failedSamples,
         retrySummary: { retriedSampleCount: 0, totalExtraAttempts: 0, retryEndToEndMs: [] },
         detail: `Declared ${decl.repetitions} samples for ${name}, observed ${items.length}`,
       };
@@ -219,10 +223,6 @@ export function evaluateCodeExecutionBenchmark(
       const ms = Date.parse(o.executionCompletedAt) - Date.parse(o.sandboxCreatedAt);
       return Number.isFinite(ms) && ms >= 0 ? ms : Infinity;
     });
-
-    const failedSamples = items
-      .filter((o) => o.outcome !== "succeeded" || !o.sandboxCreatedAt || !o.executionCompletedAt || !o.runningCodeAt)
-      .map((o) => ({ sampleIndex: o.sampleIndex, outcome: o.outcome }));
 
     const runningCodeMaxMs = Math.max(...runningCodeSamplesMs);
     const runningCodeP95Ms = nearestRankP95(runningCodeSamplesMs);
