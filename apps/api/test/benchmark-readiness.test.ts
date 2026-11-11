@@ -189,3 +189,18 @@ it.each([-30000,30000])('NFR-PERF-01 server maps client-epoch calibration %ims a
  const create=(calibration:typeof base)=>new PrivateBenchmarkRecorder({approved_notebook_ids:ids,revision:'local',sink:()=>{},executionEvidence:{file:join(dir,'code.json'),runtime,calibration,qualification,metadata:{schema_version:1,candidate_commit:'a'.repeat(40),serving_revision:'local',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness',qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:hash(runtime),clock_calibration_sha256:hash(calibration),approved_notebook_ids:ids}}});
  try{expect(()=>create(base)).not.toThrow();expect(()=>create({...base,expires_at_ms:Date.now()-offset-100})).toThrow(/calibration/);}finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+it('NFR-SEC-02 clock bootstrap refuses missing private receipt signing capability and ambiguous mode', async () => {
+ const {preparePrivateBridgeEnvironment}=await import('../src/observability/benchmark.ts');
+ const {generateKeyPairSync,randomUUID}=await import('node:crypto');
+ const owner=generateKeyPairSync('ed25519');
+ const flag={BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP:'true'};
+ expect(()=>preparePrivateBridgeEnvironment(flag)).toThrow(/enabled bridge/);
+ expect(()=>preparePrivateBridgeEnvironment({BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP:'treu'})).toThrow(/Invalid private clock mode/);
+ expect(()=>preparePrivateBridgeEnvironment({
+  ...flag,BENCHMARK_BRIDGE_ENABLED:'true',BENCHMARK_BRIDGE_CAMPAIGN_ID:randomUUID(),
+  BENCHMARK_BRIDGE_EXPIRES_AT_MS:String(Date.now()+60000),
+  BENCHMARK_BRIDGE_PUBLIC_KEY:owner.publicKey.export({type:'spki',format:'pem'}).toString(),
+  BENCHMARK_BRIDGE_EXECUTION_CONFIG:'{}',BENCHMARK_APPROVED_NOTEBOOKS:randomUUID(),
+ })).toThrow(/receipt signing capability unavailable/);
+});

@@ -1,4 +1,4 @@
-import { PrivateBenchmarkBridge,OwnerPrivateDirectory,type PrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
+import { PrivateBenchmarkBridge,PrivateClockBridge,OwnerPrivateDirectory,type PrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
 import { PrivateBridgeIdentitySchema,PrivateBridgePolicySchema,PrivateBridgeApprovalEnvelopeSchema,type PrivateBridgeBindingSchema } from '@everlast/contracts';
 import { mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 import { vertexConfigFromEnv } from '@everlast/cloud';
 import { CodeExecutionPrivateEvidenceFileSchema, CodeExecutionPrivateMeasurementSchema, CodeExecutionRuntimeConfigSchema, type CodeExecutionPrivateEvidenceFile, type CodeExecutionRuntimeConfig, type CodeExecutionTrace, type SourceRevisionPair } from '@everlast/contracts';
 import { randomUUID, createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { OperationalQualificationPlanSchema as OperationalPlanSchema, OPERATIONAL_PROVIDER_BUDGET } from '@everlast/contracts';
 export { OPERATIONAL_PROVIDER_BUDGET } from '@everlast/contracts';
 import { constants, closeSync, mkdirSync, openSync, fstatSync, readFileSync, writeFileSync, renameSync, unlinkSync, fsyncSync, lstatSync } from 'node:fs';
@@ -20,6 +20,7 @@ export type BenchmarkStage='admission'|'retrieval'|'generation'|'verification'|'
 export type PrivateStageRecord=BenchmarkPrivateEvidence;
 export interface BenchmarkRecorderOptions {
  executionEvidence?: ExecutionEvidenceConfig|undefined;
+ requiresClockBootstrap?: boolean;
  bridgeScaleFile?:string|undefined;
  sourceTreeSha256?:string|undefined;
  operationalConfigSha256?:string|undefined;
@@ -52,6 +53,19 @@ export interface ExecutionEvidenceConfig{
  runtime:CodeExecutionRuntimeConfig;
  calibration:{offset_ms:number;uncertainty_ms:number;measured_at_ms:number;expires_at_ms:number;measurement_id:string};
  qualification:string;
+}
+const ClockTemplateSchema = z.object({
+ metadata: CodeExecutionPrivateEvidenceFileSchema.omit({measurements:true,clock_calibration_sha256:true}),
+ runtime: CodeExecutionRuntimeConfigSchema,
+ qualification: z.string().min(1).max(128000),
+}).strict();
+type ClockTemplate = z.infer<typeof ClockTemplateSchema>;
+interface ClockBootstrapConfig { template: ClockTemplate; receiptPrivateKey: string; }
+interface RemoteBenchmarkConfig {
+ campaign_id: string;
+ expiresAtMs: number;
+ objects: PrivateBridgeObjects;
+ policy?: z.infer<typeof PrivateBridgePolicySchema>;
 }
 const digest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 function checkExecutionConfig(config:ExecutionEvidenceConfig,revision:string){
@@ -123,6 +137,93 @@ export class PrivateBenchmarkRecorder {
   if(meta.candidate_commit!==env.COMMIT_SHA||digest(CodeExecutionRuntimeConfigSchema.parse(runtime))!==meta.runtime_config_sha256)throw new Error('Actual serving/runtime identity mismatch');
   return config;
  }
+ private clockGuard: (()=>void)|undefined;
+ private hasCurrentClock(): boolean {
+  if(!this.options.requiresClockBootstrap) return true;
+  if(!this.clockGuard) return false;
+  try {
+   this.clockGuard();
+   return true;
+  } catch {
+   this.clockGuard=undefined;
+   this.failOperationalTransport();
+   return false;
+  }
+ }
+
+ /** Opens only the private clock exchange until an authenticated same-boot install commits. */
+ startClockCoordinator(options: {
+  directory: string;
+  bootstrap: ClockBootstrapConfig;
+  remote: RemoteBenchmarkConfig;
+  candidate: string | undefined;
+  runtime: CodeExecutionRuntimeConfig | undefined;
+  ports: OperationalProbePorts;
+ }): ()=>void {
+  const {directory, bootstrap, remote, candidate, runtime, ports}=options;
+  const {metadata, runtime: frozenRuntime, qualification}=bootstrap.template;
+  if(!this.options.requiresClockBootstrap||this.options.executionEvidence||
+     candidate!==metadata.candidate_commit||metadata.serving_revision!==this.options.revision||
+     !runtime||digest(CodeExecutionRuntimeConfigSchema.parse(runtime))!==metadata.runtime_config_sha256||
+     digest(frozenRuntime)!==metadata.runtime_config_sha256||
+     createHash('sha256').update(qualification).digest('hex')!==metadata.qualification_sha256||
+     digest([...this.approved].sort())!==digest([...metadata.approved_notebook_ids].sort())||
+     !this.options.sourceTreeSha256||!this.options.operationalConfigSha256) {
+   throw new Error('Private clock deployment template mismatch');
+  }
+  const identity=PrivateBridgeIdentitySchema.parse({
+   campaign_id:remote.campaign_id,candidate_commit:candidate,
+   serving_revision:this.options.revision,instance_boot_id:this.boot,
+  });
+  const files=new OwnerPrivateDirectory(directory);
+  const publicKey=readPrivateFile(join(directory,'trusted-public-key.pem'));
+  let stopOperational: (()=>void)|undefined;
+  let closed=false;
+  const bridge=new PrivateClockBridge({
+   identity, objects:remote.objects, ownerPublicKey:publicKey,
+   receiptPrivateKey:bootstrap.receiptPrivateKey, expiresAtMs:remote.expiresAtMs,
+   configSha256:digest({template:bootstrap.template, source_tree_sha256:this.options.sourceTreeSha256,
+    operational_config_sha256:this.options.operationalConfigSha256}),
+   install:(proof,assertClockCurrent)=>{
+    if(closed) throw new Error('Private clock coordinator closed');
+    const config: ExecutionEvidenceConfig={
+     file:join(directory,'code.json'),metadata:{...metadata,clock_calibration_sha256:digest(proof.calibration)},
+     runtime:frozenRuntime, qualification, calibration:proof.calibration,
+    };
+    checkExecutionConfig(config,this.options.revision);
+    assertClockCurrent();
+    files.write('clock-proof.json',JSON.stringify(proof));
+    assertClockCurrent();
+    this.options.executionEvidence=config;
+    this.clockGuard=assertClockCurrent;
+    return ()=>{
+     if(closed)throw new Error('Private clock coordinator closed');
+     try {
+      stopOperational=this.startOperationalCoordinator(directory,ports,remote);
+     } catch(error) {
+      this.failOperationalTransport();
+      throw error;
+     }
+    };
+   },
+  });
+  const tick=async()=>{
+   try { await bridge.tick(); } catch { /* Keep the unqualified state. The exchange bounds retries. */ }
+   if(bridge.stopped) clearInterval(timer);
+  };
+  const timer=setInterval(()=>void tick(),500);
+  timer.unref();
+  void tick();
+  return ()=>{
+   closed=true;
+   clearInterval(timer);
+   bridge.close();
+   stopOperational?.();
+   this.clockGuard=undefined;
+   this.failOperationalTransport();
+  };
+ }
+
  /** Only current in-process probe evidence can open collection; object construction never qualifies it. */
  beginExecution(input:{notebook_id:string;owner_id:string;request_id:string;source_snapshot:SourceRevisionPair[]}){
   const config=this.options.executionEvidence,readiness=this.readiness();
@@ -138,6 +239,7 @@ export class PrivateBenchmarkRecorder {
    finish:(trace:CodeExecutionTrace,publishedAt:string|null)=>{
     if(finished)return;finished=true;
     try{
+     if(!this.hasCurrentClock())return;
      checkExecutionConfig(config,this.options.revision);
      const {measurements,...metadata}=CodeExecutionPrivateEvidenceFileSchema.parse({...config.metadata,measurements:[]});
      const terminal=trace.state==='Succeeded'||trace.state==='Failed'||trace.state==='TimedOut';if(!terminal)return;
@@ -150,9 +252,9 @@ export class PrivateBenchmarkRecorder {
   };
  }
  /** Identity binding for the canonical controller's existing durable lifecycle, not provider proof. */
- executionIdentity(notebookId?:string){const config=this.options.executionEvidence;if(notebookId&&(!this.approved.has(notebookId)||!config?.metadata.approved_notebook_ids.includes(notebookId)))return undefined;return config?{instance_boot_id:this.boot,candidate_commit:config.metadata.candidate_commit,runtime_config_sha256:config.metadata.runtime_config_sha256}:undefined;}
+ executionIdentity(notebookId?:string){if(!this.hasCurrentClock())return undefined;const config=this.options.executionEvidence;if(notebookId&&(!this.approved.has(notebookId)||!config?.metadata.approved_notebook_ids.includes(notebookId)))return undefined;return config?{instance_boot_id:this.boot,candidate_commit:config.metadata.candidate_commit,runtime_config_sha256:config.metadata.runtime_config_sha256}:undefined;}
  /** Fixed private channel. The trust root is loaded independently from the owner-controlled directory, never the signed payload. */
- startOperationalCoordinator(directory:string,ports:OperationalProbePorts,remote?:{campaign_id:string;expiresAtMs:number;objects:PrivateBridgeObjects;policy?:z.infer<typeof PrivateBridgePolicySchema>}):()=>void{
+ startOperationalCoordinator(directory:string,ports:OperationalProbePorts,remote?:RemoteBenchmarkConfig):()=>void{
   if(!isAbsolute(directory))throw new Error('Private operational directory must be absolute');
   const stat=lstatSync(directory);if(!stat.isDirectory()||stat.isSymbolicLink()||(stat.mode&0o077)!==0||stat.uid!==process.getuid?.())throw new Error('Private operational directory permissions invalid');
   const file=(name:string)=>directory+'/'+name;
@@ -195,7 +297,7 @@ export class PrivateBenchmarkRecorder {
  async refreshOperational(input:{payload:string;signature:string;publicKey:string;ports:OperationalProbePorts}):Promise<boolean>{
   const generation=++this.operationalGeneration;
   this.invalidateOperational();
-  if(this.operationalRunning)return false;
+  if(this.operationalRunning||!this.hasCurrentClock())return false;
   let plan:z.infer<typeof OperationalPlanSchema>;
   try{
    if(Buffer.byteLength(input.payload)>128000||input.signature.length>1024||input.publicKey.length>8192)return false;
@@ -223,15 +325,17 @@ export class PrivateBenchmarkRecorder {
   // Consume before the first effect, including failed/timed-out effects. No favorable replacement attempts.
   this.consumedOperationalIds.add(plan.id);this.operationalRunning=true;
   const controller=new AbortController();this.operationalAbort=controller;let timer:ReturnType<typeof setTimeout>|undefined;
-  const timeout=Math.min(plan.timeout_ms,plan.expires_at-Date.now());
+  const clock=this.options.requiresClockBootstrap?this.options.executionEvidence?.calibration:undefined;
+  const clockDeadline=clock?clock.expires_at_ms+clock.offset_ms-clock.uncertainty_ms:Infinity;
+  const timeout=Math.min(plan.timeout_ms,plan.expires_at-Date.now(),clockDeadline-Date.now());
   if(timeout<=0){this.operationalRunning=false;return false;}
   const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(new Error('Operational probe timeout'));},timeout);});
-  const run=async()=>{for(const actor of plan.actors){controller.signal.throwIfAborted();await input.ports.runtime_observation(structuredClone(actor),controller.signal);}for(const actor of plan.actors)for(const operation of ['retrieval','model','cache'] as const){controller.signal.throwIfAborted();await input.ports[operation](structuredClone(actor),controller.signal);}};
+  const run=async()=>{for(const actor of plan.actors){controller.signal.throwIfAborted();if(!this.hasCurrentClock())throw new Error('Private clock expired');await input.ports.runtime_observation(structuredClone(actor),controller.signal);}for(const actor of plan.actors)for(const operation of ['retrieval','model','cache'] as const){controller.signal.throwIfAborted();if(!this.hasCurrentClock())throw new Error('Private clock expired');await input.ports[operation](structuredClone(actor),controller.signal);}};
   try{
    const actual=run();
    void actual.then(()=>{this.operationalRunning=false;},()=>{this.operationalRunning=false;});
    await Promise.race([actual,deadline]);
-   if(controller.signal.aborted||generation!==this.operationalGeneration||Date.now()>=plan.expires_at)return false;
+   if(controller.signal.aborted||generation!==this.operationalGeneration||Date.now()>=plan.expires_at||!this.hasCurrentClock())return false;
    this.operationalExpiry=plan.expires_at;this.operationalActors=structuredClone(plan.actors);
    this.qualify({dependencies:{...this.evidence.dependencies,model:true,retrieval:true,cache:true},ready_at_ms:Date.now()});
    return true;
@@ -239,7 +343,7 @@ export class PrivateBenchmarkRecorder {
   finally{controller.abort();clearTimeout(timer);}
  }
  readiness():ReadinessEvidence{
-  if(this.operationalExpiry!==undefined&&Date.now()>=this.operationalExpiry)this.invalidateOperational();
+  if(!this.hasCurrentClock()||(this.operationalExpiry!==undefined&&Date.now()>=this.operationalExpiry))this.invalidateOperational();
   return structuredClone(this.evidence);
  }
  /** Qualified original-only metadata may be prepared privately before submission; every use rechecks current C-02 scope. */
@@ -280,7 +384,7 @@ export class PrivateBenchmarkRecorder {
    stage:(next:BenchmarkStage)=>{if(!finished){close();stage=next;}},
    finish:(terminal_status:string)=>{
     if(finished)return;close();finished=true;
-    try{this.options.sink({request_id:request,notebook_id:notebook,instance_boot_id:this.boot,revision:this.options.revision,terminal_status,readiness,stages,scope,fixture_hash:fixture?.fixture_hash??null,prompt_leakage_count:promptLeaks});}catch{/* Missing evidence invalidates acceptance; never change user publication. */}
+    try{this.options.sink({request_id:request,notebook_id:notebook,instance_boot_id:this.boot,revision:this.options.revision,terminal_status,readiness:this.hasCurrentClock()?readiness:this.readiness(),stages,scope,fixture_hash:fixture?.fixture_hash??null,prompt_leakage_count:promptLeaks});}catch{/* Missing evidence invalidates acceptance; never change user publication. */}
    },
   };
  }
@@ -288,16 +392,39 @@ export class PrivateBenchmarkRecorder {
 
 /** Cloud Run bootstrap adapter: trusted deployment inputs become an owned ephemeral private channel.
  * Public keys/config are pinned separately from bucket-delivered owner authorizations. */
-export function preparePrivateBridgeEnvironment(original:NodeJS.ProcessEnv):{env:NodeJS.ProcessEnv;cleanup:()=>void}{
- if(original.BENCHMARK_BRIDGE_ENABLED!=='true')return {env:original,cleanup:()=>{}};
+export function preparePrivateBridgeEnvironment(original:NodeJS.ProcessEnv):{env:NodeJS.ProcessEnv;cleanup:()=>void;clock?:ClockBootstrapConfig}{
+ const clockMode=original.BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP;
+ if(clockMode!==undefined&&clockMode!=='true'&&clockMode!=='false')throw new Error('Invalid private clock mode');
+ if(original.BENCHMARK_BRIDGE_ENABLED!=='true'){
+  if(clockMode==='true')throw new Error('Private clock requires the explicitly enabled bridge');
+  return {env:original,cleanup:()=>{}};
+ }
  if(original.BENCHMARK_OPERATIONAL_DIRECTORY||!original.BENCHMARK_BRIDGE_CAMPAIGN_ID||!original.BENCHMARK_BRIDGE_EXPIRES_AT_MS||!original.BENCHMARK_BRIDGE_PUBLIC_KEY||!original.BENCHMARK_BRIDGE_EXECUTION_CONFIG||!original.BENCHMARK_APPROVED_NOTEBOOKS)throw new Error('Private bridge trusted bootstrap incomplete');
  const expires=Number(original.BENCHMARK_BRIDGE_EXPIRES_AT_MS);if(!Number.isSafeInteger(expires)||expires<=Date.now()||expires>Date.now()+3600000)throw new Error('Private deployment window invalid/expired');
  if(!requireEd25519Key(original.BENCHMARK_BRIDGE_PUBLIC_KEY))throw new Error('Invalid private bridge trust root');
  if(Buffer.byteLength(original.BENCHMARK_BRIDGE_EXECUTION_CONFIG)>128000)throw new Error('Private bridge config too large');
+ const config=JSON.parse(original.BENCHMARK_BRIDGE_EXECUTION_CONFIG) as unknown;
+ const receiptPrivateKey=original.BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY;
+ if(clockMode==='true'&&!receiptPrivateKey)throw new Error('Private clock receipt signing capability unavailable');
+ const clock=clockMode==='true'?{template:ClockTemplateSchema.parse(config),receiptPrivateKey:receiptPrivateKey!}:undefined;
  const root=mkdtempSync(join(tmpdir(),'everlast-private-')),files=new OwnerPrivateDirectory(root);
- try{const config=JSON.parse(original.BENCHMARK_BRIDGE_EXECUTION_CONFIG);files.write('execution-config.json',JSON.stringify({...config,file:join(root,'code.json')}));files.write('trusted-public-key.pem',original.BENCHMARK_BRIDGE_PUBLIC_KEY);
-  const env:NodeJS.ProcessEnv={...original,BENCHMARK_OPERATIONAL_DIRECTORY:root,BENCHMARK_EXECUTION_CONFIG_FILE:join(root,'execution-config.json'),BENCHMARK_EVIDENCE_FILE:join(root,'scale.jsonl')};
-  if(original.BENCHMARK_BRIDGE_FIXTURES){files.write('fixtures.json',original.BENCHMARK_BRIDGE_FIXTURES);env.BENCHMARK_FIXTURES_FILE=join(root,'fixtures.json');}
-  return {env,cleanup:()=>rmSync(root,{recursive:true,force:true})};
- }catch(error){rmSync(root,{recursive:true,force:true});throw error;}
+ try {
+  files.write('trusted-public-key.pem',original.BENCHMARK_BRIDGE_PUBLIC_KEY);
+  const env:NodeJS.ProcessEnv={...original,BENCHMARK_OPERATIONAL_DIRECTORY:root,BENCHMARK_EVIDENCE_FILE:join(root,'scale.jsonl')};
+  delete env.BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY;
+  if(clock) {
+   delete env.BENCHMARK_EXECUTION_CONFIG_FILE;
+  } else {
+   files.write('execution-config.json',JSON.stringify({...config as object,file:join(root,'code.json')}));
+   env.BENCHMARK_EXECUTION_CONFIG_FILE=join(root,'execution-config.json');
+  }
+  if(original.BENCHMARK_BRIDGE_FIXTURES){
+   files.write('fixtures.json',original.BENCHMARK_BRIDGE_FIXTURES);
+   env.BENCHMARK_FIXTURES_FILE=join(root,'fixtures.json');
+  }
+  return {env,cleanup:()=>rmSync(root,{recursive:true,force:true}),...(clock?{clock}:{})};
+ } catch(error) {
+  rmSync(root,{recursive:true,force:true});
+  throw error;
+ }
 }
