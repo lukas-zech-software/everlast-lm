@@ -113,3 +113,15 @@ with global checker/lint FAIL explicitly retained for other packages.
 Final convergence: no remaining 001 boundary work in T062–T064. T046/T061 live
 acceptance stays OPEN/UNAVAILABLE; no checked task or manual review substitutes
 for approved fixture runs or release acceptance.
+
+## Pre-V4 task 001 analysis refresh (2026-11-11; FR-WM-01/04, NFR-SEC-01/02, CC-09)
+
+Read-only analysis of spec/plan/tasks after the CC-09 plan/tasks delta (plan.md delta, T065) and before the code change was committed: every in-scope requirement maps to a task and test; no critical ambiguity. T046/T061 remain the only open items and are UNAVAILABLE pending approved disposable users, bucket, ADC and reviewed plan.
+
+| Finding | Severity / scope | Disposition |
+| --- | --- | --- |
+| Live acceptance cannot run without approved fixtures | HIGH, 001 | Frozen plan in `evidence/pre-v4-live-plan.md`; tests fail closed with UNAVAILABLE |
+| Resumable cancellation not verifiable through API | MEDIUM, 001 | Recorded per scenario in `RESUMABLE_SCENARIOS`; two UNAVAILABLE |
+| Shared files (server/runtime/registry, policy, lockfile, manifests) | none | Not touched; no shared-file patch is required |
+
+CC-01/02: Red (3 failing) → Green (4/4). CC-09: test-only fixture module, no boundary, exception or dependency change; graph 0 findings, 184 exceptions unchanged.

@@ -601,3 +601,7 @@ Traceability: FR-WM-01/04, NFR-SEC-01/02, D22; T046/T061/T065.
 - Live suites now require the frozen two-user plan; user B survives A's revocation and B's objects survive A's purge (live-only assertions, SKIPPED without approval).
 - Focused local run: identity, cleanup (real local PostgreSQL), password sign-in, testkit all PASS; typecheck PASS; spec integrity PASS; architecture graph 0 findings / 184 exceptions.
 - Live plan and rollback: `evidence/pre-v4-live-plan.md`. T046/T061 remain OPEN/UNAVAILABLE: no approved disposable users/bucket, ADC or reviewed plan. Two resumable scenarios are UNAVAILABLE individually.
+
+### Integration checkpoint (task 001)
+
+Clean commit: see `git log` of `codex/pre-v4-work-001` (base b62b6e8). Shared-file patch: none required. Pending: live T046/T061 (approved disposable users/bucket/ADC/reviewed tofu plan), the two UNAVAILABLE resumable scenarios, and global release acceptance. Continuation: obtain approval, export the `WORKSPACE_IT_*` inputs listed in `evidence/pre-v4-live-plan.md`, run the two opt-in commands there.
