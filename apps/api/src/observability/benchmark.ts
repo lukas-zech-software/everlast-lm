@@ -1,8 +1,15 @@
+import { PrivateBenchmarkBridge,OwnerPrivateDirectory,type PrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
+import { PrivateBridgeIdentitySchema,PrivateBridgePolicySchema,PrivateBridgeApprovalEnvelopeSchema,type PrivateBridgeBindingSchema } from '@everlast/contracts';
+import { mkdtempSync,rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { GoogleGenAI } from '@google/genai';
 import { vertexConfigFromEnv } from '@everlast/cloud';
 import { CodeExecutionPrivateEvidenceFileSchema, CodeExecutionPrivateMeasurementSchema, CodeExecutionRuntimeConfigSchema, type CodeExecutionPrivateEvidenceFile, type CodeExecutionRuntimeConfig, type CodeExecutionTrace, type SourceRevisionPair } from '@everlast/contracts';
 import { randomUUID, createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
-import { z } from 'zod';
+import type { z } from 'zod';
+import { OperationalQualificationPlanSchema as OperationalPlanSchema, OPERATIONAL_PROVIDER_BUDGET } from '@everlast/contracts';
+export { OPERATIONAL_PROVIDER_BUDGET } from '@everlast/contracts';
 import { constants, closeSync, mkdirSync, openSync, fstatSync, readFileSync, writeFileSync, renameSync, unlinkSync, fsyncSync, lstatSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { CanonicalScopeSchema, BenchmarkPrivateEvidenceSchema, type BenchmarkPrivateEvidence, type ReadinessEvidence, type ScopedCorpusManifest } from '@everlast/contracts';
@@ -13,6 +20,7 @@ export type BenchmarkStage='admission'|'retrieval'|'generation'|'verification'|'
 export type PrivateStageRecord=BenchmarkPrivateEvidence;
 export interface BenchmarkRecorderOptions {
  executionEvidence?: ExecutionEvidenceConfig|undefined;
+ bridgeScaleFile?:string|undefined;
  sourceTreeSha256?:string|undefined;
  operationalConfigSha256?:string|undefined;
  approved_notebook_ids:string[];revision:string;sink:(record:PrivateStageRecord)=>void;clock?:()=>number;
@@ -50,7 +58,7 @@ function checkExecutionConfig(config:ExecutionEvidenceConfig,revision:string){
  const meta=CodeExecutionPrivateEvidenceFileSchema.parse({...config.metadata,measurements:[]});
  const runtime=CodeExecutionRuntimeConfigSchema.parse(config.runtime),clock=config.calibration;
  if(meta.serving_revision!==revision||digest(runtime)!==meta.runtime_config_sha256||digest(clock)!==meta.clock_calibration_sha256||createHash('sha256').update(config.qualification).digest('hex')!==meta.qualification_sha256)throw new Error('Private execution provenance mismatch');
- if(!Number.isFinite(clock.offset_ms)||!Number.isFinite(clock.uncertainty_ms)||clock.uncertainty_ms<0||clock.uncertainty_ms>1000||!Number.isFinite(clock.measured_at_ms)||clock.measured_at_ms<0||clock.measured_at_ms>Date.now()||!Number.isFinite(clock.expires_at_ms)||clock.expires_at_ms<=Date.now()||typeof clock.measurement_id!=='string'||!clock.measurement_id||clock.measurement_id.length>200)throw new Error('Private execution calibration unavailable');
+ if(!Number.isFinite(clock.offset_ms)||!Number.isFinite(clock.uncertainty_ms)||clock.uncertainty_ms<0||clock.uncertainty_ms>1000||!Number.isFinite(clock.measured_at_ms)||clock.measured_at_ms<0||clock.measured_at_ms+clock.offset_ms+clock.uncertainty_ms>Date.now()||!Number.isFinite(clock.expires_at_ms)||clock.expires_at_ms+clock.offset_ms-clock.uncertainty_ms<=Date.now()||typeof clock.measurement_id!=='string'||!clock.measurement_id||clock.measurement_id.length>200)throw new Error('Private execution calibration unavailable');
  readPrivateFile(config.file);return meta;
 }
 export interface OperationalCachePort {
@@ -66,7 +74,7 @@ export function createOperationalCacheFromEnv(env:NodeJS.ProcessEnv):Operational
  return {identity:JSON.stringify({project:config.project,location:config.location,model}),
   create:async({pages,signal})=>{
    signal.throwIfAborted();const contents=[{role:'user',parts:pages.flatMap(page=>page.map(chunk=>({text:JSON.stringify({chunk_id:chunk.chunk_id,source_id:chunk.source_id,revision:chunk.revision,text:chunk.text})})))}];
-   if(Buffer.byteLength(JSON.stringify(contents))>40000000)throw new Error('Operational cache serialized byte cap exceeded');
+   if(Buffer.byteLength(JSON.stringify(contents))>10000000)throw new Error('Operational cache native serialized byte cap exceeded');
    const counted=await client.models.countTokens({model,contents});signal.throwIfAborted();
    if(!Number.isSafeInteger(counted.totalTokens)||counted.totalTokens!<0||counted.totalTokens!+18000>1048576)throw new Error('Operational cache actual tokenizer envelope unavailable');
    const response=await client.caches.create({model,config:{contents,ttl:'60s'}});
@@ -85,25 +93,12 @@ export interface OperationalProbePorts {
  runtime_observation:OperationalProbePorts['retrieval'];
 }
 function requireEd25519Key(pem:string){try{return createPublicKey(pem).asymmetricKeyType==='ed25519';}catch{return false;}}
-export const OPERATIONAL_PROVIDER_BUDGET={embedding_requests:2,model_requests:2,model_output_tokens_each:512,model_request_bytes:100000,cache_token_counts:2,cache_creates:2,cache_deletes:2,cache_ttl_seconds:60,cache_original_bytes:32000000,cache_serialized_bytes:40000000,managed_creates:0} as const;
-const ProviderBudgetSchema=z.object({embedding_requests:z.literal(2),model_requests:z.literal(2),model_output_tokens_each:z.literal(512),model_request_bytes:z.literal(100000),cache_token_counts:z.literal(2),cache_creates:z.literal(2),cache_deletes:z.literal(2),cache_ttl_seconds:z.literal(60),cache_original_bytes:z.literal(32000000),cache_serialized_bytes:z.literal(40000000),managed_creates:z.literal(0)}).strict();
-const OperationalPlanSchema=z.object({
- provider_budget:ProviderBudgetSchema.optional(),
- id:z.string().uuid(),instance_boot_id:z.string().uuid(),revision:z.string().min(1),
- issued_at:z.number().finite().nonnegative(),expires_at:z.number().finite().nonnegative(),timeout_ms:z.number().int().min(1).max(240000),
- operations:z.tuple([z.literal('retrieval'),z.literal('model'),z.literal('cache'),z.literal('runtime_observation')]),
- actors:z.array(z.object({owner_id:z.string().uuid(),notebook_id:z.string().uuid(),sources:CanonicalScopeSchema.max(300),cache_sources:CanonicalScopeSchema.max(300).optional()}).strict()).length(2),
- operational_config_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),
- source_tree_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),
- classification_basis:z.enum(['application-serving-readiness','managed-runtime-readiness']).optional(),
- candidate_commit:z.string().regex(/^[a-f0-9]{40}$/).optional(),fixture_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),
- runtime_config_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),clock_calibration_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),qualification_sha256:z.string().regex(/^[a-f0-9]{64}$/).optional(),
-}).strict();
 export class PrivateBenchmarkRecorder {
  readonly bootedAt=Date.now();
  private readonly options:BenchmarkRecorderOptions;private readonly approved:Set<string>;private readonly boot=randomUUID();private readonly clock:()=>number;private evidence:ReadinessEvidence;
  private readonly consumedOperationalIds=new Set<string>();
  private operationalExpiry:number|undefined;
+ private bridgeBinding:z.infer<typeof PrivateBridgeBindingSchema>|undefined;
  private operationalGeneration=0;
  private operationalRunning=false;
  private operationalAbort:AbortController|undefined;
@@ -157,7 +152,7 @@ export class PrivateBenchmarkRecorder {
  /** Identity binding for the canonical controller's existing durable lifecycle, not provider proof. */
  executionIdentity(notebookId?:string){const config=this.options.executionEvidence;if(notebookId&&(!this.approved.has(notebookId)||!config?.metadata.approved_notebook_ids.includes(notebookId)))return undefined;return config?{instance_boot_id:this.boot,candidate_commit:config.metadata.candidate_commit,runtime_config_sha256:config.metadata.runtime_config_sha256}:undefined;}
  /** Fixed private channel. The trust root is loaded independently from the owner-controlled directory, never the signed payload. */
- startOperationalCoordinator(directory:string,ports:OperationalProbePorts):()=>void{
+ startOperationalCoordinator(directory:string,ports:OperationalProbePorts,remote?:{campaign_id:string;expiresAtMs:number;objects:PrivateBridgeObjects;policy?:z.infer<typeof PrivateBridgePolicySchema>}):()=>void{
   if(!isAbsolute(directory))throw new Error('Private operational directory must be absolute');
   const stat=lstatSync(directory);if(!stat.isDirectory()||stat.isSymbolicLink()||(stat.mode&0o077)!==0||stat.uid!==process.getuid?.())throw new Error('Private operational directory permissions invalid');
   const file=(name:string)=>directory+'/'+name;
@@ -165,12 +160,25 @@ export class PrivateBenchmarkRecorder {
   const key=(requireEd25519Key(publicKey));if(!key)throw new Error('Operational trust root must be Ed25519');
   const identity=this.executionIdentity();
   if(!identity||!this.options.sourceTreeSha256||!this.options.operationalConfigSha256)throw new Error('Measured source/candidate/runtime identity unavailable');
-  writePrivateAtomic(file('challenge.json'),JSON.stringify({...identity,revision:this.options.revision,provider_budget:OPERATIONAL_PROVIDER_BUDGET,source_tree_sha256:this.options.sourceTreeSha256,operational_config_sha256:this.options.operationalConfigSha256,approved_notebook_ids:[...this.approved]})+'\n');
-  let previous='',busy=false,closed=false;
+  writePrivateAtomic(file('challenge.json'),JSON.stringify({...identity,fixture_sha256:this.options.executionEvidence!.metadata.fixture_sha256,clock_calibration_sha256:this.options.executionEvidence!.metadata.clock_calibration_sha256,qualification_sha256:this.options.executionEvidence!.metadata.qualification_sha256,classification_basis:this.options.executionEvidence!.metadata.classification_basis,revision:this.options.revision,provider_budget:OPERATIONAL_PROVIDER_BUDGET,source_tree_sha256:this.options.sourceTreeSha256,operational_config_sha256:this.options.operationalConfigSha256,approved_notebook_ids:[...this.approved]})+'\n');
+  const privateFiles=new OwnerPrivateDirectory(directory);
+  let bridge:PrivateBenchmarkBridge|undefined;
+  if(remote){
+   const remoteIdentity=PrivateBridgeIdentitySchema.parse({campaign_id:remote.campaign_id,candidate_commit:identity.candidate_commit,serving_revision:this.options.revision,instance_boot_id:identity.instance_boot_id});
+   bridge=new PrivateBenchmarkBridge({identity:remoteIdentity,expiresAtMs:remote.expiresAtMs,objects:remote.objects,publicKey,...(remote.policy?{policy:remote.policy}:{}),onFailure:()=>this.failOperationalTransport(),files:{
+    read:async kind=>{const name=kind==='outcomes'?'observations.json':kind==='scale'?undefined:kind+'.json';const raw=kind==='code'?readPrivateFile(this.options.executionEvidence!.file):kind==='scale'?(this.options.bridgeScaleFile?readPrivateFile(this.options.bridgeScaleFile):''):privateFiles.read(name!)?.toString();if(!raw)return null;return kind==='scale'?raw.trim().split('\n').filter(Boolean).map(row=>JSON.parse(row)):JSON.parse(raw);},
+    accept:async(payload,signature,binding)=>{this.bridgeBinding=binding;privateFiles.write('delivered.json',JSON.stringify({schema:'everlast.private-approval/1',payload,signature}));},
+    record:async event=>{const prior=privateFiles.read('transport.json');const rows:unknown[]=prior?JSON.parse(prior.toString()):[];if(!Array.isArray(rows)||rows.length>=100)throw new Error('Private transport retention exhausted');privateFiles.write('transport.json',JSON.stringify([...rows,event]));},
+   }});
+  }
+  let previous='',busy=false,closed=false,bridgeBusy=false;
+  const bridgePoll=async()=>{if(!bridge||closed||bridgeBusy)return;bridgeBusy=true;try{await bridge.tick();}catch{this.failOperationalTransport();}finally{bridgeBusy=false;}};
+
   const poll=async()=>{
    this.readiness();if(closed||busy)return;busy=true;
    try{
-    const payload=readPrivateFile(file('authorization.json')),signature=readPrivateFile(file('authorization.sig')).trim();
+    const delivered=remote?privateFiles.read('delivered.json'):null;const envelope=delivered?PrivateBridgeApprovalEnvelopeSchema.parse(JSON.parse(delivered.toString())):null;
+    const payload=remote?envelope?.payload??'':readPrivateFile(file('authorization.json')),signature=remote?envelope?.signature??'':readPrivateFile(file('authorization.sig')).trim();
     if(!payload||!signature)return;
     const hash=digest({payload,signature});if(hash===previous)return;previous=hash;
     const prior=readPrivateFile(file('observations.json'));const observations:unknown[]=prior?JSON.parse(prior):[];if(!Array.isArray(observations)||observations.length>=100)throw new Error('Operational observation retention capacity exceeded');
@@ -179,10 +187,11 @@ export class PrivateBenchmarkRecorder {
     if(!closed){writePrivateAtomic(file('observations.json'),JSON.stringify([...observations,observation])+'\n');writePrivateAtomic(file('status.json'),JSON.stringify(observation)+'\n');}
    }catch{this.invalidateOperational();}finally{busy=false;}
   };
-  const timer=setInterval(()=>void poll(),1000);timer.unref();void poll();
-  return ()=>{closed=true;clearInterval(timer);this.operationalGeneration++;this.operationalAbort?.abort();this.invalidateOperational();};
+  const timer=setInterval(()=>{void poll();void bridgePoll();},1000);timer.unref();void poll();void bridgePoll();
+  return ()=>{closed=true;bridge?.close();clearInterval(timer);this.operationalGeneration++;this.operationalAbort?.abort();this.invalidateOperational();};
  }
  /** Private in-process workflow: a signature authorizes effects, never substitutes for their actual observation. */
+ failOperationalTransport(){this.operationalGeneration++;this.operationalAbort?.abort();this.invalidateOperational();}
  async refreshOperational(input:{payload:string;signature:string;publicKey:string;ports:OperationalProbePorts}):Promise<boolean>{
   const generation=++this.operationalGeneration;
   this.invalidateOperational();
@@ -193,6 +202,7 @@ export class PrivateBenchmarkRecorder {
    const key=(await import('node:crypto')).createPublicKey(input.publicKey);
    if(key.asymmetricKeyType!=='ed25519'||!verifySignature(null,Buffer.from(input.payload),key,Buffer.from(input.signature,'base64')))return false;
    plan=OperationalPlanSchema.parse(JSON.parse(input.payload));
+   if(this.bridgeBinding&&JSON.stringify(plan.bridge)!==JSON.stringify(this.bridgeBinding))return false;
    const now=Date.now();
    if(plan.instance_boot_id!==this.boot||plan.revision!==this.options.revision||plan.issued_at>now||plan.expires_at<=now||plan.expires_at-plan.issued_at>900000||plan.issued_at<now-900000)return false;
    if(this.consumedOperationalIds.has(plan.id)||this.consumedOperationalIds.size>=100)return false;
@@ -274,4 +284,20 @@ export class PrivateBenchmarkRecorder {
    },
   };
  }
+}
+
+/** Cloud Run bootstrap adapter: trusted deployment inputs become an owned ephemeral private channel.
+ * Public keys/config are pinned separately from bucket-delivered owner authorizations. */
+export function preparePrivateBridgeEnvironment(original:NodeJS.ProcessEnv):{env:NodeJS.ProcessEnv;cleanup:()=>void}{
+ if(original.BENCHMARK_BRIDGE_ENABLED!=='true')return {env:original,cleanup:()=>{}};
+ if(original.BENCHMARK_OPERATIONAL_DIRECTORY||!original.BENCHMARK_BRIDGE_CAMPAIGN_ID||!original.BENCHMARK_BRIDGE_EXPIRES_AT_MS||!original.BENCHMARK_BRIDGE_PUBLIC_KEY||!original.BENCHMARK_BRIDGE_EXECUTION_CONFIG||!original.BENCHMARK_APPROVED_NOTEBOOKS)throw new Error('Private bridge trusted bootstrap incomplete');
+ const expires=Number(original.BENCHMARK_BRIDGE_EXPIRES_AT_MS);if(!Number.isSafeInteger(expires)||expires<=Date.now()||expires>Date.now()+3600000)throw new Error('Private deployment window invalid/expired');
+ if(!requireEd25519Key(original.BENCHMARK_BRIDGE_PUBLIC_KEY))throw new Error('Invalid private bridge trust root');
+ if(Buffer.byteLength(original.BENCHMARK_BRIDGE_EXECUTION_CONFIG)>128000)throw new Error('Private bridge config too large');
+ const root=mkdtempSync(join(tmpdir(),'everlast-private-')),files=new OwnerPrivateDirectory(root);
+ try{const config=JSON.parse(original.BENCHMARK_BRIDGE_EXECUTION_CONFIG);files.write('execution-config.json',JSON.stringify({...config,file:join(root,'code.json')}));files.write('trusted-public-key.pem',original.BENCHMARK_BRIDGE_PUBLIC_KEY);
+  const env:NodeJS.ProcessEnv={...original,BENCHMARK_OPERATIONAL_DIRECTORY:root,BENCHMARK_EXECUTION_CONFIG_FILE:join(root,'execution-config.json'),BENCHMARK_EVIDENCE_FILE:join(root,'scale.jsonl')};
+  if(original.BENCHMARK_BRIDGE_FIXTURES){files.write('fixtures.json',original.BENCHMARK_BRIDGE_FIXTURES);env.BENCHMARK_FIXTURES_FILE=join(root,'fixtures.json');}
+  return {env,cleanup:()=>rmSync(root,{recursive:true,force:true})};
+ }catch(error){rmSync(root,{recursive:true,force:true});throw error;}
 }

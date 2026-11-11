@@ -155,8 +155,8 @@ Local T051–T052/T054–T059/T061–T063 checks are implementation diagnostics 
 
 ## Phase 9: Operational qualification implementation (2026-11-10)
 
-- [ ] T065 Write meaningful failing disabled/missing/unsigned/mismatched/stale/failed/timeout/replay/refresh tests for trusted private operational qualification in apps/api/test/benchmark-readiness.test.ts beforeT066 (NFR-PERF-01, FR-GC-08, NFR-SEC-02, CC-02/09).
-- [ ] T066 Implement signed boot-bound bounded probe workflow and real server composition/private refresh coordinator, leaving default startup unqualified and live qualification open (NFR-PERF-01, FR-GC-08, C-02, NFR-SEC-01/02); depends onT065.
+- [X] T065 Write meaningful failing disabled/missing/unsigned/mismatched/stale/failed/timeout/replay/refresh tests for trusted private operational qualification in apps/api/test/benchmark-readiness.test.ts beforeT066 (NFR-PERF-01, FR-GC-08, NFR-SEC-02, CC-02/09).
+- [X] T066 Implement signed boot-bound bounded probe workflow and real server composition/private refresh coordinator, leaving default startup unqualified and live qualification open (NFR-PERF-01, FR-GC-08, C-02, NFR-SEC-01/02); depends onT065.
 - [X] T067 Verify affected behavior, lint/type/spec/architecture and deterministic applicability, record exact missing code/evidence and preserve all historical failures (NFR-EVAL-02/04, CC-09); depends onT066.
 
 ### 2026-11-10c code/evidence split
@@ -168,3 +168,19 @@ T053/T065/T066 local operational implementation is complete with actual server c
 - [ ] T068 HIGH Implement/test a secure target-CloudRun private challenge/inbox/evidence delivery/export adapter, or verify and configure an actually available private mount/delivery path. Local ephemeral files are not present on the operator host automatically. Pin separate trusted key, candidate/boot/scope/config and bounded signed bytes; generation-pin remote reads, retain outcomes and preserve canonical private-file permissions/hash bindings after export. No public endpoint, signed-URL bypass, new resource/IAM/cloud action or paid run is authorized by this task. Verify actual existing storage channel/IAM and prepare exact owner-reviewed configuration/workload before real use (NFR-PERF-01, FR-GC-08, NFR-SEC-01/02; missing); depends on T065,T067.
 
 T053/T066 are locally implemented and characterized but remain PARTIAL for the target deployment because T068 code/configuration is missing. T064 remainsOPEN for both that delivery gap and actual deployed qualification. T065/T067 local focused tests/static/deterministic evidence are complete; no live acceptance is inferred.
+
+## Phase 11: Secure remote bridge implementation (2026-11-11)
+
+- [X] T069 Add spec-derived Red strict identity/CAS/generation/unknown-field/private-files/timeout/defaultdisabled and operator roundtrip tests before bridge implementation (NFR-PERF-01, FR-GC-08, NFR-SEC-02, CC-02/09).
+- [X] T070 Implement canonical shared bridge schemas and pure bounded bridge/operator workflow plus opt-in generation-safe storage/file adapters; remove only actual cloud wildcard debt through explicit exports (NFR-PERF-01, NFR-SEC-02); depends onT069.
+- [X] T071 Wire actual APIserver private bootstrap/channel/coordinator and operatorCLI, with real local storage/SDK/server roundtrip; preserve default-disabled and failure/cleanup behavior (NFR-PERF-01, FR-GC-08, C-02, CC-09); depends onT070.
+- [X] T072 Prepare concrete default-off CloudRun/IAM/CPU/window/retention/rollback configuration and exact RPC budgets without applying, run affected/static/deterministic gates and final analyze/converge, save tracked bridge handoff (NFR-PERF-01, NFR-EVAL-02/04, CC-09); depends onT071.
+
+### Nov11 bridge checkpoint / convergence
+
+T069–T072 local implementation/checks are complete. T068 remains PARTIAL for actual channel/IAM verification and the additional clock acquisition code below: GCS/local generation-safe bridge, actual APIserver bootstrap/qualification/export and Node26operatorCLI roundtrip are implemented; no cloud deployment/object/probe was executed. T053 stays partial and T064/T060/live010T052/T064/011T061/commonfixed50case judged gates remainOPEN. Earlier “missing bridge code” paragraphs describe the Nov10 checkpoint and are superseded here, not erased.
+
+## Phase 12: Non-circular private clock acquisition (remaining CODE, NFR-PERF-01, FR-GC-08, NFR-SEC-02, CC-02/09)
+
+- [ ] T073 HIGH Specify/analyze and write Red tests for a bounded owner-signed GCS clock-only nonce exchange/interval measurement and exact retained-calibration installation BEFORE dependency qualification. Current external serving-clock bound is UNAVAILABLE, and the bridge verifier cannot acquire it; no zero-offset/provider-clock assumption. Bootstrap must not require the calibration it is measuring, expose a public endpoint, invoke model/cache/runtime providers or weaken uncertainty/expiry thresholds. Test positive/negative offsets, nonce replay/identity/generation/timeouts/late results, wall-clock steps, excessive interval uncertainty and bounded storage effects; depends onT072.
+- [ ] T074 Implement the private clock-only bootstrap/acquisition/install workflow behind explicit ports and trusted independent root, with local SDK/server/operator roundtrip and exact conservative CLIENT-epoch retained fields (serverTime=clientTime+offset), sameboot/candidate/revision bindings and no qualification until actual bounded measurement. Run affected required gates and final convergence; actual cloud measurement/execution still needs exact owner approval; depends onT073.

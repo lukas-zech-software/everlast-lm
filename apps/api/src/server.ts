@@ -1,3 +1,4 @@
+import { GcsPrivateBridgeObjects,type PrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
 import { readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
@@ -8,7 +9,7 @@ import { GoogleAuth } from "google-auth-library";
 import { createPool, runMigrations, getAvailableMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
 import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig, loadGuideAdmissionConfig } from "./config.ts";
-import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperationalCacheFromEnv, type OperationalCachePort } from "./observability/benchmark.ts";
+import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperationalCacheFromEnv, type OperationalCachePort, preparePrivateBridgeEnvironment } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
@@ -117,7 +118,11 @@ export function measureOperationalSourceTree(root:string):string{
  for(const relative of ['apps/api/src','apps/worker/src','packages/contracts/src','packages/db/src','packages/cloud/src','package.json','pnpm-lock.yaml'])visit(relative);
  return hash.digest('hex');
 }
-export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}, privateComposition?:{model?:GroundedModel;cache?:OperationalCachePort;runtime?:SandboxRuntime}) {
+export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}, privateComposition?:{model?:GroundedModel;cache?:OperationalCachePort;runtime?:SandboxRuntime;bridgeObjects?:PrivateBridgeObjects}) {
+  if(env.BENCHMARK_BRIDGE_ENABLED==='true'&&extra.benchmark)throw new Error('Remote private bridge requires actual server-owned recorder');
+  const bridgeBootstrap=preparePrivateBridgeEnvironment(env);env=bridgeBootstrap.env;
+  const startupCleanup:(()=>void)[]=[bridgeBootstrap.cleanup];
+  try {
   const config = loadApiConfig(env);
   const pool = extra.pool ?? createPool();
   if (env.MIGRATE_ON_START === "true") await runMigrations(pool);
@@ -167,6 +172,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   const sandboxRuntime = privateComposition?.runtime ?? createSandboxRuntime(env);
   const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;
   const stopReconciler=codeExecution?startCodeExecutionReconciler({pool,...codeExecution}):undefined;
+  if(stopReconciler)startupCleanup.push(stopReconciler);
   const operationalDirectory=env.BENCHMARK_OPERATIONAL_DIRECTORY;
   if(operationalDirectory){
     const directory=realpathSync(operationalDirectory),publicRoot=realpathSync(resolve(env.WEB_DIST_DIR??'apps/web/dist'));
@@ -182,6 +188,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         sink: createPrivateBenchmarkSink(benchmarkConfig.evidenceFile),
         fixtures: benchmarkConfig.fixtures,
         operationalConfigSha256,
+        bridgeScaleFile:env.BENCHMARK_EVIDENCE_FILE,
         sourceTreeSha256:env.BENCHMARK_OPERATIONAL_DIRECTORY?measureOperationalSourceTree(fileURLToPath(new URL('../../../',import.meta.url))):undefined,
         executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, sandboxRuntime ? {reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine,region:"europe-west4",vcpu:2,memory_gb:1.5,network:"none",file_io_mb:100,deadline_ms:15000}:undefined),
         ...(studioContext?{tokenizer:studioContext.tokenizer}:{}),
@@ -243,12 +250,14 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   };
   // No public route; the fixed private trust-root/approval files only authorize bounded operations.
   const stopOperational=env.BENCHMARK_OPERATIONAL_DIRECTORY&&benchmark&&!extra.benchmark
-    ?benchmark.startOperationalCoordinator(env.BENCHMARK_OPERATIONAL_DIRECTORY,createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache})):undefined;
+    ?benchmark.startOperationalCoordinator(env.BENCHMARK_OPERATIONAL_DIRECTORY,createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache}),env.BENCHMARK_BRIDGE_ENABLED==='true'?{campaign_id:env.BENCHMARK_BRIDGE_CAMPAIGN_ID!,expiresAtMs:Number(env.BENCHMARK_BRIDGE_EXPIRES_AT_MS),objects:privateComposition?.bridgeObjects??new GcsPrivateBridgeObjects({bucket:env.STORAGE_BUCKET??env.GCS_WORKSPACE_BUCKET??''})}:undefined):undefined;
+  if(stopOperational)startupCleanup.push(stopOperational);
   const server = http.createServer(createApp(deps));
-  server.once("close",()=>{stopOperational?.();stopReconciler?.();});
+  server.once("close",()=>{stopOperational?.();stopReconciler?.();bridgeBootstrap.cleanup();});
   await new Promise<void>((resolve) => server.listen(config.port, resolve));
   console.log(JSON.stringify({ severity: "INFO", message: `API listening on :${config.port} (auth=${config.authMode})` }));
   return { server, pool, deps };
+  }catch(error){for(const cleanup of startupCleanup.reverse())cleanup();throw error;}
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

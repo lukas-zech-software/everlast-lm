@@ -2565,20 +2565,6 @@
     },
     {
       "rule": "wildcard-export",
-      "from": "packages/cloud/package.json",
-      "to": "./*",
-      "fingerprint": "dbd150b420975ffb6cf0cdce8aec6eecce833d41bae62878dfc50e51eb7bd8c5",
-      "line": 1,
-      "count": 1,
-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
-      "owner": "@lukas-zech-software",
-      "decision": "D21",
-      "expires": "2027-02-05",
-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
-    },
-    {
-      "rule": "wildcard-export",
       "from": "packages/contracts/package.json",
       "to": "./*",
       "fingerprint": "9bf6c0eacc04705b586fd5c84d4d35b398879accb1019a92e65593e0179710db",

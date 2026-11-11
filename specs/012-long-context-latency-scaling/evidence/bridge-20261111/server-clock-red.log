@@ -1,0 +1,30 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-bridge-20261111
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (17 tests | 2 failed) 5070ms
+   × NFR-PERF-01 server maps client-epoch calibration -30000ms and conservatively rejects mapped expiry 3ms
+   × NFR-PERF-01 server maps client-epoch calibration 30000ms and conservatively rejects mapped expiry 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 server maps client-epoch calibration -30000ms and conservatively rejects mapped expiry
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 server maps client-epoch calibration 30000ms and conservatively rejects mapped expiry
+AssertionError: expected [Function] to not throw an error but 'Error: Private execution calibration …' was thrown
+
+- Expected:
+undefined
+
++ Received:
+"Error: Private execution calibration unavailable"
+
+ ❯ apps/api/test/benchmark-readiness.test.ts:190:35
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 15 passed (17)
+   Start at  01:00:04
+   Duration  5.37s (tests 96%, import 3%, transform 1%)
+

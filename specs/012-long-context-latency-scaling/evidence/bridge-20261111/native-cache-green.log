@@ -1,0 +1,9 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-bridge-20261111
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  00:45:45
+   Duration  4.79s (tests 96%, import 3%, transform 1%)
+

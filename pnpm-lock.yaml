@@ -108,6 +108,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@everlast/cloud':
+        specifier: workspace:*
+        version: link:packages/cloud
     devDependencies:
       '@playwright/test':
         specifier: ^1.51.0

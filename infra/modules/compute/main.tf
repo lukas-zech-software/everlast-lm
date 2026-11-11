@@ -37,7 +37,7 @@ locals {
     GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
     GOOGLE_PICKER_API_KEY  = var.google_picker_api_key
     GOOGLE_PICKER_APP_ID   = var.google_picker_app_id
-  } : {}, var.code_execution_env_vars) # Package 3.2 (FR-GC-08, specs/010): public sandbox identifiers only
+  } : {}, var.code_execution_env_vars, var.private_benchmark_bridge_enabled ? merge(var.private_benchmark_env_vars, { BENCHMARK_BRIDGE_ENABLED = "true" }) : {}) # Package 3.2 (FR-GC-08, specs/010): public sandbox identifiers only
 
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"
@@ -146,6 +146,13 @@ resource "google_cloud_run_v2_service_iam_member" "worker_api_invoker" {
 
 # 2. everlast-api: Public HTTPS Cloud Run Service serving SPA + BFF + ADK Chat Agent (§3.3 & §5.1)
 resource "google_cloud_run_v2_service" "api" {
+  lifecycle {
+    precondition {
+      condition     = !var.private_benchmark_bridge_enabled || (var.api_min_instances == 1 && var.api_max_instances == 1 && alltrue([for key in ["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_APPROVED_NOTEBOOKS"] : contains(keys(var.private_benchmark_env_vars), key)]))
+      error_message = "Private benchmark requires a bounded min=max=1 window and pinned bootstrap inputs. Roll back the toggle/minimum immediately after approved collection."
+    }
+  }
+
   project             = var.project_id
   name                = "${local.name_prefix}-api"
   location            = var.region
@@ -183,7 +190,7 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "2"
           memory = "1Gi"
         }
-        cpu_idle          = true
+        cpu_idle          = !var.private_benchmark_bridge_enabled
         startup_cpu_boost = true
       }
 
