@@ -426,7 +426,6 @@ architecture fixtures and enforcement. Existing ruleset administrator bypass rem
 limitation; source-controlled checks cannot prevent an authorized administrator from bypassing them.
 
 
-
 ## D22 — Admin-created account policy reconciliation (2026-11-09)
 
 Traceability: FR-WM-04, NFR-SEC-02, SRS DEV-06. The unmerged pre-V4 checkpoint
