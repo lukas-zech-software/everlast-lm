@@ -143,6 +143,8 @@ module "compute" {
   identity_platform_api_key           = module.iam_identity.identity_platform_api_key
   identity_platform_provider_id       = var.enable_email_password_sign_in ? "password" : var.identity_platform_provider_id
   mount_secrets                       = var.mount_secrets
+  private_benchmark_bridge_enabled    = var.private_benchmark_bridge_enabled
+  private_benchmark_env_vars          = var.private_benchmark_env_vars
   api_min_instances                   = var.api_min_instances
   api_max_instances                   = var.api_max_instances
   worker_max_instances                = var.worker_max_instances

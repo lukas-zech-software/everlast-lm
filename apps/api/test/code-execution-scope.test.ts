@@ -516,7 +516,7 @@ it('FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or op
  }finally{await disabled.close();}
 });
 
-it('NFR-PERF-01 actual server wiring stays disabled without authorization, then executes signed private adapters with LOCAL providers and no extra benchmark override',async()=>{
+it.each(['local-files','remote-bridge'])('NFR-PERF-01 actual server %s wiring stays disabled until signed private adapters succeed with LOCAL providers',async mode=>{
  const {startApiServer}=await import('../src/server.ts');const {OPERATIONAL_PROVIDER_BUDGET}=await import('../src/observability/benchmark.ts');
  const {generateKeyPairSync,sign,createHash}=await import('node:crypto');const {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');
  const dir=mkdtempSync(join(tmpdir(),'012-server-')),channel=join(dir,'private'),publicDir=join(dir,'public');mkdirSync(channel,{mode:0o700});mkdirSync(publicDir);
@@ -536,15 +536,30 @@ it('NFR-PERF-01 actual server wiring stays disabled without authorization, then 
  const close=async()=>{if(running){const current=running;running=undefined;await new Promise<void>(resolve=>current.server.close(()=>resolve()));}};
  try{
   running=await startApiServer(env,extra,{model:servingModel,runtime:localRuntime,cache:localCache});expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();expect(modelProbes+cacheCreates).toBe(0);await close();
-  running=await startApiServer({...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache});
+  const {LocalPrivateBridgeObjects,PrivateBenchmarkOperator,privateDigest}=await import('@everlast/cloud/private-benchmark');
+  const campaign=randomUUID(),objects=new LocalPrivateBridgeObjects(join(dir,'objects'));
+  const remoteEnv={...env,BENCHMARK_BRIDGE_ENABLED:'true',BENCHMARK_BRIDGE_EXPIRES_AT_MS:String(Date.now()+60000),BENCHMARK_BRIDGE_CAMPAIGN_ID:campaign,BENCHMARK_BRIDGE_PUBLIC_KEY:keys.publicKey.export({type:'spki',format:'pem'}).toString(),BENCHMARK_BRIDGE_EXECUTION_CONFIG:readFileSync(configFile,'utf8')};
+  running=await startApiServer(mode==='remote-bridge'?remoteEnv:{...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache,bridgeObjects:objects});
+  const operator=new PrivateBenchmarkOperator({objects,calibration,publicKey:keys.publicKey.export({type:'spki',format:'pem'}).toString(),identity:{campaign_id:campaign,candidate_commit:metadata.candidate_commit,serving_revision:metadata.serving_revision,instance_boot_id:running.deps.benchmark!.readiness().instance_boot_id}});
+
   await new Promise(resolve=>setTimeout(resolve,1100));expect(modelProbes+cacheCreates).toBe(0);
   const port=(running.server.address() as {port:number}).port;
   for(const actor of actors){const token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');}
-  const challenge=JSON.parse(readFileSync(join(channel,'challenge.json'),'utf8'));
+  const remote=mode==='remote-bridge'?await operator.challenge():undefined;
+  const challenge=remote?.challenge.challenge??JSON.parse(readFileSync(join(channel,'challenge.json'),'utf8'));
   const plan={id:randomUUID(),instance_boot_id:challenge.instance_boot_id,revision:metadata.serving_revision,candidate_commit:metadata.candidate_commit,fixture_sha256:metadata.fixture_sha256,classification_basis:metadata.classification_basis,runtime_config_sha256:metadata.runtime_config_sha256,clock_calibration_sha256:metadata.clock_calibration_sha256,qualification_sha256:metadata.qualification_sha256,source_tree_sha256:challenge.source_tree_sha256,operational_config_sha256:challenge.operational_config_sha256,provider_budget:OPERATIONAL_PROVIDER_BUDGET,issued_at:Date.now()-1,expires_at:Date.now()+30000,timeout_ms:10000,operations:['retrieval','model','cache','runtime_observation'],actors:actors.map(({who:_who,...actor})=>actor)};
-  const payload=JSON.stringify(plan);writeFileSync(join(channel,'authorization.json'),payload,{mode:0o600});writeFileSync(join(channel,'authorization.sig'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});
-  await new Promise(resolve=>setTimeout(resolve,1500));expect(running.deps.benchmark!.readiness().ready_at_ms).not.toBeNull();expect({modelProbes,cacheCreates,cacheDeletes}).toEqual({modelProbes:2,cacheCreates:2,cacheDeletes:2});
-  expect(JSON.parse(readFileSync(join(channel,'status.json'),'utf8'))).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
+  if(remote)Object.assign(plan,{bridge:{campaign_id:campaign,challenge_generation:remote.ref.generation,challenge_sha256:remote.ref.sha256,channel_policy_sha256:privateDigest(JSON.stringify(remote.challenge.policy))}});
+  const payload=JSON.stringify(plan);if(remote){
+   writeFileSync(join(channel,'calibration.json'),JSON.stringify(calibration),{mode:0o600});writeFileSync(join(channel,'identity.json'),JSON.stringify(remote.challenge.identity),{mode:0o600});writeFileSync(join(channel,'payload.json'),payload,{mode:0o600});writeFileSync(join(channel,'signature.txt'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});
+   const {execFileSync}=await import('node:child_process');execFileSync(process.execPath,['scripts/private-benchmark.mjs','deliver','--calibration-file',join(channel,'calibration.json'),'--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--public-key-file',join(channel,'trusted-public-key.pem'),'--payload-file',join(channel,'payload.json'),'--signature-file',join(channel,'signature.txt')]);
+  }else{writeFileSync(join(channel,'authorization.json'),payload,{mode:0o600});writeFileSync(join(channel,'authorization.sig'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});}
+  await new Promise(resolve=>setTimeout(resolve,2500));expect(running.deps.benchmark!.readiness().ready_at_ms).not.toBeNull();expect({modelProbes,cacheCreates,cacheDeletes}).toEqual({modelProbes:2,cacheCreates:2,cacheDeletes:2});
+  if(remote){
+   const actor=actors[0]!,token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');
+   await new Promise(resolve=>setTimeout(resolve,1200));const {execFileSync}=await import('node:child_process');execFileSync(process.execPath,['scripts/private-benchmark.mjs','download','--calibration-file',join(channel,'calibration.json'),'--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',join(dir,'download')]);expect(JSON.parse(readFileSync(join(dir,'download','code-evidence.json'),'utf8')).measurements).toHaveLength(1);
+   const downloaded=await operator.download();expect(downloaded.files.outcomes).toEqual(expect.arrayContaining([expect.objectContaining({result:'OBSERVED_READY',release_eligible:false})]));expect(downloaded.files.code).toMatchObject({measurements:expect.arrayContaining([expect.objectContaining({qualified:true})])});
+  }else expect(JSON.parse(readFileSync(join(channel,'status.json'),'utf8'))).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
+  operator.close();
   const recorder=running.deps.benchmark!;await close();expect(recorder.readiness().ready_at_ms).toBeNull();
  }finally{await close();rmSync(dir,{recursive:true,force:true});}
 },20000);

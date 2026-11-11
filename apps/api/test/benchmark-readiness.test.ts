@@ -155,3 +155,37 @@ it('NFR-PERF-01 signed retrieval setup limits actual embedding RPC attempts and 
  const signal=new AbortController().signal;vi.useFakeTimers();
  try{const pending=expect(embedder.embed(['setup'],'RETRIEVAL_QUERY',{signal,maxAttempts:1})).rejects.toThrow('provider429');await vi.runAllTimersAsync();await pending;expect(cacheSdk.embed).toHaveBeenCalledTimes(1);expect(cacheSdk.embed.mock.calls[0]?.[0].config.abortSignal).toBe(signal);}finally{vi.useRealTimers();}
 });
+
+it('NFR-PERF-01 provider-native cache 10MB cap rejects originals before any token/count/create RPC without truncation (SDK double)',async()=>{
+ const {createOperationalCacheFromEnv}=await import('../src/observability/benchmark.ts');const {randomUUID}=await import('node:crypto');
+ const cache=createOperationalCacheFromEnv({VERTEX_PROJECT:'local-fixture',VERTEX_LOCATION:'europe-west4'});
+ const pages=[[{chunk_id:randomUUID(),source_id:randomUUID(),revision:1,text:'x'.repeat(10000001),token_count:1000000,locator:{page_number:1,start_offset:0,end_offset:10000001}}]];
+ const beforeCount=cacheSdk.countTokens.mock.calls.length,beforeCreate=cacheSdk.create.mock.calls.length;
+ await expect(cache.create({pages,signal:new AbortController().signal})).rejects.toThrow(/native.*byte/);
+ expect(cacheSdk.countTokens.mock.calls.length).toBe(beforeCount);expect(cacheSdk.create.mock.calls.length).toBe(beforeCreate);expect(pages[0]![0]!.text.length).toBe(10000001);
+});
+
+it('NFR-PERF-01 million-token declared cache fixture fits native byte cap with actual tokenizer proof and single-attempt SDK budget (LOCAL SDK)',async()=>{
+ const {createOperationalCacheFromEnv}=await import('../src/observability/benchmark.ts');const {randomUUID}=await import('node:crypto');
+ cacheSdk.countTokens.mockResolvedValue({totalTokens:1000000});cacheSdk.create.mockResolvedValue({name:'LOCAL-million-cache',expireTime:new Date(Date.now()+60000).toISOString()});
+ const cache=createOperationalCacheFromEnv({VERTEX_PROJECT:'local-fixture',VERTEX_LOCATION:'europe-west4'});const pages=[[{chunk_id:randomUUID(),source_id:randomUUID(),revision:1,text:'word '.repeat(800000),token_count:1000000,locator:{page_number:1,start_offset:0,end_offset:4000000}}]];
+ const result=await cache.create({pages,signal:new AbortController().signal});expect(result.handle).toBe('LOCAL-million-cache');expect(cacheSdk.options.mock.lastCall?.[0].httpOptions.retryOptions.attempts).toBe(1);expect(JSON.stringify(cacheSdk.create.mock.lastCall?.[0].config.contents).length).toBeGreaterThan(4000000);await cache.delete(result.handle);
+});
+it('NFR-SEC-02 remote bootstrap stays default-disabled and missing/invalid independent trust config fails before effects',async()=>{
+ const {preparePrivateBridgeEnvironment}=await import('../src/observability/benchmark.ts');const original={BENCHMARK_BRIDGE_PUBLIC_KEY:'untrusted-invalid'};expect(preparePrivateBridgeEnvironment(original).env).toBe(original);
+ expect(()=>preparePrivateBridgeEnvironment({...original,BENCHMARK_BRIDGE_ENABLED:'true'})).toThrow(/incomplete/);
+ const {randomUUID}=await import('node:crypto');expect(()=>preparePrivateBridgeEnvironment({BENCHMARK_BRIDGE_ENABLED:'true',BENCHMARK_BRIDGE_EXPIRES_AT_MS:String(Date.now()+60000),BENCHMARK_BRIDGE_CAMPAIGN_ID:randomUUID(),BENCHMARK_BRIDGE_PUBLIC_KEY:'invalid',BENCHMARK_BRIDGE_EXECUTION_CONFIG:'{}',BENCHMARK_APPROVED_NOTEBOOKS:randomUUID()})).toThrow(/trust/);
+});
+
+it('NFR-SEC-02 actual server rejects incomplete private bridge bootstrap before any object/provider operation',async()=>{
+ const {startApiServer}=await import('../src/server.ts');const effect=vi.fn(async()=>{throw new Error('MUST NOT CALL');});
+ await expect(startApiServer({BENCHMARK_BRIDGE_ENABLED:'true'},{},{bridgeObjects:{stat:effect,read:effect,put:effect,list:effect}})).rejects.toThrow(/incomplete/);expect(effect).not.toHaveBeenCalled();
+});
+
+it.each([-30000,30000])('NFR-PERF-01 server maps client-epoch calibration %ims and conservatively rejects mapped expiry',async offset=>{
+ const {randomUUID,createHash}=await import('node:crypto');const {mkdtempSync,rmSync}=await import('node:fs');const {tmpdir}=await import('node:os');const {join}=await import('node:path');const dir=mkdtempSync(join(tmpdir(),'012-offset-'));
+ const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex'),runtime={reasoning_engine:'projects/local/locations/europe-west4/reasoningEngines/123',region:'europe-west4' as const,vcpu:2 as const,memory_gb:1.5 as const,network:'none' as const,file_io_mb:100 as const,deadline_ms:15000 as const},ids=[randomUUID(),randomUUID()],qualification='LOCAL clock-domain test';
+ const base={offset_ms:offset,uncertainty_ms:5,measured_at_ms:Date.now()-offset-100,expires_at_ms:Date.now()-offset+10000,measurement_id:'LOCAL retained client epoch'};
+ const create=(calibration:typeof base)=>new PrivateBenchmarkRecorder({approved_notebook_ids:ids,revision:'local',sink:()=>{},executionEvidence:{file:join(dir,'code.json'),runtime,calibration,qualification,metadata:{schema_version:1,candidate_commit:'a'.repeat(40),serving_revision:'local',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness',qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:hash(runtime),clock_calibration_sha256:hash(calibration),approved_notebook_ids:ids}}});
+ try{expect(()=>create(base)).not.toThrow();expect(()=>create({...base,expires_at_ms:Date.now()-offset-100})).toThrow(/calibration/);}finally{rmSync(dir,{recursive:true,force:true});}
+});

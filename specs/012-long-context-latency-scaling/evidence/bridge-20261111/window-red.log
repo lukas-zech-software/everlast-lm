@@ -1,0 +1,35 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-bridge-20261111
+
+ ❯ |unit| packages/cloud/test/private-benchmark.test.ts (20 tests | 1 failed) 2181ms
+   × NFR-SEC-02 absolute owner-approved deployment expiry survives boot-relative timers and stops new storage effects 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-SEC-02 absolute owner-approved deployment expiry survives boot-relative timers and stops new storage effects
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ packages/cloud/test/private-benchmark.test.ts:203:84
+    201| it('NFR-SEC-02 absolute owner-approved deployment expiry survives boot…
+    202|  const f=fixture();let now=Date.now();const bridge=new PrivateBenchmar…
+    203|  await bridge.tick();const count=f.saved.length;now+=11;await expect(b…
+       |                                                                                    ^
+    204| });
+    205|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 19 passed (20)
+   Start at  01:03:30
+   Duration  2.53s (tests 90%, import 8%, transform 2%)
+

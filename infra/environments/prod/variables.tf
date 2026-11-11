@@ -134,3 +134,18 @@ variable "deletion_protection" {
   type        = bool
   default     = true
 }
+
+# NFR-PERF-01 / D16-D17 / Package 012 T068: explicit temporary owner-approved private window.
+variable "private_benchmark_bridge_enabled" {
+  type    = bool
+  default = false
+}
+variable "private_benchmark_env_vars" {
+  description = "Pinned non-secret private benchmark configuration; NEVER a signing private key or credentials."
+  type        = map(string)
+  default     = {}
+  validation {
+    condition     = alltrue([for key in keys(var.private_benchmark_env_vars) : contains(["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_BRIDGE_FIXTURES", "BENCHMARK_APPROVED_NOTEBOOKS"], key)])
+    error_message = "Only fixed private bridge bootstrap configuration is allowed."
+  }
+}
