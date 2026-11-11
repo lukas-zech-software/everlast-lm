@@ -133,3 +133,22 @@ packages/evals/test/notes-roundtrip.eval.test.ts   # NFR-EVAL-02/04 leakage + ci
 ## Complexity Tracking
 
 No constitution violations. Storage follows `D16` / `DEV-04`, amended on 2026-10-20 by the project owner for note-sources (v1 PostgreSQL sources; notes stay in memory). Two cross-tier refinements (display order of notes; converted-source title clamp to the existing 1–100 source-title limit) are recorded as flow-back items in [research.md](research.md) and applied to `spec.md` and the FR card during `/speckit-analyze`.
+
+## Architecture Boundary Evidence — CC-09 (2026-11-11; FR-NM-03, FR-SI-01, C-01/C-02, D21/D23)
+
+Pre-pre-V4 task 007 base `5ad50d5`. Pre-research assessment: FAIL — `apps/api/src/notes/note-sources.ts` imported the
+worker's `ingestion/note-markdown` (API→worker, D21 exceptions under 004 T035/T036) and the Notes eval imported the API
+application. Post-design: a new shared package `@everlast/notes` owns the pure note-markdown normalizer, the chunker and
+canonical-page types (moved verbatim from `apps/worker/src/ingestion/extract.ts`/`chunker.ts`, which re-export them so
+009 call sites are unchanged), the `NoteSourceStore` port, and the PostgreSQL note-source persistence adapter
+(`createPostgresNoteSources`, `ingestNoteSource`). SQL stays behind `@everlast/db` inside that adapter; API services see only the port.
+Markdown output, revision handling, quota admission, fenced publication and C-02 reads are unchanged. No new exception;
+four stale D21 records are deleted and two wildcard-export fingerprints change only because their file set shrank.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-NM-03, FR-SI-01, C-01 | packages/notes/src/normalizer.ts and chunker.ts; 007 Notes module owner | Pure Markdown→canonical pages and 300–600-token anchored chunks, no I/O | @everlast/notes/normalizer, @everlast/notes/chunker (explicit exports) | worker extract.ts/chunker.ts re-export; notes adapter; depends on @everlast/contracts only | none (pure) | packages/notes/test/normalizer.test.ts; apps/worker ingestion suites (chunker/pipeline) unchanged |
+| FR-NM-03, FR-WM-07, C-01, D16 | packages/notes/src/note-source-ingest.ts; 007 Notes module owner | Persistence/workflow adapter: write raw, receive, normalize, embed, atomic fenced Ready publication, Failed+purge on error | ingestNoteSource, NoteSourceIngestDeps via @everlast/notes/note-source-ingest | notes note-sources adapter; depends on @everlast/db, @everlast/cloud, @everlast/contracts | apps/api/src/v2/runtime.ts via createPostgresNoteSources | packages/notes/test/note-source-ingest.test.ts (Ready chunks; Failed releases slot, purges objects); notes-quota/roundtrip integration |
+| FR-NM-03, FR-NM-04, FR-WM-07 | packages/notes/src/note-sources.ts and note-source-store.ts; 007 Notes module owner | NoteSourceStore port + PostgreSQL adapter (reservation under notebook lock, provenance, reuse lookup) | NoteSourceStore, createPostgresNoteSources, NoteSourceIngestionError | apps/api notes service (type-only port), v2 runtime, evals | apps/api/src/v2/runtime.ts | apps/api notes-convert/notes-quota/notes-roundtrip tests; packages/evals notes-roundtrip.eval.test.ts |
+| FR-NM-01..04, C-02 | apps/api/src/notes/service.ts and routes/notes.ts; 007 API owner | Transport + multi-step service over ports; no SQL or worker import | NoteSourceStore (re-exported type), NoteAssistantContext | contracts, @everlast/notes port | apps/api/src/v2/runtime.ts | apps/api/test/notes*.test.ts (43 characterization tests green before and after) |
+| NFR-EVAL-02/04 | packages/evals/test/notes-roundtrip.eval.test.ts; 007 eval owner | Deterministic scope eval | imports @everlast/notes/note-sources | shared→shared only for notes; remaining chat imports are 003/004 D21 debt | test | the eval itself |

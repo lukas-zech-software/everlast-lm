@@ -12,6 +12,7 @@
     "@everlast/cloud": "workspace:*",
     "@everlast/contracts": "workspace:*",
     "@everlast/db": "workspace:*",
+    "@everlast/notes": "workspace:*",
     "@everlast/worker": "workspace:*",
     "@google/adk": "2.4.0",
     "@google/genai": "^2.32.0",

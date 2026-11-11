@@ -68,7 +68,7 @@ import type { DataTableModelClient } from "@everlast/worker/studio/tables/model"
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
-import { createPostgresNoteSources } from "../notes/note-sources.ts";
+import { createPostgresNoteSources } from "@everlast/notes/note-sources";
 import { NotesService, type NoteAssistantContext } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
 import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";

@@ -21,6 +21,7 @@
     "@everlast/cloud": "workspace:*",
     "@everlast/contracts": "workspace:*",
     "@everlast/db": "workspace:*",
+    "@everlast/notes": "workspace:*",
     "@everlast/testkit": "workspace:*",
     "@everlast/worker": "workspace:*",
     "@google/genai": "^2.32.0",
