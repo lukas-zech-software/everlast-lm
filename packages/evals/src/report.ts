@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { JudgeAttempt } from "./judge.ts";
@@ -24,6 +25,7 @@ export interface GateReport {
   schema: "everlast.gate-v1-report/1";
   mode: "release" | "deterministic";
   state: GateState;
+  diagnostic?: true;
   commit: string;
   timestamp: string;
   dataset: {
@@ -57,6 +59,7 @@ export function buildGateReport(input: {
   dataset: GateReport["dataset"];
   models: Record<string, string>;
   responseLength?: ResponseLengthMetric | undefined;
+  diagnostic?: boolean;
 }): GateReport {
   const failures: string[] = [];
   const { run } = input;
@@ -84,12 +87,13 @@ export function buildGateReport(input: {
   const preflightOk = input.mode === "deterministic" || (input.preflight?.passed ?? false);
   let state: GateState = "GatePending";
   if (failures.length > 0) state = "GateFailed";
-  else if (input.mode === "release" && evalStatus === "pass" && gate1 === "pass" && gate3 === "pass" && preflightOk) state = "GatePassed";
+  else if (input.mode === "release" && !input.diagnostic && evalStatus === "pass" && gate1 === "pass" && gate3 === "pass" && preflightOk) state = "GatePassed";
 
   return {
     schema: "everlast.gate-v1-report/1",
     mode: input.mode,
     state,
+    ...(input.diagnostic ? { diagnostic: true as const } : {}),
     commit: input.commit,
     timestamp: new Date().toISOString(),
     dataset: input.dataset,
@@ -121,11 +125,11 @@ export function renderMarkdown(report: GateReport): string {
   const lines = [
     `# Gate v1.0 evaluation report (${report.mode})`,
     "",
-    `- **State:** ${report.state}`,
+    `- **State:** ${report.state}${report.diagnostic ? " (diagnostic workload)" : ""}`,
     `- **Commit:** ${report.commit}`,
     `- **Timestamp:** ${report.timestamp}`,
     `- **Dataset:** ${report.dataset.version} (${report.dataset.hash.slice(0, 12)}), counts ${JSON.stringify(report.dataset.counts)}`,
-    `- **Judged sample:** ${report.dataset.sample ? `${report.dataset.sample.size} cases (${report.dataset.sample.method}): ${report.dataset.sample.case_ids.join(", ")}` : "full dataset"}`,
+    `- **Judged sample:** ${report.dataset.sample ? `${report.dataset.sample.size} cases (${report.dataset.sample.method}): ${report.dataset.sample.case_ids.join(", ")}` : "no qualifying release sample"}`,
     `- **Models:** ${Object.entries(report.models).map(([k, v]) => `${k}=${v}`).join(", ")}`,
     "",
     "| Criterion | Status | Detail |",
@@ -216,12 +220,19 @@ export function buildScaleBenchmarkReport(input: {
 export async function writeGateReport(report: GateReport, outDir: string): Promise<void> {
   await mkdir(outDir, { recursive: true });
   const base = report.mode === "release" ? "eval-report-v1" : "eval-report-v1.deterministic";
-  await writeFile(`${outDir}/${base}.json`, `${JSON.stringify(report, null, 2)}\n`);
-  await writeFile(`${outDir}/${base}.md`, renderMarkdown(report));
+  const json = `${JSON.stringify(report, null, 2)}\n`;
+  let evidencePath: string | undefined;
+  if (report.mode === "release") {
+    await mkdir(`${outDir}/release-attempts`, { recursive: true });
+    evidencePath = `release-attempts/${randomUUID()}.json`;
+    await writeFile(`${outDir}/${evidencePath}`, json, { flag: "wx" });
+  }
   const audit = `${outDir}/gate-audit.jsonl`;
   await mkdir(dirname(audit), { recursive: true });
   await appendFile(
     audit,
-    `${JSON.stringify({ at: report.timestamp, commit: report.commit, mode: report.mode, state: report.state, metrics: Object.fromEntries(report.criteria.gate2_evaluation.metrics.map((m) => [m.name, m.value])), failures: report.failures.length })}\n`
+    `${JSON.stringify({ at: report.timestamp, commit: report.commit, mode: report.mode, state: report.state, evidence_path: evidencePath, metrics: Object.fromEntries(report.criteria.gate2_evaluation.metrics.map((m) => [m.name, m.value])), failures: report.failures.length })}\n`
   );
+  await writeFile(`${outDir}/${base}.json`, json);
+  await writeFile(`${outDir}/${base}.md`, renderMarkdown(report));
 }

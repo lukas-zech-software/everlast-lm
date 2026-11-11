@@ -8,7 +8,7 @@ import { assertDatasetMinimums, buildGoldenDataset, corpusHash, datasetCounts, d
 import { AdversarialCitingModel, LexicalCitingModel } from "./deterministic-models.ts";
 import { VertexJudge } from "./judge.ts";
 import { createResponseLengthRunner, runEvaluation, type EvalRunResult } from "./runner.ts";
-import { runResponseLengthEval, type ResponseLengthMetric } from "./response-length.ts";
+import { computeResponseLengthMetric, runResponseLengthEval, type ResponseLengthMetric } from "./response-length.ts";
 import { runSecurityPreflight } from "./security-preflight.ts";
 import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence } from "./report.ts";
 import { renderStudioGate, runStudioReportsGate, runStudioReportsReleaseGate } from "./studio-gate.ts";
@@ -18,7 +18,7 @@ import { runStudioStructureDeterministicEval } from "./studio-structure-eval.ts"
 /**
  * `pnpm eval:deterministic` — every PR: Precision_ID and leakage with test doubles (no cloud), incl. an
  * adversarial pass that tries to cite chunks outside the prompt.
- * `pnpm eval:judged` — release / retrieval-prompt-chat PRs: the full golden dataset against the real Vertex AI
+ * `pnpm eval:judged` — the fixed stratified release sample against the real Vertex AI
  * model, embeddings and judge. Exits 2 (UNAVAILABLE) without credentials; never reports a pass it did not run.
  */
 
@@ -33,9 +33,18 @@ const arg = (name: string) => {
 };
 const outDir = arg("out") ?? "reports";
 const concurrency = Number(arg("concurrency") ?? (mode === "release" ? 4 : 2));
-const limit = arg("limit") ? Number(arg("limit")) : undefined;
+const limit = process.argv.includes("--limit") ? Number(arg("limit")) : undefined;
 const full = process.argv.includes("--full");
 const onlyCases = arg("cases")?.split(",").map((x) => x.trim()).filter(Boolean);
+if (limit !== undefined && (!Number.isSafeInteger(limit) || limit <= 0)) {
+  console.error("--limit requires a positive integer");
+  process.exit(64);
+}
+if (process.argv.includes("--cases") && !onlyCases?.length) {
+  console.error("--cases requires a comma-separated list of case IDs");
+  process.exit(64);
+}
+const diagnostic = full || limit !== undefined || onlyCases !== undefined;
 
 function unavailable(reason: string): never {
   console.error(`[UNAVAILABLE] eval:${mode === "release" ? "judged" : "deterministic"}: ${reason}`);
@@ -64,14 +73,18 @@ const log = (line: string) => console.log(`[eval] ${line}`);
 
 const cases = buildGoldenDataset();
 assertDatasetMinimums(cases);
-// Release runs use the fixed stratified 50-case sample (Constitution v2.0.0); --full runs every case.
+// Release evidence uses the fixed stratified 50-case sample (Constitution v2.0.0).
 const selected = onlyCases
   ? cases.filter((c) => onlyCases.includes(c.id))
-  : mode === "release" && !full
+  : mode === "release" && !diagnostic
     ? releaseSample(cases, RELEASE_SAMPLE_SIZE)
     : limit
       ? cases.filter((_, i) => i % Math.ceil(cases.length / limit) === 0)
       : cases;
+if (onlyCases && onlyCases.some((id) => !selected.some((c) => c.id === id))) {
+  console.error("--cases contains an unknown case ID");
+  process.exit(64);
+}
 if (!process.env.TEST_DATABASE_URL) unavailable("TEST_DATABASE_URL is not set (start PostgreSQL with pnpm db:test:up)");
 if (mode === "release") {
   try {
@@ -86,6 +99,7 @@ if (mode === "release") {
   }
 }
 
+const candidate = commit();
 const db = await createTestDatabase();
 let exitCode = 1;
 try {
@@ -94,7 +108,7 @@ try {
     hash: datasetHash(cases),
     corpus_hash: corpusHash(),
     counts: datasetCounts(selected),
-    sample: mode === "release" && !full ? { size: RELEASE_SAMPLE_SIZE, method: "stratified-largest-remainder-v1", case_ids: selected.map((c) => c.id) } : null,
+    sample: mode === "release" && !diagnostic ? { size: RELEASE_SAMPLE_SIZE, method: "stratified-largest-remainder-v1", case_ids: selected.map((c) => c.id) } : null,
   };
   let run: EvalRunResult;
   let models: Record<string, string>;
@@ -148,37 +162,41 @@ try {
     });
     if (!preflight.passed) log(`NFR-SEC-01 preflight failed: ${preflight.checks.filter((c) => c.status !== "pass").map((c) => c.id).join(", ")}`);
     run = await runEvaluation({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log }, selected);
-    if (!full && !onlyCases) {
-      const lengthRunner = await createResponseLengthRunner({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log });
+    if (!diagnostic) {
       try {
-        responseLength = await runResponseLengthEval(lengthRunner, selected);
-        log(`FR-GC-07 response length: ${responseLength.status} (shorter ${responseLength.shorter_ratio}, longer ${responseLength.longer_ratio})`);
-      } finally {
-        await lengthRunner.close();
+        const lengthRunner = await createResponseLengthRunner({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log });
+        try {
+          responseLength = await runResponseLengthEval(lengthRunner, selected);
+        } finally {
+          await lengthRunner.close();
+        }
+      } catch {
+        // Keep the completed Gate v1.0 run even when this separate v2 metric cannot finish.
+        responseLength = computeResponseLengthMetric(null, "UNAVAILABLE: response-length runner failed");
       }
+      log(`FR-GC-07 response length: ${responseLength.status} (shorter ${responseLength.shorter_ratio}, longer ${responseLength.longer_ratio})`);
     }
     models = { chat: chat.id, embedding: `vertex:${vertex.location}:${embedder.model}`, judge: `vertex:${vertex.location}:${judge.model}`, ocr: ocr.name };
   }
 
-  const report = buildGateReport({ mode, commit: commit(), run, preflight, ui: await readUiEvidence(), dataset, models, responseLength });
-  if (onlyCases) {
-    // Diagnostic subset: never gate evidence and never overwrites the release report.
-    report.state = report.state === "GateFailed" ? "GateFailed" : "GatePending";
-    report.failures.push(`diagnostic run limited to ${onlyCases.join(", ")}`);
-  }
-  await writeGateReport(report, onlyCases ? `${outDir}/diagnostic` : outDir);
+  const ui = await readUiEvidence();
+  const report = buildGateReport({ mode, commit: candidate, run, preflight, ui, dataset, models, responseLength, diagnostic });
+  await writeGateReport(report, diagnostic ? `${outDir}/diagnostic` : outDir);
   console.log(renderMarkdown(report));
   const evalOk = report.criteria.gate2_evaluation.status === "pass" || (mode === "deterministic" && report.criteria.gate2_evaluation.metrics.filter((m) => m.status !== "unavailable").every((m) => m.passed) && report.criteria.gate2_evaluation.errored_cases.length === 0);
-  exitCode = report.state === "GateFailed" ? 1 : evalOk ? 0 : 1;
-  if (limit && mode === "deterministic") log(`--limit ${limit}: subset run, not valid deterministic evidence`);
+  exitCode = mode === "release" && !diagnostic
+    ? (report.state === "GatePassed" ? 0 : 1)
+    : (report.state !== "GateFailed" && evalOk ? 0 : 1);
 
   // Gate v2.0 #3 (FR-ST-10): all four report templates through the Studio runtime path. Deterministic on every
   // PR; the release run uses Vertex AI Flash and reports UNAVAILABLE without Vertex configuration.
-  const studio = mode === "deterministic" ? { status: "ran" as const, result: await runStudioReportsGate() } : await runStudioReportsReleaseGate(process.env);
-  if (studio.status === "ran") {
+  const studio = mode === "deterministic"
+    ? { status: "ran" as const, result: await runStudioReportsGate() }
+    : diagnostic ? null : await runStudioReportsReleaseGate(process.env);
+  if (studio?.status === "ran") {
     for (const line of renderStudioGate(studio.result)) log(line);
     if (!studio.result.passed) exitCode = 1;
-  } else {
+  } else if (studio) {
     log(`[UNAVAILABLE] Gate v2.0 #3 Studio reports (Vertex Flash): ${studio.reason}`);
   }
 
@@ -192,7 +210,7 @@ try {
   }
 
   // Gate v2.0 #1 (FR-SI-02): Source Guide < 10 s P95 from Ready, release-only on Vertex AI Flash-Lite.
-  if (mode === "release") {
+  if (mode === "release" && !diagnostic) {
     const guides = await runSourceGuideReleaseGate(process.env);
     if (guides.status === "ran") {
       for (const line of renderSourceGuideGate(guides.result)) log(line);

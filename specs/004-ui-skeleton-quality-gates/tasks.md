@@ -221,3 +221,10 @@ Deferred application remediation (outside this tooling amendment; scope each own
 
 - [ ] T035 [specs/004-ui-skeleton-quality-gates] Coordinate R1 extraction and retire cross-app/shared-to-app debt records via the owning package's workflow (C-01..C-03).
 - [ ] T036 [specs/004-ui-skeleton-quality-gates] Coordinate explicit public exports, cycle and test-boundary remediation and retire associated debt records via owning packages (C-01..C-03).
+
+## Phase 7: Pre-V4 ownership and judged evidence (CC-09, D21, D23)
+
+- [x] T037 [P] [specs/004-ui-skeleton-quality-gates] Inventory all 184 candidate fingerprints with feature owners, extraction order and remaining R2 workflow responsibilities. Keep T035/T036 open until actual owning fixes land (C-01..C-03, FR-WM-01..04, FR-WM-07).
+- [x] T038 [P] [specs/004-ui-skeleton-quality-gates] Add red regressions for diagnostic sample eligibility and preserving original failed release evidence, then implement report fixes (NFR-EVAL-01..04).
+- [ ] T039 [specs/004-ui-skeleton-quality-gates] After producer commits, wire real adapter identity and enterprise Gemini/embedding separation in release evaluation. Recheck D23 preflight and CI (NFR-SEC-01, NFR-EVAL-01..04).
+- [ ] T040 [specs/004-ui-skeleton-quality-gates] Recheck final candidate boundaries, record the approved fixed-sample execution inputs and retain all campaign outcomes (C-01..C-03, NFR-EVAL-01..04).

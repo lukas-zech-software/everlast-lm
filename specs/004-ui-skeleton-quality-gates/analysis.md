@@ -50,3 +50,16 @@
 
 - Package 1.4 (`specs/004-ui-skeleton-quality-gates`) passes `/speckit-analyze` with zero blocking or non-blocking issues.
 - All four v1.0 (MVP) packages (`001`–`004`) have completed `/speckit-clarify`, `/speckit-plan`, `/speckit-checklist`, `/speckit-tasks`, and `/speckit-analyze` and are ready for `/speckit-implement`.
+
+## Pre-V4 analysis (2026-11-11, CC-09)
+
+| Requirement | Tasks | Analysis |
+| --- | --- | --- |
+| ARCH-05, C-01..C-03, FR-WM-01..04, FR-WM-07 | T035–T037, T040 | The ledger covers exact edges and records R2 workflow ownership separately. The implementation owner removes each row only with the corresponding verified fix. |
+| EVID-01, NFR-EVAL-01..04 | T038, T040 | The current CLI can label subsets as release evidence and the writer overwrites detailed attempts. Regression coverage precedes changes to selection eligibility and persistence. |
+| EVID-02, NFR-SEC-01, NFR-EVAL-01..04 | T039, T040 | The existing preflight only accepts the regional endpoint, and Guide/Studio display labels reconstructed from environment. Final integration requires real adapter identities and role-specific D23 preflight. |
+
+The spec, plan and tasks trace all three Pre-V4 requirements. No critical
+CC-09 issue blocks the report-only work. Existing application edges are scoped
+to the candidate's D21 records. Producer availability and concrete workload
+approval are hold points for T039/T040.

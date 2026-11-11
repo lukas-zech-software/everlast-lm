@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildGateReport } from "../src/report.ts";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { buildGateReport, writeGateReport, type GateReport } from "../src/report.ts";
 import { judgeMetric } from "../src/metrics.ts";
 import { runSecurityPreflight } from "../src/security-preflight.ts";
 import type { EvalRunResult } from "../src/runner.ts";
@@ -48,6 +51,39 @@ describe("Gate v1.0 lifecycle", () => {
     const report = buildGateReport({ mode: "release", commit: "abc", run: run(), preflight: passingPreflight, ui, dataset, models: {} });
     expect(report.state).toBe("GatePassed");
     expect(report.failures).toEqual([]);
+  });
+
+  it("T038 (NFR-EVAL-01..04): diagnostic workloads cannot promote the release gate", () => {
+    const report = buildGateReport({
+      mode: "release", commit: "abc", run: run(), preflight: passingPreflight, ui, dataset, models: {},
+      diagnostic: true,
+    });
+    expect(report.state).toBe("GatePending");
+    expect(report.diagnostic).toBe(true);
+  });
+
+  it("T038 (NFR-EVAL-01..04): a later run retains the original failed report and each judge attempt", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "everlast-release-report-"));
+    try {
+      const input = { mode: "release" as const, commit: "abc", preflight: passingPreflight, ui, dataset, models: {} };
+      const judgeAttempts = [
+        { call_id: 1, purpose: "rejection", attempt: 1, outcome: "error", status: 429, elapsed_ms: 3 },
+        { call_id: 1, purpose: "rejection", attempt: 2, outcome: "error", status: 503, elapsed_ms: 1004 },
+      ] as const;
+      await writeGateReport(buildGateReport({ ...input, run: run({ errored: ["NEG-007"], judge_attempts: judgeAttempts }) }), dir);
+      await writeGateReport(buildGateReport({ ...input, run: run() }), dir);
+      const audit = (await readFile(join(dir, "gate-audit.jsonl"), "utf8")).trim().split("\n")
+        .map((line) => JSON.parse(line) as { evidence_path: string });
+      expect(audit).toHaveLength(2);
+      expect(audit[0]!.evidence_path).not.toBe(audit[1]!.evidence_path);
+      const first = JSON.parse(await readFile(join(dir, audit[0]!.evidence_path), "utf8")) as GateReport;
+      expect(first.state).toBe("GateFailed");
+      expect(first.judge_attempts).toEqual(judgeAttempts);
+      expect(first.criteria.gate2_evaluation.errored_cases).toEqual(["NEG-007"]);
+      expect(first.dataset.hash).toBe(dataset.hash);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("EVR-02: evaluation success alone leaves the gate pending without UI upload/navigation evidence", () => {

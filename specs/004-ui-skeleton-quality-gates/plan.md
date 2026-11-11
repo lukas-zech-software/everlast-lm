@@ -94,3 +94,18 @@ API or deployment dependency. TypeScript 7 exposes no legacy compiler API; a pin
 claimed to prove service ownership. Exceptions are exact, expire 2027-02-05, and are removable
 only; enlarging them needs a separately reviewed governance amendment (D21). Enforcement rollout
 reuses the existing required check so an unpublished new context cannot block unrelated PRs.
+
+## Pre-V4 CC-09 boundary inventory (D21, D23)
+
+| Trace | Owner and module | Responsibility and interface | Allowed dependency / composition | Regression |
+| --- | --- | --- | --- | --- |
+| NFR-EVAL-01..04 | 004 `packages/evals/src/runner.ts`, `report.ts` | Evaluation workflow, structured attempts, lifecycle and durable release evidence | Local judge/runner/report interfaces and public feature ports. `cli.ts` composes adapters. | Judge resilience, judge/report integration, release report and fixed sample tests |
+| NFR-EVAL-01..03 | 004 `packages/evals/src/judge.ts` | Structured Vertex judge, bounded provider retries and redacted attempt metadata | Google SDK adapter and Zod. CLI supplies the keyless client. | Provider retries, invalid verdicts, no content in attempts |
+| NFR-SEC-01, NFR-EVAL-01..04 | 004 `cli.ts`, `source-guide-gate.ts`, `studio-gate.ts`, judged CI | CLI/CI own invocation and report transport. Models expose actual provider identities. | Committed 003 Gemini configuration and chat, 006 structured Guide, 008 Studio reports, 011 Studio structures, 012 qualified profile. Final startup integration follows producer commits. | Local doubles for evidence and final candidate provider/wiring verification |
+| C-01..C-03, FR-WM-01..04, FR-WM-07 | Owning packages per [D21 ledger](d21-ownership.md) | R1 public ports, R2 application use cases and R3 explicit exports | Named composition roots and serialized policy removals. Routes retain transport, database adapters own SQL and transactions. | Feature-specific behavior and architecture checks per owning fix |
+
+CC-09 local work reviews existing evaluator edges against the exact D21 baseline and
+adds no application import or deployment edge. No changes to authorization, atomic quota
+transactions, durable dispatch, cancellation, publication or D16 placement are part of
+the evaluator evidence slice. Pre-V4 status stays pending until the actual graph,
+behavior and live evidence are validated against the assembled candidate.

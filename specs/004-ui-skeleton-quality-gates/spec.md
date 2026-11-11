@@ -254,3 +254,9 @@ allowlists. This is maintenance of Package 1.4, not implementation of a later re
 Acceptance: fixtures demonstrate each forbidden case fails, allowed cases pass, expanding an
 existing import or duplicating it fails, removed debt requires record removal, expiry day fails,
 changed/new features without CC-09 evidence fail, and CLI/CI propagate nonzero status.
+
+## Pre-V4 evaluation and architecture acceptance (D21, D23, CC-09)
+
+- **ARCH-05 (C-01..C-03, FR-WM-01..04, FR-WM-07)** — Assign every candidate D21 fingerprint to a feature and extraction slot. Record R2 route/use-case/persistence responsibilities and regression seams. Delete each exception in the integration slot for its actual boundary fix.
+- **EVID-01 (NFR-EVAL-01..04)** — Qualifying judged evidence uses the fixed stratified 50-case selection and original dataset and corpus hashes. Explicit diagnostic runs use a separate report directory and cannot promote a gate. Preserve complete evidence for each written release report, including failed and retried judge attempts.
+- **EVID-02 (NFR-SEC-01, NFR-EVAL-01..04, D23)** — Final wiring uses the approved enterprise Gemini configuration for judged inference, separate from regional embeddings. Record the actual chat, judge, Guide and Studio model and endpoint identities. Verify on the final immutable candidate after producer integration and workload approval.
