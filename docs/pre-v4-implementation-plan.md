@@ -33,6 +33,19 @@ fail-closed model and region validation. Cover ADK chat and code correction,
 including thinking settings and existing operational RPC and byte limits. Include
 the skipped GC-E04 refusal regression in Package 003.
 
+Use the documented EU multi-region endpoint `https://aiplatform.eu.rep.googleapis.com`.
+The pinned GenAI 2.32 SDK recognizes `eu` and constructs that hostname by default.
+It also accepts a global SDK or `GOOGLE_VERTEX_BASE_URL` override. Pin the approved
+base URL per Gemini client and exercise the actual outbound host, request location,
+model ID, auth mode and thinking config under injected conflicting environment
+values. ADK 2.4 forwards its `Gemini.getHttpOptions()` into its GenAI client. Use
+that seam to preserve the explicit endpoint and existing retry budget for chat and
+code correction. Avoid setting a process-wide base URL shared by embeddings.
+If a target requires private VPC connectivity, verify its networking separately.
+Google documents Private Service Connect for this endpoint. Inspect the actual
+network path before proposing any infrastructure change.
+[Google endpoint documentation](https://docs.cloud.google.com/gemini-enterprise-agent-platform/resources/locations)
+
 Serialize the remaining consumers in their owning packages:
 
 | Package | Current wiring | Required implementation and evidence |
