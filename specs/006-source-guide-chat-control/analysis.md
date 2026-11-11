@@ -130,3 +130,17 @@ existing R1/R3migration has been completed. Eighteen reviewer checklist entries 
 unchecked and unchanged. Before/after analyze and implement hooks are optional Git
 commit hooks only; no mandatory hook applies. Final checkpoint commit records this
 package completion; no paid release run or live acceptance was performed.
+
+## Phase 16 pre-implementation analysis (FR-SI-02, FR-GC-04/05/07, C-02, CC-09)
+
+Reviewed the pinned 006 spec, plan, tasks, FR card, D23 model map and the
+003 resolver at `f5a6bb7`. The prior 2.5 routing in the active plan conflicted
+with D23. The revised plan matches the approved Flash-Lite role, assigns the
+adapter to cloud and keeps existing workflows behind their current ports.
+T098 precedes T099 and covers the role-specific request and trusted payload.
+Existing pipeline regressions cover the retained scope, validation and
+publication behavior. The six D21 records still match the three existing
+callers and are removed only with their caller changes in the integration patch.
+No new cross-application edge or exception is planned. No blocking finding for
+standalone 006 after these revisions. Live acceptance and serialized wiring
+are separate pending checks under T100.

@@ -227,3 +227,9 @@ Source: first live Gate v2.0 run (2026-10-20). Gate v2.0 #1 rejected 6/20 guides
 - [x] T095 [specs/006-source-guide-chat-control] Record current 006 artifact-check failure, inventory typed ports/composition/workflow ownership and exact unchanged D21 migration debt before resuming; refresh spec/plan and rerun read-only analyze (CC-09, C-02, FR-SI-02, FR-GC-07).
 - [x] T096 [specs/006-source-guide-chat-control] Run existing judge/Guide/length/refusal regressions on upgraded dependencies and disposable local PostgreSQL; preserve scoped behavior without new paid runs or invented Red tests for unchanged code (CC-02, CC-09, NFR-EVAL-01..04).
 - [x] T097 [specs/006-source-guide-chat-control] Validate actual final006 artifact diff, inspect graph against origin/main, record manual versus automated results and outstanding008/009 failures; retain release/checklist boundaries and commit handoff (CC-09, CC-01, CC-06, C-01..03).
+
+## Phase 16: D23 structured generation (FR-SI-02, FR-GC-04/05/07, C-02)
+
+- [x] T098 [specs/006-source-guide-chat-control] Add failing injected-transport tests for exact enterprise Flash and Flash-Lite requests, typed thinking and the trusted Guide, overview and follow-up payloads (D23, FR-SI-02, FR-GC-04/05, CC-02).
+- [x] T099 [specs/006-source-guide-chat-control] Publish the shared structured adapter and wire 006 through the committed D23 Flash-Lite role, preserving legacy 008 compatibility and all generation fences (FR-SI-02, FR-GC-04/05/07, C-02, CC-09).
+- [x] T100 [specs/006-source-guide-chat-control] Prepare and verify the serialized consumer-import and exact D21 record removal patch, run package regressions and architecture checks, and record the live gate gaps (FR-SI-02, C-02, NFR-EVAL-01..04, CC-09).

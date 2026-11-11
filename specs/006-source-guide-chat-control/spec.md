@@ -227,3 +227,7 @@ Boundary acceptance requires a populated plan inventory, manual workflow review,
 scoped 006 artifact validation and current graph output. A global checker failure in
 008/009remains FAIL even when the006scoped evidence passes. This reconciliation
 does not certify release acceptance or mark reviewer checklists approved.
+
+## D23 structured generation (FR-SI-02, FR-GC-04/05/07, C-02, NFR-EVAL-01..04)
+
+Guide, overview and follow-up generation use the approved enterprise Flash-Lite profile with EU processing, keyless credentials and model-specific thinking. Trusted instructions are sent separately from selected source text, output language and previous answer. Existing text limits, retry decisions, authorization and revision publication checks apply to the new profile. Model quality and latency remain subject to the original live gates.

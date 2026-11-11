@@ -230,3 +230,69 @@ Final spec-integrity check PASS (201 Markdown files,55 SRS links,39 feature
 artifacts); whitespace check PASS after normalizing a captured log's trailing
 blank line. Actual diff against 935eabe contains 006 documents/evidence only;
 application/package/checker/policy/lockfile diff is empty.
+
+## Task 006 D23 adapter and integration handoff (FR-SI-02, FR-GC-04/05/07, C-02, NFR-EVAL-01..04)
+
+Work branch `codex/pre-v4-work-006`. The immutable task source was
+`105c3f1`; this work was based on the committed 003 routing handoff
+`11fdc8d`. Use `19da374` as the base for the isolated 006 delta.
+
+### Interface for 008 and 011 (FR-ST-08/09/10/11, D23, CC-09)
+
+Import `createEnterpriseStructuredGenerator`, `StructuredGenerator` and
+`StructuredGenerationError` from `@everlast/cloud`. Use
+`createEnterpriseStructuredGenerator("flash", env, { timeoutMs, createClient })`
+for report extraction/composition, mind maps and tables. The role fixes the
+model, EU endpoint and `LOW` thinking. For Flash-Lite, the `"flash-lite"` role
+selects `MINIMAL`. The transport options are optional, including the test
+factory. The generic `generateStructured<T>` request takes trusted
+`systemInstruction`, scoped JSON `contents`, `responseSchema`, a
+`safeParse` schema, optional `generationConfig.maxOutputTokens` and optional
+`cachedContent`. The adapter returns schema-validated data or a
+`StructuredGenerationError` with a fixed reason, optional upstream status,
+and a `transient` flag. Consumers own retry timing, support validation and
+publication. Remove legacy budget settings when migrating. The compatibility
+constructor used by existing 008 tests still supports 2.5-era report settings.
+The production suggestion fallback shares the migrated 006 Flash-Lite client.
+
+### Verification (CC-02, CC-09, C-02, NFR-EVAL-04)
+
+| Check | Outcome |
+| --- | --- |
+| Red: `pnpm exec vitest run apps/worker/test/package-v2-2-gemini.test.ts` | 5 expected failures, 3 passes. The existing adapter inherited the embedding region, used 2.5, lacked the Flash contract and put overview/follow-up instructions in contents. |
+| Green: `pnpm exec vitest run apps/worker/test/package-v2-2 apps/api/test/package-v2-2 packages/contracts/test/package-v2-2.test.ts packages/evals/test/source-guide-gate.eval.test.ts apps/worker/test/studio-vertex-report-model.test.ts apps/worker/test/studio-suggestions.test.ts` | 90/90 across 10 files with an isolated pgvector PostgreSQL 16 database. Also passed with the consumer patch applied. |
+| `pnpm typecheck`, `node scripts/check-spec-integrity.mjs` | PASS. |
+| `pnpm test:architecture` | PASS, 39/39. |
+| `pnpm check:architecture --base-ref 19da374` and `pnpm check:architecture-artifacts --base-ref 19da374` | PASS on the consumer patch rehearsal with 178 exact D21 records and zero findings. The standalone branch retains 184 records pending the coordinated import changes. |
+| `pnpm eval:deterministic --out /private/tmp/everlast-006-deterministic` | PASS on the local patch rehearsal. Citation precision 160/160, leakage 0, no publications in 60 adversarial cases. The deterministic report retains GatePending. |
+| Live Source Guide latency, model quality and judged evaluation (FR-SI-02, FR-GC-07, NFR-EVAL-01..04) | Pending on the approved integrated release candidate and live authorization. |
+
+Manual CC-09 review of the 006 diff, 2026-11-11. The cloud adapter depends
+on contracts and the Gemini SDK through the existing cloud module. It has no
+application imports. Worker Guide workflows still own scope, retries, and
+publication checks, and existing DB adapters own persistence. No admission,
+authorization, revision, quota, cancellation, transaction, or recovery paths
+were edited. Both the 008 compatibility fixtures and the 006 API composition
+passed with the adapter extracted.
+
+### Serialized integration (CC-09, D21, D23, NFR-EVAL-01..04)
+
+Apply [the consumer patch](evidence/d23-consumer-integration.patch) in the
+integration slot. It switches API startup and the Guide eval adapter to
+the cloud export, asserts the approved route through the API composition,
+updates the FR card, and removes exactly these D21 records:
+
+| Former importer | Former target | Rules removed |
+| --- | --- | --- |
+| `apps/api/src/server.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-cross-app`, `public-entrypoint` |
+| `apps/api/test/package-v2-2-runtime.test.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-cross-app`, `public-entrypoint` |
+| `packages/evals/src/source-guide-gate.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-shared-to-app`, `public-entrypoint` |
+
+Task 004 owns the shared eval labels. Before running release evaluation,
+derive the Guide identity from `model.location` and `model.model` in
+`runSourceGuideReleaseGate`. Its historical environment-derived label would
+otherwise report `vertex:europe-west4:gemini-2.5-flash-lite` for a D23 request.
+Keep the other eval-to-worker workflow edges tracked under their existing
+D21 records. Task 008 owns Guide admission and report startup wiring, and
+task 011 owns Studio startup wiring. Issues #7, #40 and #43 remain tied to
+their original acceptance evidence.

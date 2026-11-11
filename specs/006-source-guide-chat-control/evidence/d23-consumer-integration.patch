@@ -1,0 +1,204 @@
+diff --git a/apps/api/src/server.ts b/apps/api/src/server.ts
+index f64b640..7a46078 100644
+--- a/apps/api/src/server.ts
++++ b/apps/api/src/server.ts
+@@ -13,13 +13,12 @@ import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperational
+ import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
+ import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
+ import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
+-import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
++import { createVertexStructuredGenerationFromEnv, createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
+ import { ChatService } from "./chat/service.ts";
+ import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
+ import { createV2Runtime } from "./v2/runtime.ts";
+ import { GoogleDelegationBroker } from "./routes/connections.ts";
+ import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
+-import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+ import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
+ import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+
+diff --git a/apps/api/test/package-v2-2-runtime.test.ts b/apps/api/test/package-v2-2-runtime.test.ts
+index 6823119..84b00eb 100644
+--- a/apps/api/test/package-v2-2-runtime.test.ts
++++ b/apps/api/test/package-v2-2-runtime.test.ts
+@@ -3,7 +3,6 @@ import { HashingTestEmbedder } from "@everlast/cloud";
+ import { getSourceGuide, persistChatMessage, resetPackageV22Store, runWithV2Persistence } from "@everlast/db";
+ import { seedReadySource } from "@everlast/db/testing";
+ import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+-import { VertexStructuredGenerationClient } from "@everlast/worker/package-v2-2-gemini";
+ import { createV2Generation } from "../src/server.ts";
+ import { createV2Runtime, type V2Runtime } from "../src/v2/runtime.ts";
+ import { startTestApi, type TestApi } from "./support.ts";
+@@ -45,8 +44,10 @@ async function setup(target: TestApi, as: string) {
+ }
+
+ describe("startApiServer wiring of the structured model (FR-SI-02, FR-GC-04/05, D3)", () => {
+-  it("creates the Vertex client under the same condition as the grounded chat model", () => {
+-    expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu" }, true)).toBeInstanceOf(VertexStructuredGenerationClient);
++  it("wires the D23 Flash-Lite client under the same condition as the grounded chat model", () => {
++    expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu", VERTEX_LOCATION: "europe-west4" }, true)).toMatchObject({
++      model: "gemini-3.5-flash-lite", location: "eu", project: "everlast-eu",
++    });
+     expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu" }, false)).toBeUndefined();
+     expect(createV2Generation({}, true)).toBeUndefined();
+   });
+diff --git a/packages/evals/src/source-guide-gate.ts b/packages/evals/src/source-guide-gate.ts
+index 50ec3da..d68ae31 100644
+--- a/packages/evals/src/source-guide-gate.ts
++++ b/packages/evals/src/source-guide-gate.ts
+@@ -118,7 +118,7 @@ export type SourceGuideReleaseGateResult = { status: "unavailable"; reason: stri
+
+ /** Release variant with the Vertex AI Flash-Lite client; never reports a pass it did not run. */
+ export async function runSourceGuideReleaseGate(env: NodeJS.ProcessEnv): Promise<SourceGuideReleaseGateResult> {
+-  const { createVertexStructuredGenerationFromEnv } = await import("@everlast/worker/package-v2-2-gemini");
++  const { createVertexStructuredGenerationFromEnv } = await import("@everlast/cloud");
+   const model = createVertexStructuredGenerationFromEnv(env);
+   if (!model) return { status: "unavailable", reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)" };
+   const location = env.VERTEX_LOCATION ?? "europe-west4";
+diff --git a/scripts/architecture-policy.json b/scripts/architecture-policy.json
+index 4f28a8a..3e94542 100644
+--- a/scripts/architecture-policy.json
++++ b/scripts/architecture-policy.json
+@@ -57,20 +57,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+       "reason": "R1: extract shared application workflows behind public package interfaces."
+     },
+-    {
+-      "rule": "no-cross-app",
+-      "from": "apps/api/src/server.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "538186f4f760fe6112b21af47608e22064ecc4b8214c51c2bfcb1abc5fc36c8b",
+-      "line": 17,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+     {
+       "rule": "no-cross-app",
+       "from": "apps/api/src/server.ts",
+@@ -337,20 +323,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+       "reason": "R1: extract shared application workflows behind public package interfaces."
+     },
+-    {
+-      "rule": "no-cross-app",
+-      "from": "apps/api/test/package-v2-2-runtime.test.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "5f10511d920694a723569be32ccb67f6be5ae811df288198f555a0635eb3dc6f",
+-      "line": 6,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+     {
+       "rule": "no-cross-app",
+       "from": "apps/api/test/package-v2-2-runtime.test.ts",
+@@ -953,20 +925,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+       "reason": "R1: extract shared application workflows behind public package interfaces."
+     },
+-    {
+-      "rule": "no-shared-to-app",
+-      "from": "packages/evals/src/source-guide-gate.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "e1b6601242aaa4f5d2689bc60584a4478d36fdc6df560cb16fdfcca6474a1204",
+-      "line": 121,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+     {
+       "rule": "no-shared-to-app",
+       "from": "packages/evals/src/source-guide-gate.ts",
+@@ -1401,20 +1359,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+     },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "apps/api/src/server.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "538186f4f760fe6112b21af47608e22064ecc4b8214c51c2bfcb1abc5fc36c8b",
+-      "line": 17,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+     {
+       "rule": "public-entrypoint",
+       "from": "apps/api/src/server.ts",
+@@ -1639,20 +1583,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+     },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "apps/api/test/package-v2-2-runtime.test.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "5f10511d920694a723569be32ccb67f6be5ae811df288198f555a0635eb3dc6f",
+-      "line": 6,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+     {
+       "rule": "public-entrypoint",
+       "from": "apps/api/test/package-v2-2-runtime.test.ts",
+@@ -2115,20 +2045,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+     },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "packages/evals/src/source-guide-gate.ts",
+-      "to": "apps/worker/src/package-v2-2-gemini.ts",
+-      "fingerprint": "e1b6601242aaa4f5d2689bc60584a4478d36fdc6df560cb16fdfcca6474a1204",
+-      "line": 121,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+     {
+       "rule": "public-entrypoint",
+       "from": "packages/evals/src/source-guide-gate.ts",
+diff --git a/spec/requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md b/spec/requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md
+index 66c4cf9..4ddf95f 100644
+--- a/spec/requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md
++++ b/spec/requirements/v2/package_2_2_proactive_context_intelligence_chat_control.md
+@@ -362,3 +362,12 @@ fail immediately; product citation validation is never retried. Exhausted provid
+ errors must produce a failing report retaining the affected case and the original
+ case population, rather than aborting before a report or omitting failed cases.
+ Attempt records contain no prompts, source text or raw provider error messages.
++
++### Enterprise Gemini routing (D23, FR-SI-02, FR-GC-04/05, NFR-SEC-01)
++
++Source Guides, notebook overviews, and follow-up suggestions use the enterprise
++Flash-Lite profile in EU multi-region `eu` with `MINIMAL` thinking and keyless
++credentials, as specified in the [approved model map](../../../docs/gemini-model-region-map.md).
++Requests carry trusted instructions separately from scoped source text, output
++language, and the prior answer. Existing length, retry, publication, and live
++acceptance criteria apply.
