@@ -1,4 +1,3 @@
-
  RUN  v5.1.0 /private/tmp/everlast-pre-v4-work-008
 
 
@@ -6,4 +5,3 @@
       Tests  22 passed (22)
    Start at  19:52:45
    Duration  379ms (tests 47%, import 38%, transform 14%, worker 1%)
-

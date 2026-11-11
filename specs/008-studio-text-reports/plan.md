@@ -197,3 +197,18 @@ the 012 runtime cache/tokenizer and 004 evidence label changes in their owning
 packages before live acceptance. D23 changes routing, while the 1,048,576-token
 context limit, 8,192-token report output reserve and operational byte bounds are
 kept. Provider capacity and actual P95 still require the approved live workload.
+
+**Integration boundary review (T083, D23):** the separate validation worktree
+starts at `7dc263f`, which contains the published 003 route and 006
+`StructuredGenerator`. The report adapter consumes the public
+`@everlast/cloud` factory and resolver. Native token count/cache use that
+resolver's exact project, EU endpoint and Flash model. The worker factory
+composes them through the existing report model/context ports. Legacy
+`VERTEX_LOCATION`, `REPORT_MODEL` and `REPORT_MODEL_VERSION` do not drive
+this route or its cache identity. Model version and tokenizer identity are
+the D23 model ID and `vertex-countTokens:gemini-3.8-flash`, respectively.
+Keep runtime placement, 20-second inference and 30-second context transport
+timeouts, 8,192 output reserve, 1,048,576 context limit and existing cache TTL.
+Provider qualification, 004 evaluator labels and 012 benchmark bindings stay
+separate tasks. The [FR card flow-back patch](evidence/fanout-20261111/fr-card-flow-back.patch)
+is ready for the serialized integration slot.

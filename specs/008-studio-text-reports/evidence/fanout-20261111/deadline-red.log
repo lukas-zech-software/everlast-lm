@@ -1,4 +1,3 @@
-
  RUN  v5.1.0 /private/tmp/everlast-pre-v4-work-008
 
  ❯ |integration| apps/worker/test/studio-vertex-report-model.test.ts (22 tests | 1 failed | 21 skipped) 127ms
@@ -34,4 +33,3 @@ AssertionError: Study Guide failed after 64000 virtual ms: expected [ +0, 21000,
       Tests  1 failed | 21 skipped (22)
    Start at  19:51:46
    Duration  516ms (transform 41%, import 29%, tests 29%, worker 1%)
-

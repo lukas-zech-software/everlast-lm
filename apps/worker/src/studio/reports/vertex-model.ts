@@ -1,3 +1,4 @@
+import { GoogleGenAI } from "@google/genai";
 import {
   REPORT_FINDING_KINDS,
   ReportComposeOutputSchema,
@@ -5,8 +6,16 @@ import {
   requiredReportSections,
   type ReportSubtype,
 } from "@everlast/contracts";
-import { vertexConfigFromEnv } from "@everlast/cloud";
-import { StructuredGenerationError, VertexStructuredGenerationClient, type GenAiFactory, type StructuredGenerationConfig } from "../../package-v2-2-gemini.ts";
+import {
+  createEnterpriseStructuredGenerator,
+  resolveEnterpriseGeminiConfig,
+  StructuredGenerationError,
+  type EnterpriseGeminiConfig,
+  type GenAiFactory,
+  type StructuredGenerator,
+  type StructuredOutputConfig,
+} from "@everlast/cloud";
+import type { StudioContextRuntime } from "../context-cache.ts";
 import {
   ReportGenerationError,
   type ComposeRequest,
@@ -18,35 +27,19 @@ import {
 } from "./model.ts";
 
 /**
- * Vertex AI Flash report model (FR-ST-10/11). Model routing: **Flash** for Studio reports (owner default
- * 2026-10-20: no Pro routing until "long report" is defined), on the Vertex AI enterprise endpoint in
- * europe-west4 with keyless ADC (D3, NFR-SEC-01). It reuses the Package 2.2 `VertexStructuredGenerationClient`
- * setup (`[006-source-guide-chat-control] T075`) rather than a second configuration path.
- *
- * The fixed system instruction carries the grounding and citation rules (FR-GC-01/02); a custom or edited
- * suggestion prompt travels only as data that may change structure, tone and audience (FR-ST-11). Every output is
- * Zod-validated and every item must cite a chunk of its batch (extract) or of the findings (compose); anything
- * else is a `ReportGenerationError`, which the runner records as `GenerationError` without upstream text.
+ * FR-ST-10/11, D23, NFR-SEC-01: report generation uses the shared enterprise EU
+ * Flash route. The report adapter owns grounding, bounded retries and output
+ * validation. The cloud adapter owns structured SDK requests and error classification.
  */
-
-export const REPORT_MODEL = "gemini-2.5-flash";
+export const REPORT_MODEL = "gemini-3.8-flash" satisfies EnterpriseGeminiConfig<"flash">["model"];
 export const REPORT_TIMEOUT_MS = 20_000;
+const REPORT_CONTEXT_LIMIT = 1_048_576;
 
-/**
- * Backoff before each retry of a transient upstream failure (429/5xx/timeout), Gate v2.0 #3 live run 2026-10-22:
- * one 429 failed a whole report. This is a transport retry of the same request, not a retry after a citation
- * failure (FR-014 forbids that).
- */
+/** Retry fast transient transport failures without retrying invalid citations (FR-014). */
 export const REPORT_RETRY_DELAYS_MS: readonly number[] = [1_000, 3_000];
 
-/**
- * Latency settings for every report call (Gate v2.0 #3 P95 ≤ 25 s; live run 2026-10-20 measured P95 28.4 s with
- * the default dynamic thinking). Extract and compose are grounded copy/structure tasks validated after the fact,
- * so thinking is disabled (`thinkingBudget: 0`, supported by gemini-2.5-flash). `maxOutputTokens` bounds a
- * runaway response well above a full Study Guide; a truncated response fails JSON validation (GenerationError),
- * never yields a partial report.
- */
-export const REPORT_GENERATION_CONFIG: StructuredGenerationConfig = { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 8192 };
+/** D23 supplies LOW thinking through the model role. Keep the existing operational output bound. */
+export const REPORT_GENERATION_CONFIG = { maxOutputTokens: 8192 } as const satisfies StructuredOutputConfig;
 
 export const REPORT_SYSTEM_INSTRUCTION = [
   "You write grounded Studio reports from source chunks.",
@@ -170,20 +163,20 @@ type ReportCallPhase =
 export class VertexReportModel implements ReportModelClient {
   contextRuntime?: StudioContextRuntime;
   readonly id: string;
-  private readonly client: VertexStructuredGenerationClient;
+  private readonly client: StructuredGenerator;
   private readonly retryDelaysMs: readonly number[];
 
-  constructor(client: VertexStructuredGenerationClient, options: { retryDelaysMs?: readonly number[] | undefined } = {}) {
+  constructor(client: StructuredGenerator, options: { retryDelaysMs?: readonly number[] | undefined } = {}) {
     this.client = client;
     this.retryDelaysMs = options.retryDelaysMs ?? REPORT_RETRY_DELAYS_MS;
     this.id = `vertex:${client.location}:${client.model}`;
   }
 
-  /** Test seam and composition helper: a Flash client on the Package 2.2 setup with an injected SDK factory. */
-  static fromFactory(project: string, createClient?: GenAiFactory, options: { location?: string; model?: string; retryDelaysMs?: readonly number[] } = {}): VertexReportModel {
+  /** Report SDK test seam. It uses the same approved model role as production. */
+  static fromFactory(project: string, createClient?: GenAiFactory, options: { retryDelaysMs?: readonly number[] } = {}): VertexReportModel {
     return new VertexReportModel(
-      new VertexStructuredGenerationClient({ project, location: options.location, model: options.model ?? REPORT_MODEL, timeoutMs: REPORT_TIMEOUT_MS, createClient }),
-      { retryDelaysMs: options.retryDelaysMs }
+      createEnterpriseStructuredGenerator("flash", { VERTEX_PROJECT: project }, { timeoutMs: REPORT_TIMEOUT_MS, createClient }),
+      { retryDelaysMs: options.retryDelaysMs },
     );
   }
 
@@ -195,7 +188,10 @@ export class VertexReportModel implements ReportModelClient {
     signal: AbortSignal,
     cachedContent?:string
   ): Promise<T> {
-    if(Buffer.byteLength(JSON.stringify(contents))+Buffer.byteLength(REPORT_SYSTEM_INSTRUCTION)+REPORT_GENERATION_CONFIG.maxOutputTokens!>1_048_576)throw new ReportGenerationError("Complete serialized model envelope exceeds capacity");
+    const envelope = Buffer.byteLength(JSON.stringify(contents)) + Buffer.byteLength(REPORT_SYSTEM_INSTRUCTION);
+    if (envelope + REPORT_GENERATION_CONFIG.maxOutputTokens > REPORT_CONTEXT_LIMIT) {
+      throw new ReportGenerationError("Complete serialized model envelope exceeds capacity");
+    }
     const deadline = performance.now() + REPORT_TIMEOUT_MS;
     for (let attempt = 0; ; attempt++) {
       signal.throwIfAborted();
@@ -310,43 +306,92 @@ export class VertexReportModel implements ReportModelClient {
   }
 }
 
-/** Flash report model from `VERTEX_PROJECT`/`GCP_PROJECT_ID`/`GOOGLE_CLOUD_PROJECT` and `VERTEX_LOCATION`; undefined without a project. */
-export function createVertexReportModelFromEnv(env: NodeJS.ProcessEnv = process.env, createClient?: GenAiFactory): VertexReportModel | undefined {
-  if (!(env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)) return undefined;
-  const config = vertexConfigFromEnv(env);
-  const model=VertexReportModel.fromFactory(config.project, createClient, { location: config.location, model: env.REPORT_MODEL ?? REPORT_MODEL });
-  model.contextRuntime=createVertexStudioContextFromEnv(env);
+/** Report and native context factories share the approved D23 Flash identity. */
+export function createVertexReportModelFromEnv(
+  env: NodeJS.ProcessEnv = process.env,
+  createClient?: GenAiFactory,
+): VertexReportModel | undefined {
+  const project = (env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)?.trim();
+  if (!project) return undefined;
+  const route = resolveEnterpriseGeminiConfig("flash", env);
+  const model = new VertexReportModel(
+    createEnterpriseStructuredGenerator(
+      "flash",
+      { VERTEX_PROJECT: route.clientOptions.project, GEMINI_LOCATION: route.clientOptions.location },
+      { timeoutMs: REPORT_TIMEOUT_MS, createClient },
+    ),
+  );
+  model.contextRuntime = createVertexStudioContext(route);
   return model;
 }
 
-import { GoogleGenAI } from '@google/genai';
-import type { StudioContextRuntime } from '../context-cache.ts';
-/** NFR-PERF-01 / NFR-SEC-01 / D3: native enterprise EU cache/tokenizer, invoked only by ordinary Studio work. */
-export function createVertexStudioContextFromEnv(env:NodeJS.ProcessEnv):StudioContextRuntime{
- const config=vertexConfigFromEnv(env),model=env.REPORT_MODEL??REPORT_MODEL;
- const client=new GoogleGenAI({vertexai:true,project:config.project,location:config.location,httpOptions:{timeout:30000}});
- const inputLimit=1_048_576,outputReserve=8192,instructionTokens=10000;
- return {model,modelVersion:env.REPORT_MODEL_VERSION??model,inputLimit,outputReserve,instructionTokens,ttlSeconds:300,
-  tokenizer:{model,qualification:'enterprise-eu',version:`vertex-countTokens:${env.REPORT_MODEL_VERSION??model}`,count:async text=>{
-   const result=await client.models.countTokens({model,contents:text});
-   if(!Number.isSafeInteger(result.totalTokens)||result.totalTokens!<0)throw new Error('Qualified token count unavailable');return result.totalTokens!;
-  }},
-  provider:{
-   create:async({chunks,ttlSeconds,signal})=>{
-    const parts:{text:string}[]=[];let bytes=0;
-    for await(const page of chunks){signal.throwIfAborted();for(const chunk of page){const text=JSON.stringify({chunk_id:chunk.chunk_id,source_id:chunk.source_id,revision:chunk.revision,text:chunk.text});bytes+=Buffer.byteLength(text);if(bytes>32_000_000)throw new Error('Full-context serialized memory capacity exceeded');parts.push({text});}}
-    const contents=[{role:'user',parts}];
-    const tokens=(await client.models.countTokens({model,contents})).totalTokens;
-    if(tokens===undefined || tokens+outputReserve+instructionTokens>inputLimit)throw new Error('Complete cached model envelope exceeds capacity');
-    const cached=await client.caches.create({model,config:{contents,ttl:`${ttlSeconds}s`}});
-    const expiresAt=Date.parse(cached.expireTime??'');
-    if(!cached.name||!Number.isFinite(expiresAt)||expiresAt<=Date.now()){
-     if(cached.name)await client.caches.delete({name:cached.name}).catch(()=>undefined);
-     throw new Error('Provider-confirmed cache handle/expiry unavailable');
-    }
-    return {handle:cached.name,expiresAt};
-   },
-   delete:async handle=>{await client.caches.delete({name:handle});},
-  },
- };
+export function createVertexStudioContextFromEnv(env: NodeJS.ProcessEnv): StudioContextRuntime {
+  return createVertexStudioContext(resolveEnterpriseGeminiConfig("flash", env));
+}
+
+/** NFR-PERF-01, NFR-SEC-01, D23: native enterprise EU cache and tokenizer. */
+function createVertexStudioContext(route: EnterpriseGeminiConfig<"flash">): StudioContextRuntime {
+  const { model, clientOptions } = route;
+  const client = new GoogleGenAI({
+    ...clientOptions,
+    httpOptions: { ...clientOptions.httpOptions, timeout: 30_000 },
+  });
+  const outputReserve = REPORT_GENERATION_CONFIG.maxOutputTokens;
+  const instructionTokens = 10_000;
+  return {
+    model,
+    modelVersion: model,
+    inputLimit: REPORT_CONTEXT_LIMIT,
+    outputReserve,
+    instructionTokens,
+    ttlSeconds: 300,
+    tokenizer: {
+      model,
+      qualification: "enterprise-eu",
+      version: `vertex-countTokens:${model}`,
+      async count(text) {
+        const { totalTokens } = await client.models.countTokens({ model, contents: text });
+        if (totalTokens === undefined || !Number.isSafeInteger(totalTokens) || totalTokens < 0) {
+          throw new Error("Qualified token count unavailable");
+        }
+        return totalTokens;
+      },
+    },
+    provider: {
+      async create({ chunks, model: requestedModel, ttlSeconds, signal }) {
+        if (requestedModel !== model) throw new Error("Studio cache model mismatch");
+        const parts: { text: string }[] = [];
+        let bytes = 0;
+        for await (const page of chunks) {
+          signal.throwIfAborted();
+          for (const chunk of page) {
+            const text = JSON.stringify({
+              chunk_id: chunk.chunk_id,
+              source_id: chunk.source_id,
+              revision: chunk.revision,
+              text: chunk.text,
+            });
+            bytes += Buffer.byteLength(text);
+            if (bytes > 32_000_000) throw new Error("Full-context serialized memory capacity exceeded");
+            parts.push({ text });
+          }
+        }
+        const contents = [{ role: "user", parts }];
+        const { totalTokens } = await client.models.countTokens({ model, contents });
+        if (totalTokens === undefined || totalTokens + outputReserve + instructionTokens > REPORT_CONTEXT_LIMIT) {
+          throw new Error("Complete cached model envelope exceeds capacity");
+        }
+        const cached = await client.caches.create({ model, config: { contents, ttl: `${ttlSeconds}s` } });
+        const expiresAt = Date.parse(cached.expireTime ?? "");
+        if (!cached.name || !Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
+          if (cached.name) await client.caches.delete({ name: cached.name }).catch(() => undefined);
+          throw new Error("Provider-confirmed cache handle/expiry unavailable");
+        }
+        return { handle: cached.name, expiresAt };
+      },
+      async delete(handle) {
+        await client.caches.delete({ name: handle });
+      },
+    },
+  };
 }

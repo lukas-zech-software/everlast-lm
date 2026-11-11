@@ -234,7 +234,9 @@ changed. Architecture fixtures passed 39/39. The graph and changed-feature
 artifact checks returned zero findings with 184 exact legacy exceptions. Typecheck,
 spec integrity and diff check passed. The focused report, runtime, restart and
 Guide-admission suites passed 59 tests across ten files with a disposable
-task-008 PostgreSQL 16 + pgvector instance.
+task-008 PostgreSQL 16 + pgvector instance. The deterministic eval exited 0 with
+160/160 citation IDs, zero leakage and valid output from all four templates.
+This was local worktree evidence using deterministic models.
 
 T083 needs the 003/006 public route and adapter before production wiring. Under
 D23, coordinate the Flash model, EU location, version, token/output bounds and
@@ -243,3 +245,56 @@ For upstream integration, record the retry dispatch limit and D23 report/native
 cache route in the package 2.4 FR card. The existing FR-ST-10 acceptance
 population, validity, precision, leakage and latency thresholds continue to apply.
 T076 remains open for the approved final-candidate run.
+
+## Local D23 integration checkpoint — 2026-11-11 (FR-ST-10/11, NFR-PERF-01, NFR-SEC-01)
+
+Integration base `7dc263f91cf9e6cceac35065556e8bb3301b918c` includes the 003
+role resolver and 006 structured transport. The 008 retry delta is
+`753c017b2ff664ff896b97d4406a22254dfcade8` on this branch. The public
+`StructuredGenerator` now carries extract and compose through the approved
+`gemini-3.8-flash` enterprise endpoint in `eu` with LOW thinking and the existing
+20-second request timeout. Native `countTokens` and cache lifecycle operations use
+the same model, project and regional endpoint, with their existing 30-second
+transport timeout. Native cache creation rejects a mismatched model request.
+The 8,192-output-token reserve, 1,048,576-token context cap and existing cache
+TTL, expiry validation and cleanup are exercised by SDK doubles. Legacy report
+model/version and Vertex embedding-region settings cannot redirect this adapter.
+
+[Red](evidence/fanout-20261111/d23-red.log) observed three expected failures on
+legacy region, model and thinking. [Green](evidence/fanout-20261111/d23-green.log)
+passed the 23 adapter and cache tests. With a dedicated disposable PostgreSQL
+instance, the report, Guide-admission, restart, runtime and report-gate suites
+passed all 59 tests in ten files. A second batch of Guide structured transport
+and Studio context tests passed all 22 tests in five files. Deterministic eval
+exited 0 with 4/4 valid reports, precision 1.0, leakage 0 and 7.5 ms local P95.
+The same run reported 160/160 citation IDs and zero chat leakage.
+`pnpm lint` passed spec integrity, all 39 architecture fixtures, graph and
+changed-feature checks, and TypeScript. The exact 006-base comparison returned
+zero graph or artifact findings and retained all 184 approved exception records.
+
+Manual CC-09 review confirms that the report adapter now consumes existing public
+cloud exports and owns retry and output/evidence validation. The cloud adapter
+owns SDK transport, the context adapter owns cache calls, and the Studio runner
+keeps access, revision and publication ownership. The diff has no API/worker
+import additions, shared wiring changes, policy edits or SQL changes.
+Guide admission and report publication fences passed their regressions.
+
+Coordinator integration inputs:
+
+- Task 004 should set the live report evaluator's `modelId` from `model.id` in
+  `packages/evals/src/studio-gate.ts`. Its current derivation uses legacy
+  `VERTEX_LOCATION` and `REPORT_MODEL` environment values.
+- Task 012 should use `resolveEnterpriseGeminiConfig("flash", env)` for report
+  benchmark tokenizer/cache qualification in
+  `apps/api/src/observability/benchmark.ts`. Bind the candidate model/version
+  `gemini-3.8-flash`, location `eu`, tokenizer identity
+  `vertex-countTokens:gemini-3.8-flash`, context cap 1,048,576 and output reserve
+  8,192 to the same serving boot and reviewed fixture profile.
+- Apply the [FR card flow-back patch](evidence/fanout-20261111/fr-card-flow-back.patch)
+  in the serialized slot. `git apply --check` passes on this base.
+
+T083 has local integration evidence. Provider entitlement, native cache
+compatibility and measured latency on the frozen cohort remain unverified.
+T076 requires the approved final-candidate live four-template and common judged
+runs, including the configured existing EU OCR processor. Historical 3/4 validity
+remains a recorded failure. The original files and hashes are unchanged.
