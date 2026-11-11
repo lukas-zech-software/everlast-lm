@@ -8,7 +8,7 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-resume-20261111",
+  "coordinator_branch": "codex/pre-v4-pr189-checkpoint-20261111",
   "integrated_checkpoint": "1edd46c089b28d863f4c9b2666801063ccf28946",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
@@ -276,10 +276,11 @@
     },
     {
       "pr": 189,
-      "status": "open_CI_and_spec_success_merge_approval_requested",
+      "status": "merged",
       "head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
       "scope": "four-file D23 governance only",
-      "merge_authorization": "not requested or granted"
+      "merge_authorization": "Explicit user approval of PR189; exact head and green CI/spec revalidated; expected-head squash merge verified.",
+      "sha": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b"
     }
   ],
   "next_package": "Resume 012 T073/T074 clock bootstrap acquisition/authenticated same-boot installation; then sequential model configuration/owning-package migrations,003 refusal,011 decimal fidelity,004 architecture coordination.",
@@ -322,7 +323,7 @@
     "note": "One actual cloud wildcard retired by 012 bridge; route remaining remediation through owning packages; no widened exceptions."
   },
   "model_region_decision": {
-    "status": "owner_approved_D23_authority_flowback_local_PR189_pending",
+    "status": "owner_approved_D23_merged_PR189_runtime_migration_pending",
     "approval": "Approve Gemini EU exception,2026-11-11",
     "record": "docs/pre-v4-model-region-proposal-20261111.md",
     "scope": "enterpriseGeminiinference/tokenizer/cache eu;otherapprovedregionsunchanged;no global/DeveloperAPI fallback",
@@ -331,6 +332,7 @@
     "region_map": "docs/gemini-model-region-map.md",
     "pull_request": "https://github.com/lukas-zech-software/everlast-lm/pull/189",
     "pr_head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
-    "runtime_migration": "pending; no provider calls or cloud changes authorized"
+    "runtime_migration": "pending; no provider calls or cloud changes authorized",
+    "main_merge": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b"
   }
 }

@@ -64,20 +64,22 @@ cache may use EU multi-region `eu`; all other approved infrastructure/embedding/
 managed runtime locations remain unchanged. No global/Developer API fallback.
 Approval does NOT authorize cloud/paid execution or a main merge.
 
-Four-file governance-only PR189 is OPEN:
+Four-file governance-only PR189 MERGED under separate explicit user approval:
 https://github.com/lukas-zech-software/everlast-lm/pull/189
-Worktree `/private/tmp/everlast-pre-v4-model-governance-20261111`, branch
-`codex/pre-v4-model-governance-20261111`, head
-`30f0be27f0946db3b6c154852bcc2cc6ebfac262` based on refreshed main.
-Local spec/artifact/diff checks pass; GitHub spec and CI run42929547141 SUCCESS.
-Optional paid judged workflow skipped; no live release acceptance inferred.
-Separate merge approval was requested; no reply at checkpoint time.
-Separate explicit user approval of concrete green PR is required before main
-merge (earlier auto-review established this boundary for PR174). PR189 itself
-has not been rejected or approved for merge. PR174 and188 already merged under
-separate approvals. Do not publish a combined multi-package coordinator PR.
-HTTPS gh credential helper works per command, SSH publickey fails; no global
-credential config change and never print secrets.
+Exact approved head `30f0be27f0946db3b6c154852bcc2cc6ebfac262` and successful CI/spec
+were revalidated immediately before expected-head squash merge. GitHub subsequently
+confirmed merged=true, merge SHA `1e5c361f7c85ad59fedc8ee2ffff33ad7269823b`.
+No runtime migration, paid/cloud execution or release acceptance is implied.
+PR174,188 and189 now each have separate user merge approval. No combined coordinator
+PR should be published. HTTPS per-command gh helper works; SSH publickey fails.
+
+Latest handoff-only continuation branch `codex/pre-v4-pr189-checkpoint-20261111`,
+worktree `/private/tmp/everlast-pre-v4-pr189-checkpoint-20261111`, created FIRST from
+`0f09c4d18f391d3f9c16e703e298e26aad585178`. Resume from this latest branch tip.
+Feature pin unchanged: governance checkpoint only. No new implementation/tests/checks
+started; usage cutoff and all remaining work below still apply. Goal remains blocked
+on usage capacity; this explicit merge approval does not restart implementation.
+CC-09: checkpoint documentation/metadata only, no runtime boundary or behavior change.
 
 Official Google lifecycle/cards list2.5Flash and2.5Flash-Lite retirement2026-10-20.
 Examined replacement3.8Flash and3.5Flash-Lite support `eu`, not europe-west4.
