@@ -197,3 +197,13 @@ failure provides governance Red, not a manufactured product failure. The plan's
 boundary inventory records workflow/transaction ownership and unchanged debt.
 Report 504 / 75% validity and final live T076 remain open; this boundary repair does not
 change report models, pipelines, timeouts or release acceptance.
+
+### Deadline failure and report routing (FR-ST-10/11, C-02/C-03, D23)
+
+Report generation bounds transport attempts and retry dispatch under the existing
+deadline. A terminal failure publishes no report or partial sections. Diagnostics
+identify the failed phase and attempt without exposing the request, response or
+cache identifier. Under D23, generation, native token counting and explicit
+caching share the approved enterprise Flash model and EU processing location.
+Guide admission, scoped citations and publication checks retain their existing
+requirements. Gate v2.0 #3 retains all four templates and the 25-second P95 limit.

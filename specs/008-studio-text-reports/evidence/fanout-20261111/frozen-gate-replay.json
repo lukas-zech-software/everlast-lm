@@ -1,0 +1,62 @@
+{
+  "red": {
+    "model": "local SDK deadline double on Study Guide; other templates deterministic",
+    "validity_rate": 0.75,
+    "citation_precision": 1,
+    "leakage": 0,
+    "templates": [
+      {
+        "subtype": "briefing_doc",
+        "status": "Completed"
+      },
+      {
+        "subtype": "study_guide",
+        "status": "Failed"
+      },
+      {
+        "subtype": "faq",
+        "status": "Completed"
+      },
+      {
+        "subtype": "timeline",
+        "status": "Completed"
+      }
+    ],
+    "virtual_failed_attempt_starts_ms": [
+      0,
+      21000,
+      44000
+    ],
+    "virtual_study_guide_elapsed_ms": 64000,
+    "failed_payload_is_null": true
+  },
+  "green": {
+    "model": "local SDK deadline double on Study Guide; other templates deterministic",
+    "validity_rate": 0.75,
+    "citation_precision": 1,
+    "leakage": 0,
+    "templates": [
+      {
+        "subtype": "briefing_doc",
+        "status": "Completed"
+      },
+      {
+        "subtype": "study_guide",
+        "status": "Failed"
+      },
+      {
+        "subtype": "faq",
+        "status": "Completed"
+      },
+      {
+        "subtype": "timeline",
+        "status": "Completed"
+      }
+    ],
+    "virtual_failed_attempt_starts_ms": [
+      0
+    ],
+    "virtual_study_guide_elapsed_ms": 20000,
+    "failed_payload_is_null": true
+  }
+}

@@ -126,3 +126,20 @@ slice and the documented exact legacy records; it is not a completed R1/R2 migra
 The same six files/51 tests pass before and after the change on current Vitest 5.1.0.
 No test was weakened or forced to fail. Live T076 remains open; report timeouts,
 model/pipeline logic, scope, quotas, dispatch and publication are unchanged.
+
+## Scoped pre-implementation analysis — 2026-11-11 (CC-09)
+
+| Obligation | Coverage | Disposition |
+| --- | --- | --- |
+| Preserve four-template failure and isolate the deadline | T081 | The historical log identifies a Study Guide failure and three 504s but has no phase or attempt durations. A timed SDK double tests the retry hypothesis without asserting production root cause. |
+| Report retry dispatch, terminal failure and diagnostics | T081/T082 | Red precedes changes to the report adapter. The runner owns terminal publication. The existing transport timeout, retry count ceiling and validation rules remain applicable. |
+| Approved keyless route, output bounds and native cache/tokenizer | T083 | Integration starts from task 006 commit 7dc263f, which contains the 003 route and the public StructuredGenerator. The baseline checkpoint can run without these interfaces. |
+| Guide admission and release acceptance | T072–T076 | Existing behavior tests cover admission. T076 remains live acceptance under unchanged requirements and needs the 012 cache profile and 004 evaluator labels. |
+
+Four affected obligations have coverage, with no duplication or unmapped new
+task. CC-01 traceability and CC-02 ordering align across the spec, plan and
+tasks. C-02/C-03 remain with the existing scopes, model validation and runner.
+CC-09 design review (manual) found no new forbidden edge, ownership shift,
+exception expansion or checker bypass. The only planned new dependency during
+integration uses the existing public cloud entry point. The spec integrity and
+changed-feature checks are separate from runtime qualification.

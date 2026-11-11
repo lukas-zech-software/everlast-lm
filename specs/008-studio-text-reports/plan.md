@@ -171,3 +171,29 @@ and spec/diff checks. Record global 009 artifact failures separately. The inheri
 remain applicable because no checker/build/product/model/schema/config implementation
 changes here; the affected API fixture is rerun on current dependencies. Manual
 PASS labels ownership review only and cannot replace graph/artifact checks.
+
+## Report deadline and D23 route — CC-09 (2026-11-11; FR-ST-10/11, C-02/C-03)
+
+The Gate v2.0 #3 failure in the saved judged run names the Study Guide,
+three provider 504s, 3/4 validity, and P95 64,536.1 ms. It lacks per-operation
+timing. The local hypothesis is that three full 20-second attempts plus
+1- and 3-second backoffs compound one model deadline. Inject a full-duration
+504 and compare with a fast transient error before changing retry dispatch.
+Keep the per-attempt transport timeout, retry count limit, and P95 acceptance
+threshold. Disallow starting another attempt when the backoff cannot fit in
+the original attempt window. Record phase, template, attempt and elapsed
+time without source text, generated content or cache handles.
+
+| SRS / contract | Module and owner | Responsibility | Public ports | Dependencies and composition | Regression |
+| --- | --- | --- | --- | --- | --- |
+| FR-ST-10/11, C-02/C-03, NFR-SEC-01 | apps/worker/src/studio/reports/vertex-model.ts; report adapter | Bounded retry dispatch, structured output and evidence validation, route-derived cache and token identity | Existing ReportModelClient, D23 StructuredGenerator from the public cloud root after integration | Worker report factory owns adapter construction. Use the existing worker-local SDK adapter on the prepared branch and the committed 003/006 public cloud exports on the integration branch. Preserve runner/plugin publication and Guide admission. | SDK doubles distinguish fast transient retry from full-duration 504, retain terminal failed artifact, verify EU Flash/LOW generation and native count/cache identity. |
+
+No new cross-application edges, public exports or policy exceptions are needed.
+Retain the existing D21 records described above. Manual CC-09 review includes the
+actual final diff and confirms that the runner still checks authorization and
+captured revisions before publication. Exercise the graph, architecture fixtures,
+changed-feature checker, focused report/Guide suites and spec integrity. Review
+the 012 runtime cache/tokenizer and 004 evidence label changes in their owning
+packages before live acceptance. D23 changes routing, while the 1,048,576-token
+context limit, 8,192-token report output reserve and operational byte bounds are
+kept. Provider capacity and actual P95 still require the approved live workload.

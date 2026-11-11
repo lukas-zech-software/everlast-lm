@@ -194,3 +194,52 @@ before/after analyze and implement hooks were dispatched and respected disabled
 auto-commit settings; final reviewed checkpoint is manual. No cloud, paid calls,
 new resources, deployments, GitHub writes or issue closures occurred. Report504
 root cause remains unproven; final live T076 and Gate v3 acceptance remain pending.
+
+## Task 008 local deadline checkpoint — 2026-11-11 (FR-ST-10/11, C-02/C-03, NFR-EVAL-02/04)
+
+Prepared base `d58b8d1739dfca167c4a89fc82e290cc2b518f94`.
+The unchanged [historical judged log](../006-source-guide-chat-control/evidence/pre-v4-20261107/judged-run.txt)
+(SHA-256 `05c63e3b2a83335b28c7ef1b4d399c9fb9fdd896251363b3a8f92cb3f66f67ff`)
+records 3/4 validity, three 504s, a failed Study Guide and P95 64,536.1 ms.
+The associated [judged JSON](../006-source-guide-chat-control/evidence/pre-v4-20261107/judged-eval-report-v1.json)
+(SHA-256 `ea24b8c3b9f968e056666bc144a7543074db70ff73a401d3605c7d7a3ab84121`)
+also preserves the failed run and its independent OCR preflight gap.
+
+The checked-in worker regression injects a provider 504 after 20 seconds of
+virtual time during the Study Guide's topic-review compose. [Red](evidence/fanout-20261111/deadline-red.log)
+observed retries starting at 21,000 and 44,000 ms, with terminal failure at
+64,000 ms. [Green](evidence/fanout-20261111/deadline-green.log) observes one
+attempt ending at 20,000 ms and the same terminal failure with null payload.
+Immediate 429 and 504 responses still retry within the attempt window. Diagnostics
+log the fixed phase, template, section group, attempt, elapsed milliseconds,
+status and retry decision. They carry no prompt, source, response or cache handle.
+
+The [four-template replay](evidence/fanout-20261111/frozen-gate-replay.json) ran
+the unchanged Gate v2.0 #3 corpus and population through its Studio runner.
+A local SDK double injected the same 504 only for the Study Guide topic review.
+The other three templates used the deterministic report model. Validity stays
+3/4 under the injected fault, citation precision stays 1.0, leakage stays zero
+and no partial Study Guide is published. The virtual duration confirms the local
+retry mechanism. The original log cannot identify the failed model phase or prove
+that retry amplification was the only live cause. Report retry starts are bounded
+per operation. A retry that starts within the window still has the existing
+20-second SDK deadline, and the overall live P95 remains to be measured.
+
+Manual CC-09 review covers the actual report adapter and worker-test diff.
+The existing worker-local adapter owns SDK transport and shape checks. The report
+adapter owns retry dispatch and grounding validation. The runner still owns
+authorization, captured revision checks and terminal publication. No dependency
+edge, shared startup path, migration record, Guide admission, or gate threshold
+changed. Architecture fixtures passed 39/39. The graph and changed-feature
+artifact checks returned zero findings with 184 exact legacy exceptions. Typecheck,
+spec integrity and diff check passed. The focused report, runtime, restart and
+Guide-admission suites passed 59 tests across ten files with a disposable
+task-008 PostgreSQL 16 + pgvector instance.
+
+T083 needs the 003/006 public route and adapter before production wiring. Under
+D23, coordinate the Flash model, EU location, version, token/output bounds and
+qualification binding with 012. Task 004 owns the live evaluator model label.
+For upstream integration, record the retry dispatch limit and D23 report/native
+cache route in the package 2.4 FR card. The existing FR-ST-10 acceptance
+population, validity, precision, leakage and latency thresholds continue to apply.
+T076 remains open for the approved final-candidate run.

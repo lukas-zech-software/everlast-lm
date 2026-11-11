@@ -147,6 +147,7 @@ const literal = (value: string | undefined, text: string) => value === undefined
 
 const sleep = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
+    signal.throwIfAborted();
     if (ms <= 0) return resolve();
     const onAbort = () => (clearTimeout(timer), reject(signal.reason));
     const timer = setTimeout(() => (signal.removeEventListener("abort", onAbort), resolve()), ms);
@@ -161,6 +162,10 @@ const optional = <T extends object>(item: T & { quote?: string | undefined; date
 
 const request = (subtype: ReportSubtype, customPrompt: string | undefined) =>
   customPrompt ? { custom_prompt: customPrompt, applies_to: "structure, tone and target audience only", report_type: subtype } : undefined;
+
+type ReportCallPhase =
+  | { phase: "extract"; subtype: ReportSubtype }
+  | { phase: "compose"; subtype: ReportSubtype; sections: string[] | undefined };
 
 export class VertexReportModel implements ReportModelClient {
   contextRuntime?: StudioContextRuntime;
@@ -183,6 +188,7 @@ export class VertexReportModel implements ReportModelClient {
   }
 
   private async call<T>(
+    operation: ReportCallPhase,
     contents: Record<string, unknown>,
     responseSchema: object,
     schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } },
@@ -190,16 +196,38 @@ export class VertexReportModel implements ReportModelClient {
     cachedContent?:string
   ): Promise<T> {
     if(Buffer.byteLength(JSON.stringify(contents))+Buffer.byteLength(REPORT_SYSTEM_INSTRUCTION)+REPORT_GENERATION_CONFIG.maxOutputTokens!>1_048_576)throw new ReportGenerationError("Complete serialized model envelope exceeds capacity");
+    const deadline = performance.now() + REPORT_TIMEOUT_MS;
     for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted();
+      const started = performance.now();
+      if (attempt > 0 && started >= deadline) throw new ReportGenerationError();
       try {
-        return await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema, generationConfig: REPORT_GENERATION_CONFIG, cachedContent });
+        const result = await this.client.generateStructured({ systemInstruction: REPORT_SYSTEM_INSTRUCTION, contents, responseSchema, schema, generationConfig: REPORT_GENERATION_CONFIG, cachedContent });
+        signal.throwIfAborted();
+        return result;
       } catch (error) {
-        const transient = error instanceof StructuredGenerationError && error.transient;
-        if (transient && attempt < this.retryDelaysMs.length && !signal.aborted) {
-          await sleep(this.retryDelaysMs[attempt]!, signal);
+        signal.throwIfAborted();
+        const ended = performance.now();
+        const upstream = error instanceof StructuredGenerationError ? error : undefined;
+        const delay = this.retryDelaysMs[attempt];
+        // A quick transient failure can recover, but retrying a full deadline
+        // multiplies the existing transport timeout for the same request.
+        const retry = upstream?.transient === true && delay !== undefined && ended + delay < deadline;
+        console.warn(JSON.stringify({
+          severity: "WARNING",
+          message: "Studio report model attempt failed",
+          ...operation,
+          model: this.id,
+          attempt: attempt + 1,
+          attempt_elapsed_ms: Math.round(ended - started),
+          reason: upstream?.reason ?? "unexpected_failure",
+          upstream_status: upstream?.status ?? null,
+          retry_scheduled: retry,
+        }));
+        if (retry) {
+          await sleep(delay, signal);
           continue;
         }
-        // The Package 2.2 client logged the upstream failure server-side; nothing upstream travels further.
         throw new ReportGenerationError();
       }
     }
@@ -209,6 +237,7 @@ export class VertexReportModel implements ReportModelClient {
     req.signal.throwIfAborted();
     const byId = new Map(req.chunks.map((c) => [c.chunk_id, c]));
     const out = await this.call(
+      { phase: "extract", subtype: req.subtype },
       {
         task: EXTRACT_TASK,
         report_type: req.subtype,
@@ -243,6 +272,7 @@ export class VertexReportModel implements ReportModelClient {
   private async composeGroup(req: ComposeRequest, keys: string[] | undefined): Promise<ReportBlock[]> {
     const allowedChunks = new Set(req.findings.map((f) => f.chunk_id));
     const out = await this.call(
+      { phase: "compose", subtype: req.subtype, sections: keys },
       {
         task: COMPOSE_TASK,
         report_type: req.subtype,

@@ -1,0 +1,37 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-work-008
+
+ ❯ |integration| apps/worker/test/studio-vertex-report-model.test.ts (22 tests | 1 failed | 21 skipped) 127ms
+   ❯ [008-studio-text-reports] T081 report deadline and terminal publication (FR-ST-10, C-03) (1)
+     × does not dispatch another attempt after a full-duration Study Guide 504 126ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/worker/test/studio-vertex-report-model.test.ts > [008-studio-text-reports] T081 report deadline and terminal publication (FR-ST-10, C-03) > does not dispatch another attempt after a full-duration Study Guide 504
+AssertionError: Study Guide failed after 64000 virtual ms: expected [ +0, 21000, 44000 ] to deeply equal [ +0 ]
+
+- Expected
++ Received
+
+  [
+    0,
++   21000,
++   44000,
+  ]
+
+ ❯ apps/worker/test/studio-vertex-report-model.test.ts:274:94
+    272|       expect(done.payload_json).toBeNull();
+    273|       expect(JSON.stringify(done)).not.toContain("private upstream det…
+    274|       expect(attempts, `Study Guide failed after ${performance.now() -…
+       |                                                                                              ^
+    275|       expect(performance.now() - started).toBe(REPORT_TIMEOUT_MS);
+    276|       const diagnostic = warnings.mock.calls.map(([line]) => JSON.pars…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 21 skipped (22)
+   Start at  19:51:46
+   Duration  516ms (transform 41%, import 29%, tests 29%, worker 1%)
+
