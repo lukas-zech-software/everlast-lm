@@ -1,0 +1,114 @@
+diff --git a/apps/api/src/server.ts b/apps/api/src/server.ts
+index f64b640..abb726b 100644
+--- a/apps/api/src/server.ts
++++ b/apps/api/src/server.ts
+@@ -18,7 +18,7 @@ import { ChatService } from "./chat/service.ts";
+ import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
+ import { createV2Runtime } from "./v2/runtime.ts";
+ import { GoogleDelegationBroker } from "./routes/connections.ts";
+-import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
++import { VertexTopicEmojiSelector } from "@everlast/cloud/topic-emoji";
+ import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+ import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
+ import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+diff --git a/apps/api/src/v2/runtime.ts b/apps/api/src/v2/runtime.ts
+index 23d6d57..f4d218f 100644
+--- a/apps/api/src/v2/runtime.ts
++++ b/apps/api/src/v2/runtime.ts
+@@ -57,7 +57,7 @@ import {
+ import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
+ import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+ import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
+-import type { TopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
++import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
+ import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
+ import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
+ import { StudioJobRunner } from "@everlast/worker/studio/runner";
+diff --git a/scripts/architecture-policy.json b/scripts/architecture-policy.json
+index 4f28a8a..7ea9f5e 100644
+--- a/scripts/architecture-policy.json
++++ b/scripts/architecture-policy.json
+@@ -43,20 +43,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+       "reason": "R1: extract shared application workflows behind public package interfaces."
+     },
+-    {
+-      "rule": "no-cross-app",
+-      "from": "apps/api/src/server.ts",
+-      "to": "apps/worker/src/ingestion/topic-emoji.ts",
+-      "fingerprint": "a132b86e8b91b30b603705823967569964951fea64583647d6b13192d1f0d7a4",
+-      "line": 16,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+     {
+       "rule": "no-cross-app",
+       "from": "apps/api/src/server.ts",
+@@ -99,20 +85,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+       "reason": "R1: extract shared application workflows behind public package interfaces."
+     },
+-    {
+-      "rule": "no-cross-app",
+-      "from": "apps/api/src/v2/runtime.ts",
+-      "to": "apps/worker/src/ingestion/topic-emoji.ts",
+-      "fingerprint": "a4b7a26645e4f01e09c41cfee206d5da15845df3aae216b294cfdb4b95319a7e",
+-      "line": 53,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+     {
+       "rule": "no-cross-app",
+       "from": "apps/api/src/v2/runtime.ts",
+@@ -1387,20 +1359,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+     },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "apps/api/src/server.ts",
+-      "to": "apps/worker/src/ingestion/topic-emoji.ts",
+-      "fingerprint": "a132b86e8b91b30b603705823967569964951fea64583647d6b13192d1f0d7a4",
+-      "line": 16,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+     {
+       "rule": "public-entrypoint",
+       "from": "apps/api/src/server.ts",
+@@ -1443,20 +1401,6 @@
+       "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+       "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+     },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "apps/api/src/v2/runtime.ts",
+-      "to": "apps/worker/src/ingestion/topic-emoji.ts",
+-      "fingerprint": "a4b7a26645e4f01e09c41cfee206d5da15845df3aae216b294cfdb4b95319a7e",
+-      "line": 53,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+     {
+       "rule": "public-entrypoint",
+       "from": "apps/api/src/v2/runtime.ts",

@@ -98,3 +98,13 @@ No CRITICAL or HIGH inconsistency remains between card, `spec.md` and `plan.md`.
 ### Post-implementation re-analysis (T059)
 
 Code, tests and artifacts agree: every convergence task T040–T059 is `[X]`; each implementation task (T044, T046, T048, T050, T052, T054, T056, T058) follows a test task whose Red was recorded in [validation.md](validation.md); SRS IDs are cited in tests and tasks (`CC-01`, `CC-02`). No remaining contradiction with the revised card was found. Open limits are unchanged: D16 in-memory v2 stores, live Flash-Lite and judged evals `UNAVAILABLE`.
+
+## Pre-V4 task 005 analysis refresh (2026-11-11; FR-WM-02, NFR-SEC-01, D23, CC-09)
+
+Read-only analysis after the CC-09 plan/tasks delta and before implementation: FR-WM-02 and NFR-SEC-01 map to T060 and the new tests; no critical ambiguity.
+
+| Finding | Severity / scope | Disposition |
+| --- | --- | --- |
+| Adapter lives in a deployment app and is consumed by the API (D21 R1, 4 records) | HIGH, 005 | Extracted to `packages/cloud`; removal patch saved for the integration slot |
+| 003 routing interface not yet available for MINIMAL thinking | MEDIUM, 005 | T061 open; model/location injectable; defaults unchanged |
+| Shared files (`apps/api/src/server.ts`, `runtime.ts`, policy) | none edited | Scoped patch only |

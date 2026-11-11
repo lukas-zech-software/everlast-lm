@@ -41,6 +41,11 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./topic-emoji": {
+      "types": "./src/topic-emoji.ts",
+      "import": "./src/topic-emoji.ts",
+      "default": "./src/topic-emoji.ts"
+    },
     "./private-benchmark": {
       "types": "./src/private-benchmark.ts",
       "import": "./src/private-benchmark.ts",

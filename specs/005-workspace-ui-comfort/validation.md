@@ -130,3 +130,11 @@ credentials). v2 data stays in API memory (D16); no durable persistence and no G
 ## Integration Limits and Release Claims
 
 The live enterprise Vertex AI topic-icon smoke test is `UNAVAILABLE` because no approved project credentials were supplied; selector behavior is verified through injected deterministic tests. The in-memory repository remains process-local and is not claimed as durable Cloud SQL persistence. No Source Guide, Note Assistant, Studio generator, or complete Gate v2.0 behavior is claimed.
+
+## Pre-V4 task 005 checkpoint — 2026-11-11
+
+Traceability: FR-WM-02, NFR-SEC-01, D23, CC-09; T060/T061.
+- Red: `packages/cloud/test/topic-emoji.test.ts` failed to load (module missing). Green: 17/17; with the worker characterization suite 21/21 PASS.
+- `pnpm typecheck` PASS. With the saved patch applied: `pnpm check:architecture` 0 findings / 180 exceptions (base 184); without it 0 / 184.
+- API integration suites UNAVAILABLE: `TEST_DATABASE_URL` not set (not required by this change). Live Vertex smoke UNAVAILABLE: no approved credentials. MINIMAL-thinking routing awaits 003.
+- Continuation: apply `evidence/pre-v4-shared-integration.patch` in the integration slot, then T061.
