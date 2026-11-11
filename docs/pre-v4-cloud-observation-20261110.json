@@ -96,5 +96,26 @@
     "activation_policy": "NEVER",
     "worker_rechecked": false,
     "api_registrations_rechecked": false
+  },
+  "followup_20261111": {
+    "mode": "read_only_gcloud",
+    "api_revision": "everlast-dev-api-00013-kzh",
+    "worker_revision": "everlast-dev-worker-00009-5m2",
+    "traffic_percent_on_each_latest_ready_revision": 100,
+    "image_tag_both": "51f78ab",
+    "sql": "everlast-dev-pg",
+    "sql_state": "STOPPED",
+    "activation_policy": "NEVER",
+    "workspace_bucket": {
+      "name": "lukas-gcloud-playground-everlast-dev-workspace",
+      "location": "EUROPE-WEST4",
+      "versioning_enabled": true,
+      "uniform_bucket_level_access": true,
+      "public_access_prevention": "enforced",
+      "api_service_account_role": "roles/storage.objectUser",
+      "api_role_condition": null
+    },
+    "verification_limits": "Metadata only. No object operations, operator effective-permission test, receipt key/secret validation, inference, storage writes or deployment. Repeat before target plan execution.",
+    "tool_note": "Installed gcloud storage commands required per-command CLOUDSDK_PYTHON=/opt/homebrew/bin/python3.12 after default interpreter failed loading SSL constants."
   }
 }
