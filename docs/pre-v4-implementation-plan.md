@@ -3,34 +3,52 @@
 Prepared 2026-11-07 (Europe/Berlin). Traceability: Gate v1.0/v2.0/v3.0,
 NFR-EVAL-01..04, NFR-PERF-01, C-01/C-02/C-03, CC-01..CC-09.
 
-Execution update (2026-11-10): PR #174 is merged at `1957b3a`; approved PR #188
-is merged at `3f4d7fd`, the refreshed main. Local package recovery and private-file
-qualification through 012 are integrated at `ce3cd95`; the old RED509067d is resolved
-by tested code0138311/handoff successor e664264. CloudRun bridge T068 remains missing
-code/configuration. Work stopped at the corrected weekly2% usage cutoff;
-see the [current handoff](pre-v4-implementation-handoff-2026-11-10b.md).
-Numeric exports are
-verified locally. Corrected viewer P95 `16.733999999999924ms > 16ms` remains FAIL;
-historical `16.734000000000037ms` is preserved. These checkpoints do not establish
-release acceptance. See the [candidate record](pre-v4-implementation-candidate.json)
-and [continuation handoff](pre-v4-implementation-handoff-2026-11-10.md) for retained
-obligations; recheck current usage and agent state before resuming. The inspected
-baseline below is historical, rather than a statement that PR #174 remains open.
+Execution update (2026-11-11, after PR #189): refreshed `origin/main` at
+`1e5c361f7c85ad59fedc8ee2ffff33ad7269823b` and integrated it at `3821620`.
+The merge retained the local signup decision D22 and Package 3.4 refinements
+alongside D23, the approved Gemini EU processing exception. Spec integrity passed.
+[The November 11 handoff](pre-v4-implementation-handoff-2026-11-11.md) records the
+bridge and clock interval checkpoints. Package 012 is implementing the remaining
+clock acquisition and same-boot installation under T073/T074. The usage cutoff is
+five-hour remaining ≤10% or weekly remaining ≤2%.
 
-Current continuation: [resumed handoff](pre-v4-implementation-handoff-2026-11-10c.md).
-The user corrected the usage stop policy to five-hour remaining<=10% OR weekly
-remaining<=2%. Older cutoff observations are historical and do not override this.
+The refreshed main has 293 D21 records. The integrated candidate has 184, including
+97 under T035 and 87 under T036. Keep both counts tied to their respective refs.
+The remaining inventory consists of 58 cross-application edges, 39 shared-to-app
+edges, 83 public entrypoint violations, three wildcard exports and one contracts
+boundary violation. Package 004 coordinates ownership and extraction order. Each
+owning package changes and verifies its actual boundaries. The roadmap and Gate v3
+remain pending.
 
-The README also explicitly queues pre-V4 architecture remediation. At coordinator
-checkpoint `9d70a39`,185 exact migration records remain:97 assigned to
-`specs/004-ui-skeleton-quality-gates T035` and88 to T036. These tasks are explicitly
-outside the completed tooling amendment and route remediation through the owning
-packages. Keep this work in the pre-V4 inventory; activating guardrails or passing
-Gate v3 does not itself retire those records. After current012 and003 work, use a
-separate004 coordination agent to map each remaining edge to its owning package,
-then resume those package agents sequentially with boundary/behavior plans and
-tests before extraction. Do not implement all FR packages in one004 branch,
-approve new exceptions, waive debt or claim the advisory baseline certifies runtime.
+### D23 migration sequence — NFR-SEC-01, NFR-PERF-01, NFR-EVAL-01..04
+
+Apply the [approved per-feature region map](gemini-model-region-map.md) and the
+within-release prerequisites. Start with the shared enterprise Gemini configuration
+and grounded chat consumer in Package 003 after 012's clock work. The shared
+configuration needs an explicit public interface. Existing embedding clients use
+`vertexConfigFromEnv` and the deployed compute module sets `VERTEX_AI_LOCATION` to
+its infrastructure region. Changing that setting to `eu` would move embeddings too.
+Keep those embedding routes and introduce a distinct Gemini routing input with
+fail-closed model and region validation. Cover ADK chat and code correction,
+including thinking settings and existing operational RPC and byte limits. Include
+the skipped GC-E04 refusal regression in Package 003.
+
+Serialize the remaining consumers in their owning packages:
+
+| Package | Current wiring | Required implementation and evidence |
+| --- | --- | --- |
+| 005 | `apps/worker/src/ingestion/topic-emoji.ts` hardcodes its Flash-Lite model and location. API startup constructs the selector. | Use the approved Flash-Lite config and prove the optional enrichment still falls back safely on invalid output or provider failure. Keep the model adapter and composition inside approved boundaries. |
+| 006 | `apps/worker/src/package-v2-2-gemini.ts` owns shared Guide, overview and follow-up requests and the generic structured SDK adapter. | Migrate the Flash-Lite default and factory. Support model-specific thinking parameters through typed SDK config and preserve limits, language, structured validation and retries. Retain existing report consumers while their owning package migrates. |
+| 008 | `apps/worker/src/studio/reports/vertex-model.ts` uses legacy `thinkingBudget: 0`; its tokenizer/cache shares report configuration. | Use the approved Flash routing and thinking level with model-specific output/context bounds. Verify native count/cache use the same frozen model and region. Resolve the historical report 504/75% validity failure through measured behavior. |
+| 011 | `apps/api/src/server.ts` does not supply `mindmapModel` or `dataTableModel` to `createV2Runtime`. `apps/worker/src/studio/registry.ts` uses the deterministic models when those ports are absent. The plan and T019/T020 require enterprise Flash in normal configured startup. | Add spec-derived Red coverage at ordinary production composition, then wire schema-constrained extraction/composition for both artifacts through owned ports and approved Flash. Preserve original C-02 evidence and C-03 publication fences. Keep deterministic implementations available for explicit local/offline use. Verify cache-backed batches, abort/failure handling and scoped citations. Include trailing-zero decimal export fidelity and the existing viewer/generation acceptance tasks. |
+| 012 | `apps/api/src/observability/benchmark.ts` separately selects the old report default and constructs its cache client. | Match runtime configuration, region, tokenizer identity, limits and qualification bindings. Use verified clock evidence from the same serving boot. |
+| 004 | `packages/evals/src/cli.ts` currently shares a Vertex client/config between embeddings and judge, and instantiates its own chat config. `source-guide-gate.ts` and `studio-gate.ts` report their own region strings. | Use actual separately configured clients for chat, judge and embeddings. Derive evidence labels from their real configuration, including Guide and Studio. Preserve historical artifacts and every failed attempt. Retain the deterministic per-PR gate and run the fixed 50-case judged campaign on the final compatible candidate. |
+
+The 003 adapter also serves Notes and code execution. Exercise both affected
+consumers through their normal entry points. Package 009 post-ingestion Guides
+follow 006. Coordinate 004's D21 work while planning the owning slices so changes
+avoid expanding existing cross-app imports. Read existing architecture exceptions
+for the exact touched edges and remove records only with the corresponding fix.
 
 ## Outcome and scope — Gate v3.0, CC-06
 
