@@ -12,7 +12,7 @@
 | :- | :- | :- |
 | D1 | Retrieval | **pgvector + Postgres full-text search in the existing Cloud SQL instance** (hybrid search). We own chunking, chunk IDs and locators. *(Revised 2026-10-16: replaces RAG Engine, which needed an always-on Spanner instance and had no TypeScript SDK.)* |
 | D2 | Backend language | **TypeScript end-to-end** (SPA and backend share one codebase) |
-| D3 | Data residency | **EU preferred** (`europe-west4`, or `europe-west3`). Global endpoints are allowed for features not yet available in the EU |
+| D3 | Data residency | **EU by approved feature map**, default `europe-west4`. D23 explicitly permits enterprise Gemini inference/token counting/cache in EU multi-region `eu`; other approved component regions stay unchanged. Global availability does not itself authorize fallback: every exception requires a recorded owner decision under Constitution VI. |
 | D4 | Operating model | **Lean serverless**: Cloud Run plus one Postgres, with as few managed extras as possible |
 | D5 | FR-INT-01 (`@Notebook`) | Out of scope for now (SRS §5.5 DEV-03; Gate v6.0 #3 deferred). The design stays A2A-ready |
 | D6 | Identity | No IdP chosen yet, so the design uses **generic OIDC/SAML** |
@@ -311,7 +311,7 @@ graph TD
 | **R2** | **Own parsing and chunking (new trade-off from D1)** | Without RAG Engine, the adapters, chunker and embedding batching are our code, and ranking quality depends on our hybrid search. | Treat the chunker as a tested module with golden-file tests per format. Measure EVAL-01/02 from v1 on. Add the ranking API only if the numbers require it. Upgrade path: AlloyDB (ScaNN, in-database embeddings) without changing C-02. |
 | **R3** | **ADK TS maturity** | Verify in the v1 spike: custom `SessionService` interface, callback hooks for citation validation, structured output plus streaming together, OpenTelemetry export, eval tooling, and whether `agents-cli` supports TS projects. | Two-day spike before v1 work. Genkit JS is the fallback. |
 | **R4** | **Join-In voice: accepted spec deviation (D7)** | FR-ST-03 says the AI hosts answer "in the same voice profile". A Live API session speaks with one voice, but the podcast has two TTS hosts. | **Accepted 2026-10-16.** On interrupt, playback pauses and **one designated host** answers through Live using the same prebuilt voice as in the podcast. The answer is grounded through C-02, then playback resumes. The second host does not take part in live answers. Gate v5.0 #2 is assessed against this behaviour (SRS §5.5 DEV-01, §8). |
-| **R5** | **EU availability** | Live API, TTS, image and video models may not be available in EU regions. | D3 allows global endpoints. Keep a per-feature region map in config and document it for the data protection officer. |
+| **R5** | **EU availability** | Live API, TTS, image and video models may not be available in EU regions. | Verify current availability and keep an approved per-feature region map. D23 approves Gemini `eu`, not global routing. Other exceptions require a separate recorded owner decision under Constitution VI/D3. |
 | **R6** | **Obsolete — managed sandbox accepted (2026-10-22, D19)** | The project owner accepts Google Agent Platform (Agent Engine) Code Execution as the managed service dependency for FR-GC-08. | No separate qualification spike or R6 admission gate. Implement and test the integration through ordinary FR-GC-08 and Gate v3.0 checks. |
 | **R7** | **Vector scale on a small instance** | At the quota limit, one notebook can hold hundreds of thousands of chunks, and the HNSW index has to fit in RAM to stay fast. | Use reduced embedding dimensions (e.g. 768) or `halfvec`. Size the instance from the v3 benchmark. If one instance is not enough, partition `chunks` by `notebook_id` hash. |
 | **R8** | **Spec contradiction (resolved)** | FR-WM-07 (≈ 200M tokens per notebook) cannot fit NFR-PERF-01's 1M context. | RAG for chat, long context (or chunk map-reduce per D12) only for async Studio jobs (§4.1). |
@@ -448,3 +448,39 @@ FR-GC-08 private producer capture observes create invocation before RPC/queue/bo
 The signed setup deadline is positive and<=240000ms, and signed authorization lifetime<=900000ms; these are owner-approved setup bounds, separate from unchanged2500ms/15000ms timed cohort limits. No actual provider duration is inferred. A timeout invalidates readiness and keeps effects locked until actual settlement/cleanup. Cache qualification accepts<=32000000 original bytes /40000000 serialized bytes and requires actual qualified countTokens+18000reserved tokens<=1048576; no truncation or source sampling. Each actor may explicitly authorize cache_sources separately within the SAME Owner/notebook when its primary quantitative/code fixture is below the provider's actual cache minimum. Cache_sources are signed exact revisions and read only via C-02; absence uses exactly the signed primary sources, never AllReady. Actual provider rejection/minimum/expiry failure remains UNAVAILABLE. Both actors' canonical runtime observations pass before any paid operation. Candidate/code/config binding and fixed query/limits permit at most2embedding requests,2model generations,2cache-token counts,2cache creations and2deletions per signed ID; no sandbox create or execution is invoked by qualification. Approved ordinary runtime warmup is a separate existing010controller workload, never labelled qualified retroactively.
 
 Operational qualification code refinement (2026-11-10c; NFR-PERF-01, FR-GC-08, C-02): private signed authorization explicitly freezes provider_budget; at most2embedding requests,2model generations with512outputtokens/100000requestbytes,2cache counts/creates/deletes and0managed creates. SDK/application retries are bounded to1 for these private probes. Existing ordinary request defaults and timed cohorts remain unchanged. Sameboot canonical warmup/profile/cleanup observation is read-only and independent of qualified collection; signature/configuration alone cannot qualify. See012quickstart for private-channel preconditions, exact scopes, setup bounds and unexecuted live acceptance.
+
+## D23 — Owner-approved Gemini EU processing exception (2026-11-11)
+
+Traceability: Constitution VI/CC-07/CC-08, D3, NFR-SEC-01, NFR-PERF-01,
+NFR-EVAL-01..04. Owner response: “Approve Gemini EU exception” on2026-11-11
+for the [concrete proposal](pre-v4-model-region-proposal-20261111.md).
+
+Permit supported Google Cloud enterprise Gemini inference, native token counting
+and explicit context caching in EU multi-region `eu`, with contractual no-training,
+keyless authentication and unchanged C-01/C-02/C-03 safeguards. The approved
+[per-feature map](gemini-model-region-map.md) defines the exact scope. Initial
+migration candidates are Gemini3.8Flash for Flash roles (LOW thinking, no unsupported
+MINIMAL) and Gemini3.5Flash-Lite for Flash-Lite roles (MINIMAL). They still require
+package compatibility and original quality/latency acceptance; no model result is
+approved merely by this decision.
+
+Keep other components in their already-approved feature locations, including
+Cloud Run, SQL, workspace storage, embeddings and managed code execution in
+`europe-west4`. Existing ingestion/OCR exceptions stay unchanged. D16's historical
+Gemini endpoint references are superseded only for Gemini processing by this map;
+its persistence, single-API placement and recovery rules remain in force.
+No global or Gemini Developer API fallback is authorized. No framework, datastore,
+permanent idle resource or release-gate waiver is introduced.
+
+Google lists2.5Flash/Flash-Lite retirement on2026-10-20. The examined replacement
+cards list `eu` rather than `europe-west4`; primary sources and compatibility limits
+are recorded in the proposal/map. Strict Netherlands-only processing with another
+verified supported model or a contractual entitlement remains an alternative, but
+was not verified. A silent global fallback or Developer API substitution was rejected.
+
+Serialize shared configuration and owning-package migrations. Preserve historical
+2.5evidence, all failed attempts and thresholds; qualify the new model/tokenizer/
+fixture/configuration profile before the single common fixed50-case judged campaign.
+This decision authorizes local policy/migration work. It does not authorize cloud
+changes, paid probes/campaigns or a shared-main merge. All remain separate concrete
+review/approval steps. Runtime implementation and provider acceptance are pending.
