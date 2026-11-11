@@ -104,3 +104,13 @@ Owner fixture and Interview.mp3 04:15 browser scenario; finalcommon50-case judge
 report. Do not invent these inputs or run600audio minutes from this recovery.
 T049/T050 remain OPEN. Earlier API-disabled inventories are dated historical
 observations, not proof that approved registrations still need enablement.
+
+## Pre-v4 task 009 fixture handoff (FR-SI-01/04/05, SC-001/002, CC-09)
+
+Use the [fixture declaration and target checklist](evidence/fanout-20261111/qualification.md)
+for the 20-run audio cohort, Interview.mp3, delegated Drive, screening and
+renderer prerequisites. Run `--validate-only` first to check the declared
+hash, byte size and native FLAC STREAMINFO duration without credentials or
+provider calls. Preserve a separate application timing trace if deployment
+queues or preprocesses accepted audio. The direct Speech V2 runner cannot
+measure time spent in an application queue.

@@ -127,3 +127,27 @@ provider/schema/mock/image/behavior/static evidence; no new workflow ownership
 change or exception found on finaldiff. Retained T049/T050 cover all remaining
 assigned live judged/audio/locator acceptance. No new convergence task is needed
 for already-recorded unavailable live prerequisites; no release completion claimed.
+
+## Fan-out pre-implementation analysis — 2026-11-11 (FR-SI-01/04/05, C-01/C-02, SC-001/002, CC-09)
+
+Reviewed prepared start `5ff6d75`, feature spec/plan/tasks and owning FR card
+against the AGENTS.md bootstrap, Constitution IV and architecture procedure.
+The refreshed feature has 70 tasks (T001–T070); the older count above describes
+the original review. Prerequisite and changed-feature architecture-artifact
+checks resolve to this feature and pass. Existing functional, security and
+success-criterion coverage is retained. T066–T070 are all mapped to their SRS
+and contract obligations. The requirements checklist retains its reviewed
+markers and the separate custom reviewer checklist retains 37 unchecked review
+questions. The authorized local validation and bounded fixture changes use the
+existing implementation artifacts and leave reviewer markers unchanged.
+
+| ID | Severity | Finding | Coverage and disposition |
+| --- | --- | --- | --- |
+| F09-01 | HIGH | Hash/size alone allow a declared 30-minute run with shorter FLAC or other bytes. | SC-002, T050/T067/T068 add a failing runner fixture test first, then local STREAMINFO preflight with unchanged timing denominator and threshold. |
+| F09-02 | HIGH | API fixture reaches across the worker deployment boundary. | C-01/C-02, T066/T069 use actual API receipt and public DB publication in the fixture. Real worker ingestion and browser journeys remain separate executable regressions. D21 contains three precise rows; their deletion accompanies the fix in the coordinator slot. |
+| F09-03 | HIGH | Direct Speech timings and synthetic Interview fixtures cannot establish deployed timestamp navigation or measure any app queue. | SC-001/002, T049/T050/T068/T070 preserve measured boundaries and hold live evidence for the approved cohort and deployed journey. |
+| F09-04 | MEDIUM | 006 Ready and 007 normalization registration share composition files. | FR-SI-02/05, C-01/C-02. Hold production registration for coordinated integration; exercise current worker and durable publication recovery locally. |
+
+No unresolved critical issue in the authorized local scope after the plan/tasks
+refresh. No approval, live gate pass, or new architecture exception follows
+from this analysis.

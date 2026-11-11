@@ -3,11 +3,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { TranscriptSegmentViewSchema, UnifiedDocumentChunkSchema } from "@everlast/contracts";
+import { TranscriptSegmentViewSchema, UnifiedDocumentChunkSchema, uuidv7 } from "@everlast/contracts";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
-import { createWorkerHandler } from "@everlast/worker";
-import { createAudioAdapter } from "@everlast/worker/ingestion/media";
-import { INTERVIEW_CITED_MS, INTERVIEW_CITED_STATEMENT, interviewWords, shortWav } from "@everlast/testkit/multimodal-fixtures";
+import { getSourceById, publishReadySource } from "@everlast/db";
+import { INTERVIEW_CITED_MS, INTERVIEW_CITED_STATEMENT, shortWav } from "@everlast/testkit/multimodal-fixtures";
 import { startTestApi, type TestApi } from "./support.ts";
 
 /**
@@ -20,21 +19,12 @@ import { startTestApi, type TestApi } from "./support.ts";
 
 let api: TestApi;
 let dir: string;
-let drain: () => Promise<unknown>;
+const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "everlast-media-"));
-  const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
-  let pending: Promise<unknown> = Promise.resolve();
-  api = await startTestApi({}, { embedder, notifyJobs: () => void (pending = pending.then(() => drain())) });
-  const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: api.baseUrl });
-  api.deps.storage = storage;
-  const transcriber = { name: "fixture-asr", transcribe: async () => ({ words: interviewWords().filter((w) => w.end_ms <= 270_000) }) };
-  const worker = createWorkerHandler(
-    { pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, adapters: { audio: createAudioAdapter({ transcriber }) } },
-    { NODE_ENV: "test" }
-  );
-  drain = () => worker.drain();
+  api = await startTestApi({}, { embedder });
+  api.deps.storage = new LocalObjectStorage({ root: dir, publicBaseUrl: api.baseUrl });
 });
 
 afterAll(async () => {
@@ -48,16 +38,49 @@ async function audioSource(as: string) {
   const attempt = randomUUID();
   const admitted = await api.fetch(`/api/notebooks/${nb}/sources/uploads`, { method: "POST", as, json: { files: [{ attempt_id: attempt, file_name: "Interview.wav", declared_bytes: bytes.length }] } });
   const item = ((await admitted.json()) as any).items[0];
-  await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: new Uint8Array(bytes) });
-  await api.fetch(`/api/notebooks/${nb}/sources/${item.source.id}/complete`, { method: "POST", as, json: { attempt_id: attempt } });
-  for (let i = 0; i < 200; i++) {
-    await drain();
-    const s = ((await (await api.fetch(`/api/notebooks/${nb}/sources/${item.source.id}`, { as })).json()) as any).source;
-    if (s.status === "Ready") return { nb, sourceId: item.source.id as string, bytes };
-    if (s.status === "Failed") throw new Error(JSON.stringify(s.error));
-    await new Promise((r) => setTimeout(r, 20));
-  }
-  throw new Error("not ready");
+  const upload = await fetch(item.upload.url, { method: "PUT", headers: item.upload.headers, body: new Uint8Array(bytes) });
+  expect(upload.ok).toBe(true);
+  const receipt = await api.fetch(`/api/notebooks/${nb}/sources/${item.source.id}/complete`, {
+    method: "POST", as, json: { attempt_id: attempt },
+  });
+  expect(receipt.ok).toBe(true);
+
+  // Use the public publication port to seed the precise C-01 transcript that
+  // the Inspector reads. Worker and browser tests exercise audio processing.
+  const sourceId = item.source.id as string;
+  const received = await getSourceById(api.db.pool, sourceId);
+  if (!received?.object_name || !received.object_generation) throw new Error("Fixture audio upload was not received");
+  const pages = [
+    { page_number: 1, text: "We discussed the depot rollout schedule.", start_ms: 0, end_ms: 3_000 },
+    { page_number: 2, text: INTERVIEW_CITED_STATEMENT, start_ms: INTERVIEW_CITED_MS, end_ms: 264_000 },
+  ];
+  const embeddings = await embedder.embed(pages.map((page) => page.text));
+  const chunks = pages.map((page, i) => ({
+    chunk: {
+      chunk_id: uuidv7(),
+      source_id: sourceId,
+      revision: 1,
+      locator: { start_ms: page.start_ms, end_ms: page.end_ms },
+      token_count: page.text.split(/\s+/).length,
+      text: page.text,
+    },
+    embedding: embeddings[i]!,
+    anchorPage: page.page_number,
+  }));
+  const publication = await publishReadySource(api.db.pool, {
+    sourceId, attemptId: attempt, revision: 1, byteSize: bytes.length,
+    wordCount: chunks.reduce((sum, entry) => sum + entry.chunk.token_count, 0),
+    pageCount: pages.length, embeddingModel: embedder.model, pages, chunks,
+    manifest: {
+      viewerKind: "transcript",
+      mediaDurationMs: 270_000,
+      mediaObjectName: received.object_name,
+      mediaObjectGeneration: received.object_generation,
+      player: { type: "audio" },
+    },
+  });
+  expect(publication).toEqual({ published: true, revision: 1 });
+  return { nb, sourceId, bytes };
 }
 
 describe("transcript Inspector (FR-SI-04, Gate v3.0 #1)", () => {

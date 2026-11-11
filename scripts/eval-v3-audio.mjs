@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * Package 3.1 audio transcription benchmark (FR-SI-01, SC-002; specs/009 T032/T057/T058).
- * node scripts/eval-v3-audio.mjs --plan plan.json --fixture depot-meeting-30min.flac [--out reports]
- * Serial Speech V2/Chirp 2 EU collection, keyless ADC. Queue-inclusive acceptance→validated timestamped transcript;
- * upload/indexing excluded. Every accepted attempt is checkpointed before provider work; failures remain +∞.
+ * Package 3.1 audio transcription benchmark (FR-SI-01, SC-002; specs/009 T032/T057/T058/T068).
+ * node scripts/eval-v3-audio.mjs --plan plan.json --fixture depot-meeting-30min.flac [--validate-only | --out reports]
+ * Serial Speech V2/Chirp 2 EU collection, keyless ADC. Measure acceptance → validated provider transcript.
+ * The application journey measures its own queue and preprocessing. Failures remain +∞.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -18,22 +18,29 @@ const unavailable = (reason) => {
   console.error(`[UNAVAILABLE] eval:v3-audio: ${reason}`);
   process.exit(2);
 };
-const env = process.env;
-if (!env.SPEECH_LOCATION || !(env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT) || !(env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET)) {
-  unavailable("Speech-to-Text V2 is not configured (SPEECH_LOCATION, GCP_PROJECT_ID, GCS_WORKSPACE_BUCKET)");
+function verifyFlacDuration(bytes, durationMs) {
+  // Native FLAC starts with STREAMINFO. Its packed sample rate and total
+  // sample count determine duration independently of the JSON declaration.
+  const hasStreamInfo = bytes.length > 42 && bytes.subarray(0, 4).equals(Buffer.from("fLaC")) &&
+    (bytes[4] & 0x7f) === 0 && bytes.readUIntBE(5, 3) === 34;
+  if (!hasStreamInfo) throw new Error("Fixture must start with native FLAC STREAMINFO");
+  const sampleInfo = bytes.readBigUInt64BE(18);
+  const sampleRate = sampleInfo >> 44n;
+  const sampleCount = sampleInfo & ((1n << 36n) - 1n);
+  if (sampleRate === 0n || sampleCount * 1_000n !== sampleRate * BigInt(durationMs)) {
+    throw new Error("FLAC fixture duration must be exactly 30 minutes");
+  }
 }
+
+const env = process.env;
 const planPath = arg("plan");
 const fixturePath = arg("fixture");
 if (!planPath || !fixturePath) unavailable("--plan and --fixture are required (declare the plan before measuring)");
 
 const { collectAudioBenchmark, evaluateBenchmark, validateExecutionPlan, validatePlan } = await import("../packages/evals/src/audio-transcription-benchmark.ts");
-const { SpeechV2Transcriber, speechConfigFromEnv, validateWords } = await import("../apps/worker/src/ingestion/media.ts");
-const { createObjectStorage } = await import("../packages/cloud/src/index.ts");
-
+const model = "chirp_2";
 let plan;
 let bytes;
-let config;
-let storage;
 let planHash;
 try {
   const planText = readFileSync(planPath, "utf8");
@@ -41,12 +48,39 @@ try {
   planHash = createHash("sha256").update(planText).digest("hex");
   validatePlan(plan);
   if (Date.parse(plan.declaredAt) > Date.now()) throw new Error("The plan must be declared before execution");
+  validateExecutionPlan(plan, { region: plan.provider.region, model, languageCodes: [plan.fixture.languageCode] });
+  if (!/^(?:europe-[a-z]+[0-9]+|eu)$/.test(plan.provider.region)) throw new Error("Declared region must be an EU Speech location");
   bytes = readFileSync(fixturePath);
   const sha = createHash("sha256").update(bytes).digest("hex");
   if (sha !== plan.fixture.sha256 || bytes.length !== plan.fixture.bytes) throw new Error("Fixture does not match declared hash/size");
+  verifyFlacDuration(bytes, plan.fixture.durationMs);
+} catch (error) {
+  unavailable(error instanceof Error ? error.message : "Invalid benchmark fixture or declaration");
+}
+
+if (process.argv.includes("--validate-only")) {
+  console.log(JSON.stringify({
+    status: "VALIDATED",
+    plan_sha256: planHash,
+    fixture_sha256: plan.fixture.sha256,
+    duration_ms: plan.fixture.durationMs,
+    repetitions: plan.repetitions,
+  }));
+  process.exit(0);
+}
+
+if (!env.SPEECH_LOCATION || !(env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT) || !(env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET)) {
+  unavailable("Speech-to-Text V2 is not configured (SPEECH_LOCATION, GCP_PROJECT_ID, GCS_WORKSPACE_BUCKET)");
+}
+
+const { SpeechV2Transcriber, speechConfigFromEnv, validateWords } = await import("../apps/worker/src/ingestion/media.ts");
+const { createObjectStorage } = await import("../packages/cloud/src/index.ts");
+let config;
+let storage;
+try {
   storage = createObjectStorage(env);
   config = speechConfigFromEnv({ ...env, SPEECH_LANGUAGE_CODES: env.SPEECH_LANGUAGE_CODES ?? plan.fixture.languageCode }, storage);
-  validateExecutionPlan(plan, { region: config.location, model: config.model ?? "chirp_2", languageCodes: config.languageCodes });
+  validateExecutionPlan(plan, { region: config.location, model: config.model ?? model, languageCodes: config.languageCodes });
 } catch (error) {
   unavailable(error instanceof Error ? error.message : "Invalid benchmark configuration");
 }

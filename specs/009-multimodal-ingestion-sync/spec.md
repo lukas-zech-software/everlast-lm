@@ -223,3 +223,16 @@ current intersection without importing older recovery constraints. Render Node26
 bootstrap must work with the actual base image. No API enablement, resource apply,
 paid benchmark, OAuth fixture or deployment approval is inferred. Existing legacy
 imports remain exact approved D21 debt, never authorization for new cross-app use.
+
+## Fan-out qualification refinement — 2026-11-11 (FR-SI-01/04/05, C-01, SC-001/002)
+
+The provider benchmark preflight checks the declared FLAC file's SHA-256, byte
+size and exact 30-minute duration from its STREAMINFO sample count before any
+provider request. A local fixture preflight has no latency result. The separate
+application journey uses the deployed ingestion, grounded citation and media
+player. Retain application acceptance and transcript-ready clocks where a real
+queue or preprocessing stage exists, because the direct Speech runner cannot
+measure those stages. The ordinary test suite's synthetic Interview MP3 frames
+and scripted words exercise locator rendering and highlight; playable WAV
+exercises the actual browser seek. Live Interview.mp3 uses approved speech with
+a known passage at 04:15 (255000 ms).

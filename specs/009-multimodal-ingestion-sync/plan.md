@@ -167,3 +167,27 @@ provider schema/validate plus graph --base-ref origin/main, architecture fixture
 scoped/global artifact checks, lint/type/spec/diff. Separate static/manual PASS from
 provider/runtime live acceptance. T049/T050 stay OPEN. Optional hook dispatch occurs
 under existing project Git configuration; reviewer checklist is unchanged.
+
+## Fan-out architecture boundary evidence — CC-09 (2026-11-11; FR-SI-01/04/05, C-01/C-02)
+
+Prepared start `5ff6d75` passes the checker with 184 exact legacy exceptions.
+The API media tests currently import two worker modules to prepare their fixtures.
+This slice removes those edges while keeping worker and integrated browser tests
+on the real ingestion workflow. The benchmark CLI currently accepts matching
+hash/size claims without reading the encoded audio duration; an unrelated short
+file with matching declared hash could consume the live cohort.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-01/04/05, C-01/C-02 | `apps/api/test/media-content.test.ts`; API media fixture owner | Exercise real upload receipt, C-01 transcript read and revision-authorized delivery with a fixed published C-01 fixture | `@everlast/db` public `getSourceById` / `publishReadySource`; public contract DTO and UUID validation | API tests consume public DB, contracts, cloud and testkit; no worker deployment dependency | Test composes real API/DB and fixture local storage | Inspector and capability-range/delete/replacement/race cases retained; worker and Playwright suites independently cover real adapter processing and browser seeks |
+| FR-SI-01, SC-002, D3 | `scripts/eval-v3-audio.mjs`; 009 evidence owner | Preflight file identity and FLAC STREAMINFO duration before constructing provider or storage effects; CLI runtime consumes same validated inputs | Existing `validatePlan`, `validateExecutionPlan`, `collectAudioBenchmark` and `evaluateBenchmark` | Node built-ins and existing evaluation/adapter interfaces; no application edge added | Existing CLI constructs storage/transcriber after local preflight | `packages/evals/test/audio-transcription-benchmark.test.ts` exercises hash-valid wrong duration/malformed input and offline validation; existing denominator and clock tests retained |
+
+Authorization remains in the API. Database adapters still own transactions,
+publication fencing and the durable Guide event. The tests publish a fixture
+through that same fence. Worker normalization, PDF/text behavior, re-sync leases,
+and C-01/C-02/C-03 contracts remain governed by existing flows. No shared startup,
+registry, lockfile or policy writes belong to this parallel slice. Transfer the
+three stale D21 records for the API media fixture as a scoped deletion patch
+with the remediation, and re-run the graph check after serialized integration.
+The 006 Ready and 007 normalization registration stays in the integration slot.
+The FR card/SRS flow-back for the preflight detail is a coordinator patch.

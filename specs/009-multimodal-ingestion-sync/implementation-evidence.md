@@ -245,3 +245,12 @@ PASS4/4 under selected8.10providers. Final graph with origin/main base remains
 PASS. Spec integrity201Markdown/55SRS/39featureartifacts PASS; whitespace PASS.
 No new boundary/behavior changes occurred after affected33test/typecheck checks.
 T060–T065 recovery tasks complete locally; T049/T050 remain explicitlyOPEN.
+
+## Pre-v4 task 009 fan-out checkpoint — 2026-11-11 (FR-SI-01/04/05, C-01/C-02, CC-09)
+
+The [local qualification and live handoff](evidence/fanout-20261111/qualification.md)
+records Red→Green benchmark preflight, 143 worker/API/eval/render tests and 15
+browser journeys. It identifies the bounded live fixture inputs and provides
+the exact D21 row deletions and FR-card flow-back for serial integration.
+T049/T050 remain open; a local fixture pass establishes no provider latency or
+judged release result.

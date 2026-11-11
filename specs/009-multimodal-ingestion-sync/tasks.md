@@ -178,3 +178,11 @@ Every local `FR-001`–`FR-016` and `SC-001`–`SC-008` is cited in the tasks ab
 - [X] [009-multimodal-ingestion-sync] T063 Recover only009dev/foundation variables, optional EU ingestion_screening module and default-off wiring; validate exact provider schemas and all mock policies without cloud calls (FR-SI-01/05, D3/D11, CC-07/08/09; missing); depends on T060–T062.
 - [X] [009-multimodal-ingestion-sync] T064 Observe actual Node26 corepack absence before minimal pinned npm/pnpm render bootstrap repair and runtime/image smoke where available (FR-SI-01, CC-02/08/09; contradicts).
 - [X] [009-multimodal-ingestion-sync] T065 Run affected worker/render/audio, offline infrastructure, graph/base-ref, artifact/global, lint/type/spec/diff gates; reconcile evidence/prerequisites and handoff without claiming live acceptance (FR-SI-01/04/05, NFR-EVAL-02/04, Gate v3.0, CC-09; partial); depends on T063/T064.
+
+## Phase 11: Pre-v4 task 009 fan-out — local fixtures and preflight (2026-11-11)
+
+- [X] [009-multimodal-ingestion-sync] T066 Refresh CC-09 ownership/exception evidence and analyze the feature against the prepared start. Characterize API media, worker, browser and sync behavior before removing cross-app test imports (FR-SI-01/04/05, C-01/C-02, CC-09).
+- [X] [009-multimodal-ingestion-sync] T067 Add a failing CLI fixture test for a declared 30-minute plan whose matching file is shorter or malformed. Preserve exact hash/size and existing attempt/P95 rules (FR-SI-01, SC-002, CC-02).
+- [X] [009-multimodal-ingestion-sync] T068 Implement network-free FLAC/plan preflight in `scripts/eval-v3-audio.mjs`, reuse it in the real runner before provider effects, and document the exact pending live fixture/target inputs (FR-SI-01/04/05, SC-001/002, Gate v3.0 #1); depends on T066/T067.
+- [X] [009-multimodal-ingestion-sync] T069 Replace API media suite's worker imports with public DB publication fixture ports. Keep production ingestion coverage in worker/browser suites and provide exact D21 row deletions for coordinator integration (FR-SI-01/04/05, C-01/C-02, CC-09); depends on T066.
+- [X] [009-multimodal-ingestion-sync] T070 Rerun worker/API, browser, deterministic evaluation, spec and architecture gates; retain explicit local versus live evidence and both 006/007 integration holds (FR-SI-01/04/05, NFR-EVAL-02/04, Gate v3.0 #1, CC-09); depends on T068/T069.
