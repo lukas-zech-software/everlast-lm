@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { GoogleAuth } from "google-auth-library";
-import { approvedLiveFixture, requiredFixtureValue } from "@everlast/testkit/live-fixtures";
+import { approvedLiveFixture, frozenLiveFixturePlan, requiredFixtureValue } from "@everlast/testkit/live-fixtures";
 import { GoogleSecureTokenKeys, IdentityToolkitRevocationChecker, LocalIdentityIssuer, TokenVerifier } from "../src/auth/identity.ts";
 /** [001-workspace-foundation] T046/T060 — FR-WM-04, NFR-SEC-01/02.
  * Opt-in mutates only the explicitly approved pre-created disposable user (revokes tokens).
@@ -13,6 +13,7 @@ describe.skipIf(process.env.WORKSPACE_IDENTITY_IT !== "1")("approved real Identi
     key = requiredFixtureValue(process.env, "WORKSPACE_IT_API_KEY");
     email = requiredFixtureValue(process.env, "WORKSPACE_IT_EMAIL");
     password = requiredFixtureValue(process.env, "WORKSPACE_IT_PASSWORD");
+    frozenLiveFixturePlan(process.env); // two isolated users + signup rollback input must be frozen before any call
     const client = await auth.getClient();
     const config = await client.request<{ client?: { permissions?: { disabledUserSignup?: boolean } } }>({
       url: `https://identitytoolkit.googleapis.com/admin/v2/projects/${project}/config`,
@@ -44,6 +45,14 @@ describe.skipIf(process.env.WORKSPACE_IDENTITY_IT !== "1")("approved real Identi
       data: { localId: uid, validSince: String(Math.floor(Date.now() / 1000) + 1) } })
       .catch(() => { throw new Error("Disposable fixture token revocation failed"); });
     await expect(verifier.verifyToken(signed.idToken)).rejects.toThrow(/revoked/);
+    // Isolation: revoking user A must leave the second disposable user B signed in.
+    const emailB = requiredFixtureValue(process.env, "WORKSPACE_IT_EMAIL_B");
+    const signedB = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${encodeURIComponent(key)}`, {
+      method: "POST", headers: { "content-type": "application/json" }, signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({ email: emailB, password: requiredFixtureValue(process.env, "WORKSPACE_IT_PASSWORD_B"), returnSecureToken: true }),
+    }).then(r => r.json() as Promise<{ idToken: string; localId: string }>);
+    expect(signedB.localId).toBe(requiredFixtureValue(process.env, "WORKSPACE_IT_IDENTITY_UID_B"));
+    expect((await verifier.verifyToken(signedB.idToken)).subject).toBe(signedB.localId);
     expect(() => new LocalIdentityIssuer({ NODE_ENV: "production" })).toThrow(/forbidden/);
   });
 });

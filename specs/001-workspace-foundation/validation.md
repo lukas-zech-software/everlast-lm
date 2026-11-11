@@ -592,3 +592,12 @@ resumable applicability/proof. Logs and exact removal manifest are preserved in
 Deterministic eval on the refreshed code also PASS: citation IDs160/160 and
 scoping leakage0; report/structure test doubles remain labelled. Judged metrics
 remain UNAVAILABLE/GatePending; no cloud/paid validation or signup apply occurred.
+
+
+## Pre-V4 task 001 checkpoint — 2026-11-11
+
+Traceability: FR-WM-01/04, NFR-SEC-01/02, D22; T046/T061/T065.
+- Red: `packages/testkit/test/live-fixtures.test.ts` 3 new tests failed (missing `frozenLiveFixturePlan`, `RESUMABLE_SCENARIOS`). Green: 4/4 pass.
+- Live suites now require the frozen two-user plan; user B survives A's revocation and B's objects survive A's purge (live-only assertions, SKIPPED without approval).
+- Focused local run: identity, cleanup (real local PostgreSQL), password sign-in, testkit all PASS; typecheck PASS; spec integrity PASS; architecture graph 0 findings / 184 exceptions.
+- Live plan and rollback: `evidence/pre-v4-live-plan.md`. T046/T061 remain OPEN/UNAVAILABLE: no approved disposable users/bucket, ADC or reviewed plan. Two resumable scenarios are UNAVAILABLE individually.

@@ -187,3 +187,8 @@ identity verification and cleanup/recovery. Automated39 architecture fixtures,
 typecheck/build and31 targeted tests pass; two opt-in live tests remain SKIPPED.
 Scoped001 artifact checker PASS; overall lint/graph/artifacts stay FAIL only for
 explicit subsequent package work. See validation.md and evidence/cc09-20261109.
+
+
+### CC-09 pre-V4 task 001 delta (2026-11-11; FR-WM-01/04, NFR-SEC-01/02)
+
+Module: packages/testkit/src/live-fixtures.ts (package 001, test-only). Adds `frozenLiveFixturePlan` and `RESUMABLE_SCENARIOS` via the existing `./live-fixtures` public export; consumers are the two opt-in live suites only. Composition root: those suites' beforeAll. No route, service, SQL, transaction, dispatch or publication ownership moved; no exception added or widened; no dependency change. Live T046/T061 stay open.

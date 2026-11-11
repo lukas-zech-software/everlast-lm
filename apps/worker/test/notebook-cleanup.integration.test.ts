@@ -3,7 +3,7 @@ import { GcsObjectStorage } from "@everlast/cloud";
 import { Storage } from "@google-cloud/storage";
 import { createNotebook, deleteNotebook, getCleanupStatus, notebookObjectPrefix, reserveSources } from "@everlast/db";
 import { createTestDatabase, createTestUser, type TestDatabase } from "@everlast/db/testing";
-import { approvedLiveFixture } from "@everlast/testkit/live-fixtures";
+import { approvedLiveFixture, frozenLiveFixturePlan } from "@everlast/testkit/live-fixtures";
 import { processNotebookCleanup } from "../src/notebook-cleanup.ts";
 /** [001-workspace-foundation] T046/T060 — FR-WM-01/04, NFR-SEC-01/02.
  * Writes only random notebook prefixes in a pre-created, labelled disposable EU bucket.
@@ -33,7 +33,12 @@ describe.skipIf(process.env.WORKSPACE_STORAGE_IT !== "1")("approved real version
     await db?.drop();
   });
   it("retains held objects, recovers, waits for active capability expiry and purges all generations privately", async () => {
+    if (process.env.WORKSPACE_IT_IDENTITY_UID_B) frozenLiveFixturePlan(process.env);
     const owner = await createTestUser(db.pool);
+    const other = await createTestUser(db.pool);
+    const { notebook: otherNotebook } = await createNotebook(db.pool, other, { title: "OTHER_FIXTURE_TITLE" });
+    const otherPrefix = notebookObjectPrefix(otherNotebook.id); prefixes.push(otherPrefix);
+    await storage.write(`${otherPrefix}sources/fixture/raw`, Buffer.from("other user fixture"), "text/plain");
     const { notebook } = await createNotebook(db.pool, owner, { title: "PRIVATE_FIXTURE_TITLE" });
     const prefix = notebookObjectPrefix(notebook.id); prefixes.push(prefix);
     const name = `${prefix}sources/fixture/raw`;
@@ -62,6 +67,7 @@ describe.skipIf(process.env.WORKSPACE_STORAGE_IT !== "1")("approved real version
     const status = await getCleanupStatus(db.pool, owner, deletion_id);
     expect(status.status).toBe("Purged");
     expect(JSON.stringify(status)).not.toMatch(/PRIVATE_FIXTURE_TITLE|sources\/|private fixture/);
+    expect((await storage.listVersions(otherPrefix)).length, "second user's objects are untouched").toBe(1);
     await expect(getCleanupStatus(db.pool, await createTestUser(db.pool), deletion_id)).rejects.toThrow();
   }, 120_000);
 });
