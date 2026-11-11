@@ -146,3 +146,7 @@ export const ExportedScaleEvidenceSchema=BenchmarkPrivateEvidenceSchema.extend({
  stages:z.object({admission:z.number().finite().nonnegative().optional(),retrieval:z.number().finite().nonnegative().optional(),generation:z.number().finite().nonnegative().optional(),verification:z.number().finite().nonnegative().optional(),publication:z.number().finite().nonnegative().optional()}).strict(),
  scope:BenchmarkPrivateEvidenceSchema.shape.scope.unwrap().extend({principal_subject:z.string().uuid(),token_counting_model:z.string().regex(/^[A-Za-z][A-Za-z0-9._-]{0,199}$/),token_counting_version:z.string().regex(/^[A-Za-z0-9._:-]{1,240}$/)}).strict().nullable(),
 }).strict();
+
+/** NFR-PERF-01: unqualified clock-only measurement inputs; authentication belongs to the trusted exchange workflow. */
+export const PrivateClockReceiptSchema=z.object({schema:z.literal('everlast.private-clock-receipt/1'),identity:PrivateBridgeIdentitySchema,nonce:z.string().uuid(),request:PrivateBridgeObjectRefSchema,t2_ms:z.number().finite().nonnegative(),t3_ms:z.number().finite().nonnegative(),server_elapsed_ms:z.number().finite().nonnegative().max(5000)}).strict();
+export const PrivateClockExchangeSchema=z.object({identity:PrivateBridgeIdentitySchema,nonce:z.string().uuid(),request:PrivateBridgeObjectRefSchema,t1_ms:z.number().finite().nonnegative(),t4_ms:z.number().finite().nonnegative(),client_elapsed_ms:z.number().finite().nonnegative().max(5000),ttl_ms:z.number().int().positive().max(60000)}).strict();

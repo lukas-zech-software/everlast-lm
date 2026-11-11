@@ -202,3 +202,11 @@ it('NFR-SEC-02 absolute owner-approved deployment expiry survives boot-relative 
  const f=fixture();let now=Date.now();const bridge=new PrivateBenchmarkBridge({identity:f.id,files:f.files,objects:f.objects,publicKey:f.publicKey,clock:()=>now,expiresAtMs:now+10} as any);
  await bridge.tick();const count=f.saved.length;now+=11;await expect(bridge.tick()).rejects.toThrow(/expired/);expect(f.saved).toHaveLength(count);
 });
+it.each([-30000,30000])('NFR-PERF-01 derives conservative measured offset %ims from bound four-timestamp receipt, never assumes symmetric latency',async offset=>{
+ const {derivePrivateClockCalibration}=await import('../src/private-benchmark.ts');const id=identity(),nonce=randomUUID(),request={name:'private-benchmark/v1/clock/request.json',generation:'9007199254740993123',sha256:'a'.repeat(64),size:100};
+ const receipt={schema:'everlast.private-clock-receipt/1',identity:id,nonce,request,t2_ms:100010+offset,t3_ms:100020+offset,server_elapsed_ms:10};
+ const exchange={identity:id,nonce,request,t1_ms:100000,t4_ms:100050,client_elapsed_ms:50,ttl_ms:60000};
+ const result=derivePrivateClockCalibration({receipt,exchange}) as any;expect(result).toMatchObject({offset_interval_ms:[offset-34,offset+14],calibration:{offset_ms:offset-10,uncertainty_ms:24,measured_at_ms:100050,expires_at_ms:160050}});
+ for(const changed of [{...receipt,nonce:randomUUID()},{...receipt,server_elapsed_ms:0},{...receipt,t3_ms:receipt.t2_ms-1}])expect(()=>derivePrivateClockCalibration({receipt:changed,exchange})).toThrow();
+ expect(()=>derivePrivateClockCalibration({receipt,exchange:{...exchange,t4_ms:104050,client_elapsed_ms:4050}})).toThrow();expect(()=>derivePrivateClockCalibration({receipt,exchange:{...exchange,client_elapsed_ms:1}})).toThrow();
+});

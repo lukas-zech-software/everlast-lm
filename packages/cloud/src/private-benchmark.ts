@@ -1,3 +1,4 @@
+import { PrivateClockReceiptSchema,PrivateClockExchangeSchema } from '@everlast/contracts';
 import { createHash, createPublicKey, verify, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { PrivateClockCalibrationSchema, PrivateBridgeIdentitySchema, PrivateBridgePolicySchema, PrivateBridgeChallengeSchema, PrivateBridgeObjectRefSchema, PrivateBridgeIndexSchema, PrivateBridgeInboxSchema, PrivateBridgeApprovalEnvelopeSchema, OperationalQualificationPlanSchema, PrivateOperationalOutcomeSchema, PrivateTransportOutcomeSchema, ExportedScaleEvidenceSchema, CodeExecutionPrivateEvidenceFileSchema, type PrivateBridgeIdentity, type PrivateBridgePolicy, type PrivateBridgeObjectRef, type PrivateBridgeChallenge, type PrivateBridgeExportKind } from '@everlast/contracts';
@@ -312,4 +313,18 @@ export class PrivateBenchmarkOperator extends Exchange {
             throw new Error('Private export object path mismatch');
         result[kind] = this.cachedDownload && equal(this.cachedDownload.index.objects[kind], object) ? this.cachedDownload.files[kind] : validatePrivateExport(kind, JSON.parse((await this.readRef(object)).toString()), challenge);
     } this.cachedDownload = { generation: meta.generation, index, files: result }; return structuredClone({ index, files: result }); }
+}
+
+/** NFR-PERF-01: pure interval arithmetic only; not an authenticated clock acquisition workflow. */
+export function derivePrivateClockCalibration(input:unknown){
+ const {receipt:r,exchange:c}=z.object({receipt:PrivateClockReceiptSchema,exchange:PrivateClockExchangeSchema}).strict().parse(input);
+ if(!equal(r.identity,c.identity)||r.nonce!==c.nonce||!equal(r.request,c.request))throw new Error('Private clock receipt binding mismatch');
+ const client=c.t4_ms-c.t1_ms,server=r.t3_ms-r.t2_ms;
+ if(client<0||server<0||Math.abs(client-c.client_elapsed_ms)>2||Math.abs(server-r.server_elapsed_ms)>2)throw new Error('Private clock discontinuity');
+ const rawLower=r.t3_ms-c.t4_ms,rawUpper=r.t2_ms-c.t1_ms;
+ if(rawLower>rawUpper)throw new Error('Private clock interval impossible');
+ const lower=rawLower-4,upper=rawUpper+4,uncertainty=(upper-lower)/2;
+ if(!Number.isFinite(uncertainty)||uncertainty>1000)throw new Error('Private clock uncertainty exceeds approved bound');
+ const calibration=PrivateClockCalibrationSchema.parse({offset_ms:(lower+upper)/2,uncertainty_ms:uncertainty,measured_at_ms:c.t4_ms,expires_at_ms:c.t4_ms+c.ttl_ms,measurement_id:privateDigest(json({receipt:r,exchange:c}))});
+ return {offset_interval_ms:[lower,upper] as [number,number],calibration};
 }
