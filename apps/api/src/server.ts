@@ -180,6 +180,10 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
   }
   const operationalCache=privateComposition?.cache??(operationalDirectory&&modelConfigured?createOperationalCacheFromEnv(env):undefined);
   const operationalConfigSha256=operationalDirectory&&model&&embedder&&operationalCache?createHash('sha256').update(JSON.stringify({model:model.id,retrieval:embedder.model,cache:operationalCache.identity})).digest('hex'):undefined;
+  const executionRuntime = sandboxRuntime && (env.BENCHMARK_EXECUTION_CONFIG_FILE||bridgeBootstrap.clock) ? {
+    reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine, region:"europe-west4" as const,
+    vcpu:2 as const, memory_gb:1.5 as const, network:"none" as const, file_io_mb:100 as const, deadline_ms:15000 as const,
+  } : undefined;
   const benchmarkConfig = loadBenchmarkConfig(env);
   const benchmark = extra.benchmark ?? (benchmarkConfig
     ? new PrivateBenchmarkRecorder({
@@ -190,7 +194,8 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         operationalConfigSha256,
         bridgeScaleFile:env.BENCHMARK_EVIDENCE_FILE,
         sourceTreeSha256:env.BENCHMARK_OPERATIONAL_DIRECTORY?measureOperationalSourceTree(fileURLToPath(new URL('../../../',import.meta.url))):undefined,
-        executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, sandboxRuntime ? {reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine,region:"europe-west4",vcpu:2,memory_gb:1.5,network:"none",file_io_mb:100,deadline_ms:15000}:undefined),
+        executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, executionRuntime),
+        requiresClockBootstrap: Boolean(bridgeBootstrap.clock),
         ...(studioContext?{tokenizer:studioContext.tokenizer}:{}),
       })
     : undefined);
@@ -248,9 +253,27 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     notifyJobs,
     ...extra,
   };
-  // No public route; the fixed private trust-root/approval files only authorize bounded operations.
-  const stopOperational=env.BENCHMARK_OPERATIONAL_DIRECTORY&&benchmark&&!extra.benchmark
-    ?benchmark.startOperationalCoordinator(env.BENCHMARK_OPERATIONAL_DIRECTORY,createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache}),env.BENCHMARK_BRIDGE_ENABLED==='true'?{campaign_id:env.BENCHMARK_BRIDGE_CAMPAIGN_ID!,expiresAtMs:Number(env.BENCHMARK_BRIDGE_EXPIRES_AT_MS),objects:privateComposition?.bridgeObjects??new GcsPrivateBridgeObjects({bucket:env.STORAGE_BUCKET??env.GCS_WORKSPACE_BUCKET??''})}:undefined):undefined;
+  // Private startup owns both coordinator lifecycles. Clock installation opens the ordinary approval channel.
+  let stopOperational: (()=>void)|undefined;
+  if (operationalDirectory && benchmark && !extra.benchmark) {
+    const ports=createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache});
+    const remote=env.BENCHMARK_BRIDGE_ENABLED==='true' ? {
+      campaign_id:env.BENCHMARK_BRIDGE_CAMPAIGN_ID!,
+      expiresAtMs:Number(env.BENCHMARK_BRIDGE_EXPIRES_AT_MS),
+      objects:privateComposition?.bridgeObjects??new GcsPrivateBridgeObjects({bucket:env.STORAGE_BUCKET??env.GCS_WORKSPACE_BUCKET??''}),
+    } : undefined;
+    if (bridgeBootstrap.clock) {
+      if (!remote) throw new Error('Private clock object channel unavailable');
+      stopOperational=benchmark.startClockCoordinator({
+        directory:operationalDirectory, bootstrap:bridgeBootstrap.clock, remote,
+        candidate:env.COMMIT_SHA, runtime:executionRuntime, ports,
+      });
+    } else {
+      stopOperational=benchmark.startOperationalCoordinator(operationalDirectory,ports,remote);
+    }
+  } else if (bridgeBootstrap.clock) {
+    throw new Error('Private clock recorder unavailable');
+  }
   if(stopOperational)startupCleanup.push(stopOperational);
   const server = http.createServer(createApp(deps));
   server.once("close",()=>{stopOperational?.();stopReconciler?.();bridgeBootstrap.cleanup();});

@@ -1,0 +1,27 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-clock-complete-20261111
+
+ ❯ |unit| packages/cloud/test/private-benchmark.test.ts (26 tests | 2 failed | 24 skipped) 270ms
+   × NFR-PERF-01 signed private clock roundtrip acquires and installs actual captured offset -30000 140ms
+   × NFR-PERF-01 signed private clock roundtrip acquires and installs actual captured offset 30000 129ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 signed private clock roundtrip acquires and installs actual captured offset -30000
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 signed private clock roundtrip acquires and installs actual captured offset 30000
+AssertionError: expected null not to be null
+ ❯ packages/cloud/test/private-benchmark.test.ts:261:89
+    259|     });
+    260|     expect(c.installed).toEqual([observed]);
+    261|     expect(await c.store.stat(privateBridgePrefix(c.id) + '/clock/inst…
+       |                                                                                         ^
+    262|     expect(Math.abs(observed.calibration.offset_ms - offset)).toBeLess…
+    263|     expect(observed.calibration.uncertainty_ms).toBeLessThan(1000);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 24 skipped (26)
+   Start at  13:04:19
+   Duration  501ms (tests 64%, import 26%, transform 9%, worker 1%)

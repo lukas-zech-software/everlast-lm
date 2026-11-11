@@ -224,7 +224,7 @@ variable "private_benchmark_env_vars" {
   type        = map(string)
   default     = {}
   validation {
-    condition     = alltrue([for key in keys(var.private_benchmark_env_vars) : contains(["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_BRIDGE_FIXTURES", "BENCHMARK_APPROVED_NOTEBOOKS"], key)])
+    condition     = alltrue([for key in keys(var.private_benchmark_env_vars) : contains(["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP", "BENCHMARK_BRIDGE_CLOCK_SECRET_ID", "BENCHMARK_BRIDGE_CLOCK_SECRET_VERSION", "BENCHMARK_BRIDGE_FIXTURES", "BENCHMARK_APPROVED_NOTEBOOKS"], key)])
     error_message = "Only fixed private bridge bootstrap configuration is allowed."
   }
 }

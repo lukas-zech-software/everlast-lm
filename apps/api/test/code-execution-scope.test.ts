@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { uuidv7 } from "@everlast/contracts";
 import { seedReadySource } from "@everlast/db/testing";
@@ -516,14 +516,14 @@ it('FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or op
  }finally{await disabled.close();}
 });
 
-it.each(['local-files','remote-bridge'])('NFR-PERF-01 actual server %s wiring stays disabled until signed private adapters succeed with LOCAL providers',async mode=>{
+it.each(['local-files','remote-bridge','clock-bootstrap'])('NFR-PERF-01 actual server %s wiring stays disabled until signed private adapters succeed with LOCAL providers',async mode=>{
  const {startApiServer}=await import('../src/server.ts');const {OPERATIONAL_PROVIDER_BUDGET}=await import('../src/observability/benchmark.ts');
  const {generateKeyPairSync,sign,createHash}=await import('node:crypto');const {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');
  const dir=mkdtempSync(join(tmpdir(),'012-server-')),channel=join(dir,'private'),publicDir=join(dir,'public');mkdirSync(channel,{mode:0o700});mkdirSync(publicDir);
  const actors=[];
  for(const who of ['server-proof-a','server-proof-b']){const nb=await createOwnedNotebook(who),src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});actors.push({who,owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}]});}
  const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');const runtimeConfig={reasoning_engine:'projects/test/locations/europe-west4/reasoningEngines/123',region:'europe-west4',vcpu:2,memory_gb:1.5,network:'none',file_io_mb:100,deadline_ms:15000};
- const calibration={offset_ms:0,uncertainty_ms:1,measured_at_ms:Date.now()-10,expires_at_ms:Date.now()+60000,measurement_id:'LOCAL clock double'},qualification='LOCAL provider doubles; not release evidence';
+ let calibration={offset_ms:0,uncertainty_ms:1,measured_at_ms:Date.now()-10,expires_at_ms:Date.now()+60000,measurement_id:'LOCAL clock double'};const qualification='LOCAL provider doubles; not release evidence';
  const metadata={schema_version:1,candidate_commit:'a'.repeat(40),serving_revision:'server-test',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness',qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:hash(runtimeConfig),clock_calibration_sha256:hash(calibration),approved_notebook_ids:actors.map(a=>a.notebook_id)};
  const configFile=join(channel,'execution-config.json');writeFileSync(configFile,JSON.stringify({file:join(channel,'code.json'),metadata,runtime:runtimeConfig,calibration,qualification}),{mode:0o600});
  const keys=generateKeyPairSync('ed25519');writeFileSync(join(channel,'trusted-public-key.pem'),keys.publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
@@ -536,18 +536,48 @@ it.each(['local-files','remote-bridge'])('NFR-PERF-01 actual server %s wiring st
  const close=async()=>{if(running){const current=running;running=undefined;await new Promise<void>(resolve=>current.server.close(()=>resolve()));}};
  try{
   running=await startApiServer(env,extra,{model:servingModel,runtime:localRuntime,cache:localCache});expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();expect(modelProbes+cacheCreates).toBe(0);await close();
-  const {LocalPrivateBridgeObjects,PrivateBenchmarkOperator,privateDigest}=await import('@everlast/cloud/private-benchmark');
+  const {LocalPrivateBridgeObjects,PrivateBenchmarkOperator,privateDigest,privateBridgePrefix}=await import('@everlast/cloud/private-benchmark');
   const campaign=randomUUID(),objects=new LocalPrivateBridgeObjects(join(dir,'objects'));
   const remoteEnv={...env,BENCHMARK_BRIDGE_ENABLED:'true',BENCHMARK_BRIDGE_EXPIRES_AT_MS:String(Date.now()+60000),BENCHMARK_BRIDGE_CAMPAIGN_ID:campaign,BENCHMARK_BRIDGE_PUBLIC_KEY:keys.publicKey.export({type:'spki',format:'pem'}).toString(),BENCHMARK_BRIDGE_EXECUTION_CONFIG:readFileSync(configFile,'utf8')};
-  running=await startApiServer(mode==='remote-bridge'?remoteEnv:{...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache,bridgeObjects:objects});
-  const operator=new PrivateBenchmarkOperator({objects,calibration,publicKey:keys.publicKey.export({type:'spki',format:'pem'}).toString(),identity:{campaign_id:campaign,candidate_commit:metadata.candidate_commit,serving_revision:metadata.serving_revision,instance_boot_id:running.deps.benchmark!.readiness().instance_boot_id}});
+  const servingKeys=generateKeyPairSync('ed25519');
+  const {clock_calibration_sha256:_clockHash,...frozenMetadata}=metadata;
+  const clockEnv={...remoteEnv,BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP:'true',
+   BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY:servingKeys.privateKey.export({type:'pkcs8',format:'pem'}).toString(),
+   BENCHMARK_BRIDGE_EXECUTION_CONFIG:JSON.stringify({metadata:frozenMetadata,runtime:runtimeConfig,qualification})};
+  running=await startApiServer(mode==='clock-bootstrap'?clockEnv:mode==='remote-bridge'?remoteEnv:{...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache,bridgeObjects:objects});
+  const identity={campaign_id:campaign,candidate_commit:metadata.candidate_commit,serving_revision:metadata.serving_revision,instance_boot_id:running.deps.benchmark!.readiness().instance_boot_id};
+  if(mode==='clock-bootstrap'){
+   expect(running.deps.benchmark!.executionIdentity()).toBeUndefined();
+   expect(await objects.stat(privateBridgePrefix(identity)+'/challenge.json')).toBeNull();
+   writeFileSync(join(channel,'identity.json'),JSON.stringify(identity),{mode:0o600});
+   writeFileSync(join(channel,'receipt-root.pem'),servingKeys.publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
+   writeFileSync(join(channel,'owner-key.pem'),keys.privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600});
+   const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
+   const runCli=promisify(execFile);
+   const clockArgs=['--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--receipt-key-file',join(channel,'receipt-root.pem')];
+   const discovery=await runCli(process.execPath,['scripts/private-benchmark.mjs','clock-discover',...clockArgs]);
+   expect(JSON.parse(discovery.stdout)).toEqual({boots:[identity],release_eligible:false});
+   const result=await runCli(process.execPath,['scripts/private-benchmark.mjs','clock-acquire',...clockArgs,
+    '--private-key-file',join(channel,'owner-key.pem'),
+    '--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',channel]);
+   expect(JSON.parse(result.stdout)).toEqual({result:'CLOCK_INSTALLED',release_eligible:false});
+   calibration=JSON.parse(readFileSync(join(channel,'calibration.json'),'utf8'));
+   expect(JSON.parse(readFileSync(join(channel,'clock-proof.json'),'utf8')).calibration).toEqual(calibration);
+   const confirmation=JSON.parse(readFileSync(join(channel,'clock-installed.json'),'utf8'));
+   expect(JSON.parse(confirmation.envelope.payload)).toMatchObject({identity,calibration_sha256:hash(calibration)});
+   expect(running.deps.benchmark!.executionIdentity()!.instance_boot_id).toBe(identity.instance_boot_id);
+   expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();
+   expect(modelProbes+cacheCreates).toBe(0);
+  }
+  const operator=new PrivateBenchmarkOperator({objects,calibration,publicKey:keys.publicKey.export({type:'spki',format:'pem'}).toString(),identity});
 
   await new Promise(resolve=>setTimeout(resolve,1100));expect(modelProbes+cacheCreates).toBe(0);
   const port=(running.server.address() as {port:number}).port;
   for(const actor of actors){const token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');}
-  const remote=mode==='remote-bridge'?await operator.challenge():undefined;
+  const remote=mode!=='local-files'?await operator.challenge():undefined;
   const challenge=remote?.challenge.challenge??JSON.parse(readFileSync(join(channel,'challenge.json'),'utf8'));
-  const plan={id:randomUUID(),instance_boot_id:challenge.instance_boot_id,revision:metadata.serving_revision,candidate_commit:metadata.candidate_commit,fixture_sha256:metadata.fixture_sha256,classification_basis:metadata.classification_basis,runtime_config_sha256:metadata.runtime_config_sha256,clock_calibration_sha256:metadata.clock_calibration_sha256,qualification_sha256:metadata.qualification_sha256,source_tree_sha256:challenge.source_tree_sha256,operational_config_sha256:challenge.operational_config_sha256,provider_budget:OPERATIONAL_PROVIDER_BUDGET,issued_at:Date.now()-1,expires_at:Date.now()+30000,timeout_ms:10000,operations:['retrieval','model','cache','runtime_observation'],actors:actors.map(({who:_who,...actor})=>actor)};
+  const mappedNow=Date.now()+calibration.offset_ms;
+  const plan={id:randomUUID(),instance_boot_id:challenge.instance_boot_id,revision:metadata.serving_revision,candidate_commit:metadata.candidate_commit,fixture_sha256:metadata.fixture_sha256,classification_basis:metadata.classification_basis,runtime_config_sha256:metadata.runtime_config_sha256,clock_calibration_sha256:challenge.clock_calibration_sha256,qualification_sha256:metadata.qualification_sha256,source_tree_sha256:challenge.source_tree_sha256,operational_config_sha256:challenge.operational_config_sha256,provider_budget:OPERATIONAL_PROVIDER_BUDGET,issued_at:Math.floor(mappedNow-calibration.uncertainty_ms)-1,expires_at:Math.floor(Math.min(mappedNow+30000,calibration.expires_at_ms+calibration.offset_ms-calibration.uncertainty_ms)),timeout_ms:10000,operations:['retrieval','model','cache','runtime_observation'],actors:actors.map(({who:_who,...actor})=>actor)};
   if(remote)Object.assign(plan,{bridge:{campaign_id:campaign,challenge_generation:remote.ref.generation,challenge_sha256:remote.ref.sha256,channel_policy_sha256:privateDigest(JSON.stringify(remote.challenge.policy))}});
   const payload=JSON.stringify(plan);if(remote){
    writeFileSync(join(channel,'calibration.json'),JSON.stringify(calibration),{mode:0o600});writeFileSync(join(channel,'identity.json'),JSON.stringify(remote.challenge.identity),{mode:0o600});writeFileSync(join(channel,'payload.json'),payload,{mode:0o600});writeFileSync(join(channel,'signature.txt'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});
@@ -559,6 +589,22 @@ it.each(['local-files','remote-bridge'])('NFR-PERF-01 actual server %s wiring st
    await new Promise(resolve=>setTimeout(resolve,1200));const {execFileSync}=await import('node:child_process');execFileSync(process.execPath,['scripts/private-benchmark.mjs','download','--calibration-file',join(channel,'calibration.json'),'--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',join(dir,'download')]);expect(JSON.parse(readFileSync(join(dir,'download','code-evidence.json'),'utf8')).measurements).toHaveLength(1);
    const downloaded=await operator.download();expect(downloaded.files.outcomes).toEqual(expect.arrayContaining([expect.objectContaining({result:'OBSERVED_READY',release_eligible:false})]));expect(downloaded.files.code).toMatchObject({measurements:expect.arrayContaining([expect.objectContaining({qualified:true})])});
   }else expect(JSON.parse(readFileSync(join(channel,'status.json'),'utf8'))).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
+  if(mode==='clock-bootstrap'){
+   const recorder=running.deps.benchmark!;
+   const requestId=randomUUID();
+   const span=recorder.begin(actors[0]!.notebook_id,requestId)!;
+   const stepped=vi.spyOn(Date,'now').mockReturnValue(Date.now()+2000);
+   try{
+    span.finish('error');
+    expect(recorder.readiness().ready_at_ms).toBeNull();
+    expect(recorder.executionIdentity()).toBeUndefined();
+   }finally{stepped.mockRestore();}
+   await new Promise(resolve=>setTimeout(resolve,1200));
+   const retained=(await operator.download()).files.scale as unknown[];
+   expect(retained).toEqual(expect.arrayContaining([expect.objectContaining({
+    request_id:requestId,terminal_status:'error',readiness:expect.objectContaining({ready_at_ms:null}),
+   })]));
+  }
   operator.close();
   const recorder=running.deps.benchmark!;await close();expect(recorder.readiness().ready_at_ms).toBeNull();
  }finally{await close();rmSync(dir,{recursive:true,force:true});}

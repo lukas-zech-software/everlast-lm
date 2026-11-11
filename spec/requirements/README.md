@@ -189,3 +189,5 @@ CloudRun background work needs CPU allocation. A default-off benchmark-window co
 Package012Nov11: private remote bridge code/local wiring exists with independent key, generation/CAS/hash bounds, native10MBcache cap and absolute owner window. Retained calibration fields are CLIENT epochs and hash-bound; API/operator map +offset/uncertainty consistently with010. Missing actual clock acquisition is explicit012T073–T074CODE, not a zero-offset assumption or a cloud-only wait. No live qualification/common50judged gate is closed by local bridge tests.
 
 012clock continuation: canonical receipt/exchange interval arithmetic is a local partial implementation only; actual trusted receipt acquisition, replay/expiry lifecycle and calibration installation remain T073/T074. Never treat constructed timestamp inputs as measured provider evidence or infer readiness before real dependency observations.
+
+Package 3.4 clock bootstrap uses independently pinned owner and serving receipt keys over the existing private object bridge. Installing a measured calibration on the same boot is a prerequisite to ordinary scoped operational probes.

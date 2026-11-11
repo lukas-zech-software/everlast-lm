@@ -1,6 +1,13 @@
 # Traceability: D2, D3, D4, C-01, C-02, FR-WM-01, FR-WM-04, FR-WM-07, FR-SI-01..04, FR-GC-01..03, FR-GC-06, FR-UI-01, NFR-SEC-01
 locals {
-  name_prefix = "everlast-${var.environment}"
+  name_prefix                  = "everlast-${var.environment}"
+  clock_bootstrap              = lookup(var.private_benchmark_env_vars, "BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP", "false")
+  clock_receipt_secret_id      = lookup(var.private_benchmark_env_vars, "BENCHMARK_BRIDGE_CLOCK_SECRET_ID", "")
+  clock_receipt_secret_version = lookup(var.private_benchmark_env_vars, "BENCHMARK_BRIDGE_CLOCK_SECRET_VERSION", "")
+  benchmark_public_env = {
+    for name, value in var.private_benchmark_env_vars : name => value
+    if !contains(["BENCHMARK_BRIDGE_CLOCK_SECRET_ID", "BENCHMARK_BRIDGE_CLOCK_SECRET_VERSION"], name)
+  }
 
   common_env_vars = {
     NODE_ENV                       = var.environment == "prod" ? "production" : "development"
@@ -37,7 +44,7 @@ locals {
     GOOGLE_OAUTH_CLIENT_ID = var.google_oauth_client_id
     GOOGLE_PICKER_API_KEY  = var.google_picker_api_key
     GOOGLE_PICKER_APP_ID   = var.google_picker_app_id
-  } : {}, var.code_execution_env_vars, var.private_benchmark_bridge_enabled ? merge(var.private_benchmark_env_vars, { BENCHMARK_BRIDGE_ENABLED = "true" }) : {}) # Package 3.2 (FR-GC-08, specs/010): public sandbox identifiers only
+  } : {}, var.code_execution_env_vars, var.private_benchmark_bridge_enabled ? merge(local.benchmark_public_env, { BENCHMARK_BRIDGE_ENABLED = "true" }) : {}) # Package 3.2 (FR-GC-08, specs/010): public sandbox identifiers only
 
   worker_env_vars = merge(local.common_env_vars, {
     SERVICE_ROLE  = "worker"
@@ -151,6 +158,14 @@ resource "google_cloud_run_v2_service" "api" {
       condition     = !var.private_benchmark_bridge_enabled || (var.api_min_instances == 1 && var.api_max_instances == 1 && alltrue([for key in ["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_APPROVED_NOTEBOOKS"] : contains(keys(var.private_benchmark_env_vars), key)]))
       error_message = "Private benchmark requires a bounded min=max=1 window and pinned bootstrap inputs. Roll back the toggle/minimum immediately after approved collection."
     }
+    precondition {
+      condition = contains(["true", "false"], local.clock_bootstrap) && (local.clock_bootstrap == "false" || (
+        var.private_benchmark_bridge_enabled &&
+        can(regex("^[A-Za-z0-9_-]{1,255}$", local.clock_receipt_secret_id)) &&
+        can(regex("^[1-9][0-9]*$", local.clock_receipt_secret_version))
+      ))
+      error_message = "Clock bootstrap requires the enabled private bridge and a preexisting serving receipt secret with a pinned numeric version."
+    }
   }
 
   project             = var.project_id
@@ -204,6 +219,20 @@ resource "google_cloud_run_v2_service" "api" {
         content {
           name  = env.key
           value = env.value
+        }
+      }
+
+      # Package 3.4 T073/T074: only the API can receive the independently pinned serving receipt signer.
+      dynamic "env" {
+        for_each = var.private_benchmark_bridge_enabled && local.clock_bootstrap == "true" ? [true] : []
+        content {
+          name = "BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY"
+          value_source {
+            secret_key_ref {
+              secret  = local.clock_receipt_secret_id
+              version = local.clock_receipt_secret_version
+            }
+          }
         }
       }
 

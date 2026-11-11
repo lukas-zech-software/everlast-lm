@@ -150,3 +150,45 @@ export const ExportedScaleEvidenceSchema=BenchmarkPrivateEvidenceSchema.extend({
 /** NFR-PERF-01: unqualified clock-only measurement inputs; authentication belongs to the trusted exchange workflow. */
 export const PrivateClockReceiptSchema=z.object({schema:z.literal('everlast.private-clock-receipt/1'),identity:PrivateBridgeIdentitySchema,nonce:z.string().uuid(),request:PrivateBridgeObjectRefSchema,t2_ms:z.number().finite().nonnegative(),t3_ms:z.number().finite().nonnegative(),server_elapsed_ms:z.number().finite().nonnegative().max(5000)}).strict();
 export const PrivateClockExchangeSchema=z.object({identity:PrivateBridgeIdentitySchema,nonce:z.string().uuid(),request:PrivateBridgeObjectRefSchema,t1_ms:z.number().finite().nonnegative(),t4_ms:z.number().finite().nonnegative(),client_elapsed_ms:z.number().finite().nonnegative().max(5000),ttl_ms:z.number().int().positive().max(60000)}).strict();
+
+/** NFR-PERF-01 / NFR-SEC-02: private clock messages are signed as exact JSON bytes. */
+export const PrivateClockChallengeSchema = z.object({
+  schema: z.literal('everlast.private-clock-challenge/1'),
+  identity: PrivateBridgeIdentitySchema,
+  config_sha256: hash,
+  created_at_ms: z.number().finite().nonnegative(),
+  expires_at_ms: z.number().finite().nonnegative(),
+}).strict().refine(challenge => challenge.expires_at_ms > challenge.created_at_ms &&
+  challenge.expires_at_ms - challenge.created_at_ms <= 3600000, 'Invalid private clock window');
+
+const privateClockAction = {
+  schema: z.literal('everlast.private-clock-action/1'),
+  identity: PrivateBridgeIdentitySchema,
+  nonce: z.string().uuid(),
+  challenge: PrivateBridgeObjectRefSchema,
+};
+
+export const PrivateClockActionSchema = z.discriminatedUnion('kind', [
+  z.object({ ...privateClockAction, kind: z.literal('measure') }).strict(),
+  z.object({
+    ...privateClockAction,
+    kind: z.literal('install'),
+    receipt: PrivateBridgeObjectRefSchema,
+    exchange: PrivateClockExchangeSchema,
+  }).strict(),
+]);
+
+export const PrivateClockEnvelopeSchema = z.object({
+  schema: z.literal('everlast.private-clock-envelope/1'),
+  payload: z.string().min(1).max(12000),
+  signature: z.string().regex(/^[A-Za-z0-9+/]{86}==$/),
+}).strict();
+
+export const PrivateClockInstalledSchema = z.object({
+  schema: z.literal('everlast.private-clock-installed/1'),
+  identity: PrivateBridgeIdentitySchema,
+  challenge: PrivateBridgeObjectRefSchema,
+  receipt: PrivateBridgeObjectRefSchema,
+  installation: PrivateBridgeObjectRefSchema,
+  calibration_sha256: hash,
+}).strict();

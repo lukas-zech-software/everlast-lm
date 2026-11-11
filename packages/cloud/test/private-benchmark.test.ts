@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { randomUUID, generateKeyPairSync } from 'node:crypto';
+import { describe, it, expect, vi } from 'vitest';
+import { randomUUID, generateKeyPairSync, type KeyObject } from 'node:crypto';
 import { PrivateBenchmarkBridge, type PrivateBridgeFiles } from '../src/private-benchmark.ts';
 /** NFR-PERF-01, FR-GC-08, NFR-SEC-02: local ports only; never actual GCS/provider calls. */
 const identity = () => ({ campaign_id: randomUUID(), candidate_commit: 'a'.repeat(40), serving_revision: 'fixture-revision', instance_boot_id: randomUUID() });
@@ -209,4 +209,231 @@ it.each([-30000,30000])('NFR-PERF-01 derives conservative measured offset %ims f
  const result=derivePrivateClockCalibration({receipt,exchange}) as any;expect(result).toMatchObject({offset_interval_ms:[offset-34,offset+14],calibration:{offset_ms:offset-10,uncertainty_ms:24,measured_at_ms:100050,expires_at_ms:160050}});
  for(const changed of [{...receipt,nonce:randomUUID()},{...receipt,server_elapsed_ms:0},{...receipt,t3_ms:receipt.t2_ms-1}])expect(()=>derivePrivateClockCalibration({receipt:changed,exchange})).toThrow();
  expect(()=>derivePrivateClockCalibration({receipt,exchange:{...exchange,t4_ms:104050,client_elapsed_ms:4050}})).toThrow();expect(()=>derivePrivateClockCalibration({receipt,exchange:{...exchange,client_elapsed_ms:1}})).toThrow();
+});
+
+import { PrivateClockBridge, PrivateClockOperator, privateBridgePrefix } from '../src/private-benchmark.ts';
+const publicPem = (keys: {publicKey: KeyObject}) =>
+    keys.publicKey.export({ type: 'spki', format: 'pem' }).toString();
+const privatePem = (keys: {privateKey: KeyObject}) =>
+    keys.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
+
+async function clockChannel(offset = 30000, options: {
+    onServingWrite?: (name: string) => Promise<void>;
+    deploymentWindowMs?: number;
+    ignoreServingAbort?: boolean;
+} = {}) {
+    const directory = mkdtempSync(join(tmpdir(), '012-clock-channel-'));
+    roots.push(directory);
+    const store = new LocalPrivateBridgeObjects(join(directory, 'objects'));
+    const id = identity();
+    const owner = generateKeyPairSync('ed25519');
+    const serving = generateKeyPairSync('ed25519');
+    const installed: unknown[] = [];
+    const opened: boolean[] = [];
+    let step = 0;
+    const transport = {
+        stat: store.stat.bind(store), read: store.read.bind(store), list: store.list.bind(store),
+        put: async (...args: Parameters<typeof store.put>) => {
+            await options.onServingWrite?.(args[0]);
+            if (options.ignoreServingAbort) args[3] = undefined;
+            return store.put(...args);
+        },
+    };
+    const bridge = new PrivateClockBridge({
+        identity: id, objects: transport, ownerPublicKey: publicPem(owner),
+        receiptPrivateKey: privatePem(serving), expiresAtMs: Date.now() + offset + (options.deploymentWindowMs ?? 60000),
+        configSha256: 'c'.repeat(64),
+        capture: () => ({ wall_ms: Date.now() + offset + step, monotonic_ms: performance.now() }),
+        install: (proof: unknown) => { installed.push(proof); return () => { opened.push(true); }; },
+    });
+    const objects = {
+        stat: store.stat.bind(store), read: store.read.bind(store), list: store.list.bind(store),
+        put: async (...args: Parameters<typeof store.put>) => {
+            const result = await store.put(...args);
+            if (args[0].endsWith('/clock/inbox.json')) await bridge.tick();
+            return result;
+        },
+    };
+    const operator = (overrides: Record<string, unknown> = {}) => new PrivateClockOperator({
+        identity: id, objects, receiptPublicKey: publicPem(serving),
+        ownerPrivateKey: privatePem(owner), ...overrides,
+    });
+    await bridge.tick();
+    return { id, store, objects, bridge, operator, installed, opened, owner, serving, step: () => { step = 500; } };
+}
+
+it.each([-30000, 30000])('NFR-PERF-01 signed private clock roundtrip acquires and installs actual captured offset %i', async offset => {
+    const c = await clockChannel(offset);
+    const operator = c.operator();
+    expect(await operator.discover()).toEqual([c.id]);
+    const { proof: observed, acknowledgment } = await operator.acquire(proof => {
+        expect(c.installed).toHaveLength(0);
+        expect(proof.calibration.measured_at_ms).toBeGreaterThan(Date.now() - 1000);
+    });
+    expect(c.installed).toEqual([observed]);
+    expect(c.opened).toEqual([true]);
+    expect(acknowledgment.ref.name).toBe(privateBridgePrefix(c.id) + '/clock/installed.json');
+    expect(await c.store.stat(acknowledgment.ref.name, acknowledgment.ref.generation)).not.toBeNull();
+    expect(Math.abs(observed.calibration.offset_ms - offset)).toBeLessThanOrEqual(observed.calibration.uncertainty_ms);
+    expect(observed.calibration.uncertainty_ms).toBeLessThan(1000);
+    expect(await c.store.stat(privateBridgePrefix(c.id) + '/challenge.json')).toBeNull();
+    operator.close();
+});
+
+it('NFR-SEC-02 a serving wall clock step after receipt prevents same-boot install', async () => {
+    const c = await clockChannel();
+    const operator = c.operator();
+    await expect(operator.acquire(() => c.step())).rejects.toThrow();
+    expect(c.installed).toEqual([]);
+    operator.close();
+});
+
+it('NFR-SEC-02 an independently pinned serving root rejects another serving signer', async () => {
+    const c = await clockChannel();
+    const operator = c.operator({receiptPublicKey: publicPem(generateKeyPairSync('ed25519'))});
+    await expect(operator.acquire(() => {})).rejects.toThrow(/signature/);
+    expect(c.installed).toEqual([]);
+    expect(await c.store.stat(privateBridgePrefix(c.id) + '/clock/inbox.json')).toBeNull();
+    operator.close();
+});
+
+it('NFR-SEC-02 the serving side rejects an inbox signed by a different owner', async () => {
+    const c = await clockChannel();
+    const operator = c.operator({ownerPrivateKey: privatePem(generateKeyPairSync('ed25519'))});
+    await expect(operator.acquire(() => {})).rejects.toThrow(/signature/);
+    expect(c.installed).toEqual([]);
+    expect(c.opened).toEqual([]);
+    operator.close();
+});
+
+it.each(['boot', 'receipt generation', 'nonce replay'])('NFR-SEC-02 a signed clock %s substitution cannot install', async mode => {
+    const c = await clockChannel();
+    const operator = c.operator({objects: {
+        ...c.objects,
+        put: async (...args: Parameters<typeof c.objects.put>) => {
+            if (args[0].endsWith('/clock/inbox.json')) {
+                const packet = JSON.parse(args[1].toString());
+                const action = JSON.parse(packet.payload);
+                if (action.kind === 'install') {
+                    if (mode === 'boot') action.identity.instance_boot_id = randomUUID();
+                    if (mode === 'receipt generation') action.receipt.generation = '999';
+                    if (mode === 'nonce replay') {
+                        action.kind = 'measure';
+                        delete action.exchange;
+                        delete action.receipt;
+                    }
+                    packet.payload = JSON.stringify(action);
+                    packet.signature = sign(null, Buffer.from(packet.payload), c.owner.privateKey).toString('base64');
+                    args[1] = Buffer.from(JSON.stringify(packet));
+                }
+            }
+            return c.objects.put(...args);
+        },
+    }});
+    await expect(operator.acquire(() => {})).rejects.toThrow(/binding|unavailable|replay/);
+    expect(c.installed).toEqual([]);
+    expect(c.opened).toEqual([]);
+    operator.close();
+});
+
+it('NFR-SEC-02 a forged installation acknowledgment cannot confirm a clock activation', async () => {
+    const c = await clockChannel();
+    const operator = c.operator({objects: {
+        ...c.objects,
+        read: async (...args: Parameters<typeof c.objects.read>) => {
+            const data = await c.objects.read(...args);
+            if (!args[0].endsWith('/clock/installed.json')) return data;
+            const packet = JSON.parse(data.toString());
+            packet.signature = sign(null, Buffer.from(packet.payload), c.owner.privateKey).toString('base64');
+            return Buffer.from(JSON.stringify(packet));
+        },
+    }});
+    await expect(operator.acquire(() => {})).rejects.toThrow(/signature/);
+    expect(c.installed).toHaveLength(1);
+    operator.close();
+});
+
+it('NFR-SEC-02 an acknowledgment write failure retains the signed clock proof and keeps the operational channel closed', async () => {
+    const c = await clockChannel(30000, {onServingWrite: async name => {
+        if (name.endsWith('/clock/installed.json')) throw new Error('LOCAL acknowledgment write failed');
+    }});
+    const operator = c.operator();
+    const retained: unknown[] = [];
+    await expect(operator.acquire(proof => retained.push(proof))).rejects.toThrow(/acknowledgment write failed/);
+    expect(retained).toHaveLength(1);
+    expect(c.installed).toEqual(retained);
+    expect(c.opened).toEqual([]);
+    expect(await c.store.stat(privateBridgePrefix(c.id) + '/clock/installed.json')).toBeNull();
+    operator.close();
+});
+
+it('NFR-SEC-02 closing a clock channel fences a receipt write that ignored cancellation', async () => {
+    let release!: () => void;
+    let entered!: () => void;
+    const pendingWrite = new Promise<void>(resolve => { release = resolve; });
+    const receiptStarted = new Promise<void>(resolve => { entered = resolve; });
+    const c = await clockChannel(30000, {ignoreServingAbort:true,onServingWrite: async name => {
+        if (name.includes('/clock/receipts/')) {
+            entered();
+            await pendingWrite;
+        }
+    }});
+    const operator = c.operator();
+    const acquisition = expect(operator.acquire(() => {})).rejects.toThrow(/closed/);
+    await receiptStarted;
+    c.bridge.close();
+    release();
+    await acquisition;
+    expect(c.installed).toEqual([]);
+    expect(c.opened).toEqual([]);
+    operator.close();
+});
+
+it('NFR-SEC-02 the absolute serving window fences a late installation', async () => {
+    const c = await clockChannel(30000, {deploymentWindowMs: 500});
+    const operator = c.operator({objects: {
+        ...c.objects,
+        put: async (...args: Parameters<typeof c.objects.put>) => {
+            if (args[0].endsWith('/clock/inbox.json') && JSON.parse(JSON.parse(args[1].toString()).payload).kind === 'install') {
+                await new Promise(resolve => setTimeout(resolve, 510));
+            }
+            return c.objects.put(...args);
+        },
+    }});
+    await expect(operator.acquire(() => {})).rejects.toThrow(/closed|expired/);
+    expect(c.installed).toEqual([]);
+    operator.close();
+});
+
+it('NFR-PERF-01 clock acquisition counts request submission against the single monotonic receipt deadline', async () => {
+    vi.useFakeTimers();
+    try {
+        const c = await clockChannel();
+        let receiptReadSignal: AbortSignal | undefined;
+        const operator = c.operator({objects: {
+            ...c.objects,
+            put: async (...args: Parameters<typeof c.objects.put>) => {
+                if (args[0].endsWith('/clock/inbox.json')) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+                return c.objects.put(...args);
+            },
+            stat: async (...args: Parameters<typeof c.objects.stat>) => {
+                if (args[0].includes('/clock/receipts/')) {
+                    receiptReadSignal = args[2];
+                    return new Promise(() => {});
+                }
+                return c.objects.stat(...args);
+            },
+        }});
+        const acquisition = expect(operator.acquire(() => {})).rejects.toThrow(/timeout/);
+        await vi.advanceTimersByTimeAsync(5000);
+        await acquisition;
+        expect(receiptReadSignal?.aborted).toBe(true);
+        expect(c.installed).toEqual([]);
+        expect(c.opened).toEqual([]);
+        operator.close();
+    } finally {
+        vi.useRealTimers();
+    }
 });
