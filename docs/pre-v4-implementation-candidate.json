@@ -9,7 +9,7 @@
     "NFR-EVAL-01..04"
   ],
   "coordinator_branch": "codex/pre-v4-resume-20261111",
-  "integrated_checkpoint": "ce3cd955c970d9d09dc504a0aedb4c33695e0fe1",
+  "integrated_checkpoint": "1edd46c089b28d863f4c9b2666801063ccf28946",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -166,7 +166,8 @@
         "approved_records_unchanged": 185
       },
       "open": [
-        "T061 viewer frame gate FAIL and matching live generation/common judged acceptance pending"
+        "T061 viewer frame gate FAIL and matching live generation/common judged acceptance pending",
+        "Issue153 plain trailing-zero decimals 1.20/-12.40 remain text; owning-package numeric/format fidelity follow-up required."
       ],
       "viewer": {
         "historical_p95_ms": 16.734000000000037,
@@ -181,7 +182,7 @@
       "branch": "codex/pre-v4-012-20261110",
       "checkpoint": "57fcfdcb67f988665d2490a3f911a8ff7bb009ea",
       "current_handoff": "/private/tmp/everlast-pre-v4-012-handoff-20261110.md",
-      "status": "localqualification_verified_targetbridge_code_and_live_acceptance_pending",
+      "status": "bridge_local_verified_clock_bootstrap_partial_live_pending",
       "checks": {
         "unit_tests": 505,
         "postgresql_regressions": 21,
@@ -196,10 +197,9 @@
       },
       "local_image": "sha256:56b30d24965ae2c249eb7dba25f143133812c580e90da4011b4906bcd370e11b",
       "open": [
-        "T068missingCloudRunsecurechallenge/inbox/evidenceexportCODE",
-        "T053/T064/T066partialfortargetdeployment",
-        "T046/T047/T048/T060livecommonjudgedintegratedacceptancepending",
-        "010T052/T064and011T061remainopen"
+        "T073/T074 actual measured private clock exchange and authenticated same-boot installation remain CODE work",
+        "T046/T047/T048/T060 live/common judged/integrated acceptance pending",
+        "010T052/T064 and011T061 remain open"
       ],
       "qualification_checkpoint": {
         "code": "01383115e522090550518e31b7b367a09e7ed97b",
@@ -220,6 +220,29 @@
           "approved_records_unchanged": 185,
           "lint_type_spec": "PASS"
         }
+      },
+      "bridge_checkpoint": {
+        "code": "2a4c8caef1e55e993e3c7a03100707f3f25cd2f7",
+        "handoff_tip": "663f483b40d329fe7d039b3918ece3ed9c3823e6",
+        "handoff": "specs/012-long-context-latency-scaling/bridge-handoff-20261111.md",
+        "checks": {
+          "core_readiness": 37,
+          "full_pg_server": 13,
+          "final_targeted_server": 2,
+          "note": "Counts overlap; local doubles are not release acceptance",
+          "lint_type_architecture": "PASS",
+          "approved_records": 184,
+          "citation": "160/160",
+          "leakage": 0,
+          "iac_validate": "PASS dev/staging/prod"
+        }
+      },
+      "clock_checkpoint": {
+        "code": "9f2ba939429f8a35370d537f827159f3fd1facb2",
+        "tip": "1edd46c089b28d863f4c9b2666801063ccf28946",
+        "handoff": "specs/012-long-context-latency-scaling/clock-handoff-20261111.md",
+        "tests": "22/22; lint/types/spec,39 architecture fixtures,graph/artifacts0;184 exceptions unchanged",
+        "status": "pure interval arithmetic/contracts only; acquisition/authentication/server/CLI/install missing"
       }
     }
   ],
@@ -227,18 +250,16 @@
   "paid_runs": false,
   "github_writes": true,
   "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
-  "active_package_agents": [
-    "/root/package_012"
-  ],
+  "active_package_agents": [],
   "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
   "global_architecture_status": {
     "dependency_findings": 0,
     "artifact_findings": 0,
-    "approved_records_unchanged": 185,
+    "approved_records_unchanged": 184,
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": null,
+  "stop_reason": "Five-hour cutoff reached (parent9%, agent final8%); all agents stopped; clean tested partial integrated; no new checks after cutoff.",
   "goal_complete": false,
   "published_changes": [
     {
@@ -252,17 +273,24 @@
       "status": "merged",
       "sha": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
       "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
+    },
+    {
+      "pr": 189,
+      "status": "open_CI_and_spec_success_merge_approval_requested",
+      "head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
+      "scope": "four-file D23 governance only",
+      "merge_authorization": "not requested or granted"
     }
   ],
-  "next_package": "012T068bridge active; then serializedapprovedGeminiEUdecision andowningpackage modelmigration/003refusal/011numericfidelity/004remediation",
+  "next_package": "Resume 012 T073/T074 clock bootstrap acquisition/authenticated same-boot installation; then sequential model configuration/owning-package migrations,003 refusal,011 decimal fidelity,004 architecture coordination.",
   "usage_observation": {
-    "five_hour_remaining_percent": 100,
-    "weekly_remaining_percent": 100,
-    "note": "Initialresumedread;recheckbeforecontinuation;cutoffs10five-hour/2weekly;noresetcredits"
+    "five_hour_remaining_percent": 8,
+    "weekly_remaining_percent": 86,
+    "note": "2026-11-11 cutoff observation; no reset credits used"
   },
   "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
-  "current_handoff": "docs/pre-v4-resume-20261111.md",
-  "cutoff_audit_in_current_resumed_run": 0,
+  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-11.md",
+  "cutoff_audit_in_current_resumed_run": 1,
   "usage_cutoff_remaining_percent": {
     "five_hour": 10,
     "weekly": 2
@@ -288,16 +316,21 @@
     }
   },
   "architecture_remediation_remaining": {
-    "records": 185,
+    "records": 184,
     "004T035": 97,
-    "004T036": 88,
-    "note": "Owningpackagecoordinationrequired; notwaivedbyguardrails"
+    "004T036": 87,
+    "note": "One actual cloud wildcard retired by 012 bridge; route remaining remediation through owning packages; no widened exceptions."
   },
   "model_region_decision": {
-    "status": "owner_approved_awaiting_serialized_authority_flowback",
+    "status": "owner_approved_D23_authority_flowback_local_PR189_pending",
     "approval": "Approve Gemini EU exception,2026-11-11",
     "record": "docs/pre-v4-model-region-proposal-20261111.md",
     "scope": "enterpriseGeminiinference/tokenizer/cache eu;otherapprovedregionsunchanged;no global/DeveloperAPI fallback",
-    "cloud_or_paid_execution_approved": false
+    "cloud_or_paid_execution_approved": false,
+    "authority_checkpoint": "36185dd",
+    "region_map": "docs/gemini-model-region-map.md",
+    "pull_request": "https://github.com/lukas-zech-software/everlast-lm/pull/189",
+    "pr_head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
+    "runtime_migration": "pending; no provider calls or cloud changes authorized"
   }
 }

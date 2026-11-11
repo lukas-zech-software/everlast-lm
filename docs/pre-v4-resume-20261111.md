@@ -83,3 +83,7 @@ Prepare exact target images, saved IaC/configuration, private fixtures, budgets,
 temporary CPU/allocation window and rollback before seeking cloud execution approval.
 The old cloud snapshot must be rechecked before actual deployment. This record
 does not certify a region/model migration, bridge deployment or release gate.
+
+## Final cutoff checkpoint
+
+Superseded for continuation by [the final Nov11 handoff](pre-v4-implementation-handoff-2026-11-11.md). Bridge integrated, D23 approved/flowed back locally, governance PR189 open, clock arithmetic partial integrated; actual acquisition/install and runtime model migration remain missing. Final agent usage8% five-hour/86% weekly. No new checks after cutoff. Architecture records184.
