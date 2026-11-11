@@ -8,8 +8,8 @@
     "NFR-PERF-01",
     "NFR-EVAL-01..04"
   ],
-  "coordinator_branch": "codex/pre-v4-pr189-checkpoint-20261111",
-  "integrated_checkpoint": "1edd46c089b28d863f4c9b2666801063ccf28946",
+  "coordinator_branch": "codex/pre-v4-resume-after-189-20261111",
+  "integrated_checkpoint": "f50782bb15444e93c5dffdf77cb61aac467c5098",
   "release_result": "GatePending",
   "v4_implementation_allowed": false,
   "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
@@ -167,7 +167,8 @@
       },
       "open": [
         "T061 viewer frame gate FAIL and matching live generation/common judged acceptance pending",
-        "Issue153 plain trailing-zero decimals 1.20/-12.40 remain text; owning-package numeric/format fidelity follow-up required."
+        "Issue153 plain trailing-zero decimals 1.20/-12.40 remain text; owning-package numeric/format fidelity follow-up required.",
+        "Ordinary configured API startup leaves mindmap and table model ports unset; implement planned enterprise Flash adapters/wiring."
       ],
       "viewer": {
         "historical_p95_ms": 16.734000000000037,
@@ -182,7 +183,7 @@
       "branch": "codex/pre-v4-012-20261110",
       "checkpoint": "57fcfdcb67f988665d2490a3f911a8ff7bb009ea",
       "current_handoff": "/private/tmp/everlast-pre-v4-012-handoff-20261110.md",
-      "status": "bridge_local_verified_clock_bootstrap_partial_live_pending",
+      "status": "clock_bootstrap_locally_verified_collector_continuity_and_live_gates_pending",
       "checks": {
         "unit_tests": 505,
         "postgresql_regressions": 21,
@@ -197,9 +198,8 @@
       },
       "local_image": "sha256:56b30d24965ae2c249eb7dba25f143133812c580e90da4011b4906bcd370e11b",
       "open": [
-        "T073/T074 actual measured private clock exchange and authenticated same-boot installation remain CODE work",
-        "T046/T047/T048/T060 live/common judged/integrated acceptance pending",
-        "010T052/T064 and011T061 remain open"
+        "T075 collector continuity across processes and full campaign validity window",
+        "T068 target verification; T046/T047/T048/T053/T060/T064 and 010 T052/T064 live acceptance"
       ],
       "qualification_checkpoint": {
         "code": "01383115e522090550518e31b7b367a09e7ed97b",
@@ -243,6 +243,15 @@
         "handoff": "specs/012-long-context-latency-scaling/clock-handoff-20261111.md",
         "tests": "22/22; lint/types/spec,39 architecture fixtures,graph/artifacts0;184 exceptions unchanged",
         "status": "pure interval arithmetic/contracts only; acquisition/authentication/server/CLI/install missing"
+      },
+      "clock_completion": {
+        "commit": "44a81071269cd38bb53c33d028e119224b2dfb92",
+        "handoff": "specs/012-long-context-latency-scaling/clock-completion-handoff-20261111.md",
+        "focused_tests": "89/89",
+        "pg_api": "14/14; final change 1 targeted",
+        "architecture": "39 fixtures; graph 0; artifacts 0; 184 legacy records",
+        "tofu": "dev/staging/prod validate",
+        "open": "T075 continuity and full campaign duration; real Cloud Run/GCS calibration and live gates UNAVAILABLE"
       }
     }
   ],
@@ -251,7 +260,7 @@
   "github_writes": true,
   "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
   "active_package_agents": [],
-  "refreshed_main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
+  "refreshed_main": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b",
   "global_architecture_status": {
     "dependency_findings": 0,
     "artifact_findings": 0,
@@ -259,7 +268,7 @@
     "policy_expanded": false,
     "scope": "changed features and actual graph; historical untouched features not certified"
   },
-  "stop_reason": "Five-hour cutoff reached (parent9%, agent final8%); all agents stopped; clean tested partial integrated; no new checks after cutoff.",
+  "stop_reason": null,
   "goal_complete": false,
   "published_changes": [
     {
@@ -283,11 +292,11 @@
       "sha": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b"
     }
   ],
-  "next_package": "Resume 012 T073/T074 clock bootstrap acquisition/authenticated same-boot installation; then sequential model configuration/owning-package migrations,003 refusal,011 decimal fidelity,004 architecture coordination.",
+  "next_package": "Parallel branch handoff; see docs/pre-v4-fanout-protocol.md.",
   "usage_observation": {
-    "five_hour_remaining_percent": 8,
-    "weekly_remaining_percent": 86,
-    "note": "2026-11-11 cutoff observation; no reset credits used"
+    "five_hour_remaining_percent": 50,
+    "weekly_remaining_percent": 77,
+    "note": "At completion of 012 clock checkpoint. Recheck before resuming."
   },
   "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
   "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-11.md",

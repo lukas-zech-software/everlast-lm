@@ -8,8 +8,10 @@ Execution update (2026-11-11, after PR #189): refreshed `origin/main` at
 The merge retained the local signup decision D22 and Package 3.4 refinements
 alongside D23, the approved Gemini EU processing exception. Spec integrity passed.
 [The November 11 handoff](pre-v4-implementation-handoff-2026-11-11.md) records the
-bridge and clock interval checkpoints. Package 012 is implementing the remaining
-clock acquisition and same-boot installation under T073/T074. The usage cutoff is
+bridge and clock interval checkpoints. T073/T074 clock acquisition and same-boot
+installation are now implemented and locally verified. T075 and live qualification
+remain open. The [fanout protocol](pre-v4-fanout-protocol.md) defines the parallel
+work and serialized integration order. The usage cutoff is
 five-hour remaining ≤10% or weekly remaining ≤2%.
 
 The refreshed main has 293 D21 records. The integrated candidate has 184, including
