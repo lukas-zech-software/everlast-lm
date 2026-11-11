@@ -48,3 +48,14 @@
 
 - Package 1.3 (`specs/003-grounded-chat-citation-engine`) passes `/speckit-analyze` with zero blocking or non-blocking issues.
 - Ready for `/speckit-implement` once Packages 1.1–1.2 prerequisites and runtime ownership are assigned.
+
+## Pre-V4 analysis (2026-11-11, prepared base e56167f)
+
+| Check | Status | Evidence |
+| --- | --- | --- |
+| Traceability and consistency | PASS | D23 and the approved map agree with the FR card and the current feature spec. T044 covers endpoint, model, thinking, ADC and private probe bounds. T045 covers explicit scope and refusal. Both precede T046. |
+| CC-09 design | PASS | The plan maps the cloud configuration export, chat adapter, and browser test to their owners and wiring. No new cross-app edge or workflow extraction is planned. T047 requires final graph and behavior verification. |
+| Scope and publication | PASS | No changes to authorization, C-02 snapshots, verifier, or publication ownership. Existing tests and GC-E04 cover those boundaries. |
+| Provider qualification | PENDING | T044 uses real local SDK transport construction with a terminal fetch double. Live entitlement and release quality require separately approved provider execution. |
+
+The refreshed 003 slice has no critical design or task-order findings.

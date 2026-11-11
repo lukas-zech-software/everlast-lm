@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
+import { resolveEnterpriseGeminiConfig, type EnterpriseGeminiConfig } from "@everlast/cloud";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import type { Schema } from "@google/genai";
+import type { GenerateContentConfig, HttpOptions, Schema } from "@google/genai";
 import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
 import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, preferenceLines, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
- * Production: ADK for TypeScript `LlmAgent` on Gemini Flash via Vertex AI in the configured EU region with
+ * Production: ADK for TypeScript `LlmAgent` on Gemini Flash via the D23 EU multi-region endpoint with
  * keyless ADC (enterprise endpoint, contractual no-training). Developer API keys are never used.
  */
 
@@ -63,13 +64,24 @@ export interface AdkModelConfig {
   project: string;
   location: string;
   model: string;
+  httpOptions?: EnterpriseGeminiConfig<"flash">["clientOptions"]["httpOptions"];
+  thinkingConfig?: EnterpriseGeminiConfig<"flash">["thinkingConfig"];
   timeoutMs?: number;
   /** FR-GC-08: offer compute/clarify only when a sandbox runtime is configured (default false). */
   codeExecution?: boolean;
 }
 
 class SingleAttemptGemini extends Gemini {
-  protected override getHttpOptions(){return {...super.getHttpOptions(),retryOptions:{attempts:1}};}
+  constructor(config: AdkModelConfig) {
+    super({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    this.httpOptions = config.httpOptions;
+  }
+
+  private readonly httpOptions: AdkModelConfig["httpOptions"];
+
+  protected override getHttpOptions(): HttpOptions {
+    return { ...super.getHttpOptions(), ...this.httpOptions, retryOptions: { attempts: 1 } };
+  }
 }
 export class AdkGroundedModel implements GroundedModel {
   readonly id: string;
@@ -81,8 +93,12 @@ export class AdkGroundedModel implements GroundedModel {
   constructor(config: AdkModelConfig) {
     this.id = `vertex:${config.location}:${config.model}`;
     this.timeoutMs = config.timeoutMs ?? 60_000;
-    // Explicit vertexai + project + location: the SDK uses ADC and ignores any API key in the environment.
-    this.llm = new SingleAttemptGemini({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    this.llm = new SingleAttemptGemini(config);
+    const generationConfig: GenerateContentConfig = {
+      temperature: 0,
+      candidateCount: 1,
+      ...(config.thinkingConfig && { thinkingConfig: config.thinkingConfig }),
+    };
     const agent = new LlmAgent({
       name: "grounded_chat",
       beforeModelCallback:({context,request})=>{
@@ -106,7 +122,7 @@ export class AdkGroundedModel implements GroundedModel {
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
-      generateContentConfig: { temperature: 0, candidateCount: 1 },
+      generateContentConfig: { ...generationConfig },
     });
     this.runner = new InMemoryRunner({ agent, appName: "everlast-chat" });
     // FR-GC-08: separate single-purpose agent for the one code correction; no tools, no transfer, no state.
@@ -119,7 +135,7 @@ export class AdkGroundedModel implements GroundedModel {
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
-      generateContentConfig: { temperature: 0, candidateCount: 1 },
+      generateContentConfig: { ...generationConfig },
     });
     this.correctionRunner = new InMemoryRunner({ agent: corrector, appName: "everlast-code-correction" });
   }
@@ -193,12 +209,11 @@ export class AdkGroundedModel implements GroundedModel {
 }
 
 export function createGroundedModelFromEnv(env: NodeJS.ProcessEnv = process.env): GroundedModel {
-  const project = env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
-  if (!project) throw new Error("VERTEX_PROJECT (or GCP_PROJECT_ID) is required for the chat model");
+  const { clientOptions, model, thinkingConfig } = resolveEnterpriseGeminiConfig("flash", env);
   return new AdkGroundedModel({
-    project,
-    location: env.VERTEX_LOCATION ?? env.VERTEX_AI_LOCATION ?? "europe-west4",
-    model: env.CHAT_MODEL ?? "gemini-2.5-flash",
+    ...clientOptions,
+    model,
+    thinkingConfig,
     codeExecution: env.CODE_EXECUTION_ENABLED === "true",
   });
 }

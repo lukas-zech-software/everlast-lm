@@ -18,7 +18,7 @@ Implement exactly package 1.3 from [FR cards](../../spec/requirements/v1/package
 - Integrated 1.1 identity/ownership/deletion fences and 1.2 C-02 retrieval/inspection, canonical C-01 chunks and session selection. 1.4 consumes chat/citation integration for the full release gate.
 - Owner-only v1–v5; explicit nonempty Ready source IDs, immutable submission revisions, current authorization before reads/publication, singleton inspection without selection mutation. All source reads go through C-02; history/cache eligibility covers complete provenance, not only citations. Deleted/revoked content is hidden or unavailable; invalid factual citations cause immediate refusal before publication. Byte and word limits are independent and inclusive. All future roles, overview/chips/Source Guide, personas, re-sync, media and Studio features remain in their assigned releases.
 
-## Constitution Check (CC-01..CC-08)
+## Constitution Check (CC-01..CC-09)
 
 Pre-research scope review passed before selecting implementation details; post-design review covers the contract/data/validation documents, not runtime success. No tests are claimed executed. Full analyze is required after tasks before implementation.
 
@@ -32,6 +32,22 @@ Pre-research scope review passed before selecting implementation details; post-d
 | CC-06 | Release order | PASS | PASS | Integrated 1.1 identity/ownership/deletion fences and 1.2 C-02 retrieval/inspection, canonical C-01 chunks and session selection. 1.4 consumes chat/citation integration for the full release gate. |
 | CC-07 | Security/residency | PASS | PASS | Owner authorization and no-training enterprise routes; EU default with verified service region map; no API activation. |
 | CC-08 | Platform/cost | PASS | PASS | Reuse TypeScript/Cloud Run/single Postgres/Storage/Tasks and OpenTofu D14; no new framework/fixed-cost service. |
+
+| CC-09 | Architectural boundaries | PASS | PASS | D23 routing adds an explicit cloud configuration interface. Existing workflow placement and D21 debt remain tracked separately. |
+
+## Architecture Boundary Evidence (CC-09, D23)
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-SEC-01, D23 | `packages/cloud/src/gemini-config.ts`, Package 003 | Resolve enterprise SDK options and role-specific model/thinking settings | `resolveEnterpriseGeminiConfig` and typed configuration from `@everlast/cloud` | Owning server adapters via the package export; SDK thinking enum and types | `apps/api/src/server.ts` calls the chat factory | `apps/api/test/chat-routing.test.ts` exercises the actual SDK URL and ADC headers with conflicting environment values |
+| FR-GC-01/02/08, C-02, NFR-EVAL-02/04 | `apps/api/src/chat/model.ts`, Package 003 | ADK inference and correction adapter, structured output parsing and private RPC bounds | `GroundedModel`, `createGroundedModelFromEnv` | Chat workflow via its model port; model adapter consumes ADK, SDK and cloud config | `apps/api/src/server.ts` | Chat model, verifier, sandbox, scope and publication regression suites |
+| FR-GC-01/02, NFR-SEC-02, NFR-EVAL-02/04 | `apps/web/test/chat.spec.ts`, Package 003 | Browser transport and refusal acceptance | GC-E04 | Existing Playwright fixtures and real local API | `apps/web/test/e2e-server.ts` | Real checkbox deselection, exact POST scope, visible refusal and zero badges |
+
+`ChatService` retains authorization coordination, C-02 retrieval, cancellation and
+publication fences. The existing database store retains SQL and transaction ownership.
+The sandbox controller retains correction eligibility and its attempt limit. There
+are no quota or dispatch changes. No D21 exception changes are required by this slice.
+The coordinator retains ChatService extraction and the shared fixture wiring queue.
 
 ## Project Structure and Ownership
 
@@ -72,3 +88,17 @@ No new framework, datastore, cloud service, scope deferral or constitution excep
 - **Model:** ADK `LlmAgent` with `InMemoryRunner`, Gemini (`CHAT_MODEL`, default `gemini-2.5-flash`) on Vertex AI with explicit project and location (ADC; developer keys in the environment are ignored). Structured output `{status, missing_topic?, sentences[{text, citations[], kind: claim|meta}]}`, temperature 0.
 - **Verification (D13):** runs on every draft. Any citation outside this answer's retrieved chunks, or any uncited claim, yields the refusal; `not_in_sources` yields "The selected sources do not contain information about <topic>." Badges are stored as `[[n]]` markers.
 - **Persistence:** question and answer are written together under the publication fence (snapshot re-check plus thread epoch), keyed by `request_id`. Messages store the full submission snapshot as provenance and citation references only; titles and snippets are resolved at read time, so a deleted source shows "Source deleted" and hides dependent answer text. History uses the last 10 eligible turns.
+
+## D23 runtime migration (FR-GC-01/02/08, NFR-SEC-01, CC-09)
+
+The server's chat factory resolves the approved Flash profile using the shared
+cloud interface. `GEMINI_LOCATION` defaults to `eu` and rejects other values.
+The ADK client receives `vertexai: true`, an explicit project and location,
+and `https://aiplatform.eu.rep.googleapis.com` via its HTTP options. The
+application preserves the existing JSON response schemas and applies LOW
+thinking to chat and code correction. The model adapter retains one SDK
+attempt, and the private chat path retains its existing per-request RPC,
+payload and output limits. Explicit constructor calls used by historical
+fixtures and the Package 004 evaluator keep their call contract until the
+evaluator's owning migration. See [validation.md](validation.md) for evidence
+and the interface for downstream packages.
