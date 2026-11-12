@@ -33,10 +33,125 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     },
-    "./*": {
-      "types": "./src/*.ts",
-      "import": "./src/*.ts",
-      "default": "./src/*.ts"
+    "./ingestion/drive": {
+      "types": "./src/ingestion/drive.ts",
+      "import": "./src/ingestion/drive.ts",
+      "default": "./src/ingestion/drive.ts"
+    },
+    "./ingestion/media": {
+      "types": "./src/ingestion/media.ts",
+      "import": "./src/ingestion/media.ts",
+      "default": "./src/ingestion/media.ts"
+    },
+    "./ingestion/office": {
+      "types": "./src/ingestion/office.ts",
+      "import": "./src/ingestion/office.ts",
+      "default": "./src/ingestion/office.ts"
+    },
+    "./ingestion/pipeline": {
+      "types": "./src/ingestion/pipeline.ts",
+      "import": "./src/ingestion/pipeline.ts",
+      "default": "./src/ingestion/pipeline.ts"
+    },
+    "./ingestion/screening": {
+      "types": "./src/ingestion/screening.ts",
+      "import": "./src/ingestion/screening.ts",
+      "default": "./src/ingestion/screening.ts"
+    },
+    "./ingestion/sync": {
+      "types": "./src/ingestion/sync.ts",
+      "import": "./src/ingestion/sync.ts",
+      "default": "./src/ingestion/sync.ts"
+    },
+    "./ingestion/web": {
+      "types": "./src/ingestion/web.ts",
+      "import": "./src/ingestion/web.ts",
+      "default": "./src/ingestion/web.ts"
+    },
+    "./package-v2-2": {
+      "types": "./src/package-v2-2.ts",
+      "import": "./src/package-v2-2.ts",
+      "default": "./src/package-v2-2.ts"
+    },
+    "./package-v2-2-runtime": {
+      "types": "./src/package-v2-2-runtime.ts",
+      "import": "./src/package-v2-2-runtime.ts",
+      "default": "./src/package-v2-2-runtime.ts"
+    },
+    "./ready-hooks": {
+      "types": "./src/ready-hooks.ts",
+      "import": "./src/ready-hooks.ts",
+      "default": "./src/ready-hooks.ts"
+    },
+    "./studio/dispatcher": {
+      "types": "./src/studio/dispatcher.ts",
+      "import": "./src/studio/dispatcher.ts",
+      "default": "./src/studio/dispatcher.ts"
+    },
+    "./studio/mindmaps/model": {
+      "types": "./src/studio/mindmaps/model.ts",
+      "import": "./src/studio/mindmaps/model.ts",
+      "default": "./src/studio/mindmaps/model.ts"
+    },
+    "./studio/mindmaps/pipeline": {
+      "types": "./src/studio/mindmaps/pipeline.ts",
+      "import": "./src/studio/mindmaps/pipeline.ts",
+      "default": "./src/studio/mindmaps/pipeline.ts"
+    },
+    "./studio/mindmaps/validation": {
+      "types": "./src/studio/mindmaps/validation.ts",
+      "import": "./src/studio/mindmaps/validation.ts",
+      "default": "./src/studio/mindmaps/validation.ts"
+    },
+    "./studio/registry": {
+      "types": "./src/studio/registry.ts",
+      "import": "./src/studio/registry.ts",
+      "default": "./src/studio/registry.ts"
+    },
+    "./studio/reports/deterministic-model": {
+      "types": "./src/studio/reports/deterministic-model.ts",
+      "import": "./src/studio/reports/deterministic-model.ts",
+      "default": "./src/studio/reports/deterministic-model.ts"
+    },
+    "./studio/reports/model": {
+      "types": "./src/studio/reports/model.ts",
+      "import": "./src/studio/reports/model.ts",
+      "default": "./src/studio/reports/model.ts"
+    },
+    "./studio/reports/plugin": {
+      "types": "./src/studio/reports/plugin.ts",
+      "import": "./src/studio/reports/plugin.ts",
+      "default": "./src/studio/reports/plugin.ts"
+    },
+    "./studio/reports/suggestions": {
+      "types": "./src/studio/reports/suggestions.ts",
+      "import": "./src/studio/reports/suggestions.ts",
+      "default": "./src/studio/reports/suggestions.ts"
+    },
+    "./studio/reports/vertex-model": {
+      "types": "./src/studio/reports/vertex-model.ts",
+      "import": "./src/studio/reports/vertex-model.ts",
+      "default": "./src/studio/reports/vertex-model.ts"
+    },
+    "./studio/runner": {
+      "types": "./src/studio/runner.ts",
+      "import": "./src/studio/runner.ts",
+      "default": "./src/studio/runner.ts"
+    },
+    "./studio/tables/model": {
+      "types": "./src/studio/tables/model.ts",
+      "import": "./src/studio/tables/model.ts",
+      "default": "./src/studio/tables/model.ts"
+    },
+    "./studio/tables/pipeline": {
+      "types": "./src/studio/tables/pipeline.ts",
+      "import": "./src/studio/tables/pipeline.ts",
+      "default": "./src/studio/tables/pipeline.ts"
+    },
+    "./studio/tables/validation": {
+      "types": "./src/studio/tables/validation.ts",
+      "import": "./src/studio/tables/validation.ts",
+      "default": "./src/studio/tables/validation.ts"
     }
   }
 }

@@ -32,7 +32,7 @@ Pre-research scope review passed before selecting implementation details; post-d
 | CC-06 | Release order | PASS | PASS | 1.1–1.3 provide real notebook, source, inspector and chat features; UI shell and test datasets can be prepared early, but full Gate v1.0 requires the integrated runnable application. |
 | CC-07 | Security/residency | PASS | PASS | Owner authorization and no-training enterprise routes; EU default with verified service region map; no API activation. |
 | CC-08 | Platform/cost | PASS | PASS | Reuse TypeScript/Cloud Run/single Postgres/Storage/Tasks and OpenTofu D14; no new framework/fixed-cost service. |
-| CC-09 | Architectural boundaries | PASS | PASS | C-01..C-03: tooling boundary inventory below; automated dependency and artifact checks plus 39 fixtures pass, with 293 exact D21 migration exceptions after reconciling current `main`. Manual workflow review remains required for application changes. |
+| CC-09 | Architectural boundaries | PASS | PASS | C-01..C-03: tooling boundary inventory below; automated dependency and artifact checks plus 39 fixtures pass, with 90 exact D21 migration exceptions after replacing `apps/api` and `apps/worker` wildcard exports with explicit subpath exports on current `main`. Manual workflow review remains required for application changes. |
 
 ## Project Structure and Ownership
 

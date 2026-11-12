@@ -32,10 +32,50 @@
       "import": "./src/server.ts",
       "default": "./src/server.ts"
     },
-    "./*": {
-      "types": "./src/*.ts",
-      "import": "./src/*.ts",
-      "default": "./src/*.ts"
+    "./app": {
+      "types": "./src/app.ts",
+      "import": "./src/app.ts",
+      "default": "./src/app.ts"
+    },
+    "./auth/identity": {
+      "types": "./src/auth/identity.ts",
+      "import": "./src/auth/identity.ts",
+      "default": "./src/auth/identity.ts"
+    },
+    "./chat/draft": {
+      "types": "./src/chat/draft.ts",
+      "import": "./src/chat/draft.ts",
+      "default": "./src/chat/draft.ts"
+    },
+    "./chat/execution/runtime": {
+      "types": "./src/chat/execution/runtime.ts",
+      "import": "./src/chat/execution/runtime.ts",
+      "default": "./src/chat/execution/runtime.ts"
+    },
+    "./chat/model": {
+      "types": "./src/chat/model.ts",
+      "import": "./src/chat/model.ts",
+      "default": "./src/chat/model.ts"
+    },
+    "./chat/service": {
+      "types": "./src/chat/service.ts",
+      "import": "./src/chat/service.ts",
+      "default": "./src/chat/service.ts"
+    },
+    "./chat/verifier": {
+      "types": "./src/chat/verifier.ts",
+      "import": "./src/chat/verifier.ts",
+      "default": "./src/chat/verifier.ts"
+    },
+    "./routes/connections": {
+      "types": "./src/routes/connections.ts",
+      "import": "./src/routes/connections.ts",
+      "default": "./src/routes/connections.ts"
+    },
+    "./v2/runtime": {
+      "types": "./src/v2/runtime.ts",
+      "import": "./src/v2/runtime.ts",
+      "default": "./src/v2/runtime.ts"
     }
   }
 }
