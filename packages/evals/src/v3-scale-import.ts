@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { BenchmarkObservationSchema } from '@everlast/contracts';
+import { BenchmarkObservationSchema, PrivateClockCalibrationSchema } from '@everlast/contracts';
 import { buildScaleBenchmarkReport } from './report.ts';
 import { correlateScaleEvidence } from './v3-scale.ts';
 import { loadScaleFixture, type ScaleFixture } from './v3-scale-fixture.ts';
 /** NFR-EVAL-02/04: reject old bare rows, mixed fixtures and silently dropped diagnostics. */
-const capture=z.object({schema:z.literal('everlast.scale-v3-capture/1'),profile:z.enum(['core','concurrency']),manifest_hash:z.string().regex(/^[a-f0-9]{64}$/),observations:z.array(BenchmarkObservationSchema).max(40),concurrency_observations:z.array(BenchmarkObservationSchema).length(20).optional(),concurrency_fixture:z.unknown().optional(),private_evidence:z.array(z.unknown()).max(60)}).strict();
+const capture=z.object({schema:z.literal('everlast.scale-v3-capture/1'),profile:z.enum(['core','concurrency']),manifest_hash:z.string().regex(/^[a-f0-9]{64}$/),observations:z.array(BenchmarkObservationSchema).max(40),concurrency_observations:z.array(BenchmarkObservationSchema).length(20).optional(),concurrency_fixture:z.unknown().optional(),private_evidence:z.array(z.unknown()).max(60),clock_calibration:PrivateClockCalibrationSchema.optional()}).strict();
 export function importScaleCapture(raw:unknown,fixture:ScaleFixture,profile:'core'|'concurrency'){
  const c=capture.parse(raw);
  if(c.manifest_hash!==fixture.fixture_hash || c.profile!==profile)throw new Error('Capture fixture/profile mismatch');
@@ -21,7 +21,10 @@ export function importScaleCapture(raw:unknown,fixture:ScaleFixture,profile:'cor
  for(const row of rows){
   const f=row.manifest_hash===fixture.fixture_hash?fixture:other?.fixture_hash===row.manifest_hash?other:null;
   if(!f || !row.notebook_id)throw new Error('Observation fixture/notebook provenance missing');
-  const correlated=correlateScaleEvidence(evidence.get(row.request_id),f,{requestId:row.request_id,notebookId:row.notebook_id,epochMs:row.client_submission_epoch_ms??NaN,uncertainty:row.clock_uncertainty_ms??NaN});
+  const epoch=row.client_submission_epoch_ms??NaN,calibration=c.clock_calibration;
+  if(calibration&&(!Number.isFinite(epoch)||epoch<calibration.measured_at_ms||epoch>=calibration.expires_at_ms-calibration.uncertainty_ms||row.clock_uncertainty_ms!==calibration.uncertainty_ms))
+   throw new Error('Observation is outside its retained clock interval');
+  const correlated=correlateScaleEvidence(evidence.get(row.request_id),f,{requestId:row.request_id,notebookId:row.notebook_id,epochMs:epoch+(calibration?.offset_ms??0),uncertainty:row.clock_uncertainty_ms??NaN});
   const e=correlated.evidence;
   if(row.cohort!==correlated.cohort || row.instance_boot_id!==(e?.instance_boot_id??null) || row.active_token_total!==(e?.scope?.source_token_total??null) || row.prompt_leakage_count!==(e?.prompt_leakage_count??null) || row.needle_correct&&!row.cited_chunk_ids.includes(f.needle_chunk_id) || e&&row.principal_subject!==e.scope?.principal_subject)
    throw new Error('Observation/private evidence provenance mismatch');

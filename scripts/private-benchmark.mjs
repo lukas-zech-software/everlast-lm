@@ -5,10 +5,14 @@ import { resolve,dirname,basename } from 'node:path';
 import { sign,createPrivateKey } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { PrivateBenchmarkOperator,PrivateClockOperator,PRIVATE_BRIDGE_POLICY,OwnerPrivateDirectory,GcsPrivateBridgeObjects,LocalPrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
-const {values,positionals}=parseArgs({allowPositionals:true,options:{'identity-file':{type:'string'},'calibration-file':{type:'string'},'receipt-key-file':{type:'string'},'public-key-file':{type:'string'},'private-key-file':{type:'string'},'payload-file':{type:'string'},'signature-file':{type:'string'},directory:{type:'string'},bucket:{type:'string'},'local-root':{type:'string'},'duration-seconds':{type:'string',default:'60'}}});
+const {values,positionals}=parseArgs({allowPositionals:true,options:{'collector':{type:'string'},'identity-file':{type:'string'},'calibration-file':{type:'string'},'receipt-key-file':{type:'string'},'public-key-file':{type:'string'},'private-key-file':{type:'string'},'payload-file':{type:'string'},'signature-file':{type:'string'},directory:{type:'string'},bucket:{type:'string'},'local-root':{type:'string'},'duration-seconds':{type:'string',default:'60'}}});
 function read(path,max=128000){if(!path)throw new Error('Required private file missing');const absolute=resolve(path),data=new OwnerPrivateDirectory(dirname(absolute)).read(basename(absolute),max);if(!data)throw new Error('Private input absent');return data.toString();}
 async function main(){
- const command=positionals[0];if(!['discover','preflight','deliver','download','follow','sign','clock-discover','clock-acquire'].includes(command))throw new Error('Expected discover/preflight/deliver/download/follow/sign/clock-discover/clock-acquire');
+ const [command,...collectorArgs]=positionals;
+ const collector=values.collector;
+ if(collector && (command!=='clock-acquire'||!['scale','code-execution'].includes(collector)))throw new Error('Clock acquisition supports only the scale or code-execution collectors');
+ if(!collector&&collectorArgs.length)throw new Error('Unexpected private benchmark arguments');
+ if(!['discover','preflight','deliver','download','follow','sign','clock-discover','clock-acquire'].includes(command))throw new Error('Expected discover/preflight/deliver/download/follow/sign/clock-discover/clock-acquire');
  if(command==='sign'){const privateKey=createPrivateKey(read(values['private-key-file'],8192));if(privateKey.asymmetricKeyType!=='ed25519')throw new Error('Only Ed25519 authorizations');const payload=read(values['payload-file']);const output=resolve(values['signature-file']??'');if(!values['signature-file'])throw new Error('Signature path required');new OwnerPrivateDirectory(dirname(output)).write(basename(output),sign(null,Buffer.from(payload),privateKey).toString('base64'));return;}
  if(Boolean(values.bucket)===Boolean(values['local-root']))throw new Error('Choose exactly one bucket or local test root');
  const objects=values['local-root']?new LocalPrivateBridgeObjects(resolve(values['local-root'])):new GcsPrivateBridgeObjects({bucket:values.bucket});
@@ -26,7 +30,7 @@ async function main(){
    if(!values.directory)throw new Error('Owner-private clock evidence directory required');
    const files=new OwnerPrivateDirectory(resolve(values.directory),true);
    const publicKey=read(values['public-key-file'],8192);
-   const {proof,acknowledgment,assertClockCurrent}=await clock.acquire(measurement=>files.write('clock-proof.json',JSON.stringify(measurement)+'\n'));
+   const {proof,acknowledgment,assertClockCurrent,assertBudget}=await clock.acquire(measurement=>files.write('clock-proof.json',JSON.stringify(measurement)+'\n'));
    files.write('clock-installed.json',JSON.stringify(acknowledgment)+'\n');
    const confirmer=new PrivateBenchmarkOperator({
     identity,objects,publicKey,calibration:proof.calibration,
@@ -45,6 +49,20 @@ async function main(){
     assertClockCurrent();
     files.write('calibration.json',JSON.stringify(proof.calibration)+'\n');
     console.log(JSON.stringify({result:'CLOCK_INSTALLED',release_eligible:false}));
+    if(collector){
+     // Reserve the existing maximum signed setup allowance and final local evidence export.
+     const session={
+      identity, calibration:proof.calibration, directory:resolve(values.directory), assertClockCurrent,
+      reserveCollection:durationMs=>assertBudget(240_000+durationMs+5_000),
+     };
+     if(collector==='scale'){
+      const {runScaleCli}=await import('./eval-v3-scale.mjs');
+      process.exitCode=await runScaleCli(collectorArgs,session);
+     }else{
+      const {runCodeExecutionCli}=await import('./eval-v3-code-execution.mjs');
+      process.exitCode=await runCodeExecutionCli(collectorArgs,session);
+     }
+    }
     return;
    }finally{confirmer.close();}
   }finally{clock.close();}

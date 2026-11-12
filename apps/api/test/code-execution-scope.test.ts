@@ -557,10 +557,16 @@ it.each(['local-files','remote-bridge','clock-bootstrap'])('NFR-PERF-01 actual s
    const clockArgs=['--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--receipt-key-file',join(channel,'receipt-root.pem')];
    const discovery=await runCli(process.execPath,['scripts/private-benchmark.mjs','clock-discover',...clockArgs]);
    expect(JSON.parse(discovery.stdout)).toEqual({boots:[identity],release_eligible:false});
-   const result=await runCli(process.execPath,['scripts/private-benchmark.mjs','clock-acquire',...clockArgs,
+   const {fixture_hash:_unused,...scaleRecipe}=JSON.parse(readFileSync('packages/evals/fixtures/v3/scale-manifest.json','utf8'));
+   const boundScale={...scaleRecipe,runtime_qualification:identity.serving_revision};
+   const scalePath=join(channel,'scale.json');
+   writeFileSync(scalePath,JSON.stringify({...boundScale,fixture_hash:hash(boundScale)}),{mode:0o600});
+   await expect(runCli(process.execPath,['scripts/private-benchmark.mjs','clock-acquire',...clockArgs,
     '--private-key-file',join(channel,'owner-key.pem'),
-    '--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',channel]);
-   expect(JSON.parse(result.stdout)).toEqual({result:'CLOCK_INSTALLED',release_eligible:false});
+    '--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',channel,
+    '--collector','scale','--','--manifest',scalePath])).rejects.toMatchObject({code:2,stdout:expect.stringContaining('CLOCK_INSTALLED')});
+   const scaleReport=JSON.parse(readFileSync(join(channel,'v3-scale-benchmark.json'),'utf8'));
+   expect(scaleReport).toMatchObject({result:'UNAVAILABLE',missing_prerequisites:expect.stringContaining('duration'),core:{attempt_count:0}});
    calibration=JSON.parse(readFileSync(join(channel,'calibration.json'),'utf8'));
    expect(JSON.parse(readFileSync(join(channel,'clock-proof.json'),'utf8')).calibration).toEqual(calibration);
    const confirmation=JSON.parse(readFileSync(join(channel,'clock-installed.json'),'utf8'));

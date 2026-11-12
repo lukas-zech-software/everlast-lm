@@ -4,7 +4,7 @@ import { mkdtempSync,rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GoogleGenAI } from '@google/genai';
-import { vertexConfigFromEnv } from '@everlast/cloud';
+import { resolveEnterpriseGeminiConfig } from '@everlast/cloud';
 import { CodeExecutionPrivateEvidenceFileSchema, CodeExecutionPrivateMeasurementSchema, CodeExecutionRuntimeConfigSchema, type CodeExecutionPrivateEvidenceFile, type CodeExecutionRuntimeConfig, type CodeExecutionTrace, type SourceRevisionPair } from '@everlast/contracts';
 import { randomUUID, createHash, createPublicKey, verify as verifySignature } from 'node:crypto';
 import { z } from 'zod';
@@ -82,10 +82,9 @@ export interface OperationalCachePort {
 }
 /** API-owned enterprise adapter; does not consume worker implementation through a legacy application import. */
 export function createOperationalCacheFromEnv(env:NodeJS.ProcessEnv):OperationalCachePort{
- const config=vertexConfigFromEnv(env),model=env.REPORT_MODEL??'gemini-2.5-flash';
- if(config.location!=='europe-west4')throw new Error('Operational cache must use the approved EU region');
- const client=new GoogleGenAI({vertexai:true,project:config.project,location:config.location,httpOptions:{timeout:30000,retryOptions:{attempts:1}}});
- return {identity:JSON.stringify({project:config.project,location:config.location,model}),
+ const {clientOptions,model}=resolveEnterpriseGeminiConfig('flash',env);
+ const client=new GoogleGenAI({...clientOptions,httpOptions:{...clientOptions.httpOptions,timeout:30000,retryOptions:{attempts:1}}});
+ return {identity:JSON.stringify({project:clientOptions.project,location:clientOptions.location,model}),
   create:async({pages,signal})=>{
    signal.throwIfAborted();const contents=[{role:'user',parts:pages.flatMap(page=>page.map(chunk=>({text:JSON.stringify({chunk_id:chunk.chunk_id,source_id:chunk.source_id,revision:chunk.revision,text:chunk.text})})))}];
    if(Buffer.byteLength(JSON.stringify(contents))>10000000)throw new Error('Operational cache native serialized byte cap exceeded');
@@ -228,18 +227,21 @@ export class PrivateBenchmarkRecorder {
  beginExecution(input:{notebook_id:string;owner_id:string;request_id:string;source_snapshot:SourceRevisionPair[]}){
   const config=this.options.executionEvidence,readiness=this.readiness();
   if(!config||!this.approved.has(input.notebook_id)||!config.metadata.approved_notebook_ids.includes(input.notebook_id))return undefined;
+  // This recorder observes application qualification. A distinct provider timestamp is required for managed-runtime readiness.
+  if(config.metadata.classification_basis!=='application-serving-readiness')return undefined;
   try{checkExecutionConfig(config,this.options.revision);}catch{return undefined;}
   if(readiness.ready_at_ms===null||!Object.values(readiness.dependencies).every(Boolean))return undefined;
   const actor=this.operationalActors?.find(actor=>actor.notebook_id===input.notebook_id);
   if(this.operationalActors&&(!actor||actor.owner_id!==input.owner_id||JSON.stringify(actor.sources)!==JSON.stringify(input.source_snapshot)))return undefined;
-  const qualifiedAt=Date.now(),times:{sandbox_created_at:string|null;running_code_at:string|null;execution_completed_at:string|null}={sandbox_created_at:null,running_code_at:null,execution_completed_at:null};
+  const qualifiedAt=readiness.ready_at_ms,operationalGeneration=this.operationalGeneration,times:{sandbox_created_at:string|null;running_code_at:string|null;execution_completed_at:string|null}={sandbox_created_at:null,running_code_at:null,execution_completed_at:null};
   let finished=false;
   return {
    timing:(event:{phase:keyof typeof times;at:string})=>{if(finished)return;if(event.phase==='execution_completed_at')times.execution_completed_at=event.at;else times[event.phase]??=event.at;},
    finish:(trace:CodeExecutionTrace,publishedAt:string|null)=>{
     if(finished)return;finished=true;
     try{
-     if(!this.hasCurrentClock())return;
+     const current=this.readiness();
+     if(current.ready_at_ms!==qualifiedAt||!Object.values(current.dependencies).every(Boolean)||this.operationalGeneration!==operationalGeneration)return;
      checkExecutionConfig(config,this.options.revision);
      const {measurements,...metadata}=CodeExecutionPrivateEvidenceFileSchema.parse({...config.metadata,measurements:[]});
      const terminal=trace.state==='Succeeded'||trace.state==='Failed'||trace.state==='TimedOut';if(!terminal)return;

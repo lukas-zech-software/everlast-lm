@@ -266,11 +266,16 @@ it.each([-30000, 30000])('NFR-PERF-01 signed private clock roundtrip acquires an
     const c = await clockChannel(offset);
     const operator = c.operator();
     expect(await operator.discover()).toEqual([c.id]);
-    const { proof: observed, acknowledgment } = await operator.acquire(proof => {
+    const { proof: observed, acknowledgment, assertClockCurrent, assertBudget } = await operator.acquire(proof => {
         expect(c.installed).toHaveLength(0);
         expect(proof.calibration.measured_at_ms).toBeGreaterThan(Date.now() - 1000);
     });
     expect(c.installed).toEqual([observed]);
+    expect(() => assertClockCurrent(observed.calibration, c.id.instance_boot_id)).not.toThrow();
+    expect(() => assertBudget(240000)).toThrow(/duration/);
+    expect(() => assertClockCurrent(observed.calibration, randomUUID())).toThrow(/boot/);
+    // Once invalid, even subsequent matching evidence cannot requalify the same process.
+    expect(() => assertClockCurrent(observed.calibration, c.id.instance_boot_id)).toThrow(/invalid/);
     expect(c.opened).toEqual([true]);
     expect(acknowledgment.ref.name).toBe(privateBridgePrefix(c.id) + '/clock/installed.json');
     expect(await c.store.stat(acknowledgment.ref.name, acknowledgment.ref.generation)).not.toBeNull();

@@ -225,3 +225,14 @@ Use a signed challenge at the boot path and a bounded discovery prefix. Each sig
 The serving key signs one immutable installation acknowledgment after the API's synchronous private install. The CLI independently verifies the acknowledged install generation and calibration digest before accepting the ordinary challenge. Confirmation uses bounded reads and preserves any proof written before installation.
 
 T075 covers the live collector boundary (NFR-PERF-01, FR-GC-08). Client continuity is measured throughout the acquiring and confirming CLI process. The canonical file carries epoch timestamps and elapsed intervals. Package 010 and 012 collectors launched separately need a continuity mechanism and proof that their complete workload fits the conservative 60s window, including setup and export. No calibration renewal currently occurs on a boot.
+
+### T075 architecture inventory (NFR-PERF-01, FR-GC-08, C-02, NFR-SEC-02, D23, CC-09)
+
+| Module and owner | Responsibility and public port | Allowed dependencies and composition | Regression |
+| --- | --- | --- | --- |
+| `packages/cloud/src/private-benchmark-clock.ts` (012) | Same-process guard returned from signed acquisition, exact proof/boot binding, latched continuity failure and conservative remaining window | Contracts, existing crypto/clock and private object ports. `scripts/private-benchmark.mjs` composes acquisition and collector | Private clock exchange tests |
+| `scripts/private-benchmark.mjs`, `scripts/eval-v3-scale.mjs`, `scripts/eval-v3-code-execution.mjs` (012/010 integration) | Operator composition and dispatch preflight; checked export through the acquiring process | Fixed collector entry points, private owner files and public private benchmark operator. No app import, new deployment dependency or auth bypass | Local CLI and guard tests |
+| `packages/evals/src/v3-scale.ts` (012) and existing `CollectionPorts.assertClockCurrent` (010) | Guarded dispatch and evidence matching, preserve failures and timers | Contract schemas and injected guard/clock; no production app dependency | Scale local transport tests and 010 collector tests |
+| `apps/api/src/observability/benchmark.ts` (012) | Recorder owns prospective trusted readiness and C-02 actor fence; cache adapter owns scoped provider counting/create/delete | Existing `@everlast/cloud` resolver export and Gemini SDK; existing server composition. No new application edge | Recorder/SDK double regressions |
+
+No quota, source read, transaction, dispatch, cancellation or artifact publication ownership moves. The clock guard controls evidence eligibility only. A fixed 60-second authenticated install cannot safely budget the frozen full campaigns; admission must fail before timed dispatch under this bound. D23 scope and provider budgets stay unchanged. No new exception or legacy-policy edits.

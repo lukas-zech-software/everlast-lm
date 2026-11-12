@@ -1,13 +1,16 @@
+import type { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { BenchmarkPrivateEvidenceSchema, classifyReadiness, type BenchmarkObservation, type BenchmarkPrivateEvidence } from '@everlast/contracts';
+import { BenchmarkPrivateEvidenceSchema, classifyReadiness, type PrivateClockCalibrationSchema, type BenchmarkObservation, type BenchmarkPrivateEvidence } from '@everlast/contracts';
 import { loadScaleFixture, type ScaleFixture } from './v3-scale-fixture.ts';
 import { collectFreshFinal, type FinalReceipt } from './v3-scale-client.ts';
 import { buildScaleBenchmarkReport, type ScaleBenchmarkReport } from './report.ts';
 
+type Calibration = Readonly<z.infer<typeof PrivateClockCalibrationSchema>>;
 export interface ScaleBenchmarkOptions {
  baseUrl:string;token:string;notebookId:string;profile?:'core'|'concurrency';
  concurrencyNotebookId?:string;concurrencyToken?:string;concurrencyFixture?:ScaleFixture;
  clock?:()=>number;epochClock?:()=>number;clockUncertaintyMs?:number;timeoutMs?:number;
+ clockSession?:{calibration:Calibration;assertClockCurrent:(calibration:Calibration,instanceBootId?:string)=>void};
  /** Private channel provisioned separately by the operator. No public telemetry endpoint. */
  evidence?:(request:{requestId:string;notebookId:string})=>Promise<unknown>;
 }
@@ -35,7 +38,16 @@ export async function runScaleBenchmark(fixture:ScaleFixture,options:ScaleBenchm
  const clock=options.clock??(()=>performance.now()),epochClock=options.epochClock??Date.now;
  const timeoutMs=options.timeoutMs??30_000;
  if(!Number.isFinite(timeoutMs)||timeoutMs<=0||timeoutMs>120_000) throw new Error('Invalid benchmark request timeout');
- const submit=async(target:{notebookId:string;token:string;fixture:ScaleFixture}):Promise<BenchmarkObservation>=>{
+ const session=options.clockSession;
+ const uncertainty=session?.calibration.uncertainty_ms??options.clockUncertaintyMs??NaN;
+ let clockInvalid=false;
+ const clockIsCurrent=(boot?:string)=>{
+  if(clockInvalid)return false;
+  try{session?.assertClockCurrent(session.calibration,boot);return true;}
+  catch{clockInvalid=true;return false;}
+ };
+ const submit=async(target:{notebookId:string;token:string;fixture:ScaleFixture}):Promise<BenchmarkObservation|null>=>{
+  if(!clockIsCurrent())return null;
   const requestId=randomUUID(),runId=randomUUID(),epochMs=epochClock(),submissionMs=clock();
   let receipt:FinalReceipt={terminal_status:'error',client_first_validated_answer_ms:null,latency_ms:null,answer:'',cited_chunk_ids:[]};
   let failure:string|undefined;
@@ -47,27 +59,30 @@ export async function runScaleBenchmark(fixture:ScaleFixture,options:ScaleBenchm
   finally{clearTimeout(timer);}
   let raw:unknown,evidenceTimer:ReturnType<typeof setTimeout>|undefined;
   try{raw=await Promise.race([options.evidence?.({requestId,notebookId:target.notebookId}),new Promise<never>((_,reject)=>{evidenceTimer=setTimeout(()=>reject(new Error('Private evidence timeout')),timeoutMs);})]);}catch{failure='Private evidence collection failed';}finally{clearTimeout(evidenceTimer);}
-  const {evidence:e,cohort,error}=correlateScaleEvidence(raw,target.fixture,{requestId,notebookId:target.notebookId,epochMs,uncertainty:options.clockUncertaintyMs??NaN});
+  const mappedEpoch=epochMs+(session?.calibration.offset_ms??0);
+  const {evidence:e,cohort,error}=correlateScaleEvidence(raw,target.fixture,{requestId,notebookId:target.notebookId,epochMs:mappedEpoch,uncertainty});
+  const clockValid=clockIsCurrent(e?.instance_boot_id);
+  if(!clockValid)failure='Private clock continuity unavailable';
   const terminalMatches=receipt.terminal_status==='error' || !e || e.terminal_status===receipt.terminal_status;
-  const valid=terminalMatches?cohort:'invalid_environment';
+  const valid=terminalMatches&&clockValid?cohort:'invalid_environment';
   const answer=receipt.terminal_status==='answer';
   return {run_id:runId,request_id:requestId,manifest_hash:target.fixture.fixture_hash,cohort:valid,instance_boot_id:e?.instance_boot_id??null,replayed:receipt.terminal_status==='replayed',client_submission_monotonic_ms:submissionMs,client_first_validated_answer_ms:answer?receipt.client_first_validated_answer_ms:null,latency_ms:answer?receipt.latency_ms:null,terminal_status:receipt.terminal_status,
    active_token_total:e?.scope?.source_token_total??null,cited_chunk_ids:receipt.cited_chunk_ids,needle_correct:answer&&receipt.answer.includes(target.fixture.expected_fact)&&receipt.cited_chunk_ids.includes(target.fixture.needle_chunk_id),prompt_leakage_count:e?.prompt_leakage_count??null,answer_leakage_count:receipt.terminal_status==='error'?null:receipt.answer.includes(target.fixture.forbidden_fact)?1:0,
-   client_completion_monotonic_ms:clock(),client_submission_epoch_ms:epochMs,clock_uncertainty_ms:Number.isFinite(options.clockUncertaintyMs)?options.clockUncertaintyMs!:null,
+   client_completion_monotonic_ms:clock(),client_submission_epoch_ms:epochMs,clock_uncertainty_ms:Number.isFinite(uncertainty)?uncertainty:null,
    notebook_id:target.notebookId,...(e?.scope?{principal_subject:e.scope.principal_subject,scope_manifest_hash:e.scope.manifest_hash,revision:e.revision}:{}),...((failure||error||!terminalMatches)?{evidence_error:failure??error??'Terminal status mismatch'}:{})};
  };
  const coreObservations:BenchmarkObservation[]=[];
  const target={notebookId:options.notebookId,token:options.token,fixture};
  let warm=0;
  for(let attempt=0;attempt<fixture.max_attempts&&warm<fixture.sample_count;attempt++){
-  const row=await submit(target);coreObservations.push(row);if(row.cohort==='warm')warm++;
+  const row=await submit(target);if(!row)break;coreObservations.push(row);if(row.cohort==='warm')warm++;
  }
  let concurrencyObservations:BenchmarkObservation[]|undefined;
  if(concurrent){
   concurrencyObservations=[];
-  for(let pair=0;pair<10;pair++){
+  for(let pair=0;pair<10&&!clockInvalid;pair++){
    const id=randomUUID();const rows=await Promise.all([submit(target),submit({notebookId:options.concurrencyNotebookId!,token:options.concurrencyToken!,fixture:other!})]);
-   concurrencyObservations.push(...rows.map(row=>({...row,diagnostic_pair_id:id})));
+   concurrencyObservations.push(...rows.filter(row=>row!==null).map(row=>({...row,diagnostic_pair_id:id})));
   }
   const owners=new Set(concurrencyObservations.map(o=>o.principal_subject));
   if(owners.size!==2 || owners.has(undefined)) for(const row of concurrencyObservations){row.cohort='invalid_environment';row.evidence_error='Two distinct Owner principals not proven';}

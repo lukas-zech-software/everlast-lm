@@ -322,17 +322,37 @@ export class PrivateClockOperator extends Exchange {
         const proof = proofFor({ ref, envelope }, { ref: requestRef, envelope: request },
             { ref: received.ref, envelope: receipt }, installation, exchange, observed);
 
-        retain(proof);
-        // Wait out the complete offset interval so the server can verify that t4 has already happened.
-        await delay(Math.ceil(2 * proof.calibration.uncertainty_ms));
-        const assertClockCurrent = () => {
-            const current = captureClock();
-            continuous(sent, current);
-            if (current.wall_ms >= proof.calibration.expires_at_ms ||
-                current.monotonic_ms - end.monotonic_ms >= CALIBRATION_TTL_MS) {
-                throw new Error('Private clock installation expired');
+        const calibration = Object.freeze({ ...proof.calibration });
+        const clientExpiry = Math.min(calibration.expires_at_ms, challenge.expires_at_ms - calibration.offset_ms)
+            - calibration.uncertainty_ms;
+        let invalid = false;
+        const assertClockCurrent = (expected?: typeof calibration, instanceBootId?: string) => {
+            if (invalid) throw new Error('Private campaign clock is invalid');
+            try {
+                if (expected && !equal(expected, calibration)) throw new Error('Private campaign calibration mismatch');
+                if (instanceBootId !== undefined && instanceBootId !== this.identity.instance_boot_id) {
+                    throw new Error('Private campaign boot mismatch');
+                }
+                const current = captureClock();
+                continuous(sent, current);
+                const remaining = Math.min(clientExpiry - current.wall_ms,
+                    CALIBRATION_TTL_MS - (current.monotonic_ms - end.monotonic_ms));
+                if (remaining <= 0) throw new Error('Private campaign clock expired');
+                return remaining;
+            } catch (error) {
+                invalid = true;
+                throw error;
             }
         };
+        const assertBudget = (durationMs: number) => {
+            const remaining = assertClockCurrent();
+            if (!Number.isSafeInteger(durationMs) || durationMs <= 0 || durationMs >= remaining) {
+                throw new Error('Private campaign duration exceeds the conservative clock window');
+            }
+        };
+        retain(structuredClone(proof));
+        // Wait out the complete offset interval so the server can verify that t4 has already happened.
+        await delay(Math.ceil(2 * calibration.uncertainty_ms));
         assertClockCurrent();
         const installed = await this.put(inbox, json(installation), requestRef.generation);
         const confirmation = await this.waitForObject(base + '/installed.json',
@@ -345,7 +365,7 @@ export class PrivateClockOperator extends Exchange {
             throw new Error('Private clock installation acknowledgment mismatch');
         }
         assertClockCurrent();
-        return { proof, acknowledgment: { ref: confirmation.ref, envelope: acknowledgment }, assertClockCurrent };
+        return { proof, acknowledgment: { ref: confirmation.ref, envelope: acknowledgment }, assertClockCurrent, assertBudget };
     }
 
     private async waitForObject(path: string, deadline: number, assertCurrent: () => void) {

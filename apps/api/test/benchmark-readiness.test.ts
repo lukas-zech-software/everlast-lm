@@ -73,14 +73,24 @@ it('FR-GC-08 NFR-PERF-01 binds canonical private trace, requires actual dependen
   expect(recorder.executionIdentity(notebook)).toBeDefined();expect(recorder.executionIdentity(randomUUID())).toBeUndefined();
   expect(recorder.beginExecution(input)).toBeUndefined(); // constructor/configuration never qualifies.
   await recorder.qualifyDependencies({sql:async()=>true,model:async()=>true,retrieval:async()=>true,cache:async()=>true,migrations:async()=>true,recovery:async()=>true});
-  const span=recorder.beginExecution(input)!;expect(span).toBeDefined();
-  const at=new Date(now).toISOString();span.timing({phase:'sandbox_created_at',at});span.timing({phase:'running_code_at',at});span.timing({phase:'execution_completed_at',at});
+  const qualifiedAt=recorder.readiness().ready_at_ms!;
+  const clock=vi.spyOn(Date,'now').mockReturnValue(qualifiedAt+1000);
+  const span=recorder.beginExecution(input)!;
+  clock.mockRestore();
+  expect(span).toBeDefined();
+  const at=new Date(qualifiedAt+1000).toISOString();span.timing({phase:'sandbox_created_at',at});span.timing({phase:'running_code_at',at});span.timing({phase:'execution_completed_at',at});
   const trace={schema_version:1 as const,execution_id:randomUUID(),state:'Failed' as const,attempts:[],final_attempt_id:null,published_artifact_ids:[],failure_code:'ProviderUnavailable' as const,computed_results:[]};
   span.finish(trace,null);span.finish(trace,null);
   const result=CodeExecutionPrivateEvidenceFileSchema.parse(JSON.parse(readFileSync(file,'utf8')));
-  expect(result.measurements).toHaveLength(1);expect(result.measurements[0]).toMatchObject({...input,trace_sha256:hash(trace),execution_state:'Failed',sandbox_created_at:at,execution_completed_at:at,answer_published_at:null});expect(statSync(file).mode&0o777).toBe(0o600);
+  expect(result.measurements).toHaveLength(1);expect(result.measurements[0]).toMatchObject({...input,trace_sha256:hash(trace),ready_at_ms:qualifiedAt,qualified_at_ms:qualifiedAt,execution_state:'Failed',sandbox_created_at:at,execution_completed_at:at,answer_published_at:null});expect(statSync(file).mode&0o777).toBe(0o600);
   expect(readFileSync(file,'utf8')).not.toContain('reasoningEngines');
   expect(recorder.beginExecution({...input,notebook_id:randomUUID()})).toBeUndefined();
+  const managedBasis=new PrivateBenchmarkRecorder({approved_notebook_ids:[notebook,other],revision:'local',sink:()=>{},executionEvidence:{
+   file:join(dir,'managed.json'),metadata:{...metadata,classification_basis:'managed-runtime-readiness'},runtime,calibration,qualification,
+  }});
+  managedBasis.qualify({ready_at_ms:qualifiedAt,dependencies:recorder.readiness().dependencies});
+  expect(managedBasis.beginExecution(input)).toBeUndefined();
+
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
 
@@ -144,7 +154,12 @@ it('NFR-PERF-01 API-owned cache adapter counts actual scoped bytes and enforces 
  cacheSdk.countTokens.mockResolvedValue({totalTokens:100});cacheSdk.create.mockResolvedValue({name:'LOCAL-private-cache',expireTime:new Date(Date.now()+60000).toISOString()});
  const cache=createOperationalCacheFromEnv({VERTEX_PROJECT:'local-fixture',VERTEX_LOCATION:'europe-west4'});
  const pages=[[{chunk_id:randomUUID(),source_id:randomUUID(),revision:1,text:'Original scoped fact.',token_count:4,locator:{page_number:1,start_offset:0,end_offset:21}}]];
- const result=await cache.create({pages,signal:new AbortController().signal});expect(result.handle).toBe('LOCAL-private-cache');expect(cacheSdk.create.mock.calls[0]?.[0].config.ttl).toBe('60s');expect(JSON.stringify(cacheSdk.countTokens.mock.calls[0])).toContain('Original scoped fact.');
+ const result=await cache.create({pages,signal:new AbortController().signal});expect(result.handle).toBe('LOCAL-private-cache');
+ expect(cacheSdk.options.mock.lastCall?.[0]).toMatchObject({vertexai:true,location:'eu',httpOptions:{baseUrl:'https://aiplatform.eu.rep.googleapis.com',retryOptions:{attempts:1}}});
+ expect(cacheSdk.countTokens.mock.lastCall?.[0]).toMatchObject({model:'gemini-3.8-flash'});
+ expect(cacheSdk.create.mock.lastCall?.[0]).toMatchObject({model:'gemini-3.8-flash'});
+ expect(()=>createOperationalCacheFromEnv({VERTEX_PROJECT:'local-fixture',GEMINI_LOCATION:'global'})).toThrow(/must be eu/);
+expect(cacheSdk.create.mock.calls[0]?.[0].config.ttl).toBe('60s');expect(JSON.stringify(cacheSdk.countTokens.mock.calls[0])).toContain('Original scoped fact.');
  cacheSdk.countTokens.mockResolvedValue({totalTokens:1048576});await expect(cache.create({pages,signal:new AbortController().signal})).rejects.toThrow(/envelope/);
  expect(cacheSdk.create).toHaveBeenCalledTimes(1);await cache.delete(result.handle);expect(cacheSdk.delete).toHaveBeenCalledWith({name:result.handle});
 });

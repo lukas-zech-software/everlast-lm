@@ -78,3 +78,46 @@ it('C-02 NFR-EVAL-04 rejects changed scoped revisions even with matching source 
  const result=await runScaleBenchmark(fixture,{baseUrl:'http://localhost',token:'a',notebookId:notebook,clockUncertaintyMs:1,evidence:async args=>{const p=proof(args);return {...p,scope:{...p.scope,sources:p.scope.sources.map(s=>({...s,revision:2}))}};}});
  expect(result.result).toBe('UNAVAILABLE');
 });
+
+it('NFR-PERF-01 uses the signed epoch offset without changing the elapsed timer', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => final()));
+  const assertClockCurrent = vi.fn();
+  const calibration = {offset_ms: 100, uncertainty_ms: 2, measured_at_ms: 900, expires_at_ms: 2000, measurement_id: 'fixture'};
+  const privateEvidence: ReturnType<typeof proof>[] = [];
+  const result = await runScaleBenchmark(fixture, {
+    baseUrl: 'http://localhost', token: 'a', notebookId: notebook, epochClock: () => 1_000,
+    clockSession: { calibration, assertClockCurrent },
+    evidence: async args => {
+      const record = proof(args);
+      record.readiness.ready_at_ms = 1_050;
+      privateEvidence.push(record);
+      return record;
+    },
+  });
+  expect(result.core.warm_count).toBe(20);
+  expect(result.core.observations.every(row => row.client_submission_epoch_ms === 1_000)).toBe(true);
+  expect(assertClockCurrent).toHaveBeenCalledWith(calibration, boot);
+  const { importScaleCapture } = await import('../src/v3-scale-import.ts');
+  const diagnostic = importScaleCapture({
+    schema: 'everlast.scale-v3-capture/1', profile: 'core', manifest_hash: fixture.fixture_hash,
+    observations: result.core.observations, private_evidence: privateEvidence, clock_calibration: calibration,
+  }, fixture, 'core');
+  expect(diagnostic).toMatchObject({ result: 'PASS', evidence_kind: 'imported-diagnostic', release_eligible: false });
+});
+
+it('NFR-PERF-01 retains the in-flight attempt and stops dispatch after a boot mismatch', async () => {
+  const fetch = vi.fn(async () => final());
+  vi.stubGlobal('fetch', fetch);
+  const result = await runScaleBenchmark(fixture, {
+    baseUrl: 'http://localhost', token: 'a', notebookId: notebook,
+    clockSession: {
+      calibration: { offset_ms: 0, uncertainty_ms: 0, measured_at_ms: 0, expires_at_ms: 60_000, measurement_id: 'fixture' },
+      assertClockCurrent: (_calibration, instanceBootId) => { if (instanceBootId) throw new Error('boot mismatch'); },
+    },
+    evidence: async args => proof(args),
+  });
+  expect(fetch).toHaveBeenCalledTimes(1);
+  expect(result.core.observations).toHaveLength(1);
+  expect(result.core.observations[0]).toMatchObject({ cohort: 'invalid_environment', evidence_error: 'Private clock continuity unavailable' });
+  expect(result.result).toBe('UNAVAILABLE');
+});
