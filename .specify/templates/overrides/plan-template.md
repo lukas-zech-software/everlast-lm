@@ -27,7 +27,7 @@
 **Authentication & Residency**: Identity Platform (generic OIDC/SAML, `D6`); EU residency (`europe-west4`, `D3`) `[Document any region-map exception or "None"]`
 **Testing**: Vitest (unit, contract, integration, deterministic evals `NFR-EVAL-02/04`, LLM-judged evals `NFR-EVAL-01/03`), Playwright (E2E)
 **Execution Model**: `[Specify whether components in this package are Deterministic Pipelines (ingestion, Source Guide, Studio generators, rendering) or ADK LlmAgent loops (grounded chat, research, note assistant)]`
-**Performance Goals**: `[e.g., Standard chat validated-answer TTFT <= 2.5 s P95 excluding progress events (D13, NFR-PERF-01), Source Guide < 10 s]`
+**Performance Goals**: `[e.g., Standard chat validated-answer TTFT <= 10.0 s P95 excluding progress events (D13, D24/DEV-07, NFR-PERF-01), Source Guide <= 30.0 s; run pnpm check:kpi-sanity]`
 **Constraints**: `[e.g., 200,000,000 bytes / 500,000 words per source; C-01 300–600 token chunk target; Owner-only in v1–v5, RBAC in v6]`
 **Within-Release Prerequisites**: `[Cite required upstream packages and shared contracts C-01..C-03 from spec/requirements/README.md]`
 
@@ -44,7 +44,7 @@
 | `CC-05` | **IV. Contracts & Pipelines** | `[PASS / FAIL]` | `[PASS / FAIL]` | Uses shared `C-01..C-03` Zod schemas in `packages/contracts`; uses deterministic pipelines unless dynamic tool selection requires ADK `LlmAgent`. |
 | `CC-06` | **V. Release & Package Order** | `[PASS / FAIL]` | `[PASS / FAIL]` | Honors `Gate v(k)` and within-release package prerequisites; excludes deferred items (`D5`/`DEV-03`, `D8`/`DEV-02`, `D10` before `v6.0`). |
 | `CC-07` | **VI. Security, RBAC & Residency** | `[PASS / FAIL]` | `[PASS / FAIL]` | Enforces server-side auth (`Owner`-only in `v1–v5`, RBAC in `v6`), atomic quota slot reservation, enterprise no-training endpoints (`NFR-SEC-01`), and `europe-west4` residency. |
-| `CC-08` | **Platform & Cost** | `[PASS / FAIL]` | `[PASS / FAIL]` | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources. |
+| `CC-08` | **Platform & Cost** | `[PASS / FAIL]` | `[PASS / FAIL]` | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources, and passes hobby-tier proportionality (`D24` / `DEV-07`, `pnpm check:kpi-sanity`). |
 | `CC-09` | **IV. Architectural Boundaries & Evidence** | `[PASS / FAIL]` | `[PASS / FAIL]` | Boundary inventory, workflow/transaction ownership, explicit exports, regression evidence and valid scoped legacy exceptions; report automated checker availability separately. |
 
 ## Architecture Boundary Evidence (mandatory; CC-09)

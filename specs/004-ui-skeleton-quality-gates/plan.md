@@ -130,3 +130,7 @@ owns its existing bounded retry loop and disables nested SDK retries. EVS-05
 checks distinct approved endpoints, cross-role substitution and a lookalike
 host. Full deployed preflight and Studio structure identity evidence remain
 part of T039/T040.
+
+### Hobby-tier KPI threshold alignment (D24 / DEV-07)
+
+`packages/contracts/src/package-v1-4.ts` aligns `evaluateGateMetrics` with D24 (`hallucination_rate < 0.10`, `negative_rejection_rate >= 0.90`), preserving deterministic ID precision (`1.00`) and zero scoping leakage (`0`) with no architecture boundary, publication, authorization, or transaction changes.
