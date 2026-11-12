@@ -35,18 +35,26 @@ function formatCiteBadges(cites: readonly StudioEvidenceRef[]): string {
   return nums.map((n) => `[${n}]`).join("");
 }
 
-type ExportValue = string | number;
+interface DecimalExportValue {
+  raw: string;
+  value: number;
+  scale: number;
+}
+
+type ExportValue = string | DecimalExportValue;
 
 /** Conservative spreadsheet decimal projection: Excel retains at most 15 significant digits.
  * Identity columns bypass this classifier. Noncanonical/format-bearing values stay text.
  */
-function numericValue(raw: string): number | null {
-  if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?$/.test(raw)) return null;
-  const significant = raw.replace(/^-/, "").replace(".", "").replace(/^0+/, "");
-  if (significant.length > 15) return null;
+function numericValue(raw: string): DecimalExportValue | null {
+  const match = /^-?(?:0|[1-9]\d*)(?:\.(\d+))?$/.exec(raw);
+  if (!match) return null;
+  const scale = match[1]?.length ?? 0;
+  const digits = raw.replace(/^-/, "").replace(".", "").replace(/^0+/, "");
+  if (digits.length > 15 || scale > 30) return null;
   const value = Number(raw);
-  if (!Number.isFinite(value) || String(value) !== raw) return null;
-  return value;
+  if (!Number.isFinite(value) || value.toFixed(scale) !== raw) return null;
+  return { raw, value, scale };
 }
 
 function formatCellExportValue(cell: DataTableCell, identity: boolean): ExportValue {
@@ -129,7 +137,7 @@ export function buildDataTableExportGrid(
 
 export function serializeDataTableCsv(payload: StudioDataTablePayload, orderedRowIds?: readonly string[]): Uint8Array {
   const { allRecords } = buildDataTableExportGrid(payload, orderedRowIds);
-  const csvBody = allRecords.map((rec) => rec.map(value => escapeCsvField(String(value))).join(",")).join("\r\n") + "\r\n";
+  const csvBody = allRecords.map((rec) => rec.map(value => escapeCsvField(typeof value === "string" ? value : value.raw)).join(",")).join("\r\n") + "\r\n";
   const withBom = `\uFEFF${csvBody}`;
   return new TextEncoder().encode(withBom);
 }
@@ -152,11 +160,16 @@ export async function serializeDataTableXlsx(
   });
 
   for (const rowValues of dataRows) {
-    const r = dataSheet.addRow(rowValues);
-    r.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-      const value = rowValues[colNumber - 1] ?? "";
-      cell.value = value;
-      cell.numFmt = typeof value === "number" ? "General" : "@";
+    const row = dataSheet.addRow([]);
+    rowValues.forEach((value, index) => {
+      const cell = row.getCell(index + 1);
+      if (typeof value === "string") {
+        cell.value = value;
+        cell.numFmt = "@";
+      } else {
+        cell.value = value.value;
+        cell.numFmt = value.scale === 0 ? "General" : `0.${"0".repeat(value.scale)}`;
+      }
     });
   }
 

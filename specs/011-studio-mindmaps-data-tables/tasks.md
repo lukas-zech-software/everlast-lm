@@ -154,3 +154,10 @@ MVP is foundation plus US1, with complete cited map and durable lifecycle. Add U
 - [x] [011-studio-mindmaps-data-tables] T064 Verify focused tests, browser exports/recovery, lint/type/spec/diff and CC-09 graph/artifact checks; retain exact FAIL/UNAVAILABLE live gates in quickstart/handoff (FR-ST-08/09/18, C-03, NFR-EVAL-01..04, Gate v3.0; partial); depends on T058/T060/T063.
 
 2026-11-10 CC-09 final review/evidence is in plan, analysis and quickstart. T057–T060/T062–T064 completion is local implementation/diagnostics only. T061 remains open; no historical checkbox is release acceptance. Earlier T040/T044 text-only export wording is superseded by the approved FR-ST-18 numeric projection in T062/T063.
+
+
+### Fan-out follow-up (FR-ST-08/09/18, C-02/C-03, D23, CC-09)
+
+- [ ] [011-studio-mindmaps-data-tables] T065 Capture Red for trailing-zero decimal formatting/raw CSV and production map/table ports, including malformed/out-of-scope records (FR-ST-08/18, C-02/C-03, D23; CC-02).
+- [ ] [011-studio-mindmaps-data-tables] T066 Implement scale-preserving export and schema-constrained EU Flash extraction with existing deterministic composition; serialize startup wiring and validate both entry points (FR-ST-08/18, C-02/C-03, D23; CC-09). Depends on T065 and committed 003/006 interfaces.
+- [ ] [011-studio-mindmaps-data-tables] T067 Diagnose both original 120-node frame runs, capture the fixed local viewer diagnostic, and verify the final diff with the focused tests and CC-09 checks (FR-ST-09, NFR-EVAL-01..04, Gate v3.0; CC-09). Depends on T066; retains T061 for live acceptance.

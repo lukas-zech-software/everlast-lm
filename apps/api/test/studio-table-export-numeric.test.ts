@@ -46,8 +46,24 @@ describe("[011-studio-mindmaps-data-tables] T062 numeric downloads and independe
     expect(records.every(r => r.length === 6)).toBe(true); expect(p).toEqual(original);
     expect(wb.getWorksheet("Citations")!.getCell("E2").value).toBe(cite(1).snippet);
   });
+  it("retains trailing fractional zeroes in XLSX format and raw CSV fields (FR-ST-18)", async () => {
+    const values = ["1.20", "-12.40", "0.00", "0.00000010"];
+    const p = fixture(values);
+    const original = structuredClone(p);
+    const sheet = (await workbook(p)).getWorksheet("Data Table")!;
+    const csv = parseCsv(serializeDataTableCsv(p));
+
+    for (const [index, raw] of values.entries()) {
+      const cell = sheet.getCell(index + 2, 5);
+      expect(cell.type).toBe(ExcelJS.ValueType.Number);
+      expect(cell.value).toBe(Number(raw));
+      expect(cell.numFmt).toBe(`0.${"0".repeat(raw.split(".")[1]!.length)}`);
+      expect(csv[index + 1]!.slice(4)).toEqual([raw, "[2]"]);
+    }
+    expect(p).toEqual(original);
+  });
   it("preserves numeric-looking text, identifiers, unsafe precision and non-finite values losslessly", async () => {
-    const values = ["0012", "-0012", "+12", "1e3", "1.20", "-0", "NaN", "Infinity", "9007199254740993", "1234567890123456", "0.1234567890123456", "-9007199254740993"];
+    const values = ["0012", "-0012", "+12", "1e3", "-0", "-0.00", "0.0000000000000000000000000000001", "NaN", "Infinity", "9007199254740993", "1234567890123456", "0.1234567890123456", "-9007199254740993"];
     const wb = await workbook(fixture(values)); const sheet = wb.getWorksheet("Data Table")!;
     values.forEach((raw, i) => {
       const expected = /^[+\-]/.test(raw) ? `'${raw}` : raw;
