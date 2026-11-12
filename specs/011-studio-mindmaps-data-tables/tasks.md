@@ -158,6 +158,6 @@ MVP is foundation plus US1, with complete cited map and durable lifecycle. Add U
 
 ### Fan-out follow-up (FR-ST-08/09/18, C-02/C-03, D23, CC-09)
 
-- [ ] [011-studio-mindmaps-data-tables] T065 Capture Red for trailing-zero decimal formatting/raw CSV and production map/table ports, including malformed/out-of-scope records (FR-ST-08/18, C-02/C-03, D23; CC-02).
-- [ ] [011-studio-mindmaps-data-tables] T066 Implement scale-preserving export and schema-constrained EU Flash extraction with existing deterministic composition; serialize startup wiring and validate both entry points (FR-ST-08/18, C-02/C-03, D23; CC-09). Depends on T065 and committed 003/006 interfaces.
-- [ ] [011-studio-mindmaps-data-tables] T067 Diagnose both original 120-node frame runs, capture the fixed local viewer diagnostic, and verify the final diff with the focused tests and CC-09 checks (FR-ST-09, NFR-EVAL-01..04, Gate v3.0; CC-09). Depends on T066; retains T061 for live acceptance.
+- [x] [011-studio-mindmaps-data-tables] T065 Capture Red for trailing-zero decimal formatting/raw CSV and production map/table ports, including malformed/out-of-scope records (FR-ST-08/18, C-02/C-03, D23; CC-02).
+- [x] [011-studio-mindmaps-data-tables] T066 Implement scale-preserving export and schema-constrained EU Flash extraction with existing deterministic composition; serialize startup wiring and validate both entry points (FR-ST-08/18, C-02/C-03, D23; CC-09). Depends on T065 and committed 003/006 interfaces.
+- [x] [011-studio-mindmaps-data-tables] T067 Diagnose both original 120-node frame runs, capture the fixed local viewer diagnostic, and verify the final diff with the focused tests and CC-09 checks (FR-ST-09, NFR-EVAL-01..04, Gate v3.0; CC-09). Depends on T066; retains T061 for live acceptance.
