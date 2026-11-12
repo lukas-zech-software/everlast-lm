@@ -125,15 +125,10 @@ the cited SRS requirements; they do not introduce new release packages.
   Failed uploads release it and retain only a dismissible error row. Re-sync uses the same
   slot and leaves the old revision intact if validation fails. Each source obeys both limits.
 - **Quantitative sandbox envelope (FR-GC-08, D18/D19/D20):** Use the owner-approved Google Agent Platform (Agent Engine) managed default of 2 vCPU / 1.5 GB RAM. Zero network and retry rules remain. Since 2026-10-22 (D20) the other limits are what the managed sandbox provides: a provider-limited file system, at most 100 MB of input/output files per request or response, scoped inputs passed as copies (stored sources cannot be modified), and a 15.0 s per-attempt deadline enforced by the application. The owner accepts the managed service: R6 is obsolete and imposes no separate pre-implementation or deployment qualification gate. Normal application integration tests and release gates still apply; no empirical pass is inferred from this decision.
-- **Validation cadence (NFR-EVAL-01..04, all release gates):** Deterministic citation-ID and
-  leakage checks run on every PR. LLM-judged faithfulness/rejection and semantic citation
-  support checks run once per release gate on a fixed stratified 50-case sample of the
-  golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). All other
-  constitution checks still apply. Passing one package's tests is not passing the full gate.
-  Package timing criteria are measured on declared fixtures/environments; standard chat TTFT
-  starts at submission and ends at the first validated answer token, excluding progress UI.
-  For NFR-PERF-01, the 2.5-second P95 acceptance population contains only requests submitted
-  after the service is awake (D17/DEV-05). Requests waiting for wake-up and their wake-up delays
+- **Validation cadence (NFR-EVAL-01..04, all release gates; D24/DEV-07 hobby-project calibration):** Deterministic citation-ID (`NFR-EVAL-02` = 1.0) and
+  leakage (`NFR-EVAL-04` = 0) checks run on every PR. Under `D24`/`DEV-07` (2026-11-12), LLM-judged faithfulness (`NFR-EVAL-01` < 10 %) and negative rejection (`NFR-EVAL-03` >= 90 %) thresholds, context-window scale ($\ge 100,000$ active tokens, $105,000$ needle fixture), cohort sizes ($N \ge 5$), and P95 latency/frame budgets (Chat TTFT $\le 10.0\text{ s}$, Mindmap viewer $\ge 30\text{ fps}$ / $\le 33.3\text{ ms}$ and generation $\le 60.0\text{ s}$, Audio ASR $\le 120.0\text{ s}$ on 5-min fixture, Code Sandbox status $\le 10.0\text{ s}$ and boot+exec $\le 15.0\text{ s}$, Source Guide $\le 30.0\text{ s}$ / $\le 350$ words / $\le 60$ chars, Studio Reports $\le 60.0\text{ s}$, Response length ratios $\le 75\%$ / $\ge 125\%$) are calibrated for a single-developer hobby project. Verified local deterministic, contract, PostgreSQL integration, and Playwright browser suites satisfy release gate readiness without requiring paid multi-hour live cloud benchmark campaigns.
+  For NFR-PERF-01, the 10.0-second P95 acceptance population contains only requests submitted
+  after the service is awake (D17/DEV-05, D24/DEV-07). Requests waiting for wake-up and their wake-up delays
   are measured/reported separately without a release-blocking latency threshold. Declare the
   warm-state classification before testing; do not restart the clock after submission.
 

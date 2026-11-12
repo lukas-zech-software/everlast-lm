@@ -7,7 +7,7 @@ const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12,"0")}
 const hash = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
 const start = Date.parse("2026-11-10T12:00:00.000Z");
 const plan: CodeExecutionBenchmarkPlan = {fixture:{id:"fixture",version:1,sha256:"a".repeat(64),question:"Calculate the population deviation."},provider:{service:"aiplatform.googleapis.com/AgentEngineSandbox",region:"europe-west4",cpu:"2 vCPU",memory:"1.5 GB"},environment:"test-double",declaredAt:new Date(start-100).toISOString(),cohorts:Object.fromEntries(COHORT_NAMES.map(c=>[c,{repetitions:20,warm:c.startsWith("warm"),concurrency:c.endsWith("2u")?2:1}])) as CodeExecutionBenchmarkPlan["cohorts"]};
-const manifest: CollectionManifest = {actors:[1,2].map(n=>({owner_id:id(n),notebook_id:id(n+10),source_snapshot:[{source_id:id(n+20),revision:1}],expected_citation_chunk_ids:[id(n+30)]})) as CollectionManifest["actors"],api_base_url:"http://127.0.0.1",candidate_commit:"d".repeat(40),serving_revision:"candidate-v1",classification_basis:"application-serving-readiness",qualification_sha256:"c".repeat(64),runtime_config_sha256:"e".repeat(64),clock_calibration:{offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+10000,measurement_id:"synthetic-clock"},clock_calibration_sha256:hash({offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+10000,measurement_id:"synthetic-clock"}),expected_result:"1.5",max_total_requests:80};
+const manifest: CollectionManifest = {actors:[1,2].map(n=>({owner_id:id(n),notebook_id:id(n+10),source_snapshot:[{source_id:id(n+20),revision:1}],expected_citation_chunk_ids:[id(n+30)]})) as CollectionManifest["actors"],api_base_url:"http://127.0.0.1",candidate_commit:"d".repeat(40),serving_revision:"candidate-v1",classification_basis:"application-serving-readiness",qualification_sha256:"c".repeat(64),runtime_config_sha256:"e".repeat(64),clock_calibration:{offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+20000,measurement_id:"synthetic-clock"},clock_calibration_sha256:hash({offset_ms:0,uncertainty_ms:0,measured_at_ms:start-200,expires_at_ms:start+20000,measurement_id:"synthetic-clock"}),expected_result:"1.5",max_total_requests:80};
 function fixture(options:{missing?:boolean;wrongOwner?:boolean;throwTransport?:boolean;posthoc?:boolean;errorEvent?:boolean;publicationFailure?:boolean;unknownRetry?:boolean;reuseIdentity?:"execution"|"attempt";manifest?:CollectionManifest;mutate?:(e:any)=>void}={}) {
   const frozen=options.manifest??manifest,serverStart=start+frozen.clock_calibration.offset_ms;
   let count=0, active=0,maxActive=0;
@@ -86,8 +86,8 @@ it("rejects reused execution and attempt identities and private timing beyond th
 });
 it("retains slow client status receipt even when server execution is fast",async()=>{
  const f=fixture();const submit=f.ports.submit;
- f.ports.submit=async(...args)=>({...await submit(...args),client_running_ms:3000,client_final_ms:3001});
- const r=await collectCodeExecutionCohorts(plan,manifest,f.ports);expect(r.status).toBe("FAIL");expect(r.report.cohorts.cold_1u.runningCodeMaxMs).toBe(3000);
+ f.ports.submit=async(...args)=>({...await submit(...args),client_running_ms:12000,client_final_ms:12001});
+ const r=await collectCodeExecutionCohorts(plan,manifest,f.ports);expect(r.status).toBe("FAIL");expect(r.report.cohorts.cold_1u.runningCodeMaxMs).toBe(12000);
 });
 
 it("does not reuse a previously observed execution or actual attempt across requests",async()=>{

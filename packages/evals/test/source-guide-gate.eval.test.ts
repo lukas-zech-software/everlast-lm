@@ -33,9 +33,9 @@ describe("Gate v2.0 #1 Source Guide harness (test double)", () => {
     expect(result.passed).toBe(true);
   });
 
-  it("fails when the dispatch delay alone exceeds 10 s", async () => {
+  it("fails when the dispatch delay alone exceeds 30 s", async () => {
     const { runSourceGuideGate } = await import("../src/source-guide-gate.ts");
-    const result = await runSourceGuideGate({ model: fakeModel(), modelId: "test-double", dispatchDelayMs: 10_000 });
+    const result = await runSourceGuideGate({ model: fakeModel(), modelId: "test-double", dispatchDelayMs: 30_000 });
     expect(result.passed).toBe(false);
   });
 

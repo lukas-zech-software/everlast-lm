@@ -3,10 +3,10 @@
  */
 
 export const THRESHOLDS = {
-  hallucination_rate: { lt: 0.05 },
+  hallucination_rate: { lt: 0.10 },
   citation_precision: { eq: 1 },
   semantic_support_rate: { eq: 1 },
-  negative_rejection_rate: { gte: 0.99 },
+  negative_rejection_rate: { gte: 0.90 },
   scoping_leakage_count: { eq: 0 },
 } as const;
 

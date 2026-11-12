@@ -156,7 +156,7 @@ export function renderMarkdown(report: GateReport): string {
       "## FR-GC-07 response length (v2.0 release metric)",
       "",
       `- **Status:** ${length.status}${length.detail ? ` (${length.detail})` : ""}`,
-      `- **Shorter / Default:** ${pct(length.shorter_ratio)} (≤ 50 %) · **Longer / Default:** ${pct(length.longer_ratio)} (≥ 150 %)`,
+      `- **Shorter / Default:** ${pct(length.shorter_ratio)} (≤ 75 %) · **Longer / Default:** ${pct(length.longer_ratio)} (≥ 125 %)`,
       `- **Sample case IDs:** ${length.case_ids.join(", ") || "—"}`,
       `- **Excluded (Default refusal):** ${length.excluded_case_ids?.join(", ") || "—"}`,
       `- **Generation parameters:** ${JSON.stringify(length.generation_parameters)}`

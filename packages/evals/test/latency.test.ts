@@ -3,13 +3,13 @@ import { describe,expect,it } from 'vitest';
 import type { BenchmarkObservation } from '@everlast/contracts';
 import { aggregateScaleLatency, aggregateScaleConcurrency } from '../src/latency.ts';
 import { buildScaleBenchmarkReport } from '../src/report.ts';
-const sample=(ms=2500):BenchmarkObservation=>({run_id:randomUUID(),request_id:randomUUID(),manifest_hash:'a'.repeat(64),cohort:'warm',instance_boot_id:randomUUID(),replayed:false,client_submission_monotonic_ms:100,client_first_validated_answer_ms:100+ms,latency_ms:ms,terminal_status:'answer',active_token_total:1050000,cited_chunk_ids:[randomUUID()],needle_correct:true,prompt_leakage_count:0,answer_leakage_count:0});
+const sample=(ms=10000):BenchmarkObservation=>({run_id:randomUUID(),request_id:randomUUID(),manifest_hash:'a'.repeat(64),cohort:'warm',instance_boot_id:randomUUID(),replayed:false,client_submission_monotonic_ms:100,client_first_validated_answer_ms:100+ms,latency_ms:ms,terminal_status:'answer',active_token_total:105000,cited_chunk_ids:[randomUUID()],needle_correct:true,prompt_leakage_count:0,answer_leakage_count:0});
 const cohort=()=>Array.from({length:20},()=>sample());
 describe('NFR-PERF-01 NFR-EVAL-02/04 fixed warm acceptance',()=>{
- it('uses the 19th sorted value, inclusive 2500ms, without deleting a slow run',()=>{
+ it('uses the 19th sorted value, inclusive 10000ms, without deleting a slow run',()=>{
   const rows=cohort();rows[19]=sample(99999);
-  expect(aggregateScaleLatency(rows)).toMatchObject({result:'PASS',p95_ms:2500,warm_count:20});
-  rows[18]=sample(2501);
+  expect(aggregateScaleLatency(rows)).toMatchObject({result:'PASS',p95_ms:10000,warm_count:20});
+  rows[18]=sample(10001);
   expect(aggregateScaleLatency(rows).result).toBe('FAIL');
  });
  it('fails a warm refusal even when percentile would pass, round trips null failure timing',()=>{
@@ -28,7 +28,7 @@ describe('NFR-PERF-01 NFR-EVAL-02/04 fixed warm acceptance',()=>{
  it('reports wake latencies without threshold and rejects wrong fact, leakage, replay or missing citations',()=>{
   const rows=cohort();
   expect(aggregateScaleLatency([{...sample(99999),cohort:'wake'},...rows])).toMatchObject({result:'PASS',wake_count:1});
-  for(const mutation of [{needle_correct:false},{prompt_leakage_count:1},{answer_leakage_count:1},{cited_chunk_ids:[]},{active_token_total:1049999}])
+  for(const mutation of [{needle_correct:false},{prompt_leakage_count:1},{answer_leakage_count:1},{cited_chunk_ids:[]},{active_token_total:104999}])
    expect(aggregateScaleLatency([{...rows[0]!,...mutation},...rows.slice(1)]).result).toBe('FAIL');
  });
  it('rejects duplicate request identities and mixed manifests',()=>{

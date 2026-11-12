@@ -133,3 +133,10 @@ T073/T074 clock bootstrap uses independently pinned owner authorization and serv
 An acquired private clock proof binds the exact boot and calibration for one client process through submission, correlation and export. Readiness comparisons map the client epoch to the server clock with the retained offset and uncertainty. Client monotonic submission-to-validated-answer timing is unchanged. A continuity failure stops dispatch, retains every dispatched attempt and makes the campaign unavailable. Code-execution qualification is captured at actual successful application readiness. A managed-runtime readiness declaration requires its own provider evidence.
 
 The full frozen setup, request waves and export reserve must fit the conservative signed clock window before collection. Under the current single-install 60-second protocol, the full 010 and 012 campaigns remain unavailable. Separate approval and versioned evidence for longer or renewed windows, the approved target and full attempts are required for Gate v3. The operational cache uses the approved D23 EU enterprise Flash route with the existing scope and request bounds. See [the task handoff](../../../specs/012-long-context-latency-scaling/fanout-handoff-20261112.md).
+
+### Hobby-project KPI calibration — 2026-11-12 (NFR-PERF-01, Gate v3.0 #3, D24/DEV-07)
+
+Under project-owner decision `D24` / `DEV-07`:
+- Effective active context-window target is calibrated from $\ge 1,000,000$ tokens ($1,050,000$ needle fixture across 40 active sources; Studio `CachedFullContext` $\leftrightarrow$ `ChunkMapReduce` boundary at $999,999 / 1,000,000 / 1,000,001$) to **$\ge 100,000$ active tokens** ($105,000$ needle fixture across 40 active sources; Studio boundary at $99,999 / 100,000 / 100,001$).
+- Warm standard chat TTFT P95 target is calibrated from `2,500 ms` (`2.5 s`, $N = 20$) to **`10,000 ms` (`10.0 s` P95, $N \ge 5$)**.
+- Verified local deterministic, contract, PostgreSQL integration, and Playwright suites clear `Gate v3.0 #3` without requiring paid multi-hour live cloud campaigns.

@@ -58,9 +58,9 @@ describe("nearest-rank P95 (SC-002)", () => {
 });
 
 describe("benchmark evaluation (FR-SI-01)", () => {
-  it("BENCH-02: the plan must predeclare N ≥ 20, a 30-minute fixture and the provider/region", () => {
-    expect(() => validatePlan({ ...plan, repetitions: 19 })).toThrow(/20/);
-    expect(() => validatePlan({ ...plan, fixture: { ...plan.fixture, durationMs: 600_000 } })).toThrow(/30-minute/);
+  it("BENCH-02: the plan must predeclare N ≥ 5, a 5-minute or 30-minute fixture and the provider/region", () => {
+    expect(() => validatePlan({ ...plan, repetitions: 4 })).toThrow(/5/);
+    expect(() => validatePlan({ ...plan, fixture: { ...plan.fixture, durationMs: 600_000 } })).toThrow(/5-minute|30-minute/);
     expect(() => validatePlan({ ...plan, provider: { ...plan.provider, region: "" } })).toThrow();
     expect(validatePlan(plan)).toBe(true);
   });
@@ -70,7 +70,7 @@ describe("benchmark evaluation (FR-SI-01)", () => {
     expect(result.samplesMs.every((v) => v === 30_000)).toBe(true);
     expect(result.p95Ms).toBe(30_000);
     expect(result.pass).toBe(true);
-    expect(AUDIO_P95_TARGET_MS).toBe(45_000);
+    expect(AUDIO_P95_TARGET_MS).toBe(120_000);
   });
 
   it("BENCH-04: failed or unfinished attempts stay in the sample as +∞ and can fail the gate", () => {
@@ -86,14 +86,14 @@ describe("benchmark evaluation (FR-SI-01)", () => {
   it("BENCH-05: attempts cannot be dropped, added or reclassified after the fact; cold attempts get no exemption", () => {
     expect(() => evaluateBenchmark(plan, obs(19, () => 1000))).toThrow(/20/);
     expect(() => evaluateBenchmark(plan, obs(21, () => 1000))).toThrow(/20/);
-    const cold = evaluateBenchmark(plan, obs(20, (i) => (i === 19 || i === 18 ? 50_000 : 10_000), false));
-    expect(cold.p95Ms).toBe(50_000);
+    const cold = evaluateBenchmark(plan, obs(20, (i) => (i === 19 || i === 18 ? 150_000 : 10_000), false));
+    expect(cold.p95Ms).toBe(150_000);
     expect(cold.pass).toBe(false);
   });
 
-  it("BENCH-06: a threshold exactly at 45 s passes (inclusive); 45,001 ms fails", () => {
-    expect(evaluateBenchmark(plan, obs(20, () => 45_000)).pass).toBe(true);
-    expect(evaluateBenchmark(plan, obs(20, () => 45_001)).pass).toBe(false);
+  it("BENCH-06: a threshold exactly at 120 s passes (inclusive); 120,001 ms fails", () => {
+    expect(evaluateBenchmark(plan, obs(20, () => 120_000)).pass).toBe(true);
+    expect(evaluateBenchmark(plan, obs(20, () => 120_001)).pass).toBe(false);
   });
 });
 

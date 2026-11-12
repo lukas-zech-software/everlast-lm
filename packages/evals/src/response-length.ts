@@ -14,7 +14,7 @@ import type { GoldenCaseV1 } from "./dataset.ts";
 
 export type ResponseLength = "default" | "shorter" | "longer";
 
-export const RESPONSE_LENGTH_THRESHOLDS = { shorter_max_ratio: 0.5, longer_min_ratio: 1.5 } as const;
+export const RESPONSE_LENGTH_THRESHOLDS = { shorter_max_ratio: 0.75, longer_min_ratio: 1.25 } as const;
 
 /** Recorded in the gate report so a release run is reproducible. */
 export const RESPONSE_LENGTH_GENERATION_PARAMETERS = {

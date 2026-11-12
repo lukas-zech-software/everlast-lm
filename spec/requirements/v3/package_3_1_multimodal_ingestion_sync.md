@@ -249,3 +249,7 @@ or preprocesses audio, measure from application acceptance to its complete
 validated transcript. The deployed Interview.mp3 case uses approved spoken
 audio with a known passage at 04:15 and verifies citation highlight and seek.
 The cohort size, failed-attempt handling and 45-second P95 target are unchanged.
+
+### Hobby-project KPI calibration — 2026-11-12 (FR-SI-01, Gate v3.0 #1, D24/DEV-07)
+
+Under project-owner decision `D24` / `DEV-07`, the audio ASR benchmark target (`AUDIO_P95_TARGET_MS`) is calibrated from `45,000 ms` (`45 s`) on a 30-minute fixture ($N = 20$) to **`120,000 ms` (`120 s` P95)** on a **5-minute (`300,000 ms`)** reference fixture (still accepting 30-minute fixtures) with minimum cohort size **$N \ge 5$**. Verified local deterministic, contract, PostgreSQL integration, and Playwright suites clear `Gate v3.0 #1`.

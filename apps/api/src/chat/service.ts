@@ -326,7 +326,7 @@ export class ChatService {
           question,
           model: this.deps.model.id,
           modelVersion: "1",
-          inputLimit: 1_000_000,
+          inputLimit: 100_000,
           outputReserve: 4096,
           instructionTokens: 500,
           historyTokens: Math.min(1000, 100 * history.length),

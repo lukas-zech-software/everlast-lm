@@ -41,7 +41,7 @@ export async function runLocalContextStress(){
  const mapSeen=new Set<string>(),tableSeen=new Set<string>();
  const mindmapModel:NonNullable<V2RuntimeOptions['mindmapModel']>={extract:async req=>{for(const c of req.chunks)mapSeen.add(c.chunk_id);return req.chunks.filter(c=>c.text.includes('142.8 bar')).map(c=>({topic:'Reactor',subtopic:'Pressure',detail:'142.8 bar',chunk_id:c.chunk_id,source_id:c.source_id,revision:c.revision,snippet:'142.8 bar'}));},compose:async req=>{const f=req.findings[0]!;const ref={badge_number:1,source_id:f.source_id,chunk_id:f.chunk_id,revision:f.revision,snippet:f.snippet};const leaf={id:'pressure',label:'Pressure',summary:'142.8 bar',label_citations:[ref],summary_citations:[ref],children:[]};return {root_node:{...leaf,id:'root',children:[leaf]},node_count:2,max_depth:2,initial_expanded_depth:2,insufficient_evidence_note:'Local diagnostic fixture contains one grounded fact.',citations:[ref]};}};
  const dataTableModel:NonNullable<V2RuntimeOptions['dataTableModel']>={extract:async req=>{for(const c of req.chunks)tableSeen.add(c.chunk_id);return req.chunks.filter(c=>c.text.includes('142.8 bar')).map(c=>({item_label:'Reactor',attribute_id:'pressure',attribute_label:'Pressure',value_text:'142.8 bar',chunk_id:c.chunk_id,source_id:c.source_id,revision:c.revision,snippet:'142.8 bar'}));},compose:async req=>{const f=req.observations[0]!;const ref={badge_number:1,source_id:f.source_id,chunk_id:f.chunk_id,revision:f.revision,snippet:f.snippet};const cell={state:'supported' as const,display_text:'142.8 bar',disagreement:false as const,values:[{value:'142.8 bar',citations:[ref]}]};return {payload:{schema_id:'auto',focus_prompt:null,columns:[{id:'entity',label:'Reactor',citations:[ref]},{id:'pressure',label:'Pressure',citations:[ref]}],rows:[{item_id:'reactor',item_label:'Reactor',item_citations:[ref],cells:{entity:cell,pressure:cell}}],citations:[ref]},rawRowCount:1,rawColumnCount:2};}};
- const context:StudioContextRuntime={model:'LOCAL-DOUBLE-report',modelVersion:'1',inputLimit:1_100_000,outputReserve:4096,instructionTokens:1000,ttlSeconds:60,tokenizer,clock:()=>now,
+ const context:StudioContextRuntime={model:'LOCAL-DOUBLE-report',modelVersion:'1',inputLimit:110_000,outputReserve:4096,instructionTokens:1000,ttlSeconds:60,tokenizer,clock:()=>now,
   provider:{create:async({chunks,ttlSeconds})=>{providerCreates++;if(failCreate){failCreate=false;throw new Error('LOCAL provider create failure');}for await(const page of chunks){providerReads+=page.length;}return {handle:`LOCAL-PRIVATE-${providerCreates}`,expiresAt:now+ttlSeconds*1000};},delete:async()=>{providerDeletes++;}},
   onObservation:o=>contextObservations.push(o),
  };
@@ -51,7 +51,7 @@ export async function runLocalContextStress(){
  const boundaries:{source_tokens:number;original_chunks:number;extracted_chunks:number;max_batch_tokens:number;max_batch_chunks:number;completed:boolean;mode:string;cache_hit:boolean;model_calls:number}[]=[];
  try{
   let first:{nb:string;ids:string[];needle:string;needleSource:string}|undefined;
-  for(const total of [999999,1000000,1000001]){
+  for(const total of [99999,100000,100001]){
    const nb=await n.notebook(OWNER),owner=await n.userId(OWNER),ids:string[]=[],chunkIds:string[]=[];
    let needle='',needleSource='';
    for(let i=0;i<40;i++){
@@ -66,7 +66,7 @@ export async function runLocalContextStress(){
    model.reset();const artifact=await generate(n,nb,ids);assert.equal(artifact.status,'Completed',JSON.stringify(artifact.failure));
    assert.deepEqual([...model.seen].sort(),chunkIds.sort());assert(model.maxTokens<=4000);assert(model.maxChunks<=8);assert(artifact.payload_json.citations.some((c:{chunk_id:string})=>c.chunk_id===needle));
    const observed=contextObservations.at(-1)!;
-   assert.equal(observed.mode,total>1000000?'ChunkMapReduce':'CachedFullContext');
+   assert.equal(observed.mode,total>100000?'ChunkMapReduce':'CachedFullContext');
    boundaries.push({source_tokens:ledger.source_token_total,original_chunks:chunkIds.length,extracted_chunks:model.seen.size,max_batch_tokens:model.maxTokens,max_batch_chunks:model.maxChunks,completed:true,mode:observed.mode,cache_hit:observed.cache_hit,model_calls:model.calls});
    if(!first)first={nb,ids,needle,needleSource};
   }

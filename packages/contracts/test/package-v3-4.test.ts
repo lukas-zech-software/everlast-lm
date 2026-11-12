@@ -23,7 +23,7 @@ describe('NFR-PERF-01 C-02/C-03 scale records', () => {
   expect(BenchmarkPolicySchema.safeParse({sample_count:19,percentile_method:'nearest_rank',max_attempts:40}).success).toBe(false);
  });
  it('round trips terminal failure without manufacturing a timing', () => {
-  const row={run_id:a,request_id:b,manifest_hash:'a'.repeat(64),cohort:'warm',instance_boot_id:a,replayed:false,client_submission_monotonic_ms:1,client_first_validated_answer_ms:null,latency_ms:null,terminal_status:'refusal',active_token_total:1050000,cited_chunk_ids:[],needle_correct:false,prompt_leakage_count:0,answer_leakage_count:0};
+  const row={run_id:a,request_id:b,manifest_hash:'a'.repeat(64),cohort:'warm',instance_boot_id:a,replayed:false,client_submission_monotonic_ms:1,client_first_validated_answer_ms:null,latency_ms:null,terminal_status:'refusal',active_token_total:105000,cited_chunk_ids:[],needle_correct:false,prompt_leakage_count:0,answer_leakage_count:0};
   expect(BenchmarkObservationSchema.parse(JSON.parse(JSON.stringify(row)))).toEqual(row);
   expect(BenchmarkObservationSchema.safeParse({...row,latency_ms:Infinity}).success).toBe(false);
   expect(BenchmarkObservationSchema.safeParse({...row,terminal_status:'answer'}).success).toBe(false);

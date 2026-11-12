@@ -10,8 +10,8 @@
  * 4. Failed or unfinished runs stay in the cohort with duration `+Infinity` (no posthoc exclusions).
  */
 
-export const MINDMAP_P95_BUDGET_MS = 20_000;
-export const MINDMAP_MIN_COHORT_SIZE = 20;
+export const MINDMAP_P95_BUDGET_MS = 60_000;
+export const MINDMAP_MIN_COHORT_SIZE = 5;
 
 export interface MindmapLatencySample {
   sample_id: string;

@@ -137,7 +137,7 @@ export class StudioContextSessions{
   await input.verify();
   const identity={notebookId:ledger.notebook_id,scopeManifestHash:ledger.manifest_hash,effectiveAuthorizationFingerprint:ledger.effective_authorization_fingerprint,outputLanguage:input.language,generationParametersHash:createHash('sha256').update(JSON.stringify(input.parameters)).digest('hex'),model:r.model,modelVersion:r.modelVersion,contentDigest:createHash('sha256').update(JSON.stringify(ledger.pages.map(p=>p.digest))).digest('hex')};
   // Token ledger is canonical original text, overhead accounts for every chunk marker plus all fixed instructions/reserves.
-  const full=ledger.source_token_total<=1_000_000&&ledger.source_token_total+r.outputReserve+r.instructionTokens+ledger.chunks.length*64<=r.inputLimit;
+  const full=ledger.source_token_total<=100_000&&ledger.source_token_total+r.outputReserve+r.instructionTokens+ledger.chunks.length*64<=r.inputLimit;
   const key=StudioContextCache.computeCacheKey(identity);
   let entry=full?this.cache.get(key,{effectiveAuthorizationFingerprint:ledger.effective_authorization_fingerprint},r.clock?.()??Date.now()):null;
   const hit=!!entry;let cacheError:string|undefined;

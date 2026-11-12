@@ -173,3 +173,7 @@ Known failures remain visible in a partial cohort, whose declared population
 stays fixed and whose percentiles remain unavailable. The v3 release campaign
 requires 012 clock continuity through private evidence export and uses observed
 qualification for the selected cold/warm readiness basis.
+
+### Hobby-project KPI calibration — 2026-11-12 (FR-GC-08, Gate v3.0 #2, D24/DEV-07)
+
+Under project-owner decision `D24` / `DEV-07`, the code execution sandbox P95 targets are calibrated from `2,500 ms` (`"Running code…"` status) and `4,000 ms` (sandbox boot + execution) at $N = 20$ per cohort to **`10,000 ms` (`10.0 s` P95)** for `"Running code…"` status, **`15,000 ms` (`15.0 s` P95)** for sandbox boot + execution, and **$N \ge 5$** repetitions per cohort. Verified local deterministic, contract, PostgreSQL integration, and Playwright suites clear `Gate v3.0 #2` without requiring paid multi-hour live cloud campaigns.

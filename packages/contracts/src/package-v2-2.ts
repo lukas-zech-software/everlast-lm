@@ -31,7 +31,7 @@ export const SourceGuideSchema = z.object({
   status: SourceGuideStatusSchema,
   source_word_count: z.number().int().nonnegative(),
   summary_md: z.string().trim().min(1).max(10000),
-  key_topics: z.array(trimmedText(1, 40, "key topic")).max(10),
+  key_topics: z.array(trimmedText(1, 60, "key topic")).max(10),
   supporting_chunk_ids: z.array(uuid),
   /** Observed `Ready` transition of the source revision; latency is measured from here (FR-018, Gate v2.0 #1). */
   ready_at: z.string().datetime().optional(),
@@ -40,8 +40,8 @@ export const SourceGuideSchema = z.object({
 }).strict().superRefine((guide, ctx) => {
   if (guide.status === "GuideReady") {
     if (guide.supporting_chunk_ids.length === 0) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["supporting_chunk_ids"], message: "ready guides require supporting chunks" });
-    // Hard rules: 1..10 topics (1..3 under 50 words), each ≤ 40 code points. "5–10" is the prompt target only:
-    // fewer topics are valid, padding is not (FR-SI-02 card; live Gate v2.0 #1, 2026-10-20).
+    // Hard rules: 1..10 topics (1..3 under 50 words), each ≤ 60 code points. "5–10" is the prompt target only:
+    // fewer topics are valid, padding is not (FR-SI-02 card; live Gate v2.0 #1, 2026-10-20; DEV-06 hobby calibration).
     if (guide.key_topics.length < 1) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["key_topics"], message: "ready guides require at least one key topic" });
     }
@@ -49,7 +49,7 @@ export const SourceGuideSchema = z.object({
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["key_topics"], message: "sources under 50 words support at most 3 topics" });
     }
     const words = guide.summary_md.split(/\s+/).filter(Boolean).length;
-    if (words > 250) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["summary_md"], message: "summary must not exceed 250 words" });
+    if (words > 350) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["summary_md"], message: "summary must not exceed 350 words" });
   }
 });
 export type SourceGuide = z.infer<typeof SourceGuideSchema>;

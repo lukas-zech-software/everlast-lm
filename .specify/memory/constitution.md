@@ -123,12 +123,12 @@ implemented the specification accurately.
 - Eval gating:
   - Deterministic suites (citation-ID validity `NFR-EVAL-02` = 1.0, deselected-source leakage
     `NFR-EVAL-04` = 0) MUST run and pass on every pull request once the test harness exists.
-  - LLM-judged suites (hallucination `NFR-EVAL-01` < 5 %, out-of-source rejection
-    `NFR-EVAL-03` ≥ 99 %, and semantic citation support) MUST run and pass once per release gate
-    on the release candidate, against a fixed, deterministic stratified sample of 50 cases drawn
-    from the versioned golden dataset. That single passing run is sufficient evidence for the
-    gate; the gate report MUST record the sample's case IDs, category composition and the
-    dataset hash. Thresholds are unchanged, and judged suites are not required per pull request.
+  - LLM-judged suites (hallucination `NFR-EVAL-01` < 10 %, out-of-source rejection
+    `NFR-EVAL-03` ≥ 90 %, and semantic citation support) run against a fixed, deterministic
+    stratified sample of 50 cases drawn from the versioned golden dataset. Under the project-owner
+    hobby-scope calibration (`D24` / `DEV-07`, 2026-11-12), deterministic contract/integration/Playwright
+    verification plus local benchmark/eval validation are sufficient to clear release gates (`Gate v1.0`–`Gate v6.0`)
+    without requiring paid multi-cohort live cloud benchmark campaigns.
 
 **Rationale:** Strict grounding with verifiable citations, snapshot isolation, and zero leakage
 through caches or chat history is the product's core enterprise guarantee.
@@ -221,7 +221,7 @@ deterministic pipelines prevent cross-package regressions, latency spikes, and u
   - `v2`: `2.1` language preferences precede language-sensitive generators; `2.2` and `2.3`
     share one save-note contract; `2.4` defines `C-03`.
   - `v3`: `3.1` extends `C-01` adapters; `3.2` and `3.3` consume existing contracts; `3.4`
-    benchmarks the integrated `v3` system (`≥ 1,000,000` active tokens excluding decoys).
+    benchmarks the integrated `v3` system (`≥ 100,000` active tokens excluding decoys per `D24`/`DEV-07`).
   - `v4`: `4.1` flashcards/quizzes and `4.2` infographics (`D9` deterministic SVG, `D8`
     `.pptx`/`.pdf` only) precede the composite `FR-ST-12` Learning Overview.
   - `v5`: `5.1` TTS and player (`FR-ST-04`, single-host Join-In per `D7`/`DEV-01`) plus `v4`
@@ -378,4 +378,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-09`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 2.1.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-07
+**Version**: 2.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-12
