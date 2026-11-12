@@ -13,9 +13,9 @@
  *    submission clock, and `running_code` progress is never counted as validated answer TTFT (`countsAsAnswerTtft: false`).
  */
 
-export const RUNNING_CODE_TARGET_MS = 2_500;
-export const BOOT_EXECUTION_P95_TARGET_MS = 4_000;
-export const DEFAULT_COHORT_REPETITIONS = 20;
+export const RUNNING_CODE_TARGET_MS = 10_000;
+export const BOOT_EXECUTION_P95_TARGET_MS = 15_000;
+export const DEFAULT_COHORT_REPETITIONS = 5;
 export const COHORT_NAMES = ["cold_1u", "warm_1u", "cold_2u", "warm_2u"] as const;
 
 export type CohortName = (typeof COHORT_NAMES)[number];

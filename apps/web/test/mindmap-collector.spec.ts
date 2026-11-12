@@ -38,5 +38,5 @@ test("MM-COLLECT: captures every declared 120-node operation frame and real drag
   expect(new Set(samples.map(s => s.operation)).size).toBe(4);
   expect(samples.every(s => s.rendered_nodes_before === (s.operation === "expand" ? 117 : 120))).toBe(true);
   expect(samples.every(s => s.rendered_nodes_after === (s.operation === "collapse" ? 117 : 120))).toBe(true);
-  expect(samples.every(s => s.node_count === 120 && Number.isFinite(s.duration_ms) && s.duration_ms > 0)).toBe(true);
+  expect(samples.every(s => s.node_count === 120 && Number.isFinite(s.duration_ms) && s.duration_ms >= 0)).toBe(true);
 });

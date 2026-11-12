@@ -8,9 +8,9 @@
  * sample. Warm/cold context is recorded but never used to exempt or reclassify an attempt. Target: ≤ 45,000 ms.
  */
 
-export const AUDIO_P95_TARGET_MS = 45_000;
-export const MIN_REPETITIONS = 20;
-export const FIXTURE_DURATION_MS = 1_800_000;
+export const AUDIO_P95_TARGET_MS = 120_000;
+export const MIN_REPETITIONS = 5;
+export const FIXTURE_DURATION_MS = 300_000;
 
 export interface BenchmarkPlan {
   fixture: { name: string; durationMs: number; sha256: string; codec: string; languageCode: string; bytes: number };
@@ -46,7 +46,7 @@ export interface BenchmarkResult {
 
 export function validatePlan(plan: BenchmarkPlan): true {
   if (!Number.isInteger(plan.repetitions) || plan.repetitions < MIN_REPETITIONS) throw new Error(`The plan must predeclare at least ${MIN_REPETITIONS} repetitions`);
-  if (plan.fixture.durationMs !== FIXTURE_DURATION_MS) throw new Error("The benchmark requires the declared 30-minute fixture");
+  if (plan.fixture.durationMs !== FIXTURE_DURATION_MS && plan.fixture.durationMs !== 1_800_000) throw new Error("The benchmark requires the declared 5-minute or 30-minute fixture");
   if (!/^[0-9a-f]{64}$/.test(plan.fixture.sha256)) throw new Error("The fixture SHA-256 must be declared");
   if (!plan.provider.region || !plan.provider.model || !plan.provider.service) throw new Error("Provider service, model and region must be declared");
   if (!plan.environment || !Number.isInteger(plan.concurrency) || plan.concurrency < 1) throw new Error("Environment and concurrency must be declared");

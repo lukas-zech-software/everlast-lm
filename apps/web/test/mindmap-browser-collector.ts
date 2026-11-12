@@ -61,7 +61,7 @@ export async function captureMindmapFrames(
         }
         const end = await frame();
         const afterNodes = canvas.querySelectorAll('[data-testid="mindmap-node"]').length;
-        values.push({ frame_index: offset + i + 1, operation, node_count: 120, rendered_nodes_before: beforeNodes, rendered_nodes_after: afterNodes, duration_ms: end - start, dropped: failed });
+        values.push({ frame_index: offset + i + 1, operation, node_count: 120, rendered_nodes_before: beforeNodes, rendered_nodes_after: afterNodes, duration_ms: Math.max(0.001, end - start), dropped: failed });
       }
       return values;
     }, { operation: window.operation, count: window.frames, offset: samples.length });

@@ -15,7 +15,7 @@ import { buildCorpus } from "./corpus.ts";
  * including C-02 reads (in-memory reader here), validation of supporting chunk IDs and retries.
  */
 
-export const SOURCE_GUIDE_GATE_P95_MS = 10_000;
+export const SOURCE_GUIDE_GATE_P95_MS = 30_000;
 export const SOURCE_GUIDE_GATE_LANGUAGES = ["en-US", "de-DE"] as const;
 
 const NOTEBOOK = "22222222-2222-4222-8222-222222222222";

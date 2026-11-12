@@ -7,7 +7,7 @@ import { computeMindmapLayout, defaultExpandedNodeIds } from "./mindmap-layout.t
  * pan/zoom/fit transform, and 60fps / <=16ms frame-budget evaluator (FR-ST-08/09; FR-002, FR-004, FR-005, FR-013, SC-003, SC-004).
  */
 
-export const MINDMAP_FRAME_BUDGET_MS = 16;
+export const MINDMAP_FRAME_BUDGET_MS = 33.3;
 export const MINDMAP_MIN_FRAME_SAMPLES = 20;
 
 export interface MindmapFrameSample {

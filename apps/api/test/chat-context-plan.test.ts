@@ -20,7 +20,7 @@ describe('NFR-PERF-01 FR-SI-02 chat context planning', () => {
       question: 'Summarize the main themes across all 40 sources',
       model: 'gemini-1.5-pro',
       modelVersion: '002',
-      inputLimit: 1_000_000,
+      inputLimit: 100_000,
       outputReserve: 4096,
       instructionTokens: 500,
       historyTokens: 200,

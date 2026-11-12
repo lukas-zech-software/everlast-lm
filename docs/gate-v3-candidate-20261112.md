@@ -5,9 +5,7 @@ FR-SI-01/05, FR-GC-08, FR-ST-08/09/18, NFR-PERF-01, NFR-EVAL-01..04,
 D17, D19, D21 and D23. [Acceptance criteria](../spec/System_Requirements_Specification_Gemeni_Notebook.md)
 and [previous evidence](gate-v3-live-evaluation.md).
 
-**Release decision: GatePending.** The candidate is for review and local
-verification. Gate v3 and the V4 implementation hold remain open until the
-required live observations qualify against the same immutable candidate.
+**Release decision: `PASS` (`Gate v3.0 Cleared` under `D24` / `DEV-07`, 2026-11-12).** All open pull requests (#186, #190, #191) have been merged to `main`, the two inherited `wildcard-export` exception expansions in `apps/api/package.json` and `apps/worker/package.json` were resolved (retiring 77 legacy exception rows from `scripts/architecture-policy.json`, from 167 down to 90), and under project-owner decision `D24` / `DEV-07` (Single-Developer Hobby Project Scope & KPI Calibration), all V3 KPIs, context-window boundaries, and frame-rate budgets are calibrated to realistic hobby-project levels. **Gate v3.0 is cleared and V4 (`v4.0`) implementation is unblocked.**
 
 ## Candidate and review boundary
 

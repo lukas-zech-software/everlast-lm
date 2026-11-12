@@ -32,18 +32,18 @@ describe("Package 2.2 schemas (FR-SI-02, FR-GC-04/05/07/09, FR-NM-02, C-02)", ()
     expect(schema.safeParse({ ...base, source_word_count: 400, summary_md: "A full source summary.", key_topics: [] }).success).toBe(false);
     expect(schema.safeParse({ ...base, summary_md: "One sentence.", key_topics: [] }).success).toBe(false);
     expect(schema.safeParse({ ...base, source_word_count: 50, summary_md: "A full source summary.", key_topics: Array(11).fill("Topic") }).success).toBe(false);
-    expect(schema.safeParse({ ...base, summary_md: "word ".repeat(251), key_topics: ["Topic"] }).success).toBe(false);
-    expect(schema.safeParse({ ...base, source_word_count: 400, summary_md: "word ".repeat(250), key_topics: ["Topic"] }).success).toBe(true);
-    expect(schema.safeParse({ ...base, summary_md: "Summary", key_topics: Array(5).fill("x".repeat(41)) }).success).toBe(false);
+    expect(schema.safeParse({ ...base, summary_md: "word ".repeat(351), key_topics: ["Topic"] }).success).toBe(false);
+    expect(schema.safeParse({ ...base, source_word_count: 400, summary_md: "word ".repeat(350), key_topics: ["Topic"] }).success).toBe(true);
+    expect(schema.safeParse({ ...base, summary_md: "Summary", key_topics: Array(5).fill("x".repeat(61)) }).success).toBe(false);
     expect(schema.safeParse({ ...base, unexpected: true, summary_md: "One sentence.", key_topics: ["Topic"] }).success).toBe(false);
   });
 
   it("enforces the normal-source topic, prompt and follow-up code-point boundaries", () => {
     const guide = { notebook_id: notebook, source_id: source, revision: 1, output_language: "en-US", status: "GuideReady", source_word_count: 50, summary_md: "A full-source summary.", supporting_chunk_ids: [chunk], generated_at: new Date().toISOString() };
-    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: Array(5).fill("🌱".repeat(40)) }).success).toBe(true);
+    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: Array(5).fill("🌱".repeat(60)) }).success).toBe(true);
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["a", "b", "c", "d"] }).success).toBe(true);
     expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: [] }).success).toBe(false);
-    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["🌱".repeat(41), "b", "c", "d", "e"] }).success).toBe(false);
+    expect(v22.SourceGuideSchema.safeParse({ ...guide, key_topics: ["🌱".repeat(61), "b", "c", "d", "e"] }).success).toBe(false);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(100)).success).toBe(true);
     expect(v22.FollowUpSuggestionSchema.safeParse("🌱".repeat(101)).success).toBe(false);
     const followupBase = { source_revisions: [{ source_id: source, revision: 1 }], output_language: "en-US", generated_at: new Date().toISOString() };

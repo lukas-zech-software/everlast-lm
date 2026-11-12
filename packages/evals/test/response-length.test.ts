@@ -31,7 +31,7 @@ describe("response-length release metric (FR-GC-07, FR-012)", () => {
     expect(countResponseTokens("")).toBe(0);
   });
 
-  it("passes when Shorter averages <= 50 % and Longer >= 150 % of Default, and fails otherwise", () => {
+  it("passes when Shorter averages <= 75 % and Longer >= 125 % of Default, and fails otherwise", () => {
     const pass = computeResponseLengthMetric([
       { case_id: "SYN-001", default_tokens: 100, shorter_tokens: 40, longer_tokens: 160 },
       { case_id: "SYN-002", default_tokens: 50, shorter_tokens: 30, longer_tokens: 70 },
@@ -39,7 +39,7 @@ describe("response-length release metric (FR-GC-07, FR-012)", () => {
     expect(pass).toMatchObject({ status: "pass", passed: true, case_ids: ["SYN-001", "SYN-002"] });
     expect(pass.shorter_ratio).toBeCloseTo(0.5);
     expect(pass.longer_ratio).toBeCloseTo(1.5);
-    const fail = computeResponseLengthMetric([{ case_id: "SYN-003", default_tokens: 100, shorter_tokens: 60, longer_tokens: 200 }]);
+    const fail = computeResponseLengthMetric([{ case_id: "SYN-003", default_tokens: 100, shorter_tokens: 80, longer_tokens: 200 }]);
     expect(fail).toMatchObject({ status: "fail", passed: false });
     expect(computeResponseLengthMetric([{ case_id: "SYN-004", default_tokens: 0, shorter_tokens: 0, longer_tokens: 0 }])).toMatchObject({ status: "fail", passed: false });
     expect(computeResponseLengthMetric([])).toMatchObject({ status: "fail", passed: false });

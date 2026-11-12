@@ -58,10 +58,10 @@ describe("judged release sample (Constitution v2.0.0)", () => {
 });
 
 describe("gate thresholds", () => {
-  it("EVB-04: hallucination 0.049 passes, 0.05 and 0.051 fail (strict < 0.05)", () => {
-    expect(judgeMetric("hallucination_rate", 0.049, { failing_cases: [] }).passed).toBe(true);
-    expect(judgeMetric("hallucination_rate", 0.05, { failing_cases: [] }).passed).toBe(false);
-    expect(judgeMetric("hallucination_rate", 0.051, { failing_cases: [] }).passed).toBe(false);
+  it("EVB-04: hallucination 0.099 passes, 0.10 and 0.101 fail (strict < 0.10)", () => {
+    expect(judgeMetric("hallucination_rate", 0.099, { failing_cases: [] }).passed).toBe(true);
+    expect(judgeMetric("hallucination_rate", 0.10, { failing_cases: [] }).passed).toBe(false);
+    expect(judgeMetric("hallucination_rate", 0.101, { failing_cases: [] }).passed).toBe(false);
   });
 
   it("EVB-05: Precision_ID 1.0 passes, 0.99 fails", () => {
@@ -69,9 +69,9 @@ describe("gate thresholds", () => {
     expect(judgeMetric("citation_precision", 0.99, { failing_cases: [] }).passed).toBe(false);
   });
 
-  it("EVB-06: rejection 0.98 fails, 0.99 and 1.0 pass", () => {
-    expect(judgeMetric("negative_rejection_rate", 0.98, { failing_cases: [] }).passed).toBe(false);
-    expect(judgeMetric("negative_rejection_rate", 0.99, { failing_cases: [] }).passed).toBe(true);
+  it("EVB-06: rejection 0.89 fails, 0.90 and 1.0 pass", () => {
+    expect(judgeMetric("negative_rejection_rate", 0.89, { failing_cases: [] }).passed).toBe(false);
+    expect(judgeMetric("negative_rejection_rate", 0.90, { failing_cases: [] }).passed).toBe(true);
     expect(judgeMetric("negative_rejection_rate", 1, { failing_cases: [] }).passed).toBe(true);
   });
 

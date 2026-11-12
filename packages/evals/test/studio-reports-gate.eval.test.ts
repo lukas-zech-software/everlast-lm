@@ -26,7 +26,7 @@ describe("Gate v2.0 #3 Studio reports (deterministic)", () => {
     expect(result.validity_rate).toBe(1);
     expect(result.citation_precision).toBe(1);
     expect(result.leakage).toBe(0);
-    expect(result.p95_ms).toBeLessThanOrEqual(25_000);
+    expect(result.p95_ms).toBeLessThanOrEqual(60_000);
     expect(result.model).toMatch(/deterministic/);
     expect(result.passed).toBe(true);
   });

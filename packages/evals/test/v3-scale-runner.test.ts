@@ -10,7 +10,7 @@ const {fixture_hash:oldHash,...recipe}=raw;const qualifiedRecipe={scope_manifest
 const fixture=loadScaleFixture({...qualifiedRecipe,fixture_hash:createHash('sha256').update(JSON.stringify(qualifiedRecipe)).digest('hex')});
 const boot=randomUUID(), notebook=randomUUID();
 const final=(kind='answer',id=fixture.needle_chunk_id)=>new Response(`event: final\ndata: ${JSON.stringify({replayed:false,messages:[{role:'assistant',kind,content:'142.8 bar',citations:[{chunk_id:id}]}]})}\n\n`,{headers:{'content-type':'text/event-stream'}});
-const proof=({requestId,notebookId}:{requestId:string;notebookId:string})=>({request_id:requestId,notebook_id:notebookId,instance_boot_id:boot,revision:'candidate',terminal_status:'answer',readiness:{instance_boot_id:boot,revision:'candidate',ready_at_ms:1,dependencies:{sql:true,model:true,retrieval:true,cache:true,migrations:true,recovery:true}},stages:{},fixture_hash:fixture.fixture_hash,scope:{principal_subject:'owner-A',notebook_id:notebookId,sources:fixture.active_source_ids.map(source_id=>({source_id,revision:1})),source_token_total:1050123,manifest_hash:'a'.repeat(64),token_counting_model:'qualified-tokenizer',token_counting_version:'1',token_counting_qualification:'enterprise-eu'},prompt_leakage_count:0});
+const proof=({requestId,notebookId}:{requestId:string;notebookId:string})=>({request_id:requestId,notebook_id:notebookId,instance_boot_id:boot,revision:'candidate',terminal_status:'answer',readiness:{instance_boot_id:boot,revision:'candidate',ready_at_ms:1,dependencies:{sql:true,model:true,retrieval:true,cache:true,migrations:true,recovery:true}},stages:{},fixture_hash:fixture.fixture_hash,scope:{principal_subject:'owner-A',notebook_id:notebookId,sources:fixture.active_source_ids.map(source_id=>({source_id,revision:1})),source_token_total:105123,manifest_hash:'a'.repeat(64),token_counting_model:'qualified-tokenizer',token_counting_version:'1',token_counting_qualification:'enterprise-eu'},prompt_leakage_count:0});
 afterEach(()=>vi.unstubAllGlobals());
 describe('NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner',()=>{
  it('retains 40 invalid attempts and unknown values when private serving evidence is missing',async()=>{
@@ -28,7 +28,7 @@ describe('NFR-PERF-01 C-02 NFR-EVAL-02/04 evidence-bound scale runner',()=>{
   vi.stubGlobal('fetch',vi.fn(async()=>final('answer',randomUUID())));
   const options={baseUrl:'http://localhost',token:'a',notebookId:notebook,clockUncertaintyMs:1,evidence:async(args:{requestId:string;notebookId:string})=>proof(args)};
   const r=await runScaleBenchmark(fixture,options);expect(r.result).toBe('FAIL');
-  expect(r.core.observations.every(o=>!o.needle_correct&&o.active_token_total===1050123)).toBe(true);
+  expect(r.core.observations.every(o=>!o.needle_correct&&o.active_token_total===105123)).toBe(true);
   const mismatch=await runScaleBenchmark(fixture,{...options,evidence:async args=>({...proof(args),notebook_id:randomUUID()})});
   expect(mismatch.result).toBe('UNAVAILABLE');
  });

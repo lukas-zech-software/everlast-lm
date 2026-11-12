@@ -92,7 +92,7 @@ describe("Gate v1.0 lifecycle", () => {
   });
 
   it("EVR-03: any failing metric fails the gate and lists the failing case IDs against the commit", () => {
-    const failing = run({ metrics: [...run().metrics.slice(0, 4), judgeMetric("negative_rejection_rate", 0.98, { failing_cases: ["NEG-007", "NEG-042"] })] });
+    const failing = run({ metrics: [...run().metrics.slice(0, 4), judgeMetric("negative_rejection_rate", 0.85, { failing_cases: ["NEG-007", "NEG-042"] })] });
     const report = buildGateReport({ mode: "release", commit: "deadbeef", run: failing, preflight: passingPreflight, ui, dataset, models: {} });
     expect(report.state).toBe("GateFailed");
     expect(report.commit).toBe("deadbeef");

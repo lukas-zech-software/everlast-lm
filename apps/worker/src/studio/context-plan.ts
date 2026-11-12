@@ -25,7 +25,7 @@ export interface StudioContextPlan {
 }
 
 export function planStudioContext(input: PlanStudioContextInput): StudioContextPlan {
-  const modelInputLimit = input.modelInputLimit ?? 1_000_000;
+  const modelInputLimit = input.modelInputLimit ?? 110_000;
   const outputReserve = input.outputReserve ?? 4096;
   const instructionTokens = input.instructionTokens ?? 1000;
   const maxBatchTokens = input.maxBatchTokens ?? 4000;
@@ -35,7 +35,7 @@ export function planStudioContext(input: PlanStudioContextInput): StudioContextP
   }
 
   const fitsInCache =
-    input.sourceTokenTotal <= 1_000_000 &&
+    input.sourceTokenTotal <= 100_000 &&
     input.sourceTokenTotal + outputReserve + instructionTokens <= modelInputLimit;
 
   const mode: ContextMode = fitsInCache ? 'CachedFullContext' : 'ChunkMapReduce';

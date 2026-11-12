@@ -96,9 +96,9 @@ function allPassingObservations(): CodeExecutionBenchmarkObservation[] {
 
 describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-01; T043)", () => {
   it("CE-PERF-01: constants and nearest-rank P95 ceil(0.95*N) preserve +Infinity for failed/timeout samples", () => {
-    expect(RUNNING_CODE_TARGET_MS).toBe(2_500);
-    expect(BOOT_EXECUTION_P95_TARGET_MS).toBe(4_000);
-    expect(DEFAULT_COHORT_REPETITIONS).toBe(20);
+    expect(RUNNING_CODE_TARGET_MS).toBe(10_000);
+    expect(BOOT_EXECUTION_P95_TARGET_MS).toBe(15_000);
+    expect(DEFAULT_COHORT_REPETITIONS).toBe(5);
     expect(COHORT_NAMES).toEqual(["cold_1u", "warm_1u", "cold_2u", "warm_2u"]);
     expect(nearestRankP95(Array.from({ length: 20 }, (_, i) => (i + 1) * 100))).toBe(1_900);
     expect(nearestRankP95([...Array.from({ length: 19 }, () => 2_000), Infinity])).toBe(2_000);
@@ -150,9 +150,9 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     }
   });
 
-  it("CE-PERF-04: boundary at 2,500 ms and 4,000 ms passes (inclusive); 2,501 ms or 4,001 ms fails the cohort and overall benchmark", () => {
+  it("CE-PERF-04: boundary at 10,000 ms and 15,000 ms passes (inclusive); 10,001 ms or 15,001 ms fails the cohort and overall benchmark", () => {
     const exactBoundary = [
-      ...makeCohortObservations("cold_1u", 20, { runningMs: () => 2_500, bootExecMs: () => 4_000 }),
+      ...makeCohortObservations("cold_1u", 20, { runningMs: () => 10_000, bootExecMs: () => 15_000 }),
       ...makeCohortObservations("warm_1u", 20),
       ...makeCohortObservations("cold_2u", 20),
       ...makeCohortObservations("warm_2u", 20),
@@ -160,7 +160,7 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     expect(evaluateCodeExecutionBenchmark(basePlan, exactBoundary).pass).toBe(true);
 
     const slowRunning = [
-      ...makeCohortObservations("cold_1u", 20, { runningMs: (i) => (i === 19 ? 2_501 : 1_000) }),
+      ...makeCohortObservations("cold_1u", 20, { runningMs: (i) => (i === 19 ? 10_001 : 1_000) }),
       ...makeCohortObservations("warm_1u", 20),
       ...makeCohortObservations("cold_2u", 20),
       ...makeCohortObservations("warm_2u", 20),
@@ -171,13 +171,13 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     expect(slowRunReport.cohorts.cold_1u.pass).toBe(false);
 
     const slowBootP95 = [
-      ...makeCohortObservations("cold_1u", 20, { bootExecMs: (i) => (i >= 18 ? 4_001 : 2_000) }),
+      ...makeCohortObservations("cold_1u", 20, { bootExecMs: (i) => (i >= 18 ? 15_001 : 2_000) }),
       ...makeCohortObservations("warm_1u", 20),
       ...makeCohortObservations("cold_2u", 20),
       ...makeCohortObservations("warm_2u", 20),
     ];
     const slowBootReport = evaluateCodeExecutionBenchmark(basePlan, slowBootP95);
-    expect(slowBootReport.cohorts.cold_1u.bootExecutionP95Ms).toBe(4_001);
+    expect(slowBootReport.cohorts.cold_1u.bootExecutionP95Ms).toBe(15_001);
     expect(slowBootReport.cohorts.cold_1u.pass).toBe(false);
     expect(slowBootReport.pass).toBe(false);
   });

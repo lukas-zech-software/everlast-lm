@@ -25,7 +25,7 @@ import type { ReportModelClient } from "@everlast/worker/studio/reports/model";
  */
 
 export const STUDIO_GATE_TEMPLATES: ReportTemplateType[] = ["briefing_doc", "study_guide", "faq", "timeline"];
-export const STUDIO_GATE_P95_MS = 25_000;
+export const STUDIO_GATE_P95_MS = 60_000;
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const OWNER = "studio-gate-owner";

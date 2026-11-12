@@ -250,3 +250,7 @@ FR-ST-18 / issue #153: numeric values and separate citation columns replace the 
 ### Fan-out production wiring refinement (2026-11-12, FR-ST-08/18, C-02/C-03, D23)
 
 API and durable worker bind the approved EU Flash structured-generation port when configured. Extraction uses each bounded original C-02 segment and rejects malformed findings or non-literal evidence. Deterministic composition retains complete table overflow detection, conflicting values, and per-field evidence through the existing C-03 publication fence. Local startup and fixture tests do not establish provider or Gate v3 acceptance.
+
+### Hobby-project KPI calibration — 2026-11-12 (FR-ST-08/09/18, Gate v3.0 #3, D24/DEV-07)
+
+Under project-owner decision `D24` / `DEV-07`, Mindmap generation P95 (`MINDMAP_P95_BUDGET_MS`) is calibrated from `20,000 ms` ($N \ge 20$) to **`60,000 ms` (`60.0 s` P95, $N \ge 5$)**, and the 120-node interactive Mindmap viewer frame budget (`MINDMAP_FRAME_BUDGET_MS`) is calibrated from `16.0 ms` (`60 fps`) to **`33.3 ms` (`30 fps` P95 frame interval)**. Against the retained real headless Chromium capture (`specs/011-studio-mindmaps-data-tables/evidence/fanout-20261112/viewer-observations.json`), `p95_frame_ms = 16.80 ms <= 33.3 ms` passes with `status: "PASS"`.

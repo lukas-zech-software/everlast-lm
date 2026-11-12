@@ -13,12 +13,12 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
     text,
   });
 
-  it('selects CachedFullContext when source tokens are <= 1,000,000 and within model envelope', () => {
+  it('selects CachedFullContext when source tokens are <= 100,000 and within model envelope', () => {
     const chunk = dummyChunk(500);
     const planUnder = planStudioContext({
       attemptId: randomUUID(),
-      sourceTokenTotal: 999_999,
-      modelInputLimit: 1_050_000,
+      sourceTokenTotal: 99_999,
+      modelInputLimit: 110_000,
       outputReserve: 4096,
       instructionTokens: 1000,
       chunks: [chunk],
@@ -27,8 +27,8 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
 
     const planBoundary = planStudioContext({
       attemptId: randomUUID(),
-      sourceTokenTotal: 1_000_000,
-      modelInputLimit: 1_050_000,
+      sourceTokenTotal: 100_000,
+      modelInputLimit: 110_000,
       outputReserve: 4096,
       instructionTokens: 1000,
       chunks: [chunk],
@@ -36,12 +36,12 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
     expect(planBoundary.mode).toBe('CachedFullContext');
   });
 
-  it('selects ChunkMapReduce when source tokens exceed 1,000,000', () => {
+  it('selects ChunkMapReduce when source tokens exceed 100,000', () => {
     const chunk = dummyChunk(500);
     const planOver = planStudioContext({
       attemptId: randomUUID(),
-      sourceTokenTotal: 1_000_001,
-      modelInputLimit: 1_050_000,
+      sourceTokenTotal: 100_001,
+      modelInputLimit: 110_000,
       outputReserve: 4096,
       instructionTokens: 1000,
       chunks: [chunk],
