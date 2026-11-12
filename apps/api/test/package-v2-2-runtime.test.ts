@@ -3,7 +3,6 @@ import { HashingTestEmbedder } from "@everlast/cloud";
 import { getSourceGuide, persistChatMessage, resetPackageV22Store, runWithV2Persistence } from "@everlast/db";
 import { seedReadySource } from "@everlast/db/testing";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
-import { VertexStructuredGenerationClient } from "@everlast/worker/package-v2-2-gemini";
 import { createV2Generation } from "../src/server.ts";
 import { createV2Runtime, type V2Runtime } from "../src/v2/runtime.ts";
 import { startTestApi, type TestApi } from "./support.ts";
@@ -45,8 +44,10 @@ async function setup(target: TestApi, as: string) {
 }
 
 describe("startApiServer wiring of the structured model (FR-SI-02, FR-GC-04/05, D3)", () => {
-  it("creates the Vertex client under the same condition as the grounded chat model", () => {
-    expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu" }, true)).toBeInstanceOf(VertexStructuredGenerationClient);
+  it("wires the D23 Flash-Lite client under the same condition as the grounded chat model", () => {
+    expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu", VERTEX_LOCATION: "europe-west4" }, true)).toMatchObject({
+      model: "gemini-3.5-flash-lite", location: "eu", project: "everlast-eu",
+    });
     expect(createV2Generation({ VERTEX_PROJECT: "everlast-eu" }, false)).toBeUndefined();
     expect(createV2Generation({}, true)).toBeUndefined();
   });

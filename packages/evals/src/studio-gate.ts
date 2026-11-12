@@ -178,10 +178,10 @@ export type StudioReleaseGateResult = { status: "unavailable"; reason: string } 
 
 /** Release variant with the Vertex AI Flash report adapter; never reports a pass it did not run. */
 export async function runStudioReportsReleaseGate(env: NodeJS.ProcessEnv): Promise<StudioReleaseGateResult> {
-  const { createVertexReportModelFromEnv, REPORT_MODEL } = await import("@everlast/worker/studio/reports/vertex-model");
+  const { createVertexReportModelFromEnv } = await import("@everlast/worker/studio/reports/vertex-model");
   const model = createVertexReportModelFromEnv(env);
   if (!model) return { status: "unavailable", reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)" };
-  return { status: "ran", result: await runStudioReportsGate({ model, modelId: `vertex:${env.VERTEX_LOCATION ?? "europe-west4"}:${env.REPORT_MODEL ?? REPORT_MODEL}` }) };
+  return { status: "ran", result: await runStudioReportsGate({ model, modelId: model.id }) };
 }
 
 export function renderStudioGate(result: StudioGateResult): string[] {

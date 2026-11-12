@@ -57,7 +57,7 @@ import {
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
-import type { TopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
+import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";

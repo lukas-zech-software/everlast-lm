@@ -239,3 +239,13 @@ render bootstrap uses pinned npm/pnpm12 because corepack is absent. This changes
 no canonical contracts/workflow ownership, authorizes no resource/API apply or
 paid cohort, and leaves T049/T050 live acceptance open. See009plan's CC-09inventory
 and implementation evidence for scoped static/manual checks versus live proof.
+
+### Fan-out qualification refinement — 2026-11-11 (FR-SI-01/04, SC-001/002)
+
+Validate the declared native FLAC's SHA-256, byte size and exact 30-minute
+STREAMINFO sample count before calling Speech. Offline metadata validation and
+direct provider timing are supporting evidence. Where the application queues
+or preprocesses audio, measure from application acceptance to its complete
+validated transcript. The deployed Interview.mp3 case uses approved spoken
+audio with a known passage at 04:15 and verifies citation highlight and seek.
+The cohort size, failed-attempt handling and 45-second P95 target are unchanged.

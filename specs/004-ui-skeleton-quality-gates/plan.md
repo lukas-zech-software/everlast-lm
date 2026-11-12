@@ -109,3 +109,16 @@ adds no application import or deployment edge. No changes to authorization, atom
 transactions, durable dispatch, cancellation, publication or D16 placement are part of
 the evaluator evidence slice. Pre-V4 status stays pending until the actual graph,
 behavior and live evidence are validated against the assembled candidate.
+
+### Combined candidate evidence labels (D23, NFR-SEC-01, NFR-EVAL-01..04)
+
+The Guide and report release harnesses record the identity returned by the
+actual adapters in `packages/evals/src/source-guide-gate.ts` and
+`packages/evals/src/studio-gate.ts`. The first consumes the public cloud
+structured adapter and the second uses the report port's `id` through its
+existing D21 exception. The evaluator owns evidence labels, while the
+adapters own model and transport selection. Focused Guide/Studio tests and
+the deterministic evaluator exercise the integration. T039 still owns the
+judge transport and role-specific endpoint preflight. The label updates
+do not establish live qualification or change publication, authorization,
+transactions, or deployment.

@@ -362,3 +362,12 @@ fail immediately; product citation validation is never retried. Exhausted provid
 errors must produce a failing report retaining the affected case and the original
 case population, rather than aborting before a report or omitting failed cases.
 Attempt records contain no prompts, source text or raw provider error messages.
+
+### Enterprise Gemini routing (D23, FR-SI-02, FR-GC-04/05, NFR-SEC-01)
+
+Source Guides, notebook overviews, and follow-up suggestions use the enterprise
+Flash-Lite profile in EU multi-region `eu` with `MINIMAL` thinking and keyless
+credentials, as specified in the [approved model map](../../../docs/gemini-model-region-map.md).
+Requests carry trusted instructions separately from scoped source text, output
+language, and the prior answer. Existing length, retry, publication, and live
+acceptance criteria apply.

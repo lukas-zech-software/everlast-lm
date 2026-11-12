@@ -78,6 +78,10 @@ The same applies when a source is replaced by a new revision once re-sync exists
 - User triggers `"Timeline"` on sources that contain zero dates or chronological events $\rightarrow$ Report completes with an explicit section stating that the selected sources contain no dated events, plus the `cast_of_characters` section; it never invents dates. This is the only case where a required section (`events`) may complete without entries.
 - $\lvert S_{\text{aktiv}}\rvert = 0$ $\rightarrow$ Report template buttons are disabled.
 
+**Report generation and native context (D23, NFR-SEC-01, NFR-PERF-01)**
+- Generation, native token counting and explicit context caching use the same approved keyless enterprise Flash model and EU multi-region identity. Structured generation uses LOW thinking for the approved Flash profile. Maintain scoped evidence, output bounds and publication checks.
+- The per-attempt transport deadline remains 20 seconds. At most two retries may follow fast transient failures, and retry dispatch must start within the original attempt window. Exhausted or invalid output produces a terminal failure without a partial report.
+
 **Measurable criteria**
 - $100\%$ of the $4$ standard templates generate valid, grounded Markdown documents (`Gate v2.0 #3`) within $\le 25.0\text{ s}$ (P95).
 

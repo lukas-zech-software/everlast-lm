@@ -13,13 +13,12 @@ import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperational
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
-import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
+import { createVertexStructuredGenerationFromEnv, createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { GoogleDelegationBroker } from "./routes/connections.ts";
-import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
-import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+import { VertexTopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 

@@ -164,3 +164,12 @@ All existing N>=20/four-cohort/2.5s/4s/isolation/deadline criteria remain unchan
 Canonical private evidence schemas are additive in packages/contracts; a trusted
 producer must observe actual execution and dependency qualification. The consumer
 implementation and default-off typed parent IaC do not constitute live acceptance.
+
+### Collector evidence retention (FR-GC-08, NFR-PERF-01, NFR-SEC-02)
+
+A malformed receipt or an expired calibrated observation stops further timed
+dispatch and retains the attempted request and any valid private observation.
+Known failures remain visible in a partial cohort, whose declared population
+stays fixed and whose percentiles remain unavailable. The v3 release campaign
+requires 012 clock continuity through private evidence export and uses observed
+qualification for the selected cold/warm readiness basis.
