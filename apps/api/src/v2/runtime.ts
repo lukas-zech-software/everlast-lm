@@ -16,7 +16,7 @@ import {
   type SourceRevisionPair,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import type { Embedder, ObjectStorage } from "@everlast/cloud";
+import type { Embedder, ObjectStorage, StructuredGenerator } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
@@ -117,6 +117,7 @@ export interface V2RuntimeOptions {
    * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
    */
   reportModel?: ReportModelClient | undefined;
+  structureGenerator?: StructuredGenerator | undefined;
   mindmapModel?: MindmapModelClient | undefined;
   dataTableModel?: DataTableModelClient | undefined;
   /**
@@ -447,6 +448,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   const registry = createStudioPluginRegistry({
     reportModel: options.reportModel,
+    structureGenerator: options.structureGenerator,
     mindmapModel: options.mindmapModel,
     dataTableModel: options.dataTableModel,
   });

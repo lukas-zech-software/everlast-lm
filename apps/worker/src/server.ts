@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import type { Pool } from "@everlast/db";
 import { createPool } from "@everlast/db";
 import {
+  createEnterpriseStructuredGenerator,
   createObjectStorage,
   createOcrEngine,
   createVertexClient,
@@ -126,12 +127,19 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
 }
 
 export async function startWorker(env: NodeJS.ProcessEnv = process.env, extra: Partial<WorkerDeps> = {}) {
+  const pool = extra.pool ?? createPool();
   const storage = extra.storage ?? createObjectStorage(env);
+  const vertexConfigured = Boolean(env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT);
+  const useEnterpriseStudio = (vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1") || env.K_SERVICE || env.NODE_ENV === "production";
+  const studioRunner = !extra.studioRunner && !extra.handlers?.studio && useEnterpriseStudio
+    ? createDurableStudioRunner(pool, { structureGenerator: createEnterpriseStructuredGenerator("flash", env) })
+    : undefined;
   // Package 3.1 (specs/009): format adapters and Model Armor screening from configuration (absent → fail clearly).
   const v3 = createV3IngestionFromEnv(env, storage);
   const deps: WorkerDeps = {
-    pool: createPool(),
+    pool,
     storage,
+    studioRunner,
     adapters: v3.adapters,
     screener: v3.screener,
     embedder:

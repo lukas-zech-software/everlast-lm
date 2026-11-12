@@ -13,7 +13,7 @@ import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperational
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
-import { createVertexStructuredGenerationFromEnv, createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
+import { createEnterpriseStructuredGenerator, createVertexStructuredGenerationFromEnv, createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
@@ -142,6 +142,9 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         ? new VertexEmbedder({ client: createVertexClient(vertexConfigFromEnv(env)), model: env.EMBEDDING_MODEL })
         : undefined);
   const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
+  if ((env.K_SERVICE || env.NODE_ENV === "production") && !modelConfigured && !extra.v2 && env.V2_POC !== "off") {
+    throw new Error("Enterprise Gemini configuration is required for production Studio generation");
+  }
   const model = privateComposition?.model ?? (modelConfigured ? createGroundedModelFromEnv(env) : undefined);
   const storage = extra.storage ?? createObjectStorage(env);
   const reportModel = createV2ReportModel(env, modelConfigured);
@@ -159,6 +162,7 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           model,
           generation: createV2Generation(env, modelConfigured),
           reportModel,
+          structureGenerator: modelConfigured ? createEnterpriseStructuredGenerator("flash", env) : undefined,
           studioContext,
           // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
           readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
