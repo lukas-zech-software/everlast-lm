@@ -45,7 +45,9 @@ describe("response preferences in the model payload (FR-GC-07, FR-UI-02, FR-GC-0
   it("states concrete, testable length targets that never override grounding (FR-GC-07, FR-GC-01/02; live Gate v2.0, 2026-10-20)", () => {
     const shorter = preferenceLines({ style: "default", response_length: "shorter" }).join(" ");
     const longer = preferenceLines({ style: "default", response_length: "longer" }).join(" ");
-    expect(shorter).toMatch(/at most 2 sentences/);
+    expect(shorter).toMatch(/one compact sentence/);
+    expect(shorter).toMatch(/omit introductory phrases/i);
+    expect(shorter).toMatch(/terse labelled facts/);
     expect(shorter).toMatch(/only the fact\(s\) directly asked/i);
     expect(longer).toMatch(/at least 4 sentences/);
     expect(longer).toMatch(/every relevant (supported )?fact/i);

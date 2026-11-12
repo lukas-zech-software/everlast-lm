@@ -39,3 +39,14 @@ describe("[011-studio-mindmaps-data-tables] T029: 120-node mindmap interaction f
     expect(failedReport.passed).toBe(false);
   });
 });
+
+
+describe("[011-studio-mindmaps-data-tables] T057: frame evidence integrity (FR-ST-09, SC-003)", () => {
+  const frames = (): MindmapFrameSample[] => Array.from({ length: 20 }, (_, i) => ({ frame_index: i + 1, operation: (["pan", "zoom", "expand", "collapse"] as const)[i % 4]!, node_count: 120, duration_ms: 10, dropped: false }));
+  it("rejects duplicate identities, wrong node counts and missing operations", () => {
+    const duplicates = frames(); duplicates[1]!.frame_index = duplicates[0]!.frame_index;
+    expect(() => evaluateMindmapFrameSamples(duplicates)).toThrow(/unique|duplicate/i);
+    expect(() => evaluateMindmapFrameSamples(frames().map(s => ({ ...s, node_count: 12 })))).toThrow(/120/);
+    expect(() => evaluateMindmapFrameSamples(frames().map(s => ({ ...s, operation: "pan" })))).toThrow(/operation/i);
+  });
+});

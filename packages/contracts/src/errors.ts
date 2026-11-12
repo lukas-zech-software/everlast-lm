@@ -27,6 +27,7 @@ export type AppErrorCode =
   | "PayloadTooLarge"
   | "RetryableFailure"
   | "InternalError"
+  | "GuideAdmissionLimited"
   // Release v2 (FR-WM-02, FR-WM-03, FR-UI-02)
   | "InvalidPreference"
   | "InvalidEmoji"

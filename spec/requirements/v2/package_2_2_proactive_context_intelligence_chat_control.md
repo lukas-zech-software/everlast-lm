@@ -339,3 +339,35 @@ Scenario: Submitting negative feedback logs the error category
 **Out of scope:** Automated model fine-tuning from thumbs-up/down (`NFR-SEC-01` prohibits training on tenant data).
 
 **Open questions:** `None`
+
+## Pre-v4 generation refinement (2026-11-05; FR-SI-02, FR-GC-07)
+
+Guide generation aims for 120–160 summary words and topic labels of at most 30 characters, leaving headroom under the unchanged acceptance maxima of 250 words and 40 code points. Short sources retain the one-sentence/1–3-topic exception. Invalid output is rejected without truncation or regeneration.
+
+Shorter response-length guidance uses one compact cited sentence with terse labelled facts: all requested facts, no introduction or repeated narrative clauses. Default (concise and precise) and Longer (target at least four supported cited sentences) remain unchanged. Targets never require padding, dropping requested facts or weakening grounding/refusal. The release metric remains Shorter ≤50% and Longer ≥150% of Default on the existing fixed sample.
+
+Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.
+
+Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
+
+Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.
+
+
+## Pre-v4 evaluation resilience (FR-GC-07, NFR-EVAL-01..04)
+
+Judge provider retries are limited to five total attempts for transient 429/5xx
+responses. Retain each attempt's purpose, outcome, HTTP status and elapsed time,
+including backoff in cumulative elapsed time. Malformed or schema-invalid verdicts
+fail immediately; product citation validation is never retried. Exhausted provider
+errors must produce a failing report retaining the affected case and the original
+case population, rather than aborting before a report or omitting failed cases.
+Attempt records contain no prompts, source text or raw provider error messages.
+
+### Enterprise Gemini routing (D23, FR-SI-02, FR-GC-04/05, NFR-SEC-01)
+
+Source Guides, notebook overviews, and follow-up suggestions use the enterprise
+Flash-Lite profile in EU multi-region `eu` with `MINIMAL` thinking and keyless
+credentials, as specified in the [approved model map](../../../docs/gemini-model-region-map.md).
+Requests carry trusted instructions separately from scoped source text, output
+language, and the prior answer. Existing length, retry, publication, and live
+acceptance criteria apply.

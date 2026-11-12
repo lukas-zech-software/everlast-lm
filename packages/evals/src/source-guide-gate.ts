@@ -118,13 +118,12 @@ export type SourceGuideReleaseGateResult = { status: "unavailable"; reason: stri
 
 /** Release variant with the Vertex AI Flash-Lite client; never reports a pass it did not run. */
 export async function runSourceGuideReleaseGate(env: NodeJS.ProcessEnv): Promise<SourceGuideReleaseGateResult> {
-  const { createVertexStructuredGenerationFromEnv } = await import("@everlast/worker/package-v2-2-gemini");
+  const { createVertexStructuredGenerationFromEnv } = await import("@everlast/cloud");
   const model = createVertexStructuredGenerationFromEnv(env);
   if (!model) return { status: "unavailable", reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)" };
-  const location = env.VERTEX_LOCATION ?? "europe-west4";
   return {
     status: "ran",
-    result: await runSourceGuideGate({ model, modelId: `vertex:${location}:${env.STRUCTURED_MODEL ?? "gemini-2.5-flash-lite"}`, dispatchDelayMs: Number(env.V2_READY_WATCH_MS ?? 1_000) }),
+    result: await runSourceGuideGate({ model, modelId: `vertex:${model.location}:${model.model}`, dispatchDelayMs: Number(env.V2_READY_WATCH_MS ?? 1_000) }),
   };
 }
 

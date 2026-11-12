@@ -1,0 +1,314 @@
+{
+  "record_type": "read_only_roadmap_audit_not_acceptance",
+  "date": "2026-11-11",
+  "traceability": [
+    "CC-06",
+    "NFR-EVAL-01..04",
+    "Gate v3.0"
+  ],
+  "main": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
+  "search_query": "repo:lukas-zech-software/everlast-lm is:issue is:open",
+  "result_count": 48,
+  "pre_v4_excluding_roadmap": 17,
+  "dry_run": {
+    "field_updates": 0,
+    "issues_closed": 0,
+    "applied": false
+  },
+  "findings": [
+    "Gatev3#86 stays open; local and merged implementation do not establish release acceptance.",
+    "Issue#153 still open. Current exporter intentionally leaves1.20/-12.40 as text; review numeric trailing-zero formatting against original numeric-export intent in owning011 before closure.",
+    "Roadmap#1 governing-version display text still references Constitution1.1/CC01..08 andD1..D13; actual linked constitution2.1/CC09 is authoritative. Reconcile metadata in final roadmap flow-back.",
+    "README pre-v4 architecture queue remains; at this checkpoint185records(97T035/88T036), with actualcloudwildcardretirement planned by012bridge."
+  ],
+  "issues": [
+    {
+      "number": 153,
+      "title": "FR-ST-18: Data Table exports turn negative numbers into text",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/153",
+      "pre_v4": true
+    },
+    {
+      "number": 89,
+      "title": "[GATE-v6.0] Release-Abnahme v6.0",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/89",
+      "pre_v4": false
+    },
+    {
+      "number": 88,
+      "title": "[GATE-v5.0] Release-Abnahme v5.0",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/88",
+      "pre_v4": false
+    },
+    {
+      "number": 87,
+      "title": "[GATE-v4.0] Release-Abnahme v4.0",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/87",
+      "pre_v4": false
+    },
+    {
+      "number": 86,
+      "title": "[GATE-v3.0] Release-Abnahme v3.0",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/86",
+      "pre_v4": true
+    },
+    {
+      "number": 83,
+      "title": "[TECH-03] Quelleninspektor um Medien- und Zeitstempel-Navigation erweitern",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/83",
+      "pre_v4": true
+    },
+    {
+      "number": 77,
+      "title": "[FR-INT-01] Integration in den zentralen Enterprise-Chat",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/77",
+      "pre_v4": false
+    },
+    {
+      "number": 76,
+      "title": "[FR-SI-07] Deep Research Agent",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/76",
+      "pre_v4": false
+    },
+    {
+      "number": 75,
+      "title": "[FR-SI-06] Discover Sources Agent",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/75",
+      "pre_v4": false
+    },
+    {
+      "number": 74,
+      "title": "[NFR-SEC-02] Rollenspezifische Zugriffskontrolle / ACLs",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/74",
+      "pre_v4": false
+    },
+    {
+      "number": 73,
+      "title": "[FR-WM-07-B] Ressourcen-Quotas – Enterprise-Management",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/73",
+      "pre_v4": false
+    },
+    {
+      "number": 72,
+      "title": "[FR-WM-06] Notebook-Analytics für Enterprise-Sharing",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/72",
+      "pre_v4": false
+    },
+    {
+      "number": 71,
+      "title": "[FR-WM-05] Kollaboration & Sharing",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/71",
+      "pre_v4": false
+    },
+    {
+      "number": 70,
+      "title": "[FR-ST-07] Cinematic Video Overviews",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/70",
+      "pre_v4": false
+    },
+    {
+      "number": 69,
+      "title": "[FR-ST-06] Short Video Overviews",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/69",
+      "pre_v4": false
+    },
+    {
+      "number": 68,
+      "title": "[FR-ST-05] Narrated Slideshow / Standard Video Overview",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/68",
+      "pre_v4": false
+    },
+    {
+      "number": 67,
+      "title": "[FR-ST-04] Audio-Player & Export",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/67",
+      "pre_v4": false
+    },
+    {
+      "number": 66,
+      "title": "[FR-ST-03] Interaktiver Modus / „Join-In“",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/66",
+      "pre_v4": false
+    },
+    {
+      "number": 65,
+      "title": "[FR-ST-02] Pre-Generation Customizing",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/65",
+      "pre_v4": false
+    },
+    {
+      "number": 64,
+      "title": "[FR-ST-01] Dialogische Audio-Synthese",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/64",
+      "pre_v4": false
+    },
+    {
+      "number": 63,
+      "title": "[FR-ST-17] Infografiken",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/63",
+      "pre_v4": false
+    },
+    {
+      "number": 62,
+      "title": "[FR-ST-16] Slide Decks",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/62",
+      "pre_v4": false
+    },
+    {
+      "number": 61,
+      "title": "[FR-ST-12] Interactive Learning Overviews",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/61",
+      "pre_v4": false
+    },
+    {
+      "number": 60,
+      "title": "[FR-ST-15] Lernfortschritts-Tracking",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/60",
+      "pre_v4": false
+    },
+    {
+      "number": 59,
+      "title": "[FR-ST-14] Interaktive Quizze",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/59",
+      "pre_v4": false
+    },
+    {
+      "number": 58,
+      "title": "[FR-ST-13] Interaktive Lernkarten / Flashcards",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/58",
+      "pre_v4": false
+    },
+    {
+      "number": 57,
+      "title": "[NFR-PERF-01] Kontextfenster & Retrieval-Latenz",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/57",
+      "pre_v4": true
+    },
+    {
+      "number": 56,
+      "title": "[FR-ST-18] Data Tables",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/56",
+      "pre_v4": true
+    },
+    {
+      "number": 55,
+      "title": "[FR-ST-09] Mindmap-Interaktivität",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/55",
+      "pre_v4": true
+    },
+    {
+      "number": 54,
+      "title": "[FR-ST-08] Automatische Mindmap-Generierung",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/54",
+      "pre_v4": true
+    },
+    {
+      "number": 53,
+      "title": "[FR-GC-08] Sichere Code-Ausführungs-Sandbox / Cloud Computer",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/53",
+      "pre_v4": true
+    },
+    {
+      "number": 52,
+      "title": "[FR-SI-05] Quellen-CRUD & Synchronisation",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/52",
+      "pre_v4": true
+    },
+    {
+      "number": 51,
+      "title": "[FR-SI-01-B] Quellen-Ingestion – Teil B: Office, Web, Video und Audio",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/51",
+      "pre_v4": true
+    },
+    {
+      "number": 43,
+      "title": "[FR-GC-07] Konfigurierbare Personas, Ziele & Antwortstile",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/43",
+      "pre_v4": true
+    },
+    {
+      "number": 40,
+      "title": "[FR-SI-02] Automatischer „Source Guide“ / Quellenüberblick",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/40",
+      "pre_v4": true
+    },
+    {
+      "number": 20,
+      "title": "[EPIC-6.3] Ökosystem-Integration",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/20",
+      "pre_v4": false
+    },
+    {
+      "number": 19,
+      "title": "[EPIC-6.2] Autonome Recherche-Agenten",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/19",
+      "pre_v4": false
+    },
+    {
+      "number": 18,
+      "title": "[EPIC-6.1] Enterprise Governance, Sharing & Analytics",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/18",
+      "pre_v4": false
+    },
+    {
+      "number": 17,
+      "title": "[EPIC-5.2] Studio: Video Overviews",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/17",
+      "pre_v4": false
+    },
+    {
+      "number": 16,
+      "title": "[EPIC-5.1] Studio: Dialogische Audio Overviews & Live-Voice",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/16",
+      "pre_v4": false
+    },
+    {
+      "number": 15,
+      "title": "[EPIC-4.2] Studio: Visuals & Presentations",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/15",
+      "pre_v4": false
+    },
+    {
+      "number": 14,
+      "title": "[EPIC-4.1] Studio: Active Learning Suite",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/14",
+      "pre_v4": false
+    },
+    {
+      "number": 13,
+      "title": "[EPIC-3.4] Long-Context & Latenz-Skalierung",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/13",
+      "pre_v4": true
+    },
+    {
+      "number": 12,
+      "title": "[EPIC-3.3] Studio: Struktur- & Daten-Extraktion",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/12",
+      "pre_v4": true
+    },
+    {
+      "number": 11,
+      "title": "[EPIC-3.2] Quantitative Code-Sandbox",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/11",
+      "pre_v4": true
+    },
+    {
+      "number": 10,
+      "title": "[EPIC-3.1] Multimodale Ingestion & Sync",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/10",
+      "pre_v4": true
+    },
+    {
+      "number": 7,
+      "title": "[EPIC-2.2] Proaktive Kontext-Intelligenz & Chat-Steuerung",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/7",
+      "pre_v4": true
+    },
+    {
+      "number": 1,
+      "title": "[ROADMAP] Everlast LM – Produkt-Roadmap v1.0 bis v6.0",
+      "url": "https://github.com/lukas-zech-software/everlast-lm/issues/1",
+      "pre_v4": true
+    }
+  ]
+}

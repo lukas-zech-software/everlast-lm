@@ -15,3 +15,7 @@ Trace: FR-NM-01, FR-NM-02, FR-NM-03, FR-NM-04, FR-GC-09, C-01, C-02. Artifacts: 
 ## Coverage and gates
 
 Every FR-001..FR-019 maps to a task in [tasks.md](tasks.md) (US1 FR-001..005, US2 FR-006..009, US3 FR-010..013/019, US4 FR-014..018). Tests precede implementation in every story (CC-02). Constitution gates CC-01..CC-08 pass in the plan. No unmapped requirements, no orphan tasks, no remaining CRITICAL/HIGH findings.
+
+## Pre-V4 task 007 refresh (2026-11-11, CC-09)
+
+Re-analysis after the boundary plan/tasks refresh: FR-NM-01..04 mappings unchanged; new T058–T062 trace FR-NM-03, FR-SI-01, C-01/C-02, D21. Tests precede moves (T058, T059 → T060). Boundary inventory populated; no new exception, no cross-app edge, no shared→app edge from `@everlast/notes`. No CRITICAL/HIGH findings. Open item: the shared startup wiring (`apps/api/src/v2/runtime.ts` import path) and policy/lockfile edits are coordinator-serialized (see tasks T061).

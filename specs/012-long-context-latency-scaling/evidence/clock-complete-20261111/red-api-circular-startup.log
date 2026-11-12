@@ -1,0 +1,41 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-clock-complete-20261111
+
+stdout | apps/api/test/code-execution-scope.test.ts > NFR-PERF-01 actual server clock-bootstrap wiring stays disabled until signed private adapters succeed with LOCAL providers
+{"severity":"INFO","message":"API listening on :0 (auth=local)"}
+
+stderr | apps/api/test/code-execution-scope.test.ts
+{"severity":"WARNING","message":"code execution reconcile failed: Cannot use a pool after calling end on the pool"}
+
+stderr | apps/api/test/code-execution-scope.test.ts
+{"severity":"WARNING","message":"code execution reconcile failed: Cannot use a pool after calling end on the pool"}
+
+ ❯ |integration| apps/api/test/code-execution-scope.test.ts (14 tests | 1 failed | 13 skipped) 430ms
+   × NFR-PERF-01 actual server clock-bootstrap wiring stays disabled until signed private adapters succeed with LOCAL providers 188ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/api/test/code-execution-scope.test.ts > NFR-PERF-01 actual server clock-bootstrap wiring stays disabled until signed private adapters succeed with LOCAL providers
+ZodError: [
+  {
+    "expected": "string",
+    "code": "invalid_type",
+    "path": [
+      "clock_calibration_sha256"
+    ],
+    "message": "Invalid input: expected string, received undefined"
+  }
+]
+ ❯ checkExecutionConfig apps/api/src/observability/benchmark.ts:58:52
+
+ ❯ PrivateBenchmarkRecorder.executionConfigFromEnv apps/api/src/observability/benchmark.ts:122:14
+ ❯ startApiServer apps/api/src/server.ts:193:53
+ ❯ apps/api/test/code-execution-scope.test.ts:547:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 13 skipped (14)
+   Start at  13:01:18
+   Duration  2.63s (import 69%, tests 17%, transform 14%)

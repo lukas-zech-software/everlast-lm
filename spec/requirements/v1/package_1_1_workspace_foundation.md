@@ -235,3 +235,22 @@ Scenario: Concurrent uploads reserve the final slot atomically
 **Out of scope:** Per-tenant dynamic billing dashboards (`v6.0`).
 
 **Open questions:** None. Failed uploads release their slot immediately; the dismissible error row is not a source.
+
+
+## Retained pre-V4 identity acceptance (2026-11-07; FR-WM-04, NFR-SEC-01/02)
+
+Owner decision recorded 2026-11-05: accounts are created by an administrator only.
+Existing authorized accounts retain sign-in. Enforce this with Identity Platform
+client permissions (`disabled_user_signup = true`), not only a hidden signup button.
+Keep configured email/password and OIDC/SAML authentication, existing accounts,
+notebook ownership and token verification/revocation unchanged. The password form
+offers sign-in and directs users without accounts to their administrator.
+
+Real identity/storage acceptance uses opt-in suites at the T046 paths. An enabled
+suite missing explicit disposable-fixture acknowledgement/configuration fails
+UNAVAILABLE before any cloud mutation. Do not use the application workspace bucket
+or production identities. Use pre-created approved disposable project/accounts and
+a versioned EU test bucket labelled `everlast-fixture=disposable`; tests isolate
+object names by random notebook ID and verify holds/retry, all generations,
+outstanding upload expiry and privacy. Configuration/code tests are not a live pass.
+T046 remains open until approved real runs prove its full obligations.

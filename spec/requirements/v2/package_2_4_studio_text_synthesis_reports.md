@@ -78,6 +78,10 @@ The same applies when a source is replaced by a new revision once re-sync exists
 - User triggers `"Timeline"` on sources that contain zero dates or chronological events $\rightarrow$ Report completes with an explicit section stating that the selected sources contain no dated events, plus the `cast_of_characters` section; it never invents dates. This is the only case where a required section (`events`) may complete without entries.
 - $\lvert S_{\text{aktiv}}\rvert = 0$ $\rightarrow$ Report template buttons are disabled.
 
+**Report generation and native context (D23, NFR-SEC-01, NFR-PERF-01)**
+- Generation, native token counting and explicit context caching use the same approved keyless enterprise Flash model and EU multi-region identity. Structured generation uses LOW thinking for the approved Flash profile. Maintain scoped evidence, output bounds and publication checks.
+- The per-attempt transport deadline remains 20 seconds. At most two retries may follow fast transient failures, and retry dispatch must start within the original attempt window. Exhausted or invalid output produces a terminal failure without a partial report.
+
 **Measurable criteria**
 - $100\%$ of the $4$ standard templates generate valid, grounded Markdown documents (`Gate v2.0 #3`) within $\le 25.0\text{ s}$ (P95).
 
@@ -152,3 +156,36 @@ Scenario: Studio suggests domain-relevant report formats based on active sources
 **Out of scope:** Uploading external Word/LaTeX template files with placeholder variables.
 
 **Open questions:** `None`
+
+
+## On-demand Guide admission refinement (2026-11-07; FR-SI-02, FR-ST-11, NFR-SEC-02)
+
+The recorded owner decision of2026-11-05 supersedes the older T061 deferral.
+Newly admitted on-demand language variants share a per-notebook maximum of two
+concurrent runs and twenty starts in a rolling one-hour window, both configurable
+as positive integers. Ordinary Ready-transition ingestion bypasses this ledger.
+Repeated requests for the same source/revision/language reuse existing Guide or
+active admission without charging again, including at the limit. Failed admitted
+starts remain in the hourly population; terminal completion releases concurrency.
+Admission serializes under the existing owner→notebook→source lock order and
+revalidates Owner/Ready revision before allocating. Startup recovery in D16's
+single API instance releases orphaned admissions while retaining their start times.
+A quota-limited Guide request receives429/GuideAdmissionLimited; report suggestions
+explain temporary unavailability without disabling standard/custom reports.
+No provider/model latency threshold changes or new datastore are introduced.
+
+
+Primary-language Guide reads reuse the ordinary Ready dispatcher, including its
+in-flight identity deduplication, and do not allocate extra-language admission.
+A failed database slot-release write leaves capacity occupied (fail-closed) until
+D16 startup recovery; it does not admit extra work or reset the hourly count.
+Closed admission metadata older than the rolling hour may be pruned during
+admission; active and in-window failed starts are retained.
+
+
+Primary identity is frozen in `guide_primary_languages` per source/revision before
+any on-demand admission. Bootstrap existing revisions from an existing Guide
+(preferring Ready-origin metadata). Subsequent notebook/user language changes
+never redefine primary identity: a new language variant is charged, including
+when it now matches the mutable preference. This also prevents a seen Ready
+dispatcher from leaving the changed-language request permanently Pending.

@@ -207,3 +207,29 @@ Source: first live Gate v2.0 run (2026-10-20). Gate v2.0 #1 rejected 6/20 guides
 - [X] T086 Write failing tests: `apps/api/test/chat-preferences.test.ts` (concrete Shorter/Longer lines that keep grounding) and `packages/evals/test/response-length.test.ts` (Default refusals excluded and recorded, none eligible → fail closed, Shorter/Longer refusal → fail closed). Per `FR-GC-07`, FR-012, `FR-GC-01/02`, `CC-02`
 - [X] T087 Pass T086. Rewrite the length lines in `preferenceLines` (`apps/api/src/chat/prompt.ts`): Shorter = at most 2 cited sentences; Longer = at least 4 cited sentences. Make `ResponseLengthRunner.answer` return `null` for a refusal (`packages/evals/src/runner.ts`) and add `excluded_case_ids` to the metric and the report (`packages/evals/src/response-length.ts`, `report.ts`). Flow back into the card, `spec.md` FR-002/FR-012, `plan.md` and `data-model.md`. Per `FR-GC-07`, FR-012
 - [x] T088 Re-run Gate v2.0 #1 and the FR-GC-07 response-length metric live on Vertex AI (`europe-west4`, keyless ADC) and record the numbers in `validation.md`. Done 2026-10-22: #1 FAIL (18/20), FR-GC-07 FAIL (Shorter 100 %); see validation.md. Per Gate v2.0 #1, `FR-GC-07`, `NFR-EVAL-04`
+
+## Phase 13: Pre-v4 live-failure follow-up (FR-SI-02, FR-GC-07)
+
+- [X] T089 Add spec-derived failing regression coverage for Source Guide generation headroom and compact Shorter composition and isolation of trusted length routing from concurrent requests/custom text; retain all hard validation and refusal rules (FR-SI-02, FR-GC-07, CC-02).
+- [X] T090 Pass T089 by reserving generation headroom under summary/topic limits and making Shorter composition explicit through request-local trusted guidance without unsupported padding, truncation or retrying invalid output (FR-SI-02, FR-GC-07, FR-GC-01/02).
+- [X] T091 Run the existing live 20-case guide gate and fixed-sample response-length metric using Vertex europe-west4; retain every attempt and exact failures, flow back findings, and run focused regressions plus static and deterministic eval gates (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-01).
+
+
+## Phase 14: Retained evaluation failures (FR-GC-07, NFR-EVAL-01..04)
+
+- [X] T092 Add spec-derived Red tests for bounded judge transient retries, retained attempt/elapsed evidence, invalid-verdict immediate failure and exhausted judge errors producing a failing report without case loss (FR-GC-07, NFR-EVAL-01..04, CC-02).
+- [X] T093 Pass T092 with private-safe attempt records and case-local failure capture; keep refusal/citation validation and original denominators unchanged (FR-GC-07, NFR-EVAL-01..04).
+- [X] T094 Verify integrated 006 checkpoint and harness regressions locally, reconcile evidence applicability and preserve all historical live failures without a new paid run (FR-SI-02, FR-GC-07, NFR-EVAL-02/04, CC-06).
+
+
+## Phase 15: Resumed CC-09 reconciliation (FR-SI-02, FR-GC-07, NFR-EVAL-01..04)
+
+- [x] T095 [specs/006-source-guide-chat-control] Record current 006 artifact-check failure, inventory typed ports/composition/workflow ownership and exact unchanged D21 migration debt before resuming; refresh spec/plan and rerun read-only analyze (CC-09, C-02, FR-SI-02, FR-GC-07).
+- [x] T096 [specs/006-source-guide-chat-control] Run existing judge/Guide/length/refusal regressions on upgraded dependencies and disposable local PostgreSQL; preserve scoped behavior without new paid runs or invented Red tests for unchanged code (CC-02, CC-09, NFR-EVAL-01..04).
+- [x] T097 [specs/006-source-guide-chat-control] Validate actual final006 artifact diff, inspect graph against origin/main, record manual versus automated results and outstanding008/009 failures; retain release/checklist boundaries and commit handoff (CC-09, CC-01, CC-06, C-01..03).
+
+## Phase 16: D23 structured generation (FR-SI-02, FR-GC-04/05/07, C-02)
+
+- [x] T098 [specs/006-source-guide-chat-control] Add failing injected-transport tests for exact enterprise Flash and Flash-Lite requests, typed thinking and the trusted Guide, overview and follow-up payloads (D23, FR-SI-02, FR-GC-04/05, CC-02).
+- [x] T099 [specs/006-source-guide-chat-control] Publish the shared structured adapter and wire 006 through the committed D23 Flash-Lite role, preserving legacy 008 compatibility and all generation fences (FR-SI-02, FR-GC-04/05/07, C-02, CC-09).
+- [x] T100 [specs/006-source-guide-chat-control] Prepare and verify the serialized consumer-import and exact D21 record removal patch, run package regressions and architecture checks, and record the live gate gaps (FR-SI-02, C-02, NFR-EVAL-01..04, CC-09).

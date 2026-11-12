@@ -1,25 +1,29 @@
+import { GcsPrivateBridgeObjects,type PrivateBridgeObjects } from '@everlast/cloud/private-benchmark';
+import { readdirSync, readFileSync, lstatSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join, resolve } from 'node:path';
+import { createOperationalProbePorts } from './services/source-context.ts';
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth } from "google-auth-library";
-import { createPool, runMigrations } from "@everlast/db";
+import { createPool, runMigrations, getAvailableMigrations } from "@everlast/db";
 import { createApp, type AppDeps } from "./app.ts";
-import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig } from "./config.ts";
-import { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
+import { loadApiConfig, loadCodeExecutionConfig, loadBenchmarkConfig, loadGuideAdmissionConfig } from "./config.ts";
+import { PrivateBenchmarkRecorder, createPrivateBenchmarkSink, createOperationalCacheFromEnv, type OperationalCachePort, preparePrivateBridgeEnvironment } from "./observability/benchmark.ts";
 import { AgentPlatformSandboxRuntime, type SandboxRuntime } from "./chat/execution/runtime.ts";
 import { startCodeExecutionReconciler } from "./chat/execution/reconcile.ts";
 import { createIdentityPlatformVerifier, LocalIdentityIssuer } from "./auth/identity.ts";
-import { createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
+import { createEnterpriseStructuredGenerator, createVertexStructuredGenerationFromEnv, createObjectStorage, createVertexClient, HashingTestEmbedder, VertexEmbedder, vertexConfigFromEnv } from "@everlast/cloud";
 import { ChatService } from "./chat/service.ts";
-import { createGroundedModelFromEnv } from "./chat/model.ts";
+import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { GoogleDelegationBroker } from "./routes/connections.ts";
-import { VertexTopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
-import { createVertexStructuredGenerationFromEnv } from "@everlast/worker/package-v2-2-gemini";
+import { VertexTopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 
 /**
- * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 24 (type stripping, no build step).
+ * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 26 (type stripping, no build step).
  */
 
 /**
@@ -100,9 +104,26 @@ export function createSandboxRuntime(env: NodeJS.ProcessEnv): SandboxRuntime | u
   });
 }
 
-export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}) {
+/** NFR-PERF-01: binds signed approval to actual runtime source bytes; no Git/environment value is treated as code proof. */
+export function measureOperationalSourceTree(root:string):string{
+ const hash=createHash('sha256');let total=0;
+ const visit=(relative:string)=>{
+  const path=join(root,relative),stat=lstatSync(path);
+  if(stat.isSymbolicLink())throw new Error('Operational source symlinks are not qualified');
+  if(stat.isDirectory()){for(const name of readdirSync(path).sort())visit(relative+'/'+name);return;}
+  if(!stat.isFile()||stat.size>10000000||(total+=stat.size)>100000000)throw new Error('Operational source manifest bounds exceeded');
+  hash.update(relative+'\0');hash.update(readFileSync(path));hash.update('\0');
+ };
+ for(const relative of ['apps/api/src','apps/worker/src','packages/contracts/src','packages/db/src','packages/cloud/src','package.json','pnpm-lock.yaml'])visit(relative);
+ return hash.digest('hex');
+}
+export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra: Partial<AppDeps> = {}, privateComposition?:{model?:GroundedModel;cache?:OperationalCachePort;runtime?:SandboxRuntime;bridgeObjects?:PrivateBridgeObjects}) {
+  if(env.BENCHMARK_BRIDGE_ENABLED==='true'&&extra.benchmark)throw new Error('Remote private bridge requires actual server-owned recorder');
+  const bridgeBootstrap=preparePrivateBridgeEnvironment(env);env=bridgeBootstrap.env;
+  const startupCleanup:(()=>void)[]=[bridgeBootstrap.cleanup];
+  try {
   const config = loadApiConfig(env);
-  const pool = createPool();
+  const pool = extra.pool ?? createPool();
   if (env.MIGRATE_ON_START === "true") await runMigrations(pool);
   const localIssuer = config.authMode === "local" ? new LocalIdentityIssuer(env) : undefined;
   const verifier =
@@ -121,8 +142,13 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
         ? new VertexEmbedder({ client: createVertexClient(vertexConfigFromEnv(env)), model: env.EMBEDDING_MODEL })
         : undefined);
   const modelConfigured = Boolean(embedder && vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1");
-  const model = modelConfigured ? createGroundedModelFromEnv(env) : undefined;
+  if ((env.K_SERVICE || env.NODE_ENV === "production") && !modelConfigured && !extra.v2 && env.V2_POC !== "off") {
+    throw new Error("Enterprise Gemini configuration is required for production Studio generation");
+  }
+  const model = privateComposition?.model ?? (modelConfigured ? createGroundedModelFromEnv(env) : undefined);
   const storage = extra.storage ?? createObjectStorage(env);
+  const reportModel = createV2ReportModel(env, modelConfigured);
+  const studioContext=reportModel?.contextRuntime;
   const notifyJobs = extra.notifyJobs ?? createJobNotifier(env);
   // Release v2 features (D16): stores in PostgreSQL since specs/013; set V2_POC=off to serve v1 only.
   const v2 =
@@ -132,9 +158,12 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
       : createV2Runtime({
           pool,
           sourceLimit: config.sourceLimit,
+          guideAdmission: loadGuideAdmissionConfig(env),
           model,
           generation: createV2Generation(env, modelConfigured),
-          reportModel: createV2ReportModel(env, modelConfigured),
+          reportModel,
+          structureGenerator: modelConfigured ? createEnterpriseStructuredGenerator("flash", env) : undefined,
+          studioContext,
           // FR-SI-02 / Gate v2.0 #1: Source Guides start from the Ready transition, not from a source listing.
           readyWatch: { intervalMs: Number(env.V2_READY_WATCH_MS ?? 1_000) },
           // FR-NM-03 (owner decision 2026-10-20): note-sources run the v1 ingestion with this storage and embedder.
@@ -143,30 +172,49 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           notifyJobs,
           ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
         }));
-  const sandboxRuntime = createSandboxRuntime(env);
+  const sandboxRuntime = privateComposition?.runtime ?? createSandboxRuntime(env);
   const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;
-  if (codeExecution) startCodeExecutionReconciler({ pool, ...codeExecution });
+  const stopReconciler=codeExecution?startCodeExecutionReconciler({pool,...codeExecution}):undefined;
+  if(stopReconciler)startupCleanup.push(stopReconciler);
+  const operationalDirectory=env.BENCHMARK_OPERATIONAL_DIRECTORY;
+  if(operationalDirectory){
+    const directory=realpathSync(operationalDirectory),publicRoot=realpathSync(resolve(env.WEB_DIST_DIR??'apps/web/dist'));
+    if(directory===publicRoot||directory.startsWith(publicRoot+'/'))throw new Error('Operational private directory cannot be publicly served');
+  }
+  const operationalCache=privateComposition?.cache??(operationalDirectory&&modelConfigured?createOperationalCacheFromEnv(env):undefined);
+  const operationalConfigSha256=operationalDirectory&&model&&embedder&&operationalCache?createHash('sha256').update(JSON.stringify({model:model.id,retrieval:embedder.model,cache:operationalCache.identity})).digest('hex'):undefined;
+  const executionRuntime = sandboxRuntime && (env.BENCHMARK_EXECUTION_CONFIG_FILE||bridgeBootstrap.clock) ? {
+    reasoning_engine:loadCodeExecutionConfig(env)!.reasoningEngine, region:"europe-west4" as const,
+    vcpu:2 as const, memory_gb:1.5 as const, network:"none" as const, file_io_mb:100 as const, deadline_ms:15000 as const,
+  } : undefined;
   const benchmarkConfig = loadBenchmarkConfig(env);
   const benchmark = extra.benchmark ?? (benchmarkConfig
     ? new PrivateBenchmarkRecorder({
         approved_notebook_ids: benchmarkConfig.approvedNotebookIds,
         revision: benchmarkConfig.revision,
-        sink: () => {},
+        sink: createPrivateBenchmarkSink(benchmarkConfig.evidenceFile),
+        fixtures: benchmarkConfig.fixtures,
+        operationalConfigSha256,
+        bridgeScaleFile:env.BENCHMARK_EVIDENCE_FILE,
+        sourceTreeSha256:env.BENCHMARK_OPERATIONAL_DIRECTORY?measureOperationalSourceTree(fileURLToPath(new URL('../../../',import.meta.url))):undefined,
+        executionEvidence: PrivateBenchmarkRecorder.executionConfigFromEnv(env, executionRuntime),
+        requiresClockBootstrap: Boolean(bridgeBootstrap.clock),
+        ...(studioContext?{tokenizer:studioContext.tokenizer}:{}),
       })
     : undefined);
-  if (benchmark) {
-    benchmark.qualify({
-      ready_at_ms: Date.now(),
-      dependencies: {
-        sql: true,
-        model: Boolean(model),
-        retrieval: Boolean(embedder),
-        cache: true,
-        migrations: true,
-        recovery: true,
-      },
-    });
-  }
+  // NFR-PERF-01 / D17: constructing clients is not dependency qualification.
+  // Defaults remain unqualified until trusted operator/in-process probes supply actual evidence.
+  if (benchmark && !extra.benchmark) await benchmark.qualifyDependencies({
+    sql:async()=>{await pool.query("SELECT 1");return true;},
+    migrations:async()=>{
+      const rows=await pool.query<{version:string}>("SELECT version FROM schema_migrations");
+      const applied=new Set(rows.rows.map(row=>row.version));
+      return getAvailableMigrations().every(file=>applied.has(file.split("/").pop()!));
+    },
+    recovery:async()=>v2?await v2.recoveryReady():false,
+    // Model, retrieval and provider cache need explicit approved qualification; no paid startup probe.
+  });
+
   const chat =
     extra.chat ??
     (embedder && model
@@ -208,10 +256,34 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
     notifyJobs,
     ...extra,
   };
+  // Private startup owns both coordinator lifecycles. Clock installation opens the ordinary approval channel.
+  let stopOperational: (()=>void)|undefined;
+  if (operationalDirectory && benchmark && !extra.benchmark) {
+    const ports=createOperationalProbePorts({pool,benchmark,model,embedder,cache:operationalCache});
+    const remote=env.BENCHMARK_BRIDGE_ENABLED==='true' ? {
+      campaign_id:env.BENCHMARK_BRIDGE_CAMPAIGN_ID!,
+      expiresAtMs:Number(env.BENCHMARK_BRIDGE_EXPIRES_AT_MS),
+      objects:privateComposition?.bridgeObjects??new GcsPrivateBridgeObjects({bucket:env.STORAGE_BUCKET??env.GCS_WORKSPACE_BUCKET??''}),
+    } : undefined;
+    if (bridgeBootstrap.clock) {
+      if (!remote) throw new Error('Private clock object channel unavailable');
+      stopOperational=benchmark.startClockCoordinator({
+        directory:operationalDirectory, bootstrap:bridgeBootstrap.clock, remote,
+        candidate:env.COMMIT_SHA, runtime:executionRuntime, ports,
+      });
+    } else {
+      stopOperational=benchmark.startOperationalCoordinator(operationalDirectory,ports,remote);
+    }
+  } else if (bridgeBootstrap.clock) {
+    throw new Error('Private clock recorder unavailable');
+  }
+  if(stopOperational)startupCleanup.push(stopOperational);
   const server = http.createServer(createApp(deps));
+  server.once("close",()=>{stopOperational?.();stopReconciler?.();bridgeBootstrap.cleanup();});
   await new Promise<void>((resolve) => server.listen(config.port, resolve));
   console.log(JSON.stringify({ severity: "INFO", message: `API listening on :${config.port} (auth=${config.authMode})` }));
   return { server, pool, deps };
+  }catch(error){for(const cleanup of startupCleanup.reverse())cleanup();throw error;}
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

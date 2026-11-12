@@ -122,3 +122,63 @@ Cache/history coverage explicitly tests notebook/exact source revisions/effectiv
 
 - SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
 - Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.
+
+
+## Architecture Boundary Evidence — recovery 2026-11-09 (CC-09)
+
+| SRS / contract | Module and owner | Responsibility | Public ports | Allowed dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-performance.ts, 010 | Validate declared cohorts and retained observations; no infrastructure effects | validateCodeExecutionPlan, evaluateCodeExecutionBenchmark | Local types and pure functions only | scripts/eval-v3-code-execution.mjs | packages/evals/test/code-execution-performance.test.ts |
+| FR-GC-08, NFR-SEC-02 | scripts/eval-v3-code-execution.mjs, 010 | CLI parsing, private report serialization; configured-but-unimplemented collection is UNAVAILABLE | Explicit plan/observation files | Explicit relative evaluator/test fixture imports; no app imports | CLI entry point | Configured/unconfigured subprocess regression |
+| FR-GC-08, D18-D20 | infra/modules/code_execution, 010 | Default-off typed parent and managed profile wiring | Optional variables and environment outputs | Google provider 8.10; no runtime code | dev -> foundation -> code_execution -> compute | Mock provider policy/wiring tests |
+
+Before recovery: no source workflow extraction or new consumer is proposed. SQL,
+authorization, execution deadline, cancellation and publication remain owned by the
+existing API execution controller and DB adapters; these are untouched. Existing
+D21 migration exceptions are neither widened nor renewed. New infrastructure has
+no source-content access. Reuse 009's unchanged architecture fixtures/deterministic
+evidence; rerun graph and changed-artifact checks on the actual diff. Post-design
+CC-09 review must report live collection still unavailable if not implemented.
+
+
+## Completion design — 2026-11-10 (FR-GC-08, NFR-PERF-01, CC-09)
+
+T062 selectively restores the already specified typed Google 8.10 bare parent,
+default off, without importing old provider locks or preceding package changes.
+T063 separates deterministic cohort orchestration from effects: a focused eval
+collector owns sequencing and evidence checks through transport and private-evidence
+ports. Its HTTP adapter calls the ordinary authenticated /chat/turns SSE endpoint;
+its private reader consumes bounded identifier/count/timestamp records, never a
+public telemetry endpoint. API source/snapshot authorization remains server-owned.
+
+| SRS / contract | Module / owner | Responsibility | Public ports | Dependencies / composition | Regression evidence |
+| --- | --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-collector.ts, 010 | Predeclared attempts/cohorts and provenance validation | collectCodeExecutionCohorts; explicit transport/evidence ports | Canonical contracts, local evaluator; CLI wires adapters | Pure fake-port collector tests including actual paired scheduling |
+| FR-GC-08, NFR-SEC-02 | packages/evals/src/code-execution-transport.ts, 010 | Bounded authenticated ordinary SSE and private file evidence | HTTP transport/private evidence reader | Fetch, Node file reads, canonical trace schema; no app imports | Local HTTP server and file-reader tests |
+| FR-GC-08, D18-D20 | infra/modules/code_execution, 010 | Default-off bare parent and environment outputs | Existing module variables/outputs | Google provider 8.10, existing identity; no agent code | Recovered mocked policy/wiring tests |
+
+No API workflow, transport route, deployment placement or public DTO is replaced.
+Server qualification remains an explicit integration dependency: each attempted
+request requires trusted private serving boot/revision, owner/notebook, fixture
+identity, measured readiness and exact trace correlation. Missing evidence makes
+the collection UNAVAILABLE while retaining attempted requests; client labels or
+latency never establish cold/warm status. Later012 can supply its private qualified
+serving records via this port, without importing API implementation into evals.
+
+## Parallel collector hardening (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-09)
+
+| SRS / contract | Owned paths | Ownership and public ports | Allowed dependencies and composition | Regression evidence |
+| --- | --- | --- | --- | --- |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-collector.ts | Bounded orchestration via CollectionPorts; validate receipts, calibration continuity and private timing before appending an observation | Existing canonical schemas, Node crypto and local evaluator; CLI remains composition root | Collector fixtures for malformed receipts, clock expiry and guard invalidation during collection |
+| FR-GC-08, NFR-PERF-01 | packages/evals/src/code-execution-performance.ts | Pure benchmark evaluation; report proven failures on incomplete cohorts without deriving a passing aggregate | No external dependency | Incomplete-cohort failure and denominator fixture |
+| FR-GC-08, NFR-SEC-02 | packages/evals/src/code-execution-transport.ts | Bounded private evidence file effect; reject nonregular objects before attempting to read content | Existing Node FS, fetch and canonical private evidence contract | Local private file tests including nonregular files |
+
+The collector checks its frozen clock window before dispatch and after private
+evidence retrieval. If the window expires or a continuity guard fails, retain
+the attempt and its valid private measurement as diagnostic evidence and stop
+dispatch. Reject timestamp evidence at or beyond conservative expiry. T075
+supplies the optional synchronous clock assertion on the same client process
+as clock acquisition and final export. The callback consumes the exact frozen
+calibration and has no imports across deployment applications. No existing
+authorization, C-02 source access, lease, transaction, cancellation, runtime
+budget or publication ownership moves. No D21 exception changes.

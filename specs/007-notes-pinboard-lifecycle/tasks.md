@@ -138,3 +138,11 @@ Assessed on 2026-10-20 against the revised Package 2.3 card (PR #127), `spec/req
 - T045 precedes T046 (both edit the v2 runtime and source routes). T046 precedes T048, T049 and T037, because the Left Panel and the chat must see note-sources. T053 follows T046, because the PostgreSQL chat provenance must accept note-source revisions. T051 precedes T049.
 - T047 → T048 → T049 edit the same `apps/web/src/notes/panel.ts`; serialize them. T054 and T051 both edit the conversion path in `service.ts`; serialize them. T054 and T055 also change the note-to-source path that the Package 2.4 Studio "convert to source" (`apps/api/src/v2/runtime.ts`) reuses, so re-run the 008 Studio tests after them.
 - T057 runs last.
+
+## Phase 9 — Pre-V4 task 007: Notes normalization boundary (CC-09, D21)
+
+- [X] T058 [007-notes-pinboard-lifecycle] Characterize note conversion, citation eligibility, re-normalization and Note Assistant behavior with the existing 43 Notes/eval tests plus `apps/worker/test/note-markdown.test.ts` before moving code (FR-NM-03/04, C-01, C-02, CC-09).
+- [X] T059 [007-notes-pinboard-lifecycle] Red→Green: add `packages/notes/test/normalizer.test.ts` (pure normalizer parity with `text/markdown`, empty/invalid input) before creating `packages/notes` (FR-NM-03, FR-SI-01, C-01, CC-02).
+- [X] T060 [007-notes-pinboard-lifecycle] Create `@everlast/notes` with explicit exports; move normalizer/chunker (worker re-exports), `NoteSourceStore` port, `ingestNoteSource` and the PostgreSQL adapter; delete `apps/worker/src/ingestion/note-markdown.ts` and the API→worker import (FR-NM-03, D21, CC-09).
+- [X] T061 [007-notes-pinboard-lifecycle] Repoint the Notes eval and v2 runtime to `@everlast/notes`; delete the four stale D21 records and re-fingerprint the two shrunk wildcard records in `scripts/architecture-policy.json` (CC-09). Shared files `apps/api/src/v2/runtime.ts` and the policy/lockfile need the coordinator's integration slot; kept as a scoped patch.
+- [X] T062 [007-notes-pinboard-lifecycle] Verify: affected Notes/worker/eval suites, `pnpm -r typecheck`, `node scripts/check-spec-integrity.mjs`, `pnpm test:architecture`, `pnpm check:architecture`, `pnpm check:architecture-artifacts` (CC-09, NFR-EVAL-04).

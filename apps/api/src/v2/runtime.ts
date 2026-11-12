@@ -16,7 +16,7 @@ import {
   type SourceRevisionPair,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import type { Embedder, ObjectStorage } from "@everlast/cloud";
+import type { Embedder, ObjectStorage, StructuredGenerator } from "@everlast/cloud";
 import {
   captureScopeSnapshot,
   configureChatMessageReader,
@@ -29,12 +29,19 @@ import {
   getSource,
   getSnapshotChunksByIds,
   getSourceGuide,
+  admitOnDemandGuide,
+  claimPrimaryGuideLanguage,
+  finishOnDemandGuide,
+  recoverOnDemandGuides,
+  type GuideAdmissionLimits,
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
   sweepOrphanedSourceGuides,
   claimPendingPublicationEvents,
   completePublicationEvent,
   listAllSnapshotChunks,
+  buildScopedCorpusLedger,
+  streamSnapshotChunks,
   listSnapshotChunks,
   listSources,
   listThreadMessages,
@@ -50,7 +57,7 @@ import {
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
-import type { TopicEmojiSelector } from "@everlast/worker/ingestion/topic-emoji";
+import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
@@ -61,7 +68,7 @@ import type { DataTableModelClient } from "@everlast/worker/studio/tables/model"
 import type { GroundedModel } from "../chat/model.ts";
 import type { ResponsePreferences } from "../chat/prompt.ts";
 import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
-import { createPostgresNoteSources } from "../notes/note-sources.ts";
+import { createPostgresNoteSources } from "@everlast/notes/note-sources";
 import { NotesService, type NoteAssistantContext } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
 import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
@@ -85,8 +92,10 @@ import type { StudioServiceDeps } from "../studio/service.ts";
 export type V2Handler = (req: IncomingMessage, res: ServerResponse, userId: string) => Promise<boolean>;
 
 export interface V2RuntimeOptions {
+  studioContext?:ConstructorParameters<typeof StudioJobRunner>[0]["contextRuntime"]|undefined;
   pool: Pool;
   sourceLimit: number;
+  guideAdmission?: GuideAdmissionLimits;
   /** Grounded chat model; enables the Note Assistant (FR-NM-04). */
   model?: GroundedModel | undefined;
   /** Structured generation for Source Guides, overview and follow-ups (FR-SI-02, FR-GC-04/05). */
@@ -108,6 +117,7 @@ export interface V2RuntimeOptions {
    * the deterministic, citation-checked extractor (tests, evals, unconfigured local runs).
    */
   reportModel?: ReportModelClient | undefined;
+  structureGenerator?: StructuredGenerator | undefined;
   mindmapModel?: MindmapModelClient | undefined;
   dataTableModel?: DataTableModelClient | undefined;
   /**
@@ -118,6 +128,8 @@ export interface V2RuntimeOptions {
 }
 
 export interface V2Runtime {
+  /** NFR-PERF-01: actual recovery-sweep result, false on any startup sweep failure. */
+  recoveryReady():Promise<boolean>;
   workspace: WorkspacePreferencesService;
   handlers: V2Handler[];
   /** Mirrors an authorized PostgreSQL notebook into the PoC bridge. */
@@ -150,8 +162,10 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
   // specs/013 R5 (FR-010, FR-011): resolve background work a stopped process left behind (one API instance, D16).
   // v2 requests, Ready dispatch and the watcher wait for it, so nothing this process starts is swept.
-  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool)])
+  let recoverySucceeded=false;
+  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool), recoverOnDemandGuides(pool)])
     .then(([reports, guides]) => {
+      recoverySucceeded=true;
       if (reports + guides > 0) console.info(JSON.stringify({ severity: "INFO", message: "v2 restart sweep", interrupted_reports: reports, orphaned_guides: guides }));
     })
     .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 restart sweep failed: ${(err as Error).message}` })));
@@ -235,13 +249,26 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
   // On-demand guides for another output language (FR-SI-02): one background run per (source, revision, language).
-  const guideRuns = new Set<string>();
-  const startGuide = (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => {
-    const key = `${input.notebook_id}:${input.source_id}:${input.revision}:${input.output_language}`;
-    if (guideRuns.has(key)) return;
-    guideRuns.add(key);
-    // Once the run saved its guide (ready or failed) the store answers; the key only covers the run itself.
-    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => guideRuns.delete(key));
+  const startGuide = async (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }): Promise<void> => {
+    await swept;
+    const effective = (await workspace.resolveLanguagePreferences(input.user_id, input.notebook_id)).output_language;
+    const primary = await claimPrimaryGuideLanguage(pool, { ...input, output_language: effective });
+    if (input.output_language === primary) {
+      const source = await getSource(pool, input.user_id, input.notebook_id, input.source_id);
+      if (source.status !== "Ready" || source.active_revision !== input.revision) throw new AppError("SourceSnapshotInvalid", 409, "Requested source revision is not Ready");
+      // Polling an initial primary Guide shares the ordinary Ready dispatcher, including its in-flight dedup.
+      void dispatchReady({ notebook_id: input.notebook_id, source_id: input.source_id, revision_id: input.revision,
+        title: source.title, media_type: source.media_type }).catch(() => undefined);
+      return;
+    }
+    const admission = await admitOnDemandGuide(pool, input, options.guideAdmission);
+    if (admission.state === "deduplicated") return;
+    if (admission.state !== "started") throw new AppError("GuideAdmissionLimited", 429, admission.state === "rate"
+      ? "On-demand Source Guide hourly limit reached. Try again later."
+      : "On-demand Source Guide concurrency limit reached. Try again after a running Guide finishes.");
+    // Captured persistence context follows this background Promise; every terminal outcome releases its slot.
+    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => finishOnDemandGuide(pool, admission.id))
+      .catch(() => console.warn(JSON.stringify({ severity: "WARNING", message: "Guide admission release failed; restart recovery required" })));
   };
   // ---- Package 2.3: notes (PostgreSQL, specs/013) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20)
   const noteSourceStore = createPostgresNoteSources({ pool, storage: options.storage, embedder: options.embedder, sourceLimit: options.sourceLimit });
@@ -309,10 +336,13 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       // process lists Ready sources again but never regenerates an existing guide.
       const owner = await ownerOf(event.notebook_id);
       if (owner) {
-        const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+        const preferred = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
+        const language = await claimPrimaryGuideLanguage(pool, { notebook_id: event.notebook_id, user_id: owner,
+          source_id: event.source_id, revision: event.revision_id, output_language: preferred });
         if (await getSourceGuide(event.notebook_id, event.source_id, event.revision_id, language)) return;
+        await v22.generateSourceGuide({ notebook_id: event.notebook_id, user_id: owner, source_id: event.source_id,
+          revision: event.revision_id, output_language: language, ...(event.ready_at ? { ready_at: event.ready_at } : {}) });
       }
-      await v22.onSourceReady(event);
     });
   }
   if (options.topicEmoji) {
@@ -418,6 +448,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   const registry = createStudioPluginRegistry({
     reportModel: options.reportModel,
+    structureGenerator: options.structureGenerator,
     mindmapModel: options.mindmapModel,
     dataTableModel: options.dataTableModel,
   });
@@ -425,13 +456,29 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
   // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
   const studioContext = {
+    buildLedger:(ownerId:string,notebookId:string,sources:SourceRevisionPair[],tokenizer:import("@everlast/db").CorpusTokenizer)=>buildScopedCorpusLedger(pool,{owner_id:ownerId,notebook_id:notebookId,sources},tokenizer),
+    async *streamOriginals(ownerId:string,notebookId:string,sources:SourceRevisionPair[]){
+      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
+      for await(const page of streamSnapshotChunks(pool,captured,16))yield page;
+    },
+    async loadCitedChunks(ownerId:string,notebookId:string,sources:SourceRevisionPair[],ids:string[]){
+      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
+      await verifyScopeSnapshot(pool,captured);
+      const chunks:UnifiedDocumentChunk[]=[];let bytes=0;
+      for(let offset=0;offset<ids.length;offset+=16){
+        await verifyScopeSnapshot(pool,captured);
+        const page=await getSnapshotChunksByIds(pool,captured,ids.slice(offset,offset+16));
+        for(const chunk of page){bytes+=Buffer.byteLength(JSON.stringify(chunk));if(bytes>32_000_000)throw new Error("Cited original validation memory capacity exceeded");chunks.push(chunk);}
+      }
+      await verifyScopeSnapshot(pool,captured);return chunks;
+    },
     async getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]> {
       const owner = ownerId ?? (await ownerOf(notebookId));
       if (!owner) throw new InvalidScopeError("Notebook is not available");
       return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
     },
   };
-  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access });
+  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access, contextRuntime:options.studioContext });
   // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
   const runAndTouch = {
     async run(id: string) {
@@ -450,7 +497,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
           const owner = await ownerOf(notebookId);
           // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
           if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
-            startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
+            await startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
           }
           if (guide?.status === "GuideReady") {
             return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };
@@ -497,6 +544,7 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
 
   return {
     workspace,
+    recoveryReady:async()=>{await swept;return recoverySucceeded;},
     handlers: [
       (req, res, userId) => afterSweep(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
       (req, res, userId) => afterSweep(() => handlePackageV22Route(req, res, userId, v22Deps)),

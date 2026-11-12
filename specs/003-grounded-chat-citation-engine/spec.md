@@ -385,3 +385,17 @@ Scenario: Searching the chat history jumps to a past message
 - Q: Under what condition is a historical conversation turn eligible to be included in a subsequent prompt's context (`FR-GC-01`, `FR-GC-06`, `NFR-EVAL-04`)? → A: A historical turn (both user question and assistant answer, plus any derived summaries or tool outputs) is included if and only if its complete `active_source_revisions_snapshot` (not just its cited sources) is a subset of the new turn's active and authorized `(source_id, revision)` snapshot; turns with missing provenance are excluded.
 - Q: What happens to persisted historical messages, citation tooltips, and chat search when a source is deselected versus permanently deleted (`FR-GC-03`, `FR-GC-06`)? → A: Mere deselection leaves historical messages viewable and citation tooltips/click-through operational while excluding dependent turns from new prompt context; permanent source deletion or access revocation immediately hides/invalidates dependent historical generated content, cached snippets, and chat search hits, and disables citation click-through with a `"Source deleted"` tooltip.
 
+
+## Pre-V4 routing and refusal regression (CC-09)
+
+Under D23, grounded chat and its single eligible code correction use enterprise
+Vertex AI Gemini in the dedicated EU multi-region with approved Flash and LOW
+thinking (FR-GC-01, FR-GC-08, NFR-SEC-01). The pinned endpoint uses ADC and
+ignores SDK endpoint and Developer API key overrides. C-02 query embeddings
+retain their existing routing. Private operational model probes retain the
+one-RPC, 100,000-byte and 512-output-token bounds.
+
+GC-E04 verifies explicit selection and a visible refusal without citation
+badges when a Ready source that contains the answer is deselected (FR-GC-01,
+FR-GC-02, FR-SI-03, NFR-EVAL-02/04). Both standard insufficient-evidence refusal
+forms are valid when retrieval finds no matching context.

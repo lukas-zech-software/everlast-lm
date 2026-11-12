@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { AppError, isTurnProvenanceEligible } from "@everlast/contracts";
 import {
   findTurnByRequest,
+  getCodeExecution,
   getOrCreateThread,
   listThreadMessages,
   projectVisibleMessages,
@@ -161,7 +162,8 @@ export class ChatService {
     signal: AbortSignal;
   }): AsyncGenerator<TurnEvent> {
     const { pool } = this.deps;
-    const execution = new CodeExecutionController({ pool, ...this.deps.codeExecution! });
+    const execution = new CodeExecutionController({ pool, ...this.deps.codeExecution!, evidenceIdentity:this.deps.benchmark?.executionIdentity(input.thread.notebook_id) });
+    const privateExecution=this.deps.benchmark?.beginExecution({notebook_id:input.thread.notebook_id,owner_id:input.thread.user_id,request_id:input.request.requestId,source_snapshot:input.provider.snapshot.sources});
     const messageId = randomUUID();
     const queue: TurnEvent[] = [];
     let wake: (() => void) | null = null;
@@ -171,6 +173,7 @@ export class ChatService {
       .run({
         thread: input.thread,
         requestId: input.request.requestId,
+        ...(privateExecution?{onTiming:privateExecution.timing}:{}),
         snapshot: input.provider.snapshot.sources,
         question: input.question,
         intent: input.compute.computation.intent,
@@ -201,8 +204,18 @@ export class ChatService {
     const outcome = settled as unknown as { ok: true; value: ControllerResult } | { ok: false; error: unknown };
     if (!outcome.ok) throw outcome.error;
     const run = outcome.value;
+    // NFR-PERF-01: only the actual durable terminal trace is authoritative after publication/abandon.
+    // A missing/deleted row, failed durable update or active state withholds evidence; attempts remain in HTTP diagnostics.
+    const recordCanonical=async(publishedAt:string|null)=>{
+      if(!privateExecution)return;
+      try{const row=await getCodeExecution(pool,run.executionId);
+        if(row&&(row.state==='Succeeded'||row.state==='Failed'||row.state==='TimedOut')&&row.trace.state===row.state)
+          privateExecution.finish(row.trace,publishedAt);
+      }catch{/* No canonical proof: UNAVAILABLE. */}
+    };
     if (input.signal.aborted) {
       await execution.abandon(run, "GenerationCancelled");
+      await recordCanonical(null);
       throw new AppError("GenerationCancelled", 409, "Generation was cancelled");
     }
     const answer =
@@ -222,8 +235,10 @@ export class ChatService {
     } catch (err) {
       const code = (err as { code?: string }).code;
       await execution.abandon(run, code === "GenerationCancelled" ? "GenerationCancelled" : code === "InvalidScope" || code === "Forbidden" ? "AccessRevoked" : "ScopeChanged");
+      await recordCanonical(null);
       throw err;
     }
+    await recordCanonical(new Date().toISOString());
     yield { type: "final", messages: await projectVisibleMessages(pool, input.request.notebookId, stored), replayed: false };
   }
 
@@ -264,6 +279,10 @@ export class ChatService {
       query: question,
       ...(this.deps.retrievalLimit ? { limit: this.deps.retrievalLimit } : {}),
     });
+    if (span && this.deps.benchmark?.tokenizer) {
+      try { span.recordScope(await this.deps.benchmark.corpusLedger(pool, provider.snapshot)); }
+      catch { /* Scoped ledger unknown; the private benchmark cannot pass. */ }
+    }
     const thread = await getOrCreateThread(pool, request.ownerId, request.notebookId);
 
     const replay = await findTurnByRequest(pool, thread.id, request.requestId);
@@ -318,6 +337,7 @@ export class ChatService {
           detailChunkIds: chunks.map(c => c.chunk_id),
         });
         modelInput = { question, chunks, history, signal: controller.signal, ...(preferences ? { preferences } : {}), ...(guides ? { guides } : {}) };
+        span?.observePrompt(modelInput);
         draft = await this.generate(modelInput, controller.signal);
         yield { type: "status", phase: "verifying" };
         result = draft ? verifyDraft(draft, provider.lastRetrieved) : { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
@@ -333,7 +353,8 @@ export class ChatService {
             provider.useCompleteSnapshot(complete);
             yield { type: "status", phase: "generating" };
             modelInput = { ...modelInput, chunks: complete };
-            draft = await this.generate(modelInput, controller.signal);
+            span?.observePrompt(modelInput);
+        draft = await this.generate(modelInput, controller.signal);
             yield { type: "status", phase: "verifying" };
             result = draft ? verifyDraft(draft, provider.lastRetrieved) : { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
           }

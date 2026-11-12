@@ -1,0 +1,8 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  15:13:23
+   Duration  43.08s (tests 100%)

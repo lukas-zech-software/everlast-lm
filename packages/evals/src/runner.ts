@@ -19,7 +19,7 @@ import { processIngestJob } from "@everlast/worker/ingestion/pipeline";
 import { buildPdf, wrapLines } from "@everlast/testkit/pdf-builder";
 import { buildCorpus, type CorpusDocument } from "./corpus.ts";
 import type { GoldenCaseV1 } from "./dataset.ts";
-import type { Judge } from "./judge.ts";
+import type { Judge, JudgeAttempt } from "./judge.ts";
 import type { ResponseLength, ResponseLengthRunner } from "./response-length.ts";
 import { containsForbidden, judgeMetric, ratio, type MetricResult } from "./metrics.ts";
 
@@ -184,11 +184,13 @@ export interface EvalRunResult {
   cases: CaseResult[];
   metrics: MetricResult[];
   judged: boolean;
+  judge_attempts?: readonly JudgeAttempt[];
   errored: string[];
 }
 
 export async function runEvaluation(env: EvalEnvironment, cases: GoldenCaseV1[]): Promise<EvalRunResult> {
   const log = env.log ?? (() => undefined);
+  const judgeAttemptOffset = env.judge?.attempts?.length ?? 0;
   const corpus = buildCorpus();
   const docsByKey = new Map(corpus.map((d) => [d.key, d]));
   const dir = await mkdtemp(join(tmpdir(), "everlast-eval-"));
@@ -227,7 +229,7 @@ export async function runEvaluation(env: EvalEnvironment, cases: GoldenCaseV1[])
     );
 
     const metrics = await computeMetrics(env, cases, results, docsByKey);
-    return { upload, cases: results, metrics, judged: env.judge !== null, errored: results.filter((r) => r.kind === "error").map((r) => r.id) };
+    return { upload, cases: results, metrics, judged: env.judge !== null, ...(env.judge?.attempts ? { judge_attempts: env.judge.attempts.slice(judgeAttemptOffset) } : {}), errored: results.filter((r) => r.kind === "error" || r.error !== undefined).map((r) => r.id) };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -272,36 +274,38 @@ async function computeMetrics(
   let supported = 0;
   const unsupportedCitations = new Set<string>();
   await mapLimit(results, 4, async (r) => {
-    const c = byId.get(r.id)!;
-    for (const [index, turn] of r.turns.entries()) {
-      if (turn.result.kind !== "answer" || !turn.draft) continue;
-      // History turns ran with their own selection; the final turn with the case's selection.
-      const keys = index < c.history.length ? c.history[index]!.active : c.active;
-      const activeText = keys.map((k) => `### ${docs.get(k)!.title}\n${corpusText(docs.get(k)!)}`).join("\n\n");
-      const sentences = turn.draft.sentences;
-      const question = index < c.history.length ? c.history[index]!.question : r.question;
-      const verdicts = await judge.judgeClaims({ question, activeSourcesText: activeText, sentences: sentences.map((s) => s.text) });
-      r.judged ??= { unsupported_statements: [], unsupported_citations: [] };
-      for (const v of verdicts.filter((x) => !x.supported)) r.judged.unsupported_statements.push({ turn: index, text: sentences[v.index]?.text ?? "", reason: v.reason });
-      statements += verdicts.length;
-      const bad = verdicts.filter((v) => !v.supported).length;
-      unsupported += bad;
-      if (bad > 0) hallucinating.add(r.id);
-      const chunkText = new Map(turn.retrieved.map((x) => [x.chunk_id, x.text]));
-      for (const [si, sentence] of sentences.entries()) {
-        const context = sentences.slice(0, si).map((x) => x.text).join(" ");
-        for (const id of new Set(sentence.citations)) {
-          const text = chunkText.get(id);
-          if (!text) continue;
-          supportPairs++;
-          if (await judge.judgeSupport({ sentence: sentence.text, chunk: text, ...(context ? { context } : {}) })) supported++;
-          else {
-            unsupportedCitations.add(r.id);
-            r.judged!.unsupported_citations.push({ turn: index, sentence: sentence.text, chunk: text.slice(0, 600) });
+    try {
+      const c = byId.get(r.id)!;
+      for (const [index, turn] of r.turns.entries()) {
+        if (turn.result.kind !== "answer" || !turn.draft) continue;
+        // History turns ran with their own selection; the final turn with the case's selection.
+        const keys = index < c.history.length ? c.history[index]!.active : c.active;
+        const activeText = keys.map((k) => `### ${docs.get(k)!.title}\n${corpusText(docs.get(k)!)}`).join("\n\n");
+        const sentences = turn.draft.sentences;
+        const question = index < c.history.length ? c.history[index]!.question : r.question;
+        const verdicts = await judge.judgeClaims({ question, activeSourcesText: activeText, sentences: sentences.map((s) => s.text) });
+        r.judged ??= { unsupported_statements: [], unsupported_citations: [] };
+        for (const v of verdicts.filter((x) => !x.supported)) r.judged.unsupported_statements.push({ turn: index, text: sentences[v.index]?.text ?? "", reason: v.reason });
+        statements += verdicts.length;
+        const bad = verdicts.filter((v) => !v.supported).length;
+        unsupported += bad;
+        if (bad > 0) hallucinating.add(r.id);
+        const chunkText = new Map(turn.retrieved.map((x) => [x.chunk_id, x.text]));
+        for (const [si, sentence] of sentences.entries()) {
+          const context = sentences.slice(0, si).map((x) => x.text).join(" ");
+          for (const id of new Set(sentence.citations)) {
+            const text = chunkText.get(id);
+            if (!text) continue;
+            supportPairs++;
+            if (await judge.judgeSupport({ sentence: sentence.text, chunk: text, ...(context ? { context } : {}) })) supported++;
+            else {
+              unsupportedCitations.add(r.id);
+              r.judged!.unsupported_citations.push({ turn: index, sentence: sentence.text, chunk: text.slice(0, 600) });
+            }
           }
         }
       }
-    }
+    } catch (error) { recordJudgeFailure(r, error); }
   });
   metrics.push(
     statements === 0
@@ -319,26 +323,44 @@ async function computeMetrics(
   let rejected = 0;
   const notRejected: string[] = [];
   await mapLimit(negatives, 4, async (r) => {
-    const c = byId.get(r.id)!;
-    if (r.kind !== "refusal") {
-      notRejected.push(r.id);
-      return;
-    }
-    if (c.forbidden.some((f) => containsForbidden(r.response, f))) {
-      notRejected.push(r.id);
-      return;
-    }
-    const verdict = await judge.judgeRejection({ question: r.question, response: r.response });
-    r.judged = { unsupported_statements: [], unsupported_citations: [], rejection: verdict };
-    if (verdict.refused && !verdict.leaked_answer) rejected++;
-    else notRejected.push(r.id);
+    try {
+      const c = byId.get(r.id)!;
+      if (r.kind !== "refusal") {
+        notRejected.push(r.id);
+        return;
+      }
+      if (c.forbidden.some((f) => containsForbidden(r.response, f))) {
+        notRejected.push(r.id);
+        return;
+      }
+      const verdict = await judge.judgeRejection({ question: r.question, response: r.response });
+      r.judged = { unsupported_statements: [], unsupported_citations: [], rejection: verdict };
+      if (verdict.refused && !verdict.leaked_answer) rejected++;
+      else notRejected.push(r.id);
+    } catch (error) { recordJudgeFailure(r, error); notRejected.push(r.id); }
   });
   metrics.push(
     negatives.length === 0
       ? judgeMetric("negative_rejection_rate", null, { failing_cases: [], unavailable: "no unanswerable cases (fails closed)" })
       : judgeMetric("negative_rejection_rate", ratio(rejected, negatives.length, "rejection"), { numerator: rejected, denominator: negatives.length, failing_cases: notRejected.sort() })
   );
+  // A partial judged population cannot certify a metric. Keep cases and denominators in the report.
+  const judgeFailures = results.filter((r) => r.error?.startsWith("Judge evaluation unavailable"));
+  if (judgeFailures.length) {
+    for (const metric of metrics) {
+      if (["hallucination_rate", "semantic_support_rate", "negative_rejection_rate"].includes(metric.name)) {
+        metric.status = "unavailable";
+        metric.passed = false;
+        metric.detail = "Judge provider or verdict failure; original cases retained in errored_cases";
+      }
+    }
+  }
   return metrics;
+}
+
+function recordJudgeFailure(result: CaseResult, error: unknown): void {
+  const status = (error as { status?: unknown })?.status;
+  result.error = `Judge evaluation unavailable${typeof status === "number" ? ` (HTTP ${status})` : " (invalid verdict or provider failure)"}`;
 }
 
 async function mapLimit<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {

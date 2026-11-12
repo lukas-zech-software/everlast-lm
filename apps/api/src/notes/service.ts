@@ -39,6 +39,7 @@ import {
   type StoredCitation,
   type VisibleMessage,
 } from "@everlast/db";
+import type { NoteSourceStore } from "@everlast/notes/note-source-store";
 import { ModelUnavailableError } from "../chat/model.ts";
 import type { NoteAssistantModel } from "./assistant-model.ts";
 
@@ -62,19 +63,7 @@ export class NotesServiceError extends Error {
 const err = (code: string, status: number, message = code) => new NotesServiceError(code, status, message);
 const INGESTION_FAILED = "The notes could not be converted to a source. Please try again.";
 
-/** FR-NM-03 / FR-WM-07: note-sources as v1 sources (one admission with uploads). */
-export interface NoteSourceStore {
-  /** Occupied (Uploading, Processing, Ready) and maximum source slots of the notebook. */
-  slots(notebookId: string): Promise<{ used: number; limit: number }>;
-  /** A Ready note-source converted from exactly these notes at these revisions (FR-NM-04 reuse), else null. */
-  findReusable(ownerId: string, notebookId: string, origins: NoteSourceOrigin[]): Promise<NoteSource | null>;
-  /** Reserves one slot, ingests the Markdown to Ready; throws SourceQuotaExceededError or an ingestion error. */
-  create(
-    ownerId: string,
-    notebookId: string,
-    input: { title: string; markdown: string; origin_notes: NoteSourceOrigin[]; origin_citations: Citation[] }
-  ): Promise<NoteSource>;
-}
+export type { NoteSourceStore } from "@everlast/notes/note-source-store";
 
 /** FR-NM-04 / C-02 / FR-GC-06: scoped reads and publication for the Note Assistant. */
 export interface NoteAssistantContext {

@@ -1,0 +1,48 @@
+$ node --test scripts/test/architecture*.test.mjs
+✔ C-01 historical unchanged features are not retroactively certified (5.696ms)
+✔ C-01 resumed feature missing gate fails (2.037667ms)
+✔ C-01 a gate name alone is insufficient (1.643875ms)
+✔ C-01 populated inventory passes (1.930167ms)
+✔ C-01 source-only implementation cannot omit the feature plan (1.433167ms)
+✔ C-01..03 rejects cross-app value (47.114667ms)
+✔ C-01..03 rejects cross-app type (14.236ms)
+✔ C-01..03 rejects cross-app re-export (12.153291ms)
+✔ C-01..03 rejects cross-app relative (13.121542ms)
+✔ C-01..03 rejects cross-app alias (11.673958ms)
+✔ C-01..03 rejects cross-app dynamic (10.462541ms)
+✔ C-01..03 rejects cross-app require (10.368208ms)
+✔ C-01..03 rejects cross-app import-type (10.263ms)
+✔ C-01..03 rejects cross-app import-equals (10.3595ms)
+✔ C-01..03 rejects shared app (10.007959ms)
+✔ C-01..03 rejects contract runtime (10.53675ms)
+✔ C-01..03 rejects browser server (10.27975ms)
+✔ C-01..03 rejects production testkit (9.557334ms)
+✔ C-01..03 rejects deep import (9.630791ms)
+✔ C-01..03 rejects relative bypass (9.195542ms)
+✔ C-01..03 rejects missing local (9.235875ms)
+✔ C-01..03 rejects missing workspace (9.918375ms)
+✔ C-01..03 rejects computed (10.073084ms)
+✔ C-01..03 allows public adapters in composition roots, local modules, and public contracts (10.525209ms)
+✔ C-01..03 rejects wildcard export and package manifest cross-app dependency (11.643583ms)
+✔ C-01..03 rejects package cycles (10.811416ms)
+✔ C-01..03 exact exception passes; expansion, duplication, expiry and stale debt fail (25.579875ms)
+✔ C-01..03 malformed and duplicate exceptions fail closed (14.635208ms)
+✔ C-01..03 rejects widening wildcard exports by adding new source modules (11.816834ms)
+✔ C-01..03 PR policy cannot add or extend exceptions (14.921916ms)
+✔ C-01..03 allows external test runners in contract tests and testkit for eval tooling (9.591541ms)
+✔ C-01..03 completed removal tasks invalidate their exceptions (11.48725ms)
+✔ C-01..03 rejects imports into skipped generated directories (9.652583ms)
+✔ C-01..03 does not confuse installed external types with repository code (10.971416ms)
+✔ C-01..03 wildcard exceptions do not block unrelated new tests (11.779333ms)
+✔ C-01..03 a tsconfig alias cannot disguise worker code as contracts (8.793542ms)
+✔ C-01..03 renamed createRequire loaders cannot bypass application boundaries (9.310667ms)
+✔ C-01..03 CLI fails with importer, target and rule diagnostics (190.374ms)
+✔ C-01..03 CLI accepts allowed imports and rejects invalid arguments (339.729375ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1150.471875

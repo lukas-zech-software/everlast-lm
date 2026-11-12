@@ -20,6 +20,10 @@ import { validateDataTablePayload } from "./validation.ts";
 
 export interface GenerateDataTableInput {
   chunks: readonly UnifiedDocumentChunk[];
+  original_chunks?:AsyncIterable<UnifiedDocumentChunk[]>|undefined;
+  cached_context?:string|undefined;
+  before_model_call?:(()=>Promise<void>)|undefined;
+  load_cited_chunks?:((ids:string[])=>Promise<UnifiedDocumentChunk[]>)|undefined;
   snapshot: readonly SourceRevisionPair[];
   model: DataTableModelClient;
   focus_prompt?: string | undefined;
@@ -47,33 +51,37 @@ function dedupeObservations(observations: TableObservation[]): TableObservation[
 }
 
 export async function generateDataTable(input: GenerateDataTableInput): Promise<StudioGenerationOutcome<StudioDataTablePayload>> {
-  const { chunks, snapshot, model, focus_prompt, schema_id, output_language, signal } = input;
+  let chunks=[...input.chunks];
+  const { snapshot, model, focus_prompt, schema_id, output_language, signal } = input;
   signal.throwIfAborted();
 
-  if (chunks.length === 0) {
+  if (chunks.length === 0 && !input.original_chunks) {
     return refuse("InsufficientEvidence", "The selected sources contain no readable content to extract a data table.");
   }
 
   input.reportProgress("reading", 5);
   const { items: rawObservations, coverage } = await processAllOriginalEvidenceBatches({
     chunks,
+    original_chunks:input.original_chunks,
     snapshot,
     limits: input.limits,
     signal,
     onBatchComplete: (done, total) => {
       input.reportProgress("extracting", 10 + Math.round((done / Math.max(1, total)) * 60));
     },
-    extractBatch: (batch) =>
-      model.extract({
+    extractBatch: async (batch) => {
+      await input.before_model_call?.();
+      return model.extract({
+        cached_context:input.cached_context,
         chunks: batch,
         focus_prompt,
         schema_id,
         output_language,
         signal,
-      }),
+      });},
   });
 
-  const coverageError = verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks?null:verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -83,8 +91,11 @@ export async function generateDataTable(input: GenerateDataTableInput): Promise<
     return refuse("InsufficientEvidence", "The selected sources do not contain enough structured evidence to populate a comparison table.");
   }
 
+  if(input.load_cited_chunks) chunks=await input.load_cited_chunks([...new Set(observations.map(f=>f.chunk_id))]);
+  if(Buffer.byteLength(JSON.stringify(observations))>16_000_000)throw new Error('Complete model compose envelope exceeds capacity');
   signal.throwIfAborted();
   input.reportProgress("composing", 75);
+  await input.before_model_call?.();
   const { payload: composed, rawRowCount, rawColumnCount } = await model.compose({
     observations,
     chunks,

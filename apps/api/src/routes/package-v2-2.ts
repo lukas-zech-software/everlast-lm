@@ -56,7 +56,7 @@ export interface PackageV22ApiDependencies {
   /** Notebook's effective output language for the caller (FR-UI-02); default `en-US`. */
   resolveOutputLanguage?: (userId: string, notebookId: string) => Promise<string>;
   /** Starts Source Guide generation in the background for a language that has no guide yet (FR-SI-02). */
-  startGuide?: (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => void;
+  startGuide?: (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }) => void | Promise<void>;
   getFollowUps?: typeof getMessageFollowUps;
   saveFollowUps?: typeof saveMessageFollowUps;
   getThreadMessages?: (notebookId: string, userId: string) => Promise<import("@everlast/contracts").ChatMessage[]>;
@@ -122,7 +122,7 @@ export async function handlePackageV22Route(req: IncomingMessage, res: ServerRes
     const language = requestedLanguage ?? (await outputLanguageOf());
     const guide = await (deps.getGuide ?? getSourceGuide)(notebookId, sourceId, requestedRevision, language);
     if (!guide) {
-      deps.startGuide?.({ notebook_id: notebookId, user_id: userId, source_id: sourceId, revision: requestedRevision, output_language: language });
+      await deps.startGuide?.({ notebook_id: notebookId, user_id: userId, source_id: sourceId, revision: requestedRevision, output_language: language });
       sendJson(res, 202, { status: "GuidePending", notebook_id: notebookId, source_id: sourceId, revision: requestedRevision, output_language: language });
       return true;
     }

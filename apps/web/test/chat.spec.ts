@@ -83,19 +83,30 @@ test("GC-E03: a second citation from another source switches the open inspector 
   await expect(page.locator(`[data-chunk-id="${secondId}"].chunk-highlight`)).toBeInViewport();
 });
 
-test.fixme("GC-E04: out-of-source question gets the refusal without badges; selection is sent explicitly", async ({ page }) => {
+test("GC-E04: out-of-source question gets the refusal without badges; selection is sent explicitly", async ({ page }) => {
   const email = uniqueEmail("gc04");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await addTextSource(page.request, email, id, "Use four spaces per indentation level in Python.");
-  await waitReady(page.request, email, id, 1);
+  const selected = await addTextSource(page.request, email, id, "Use four spaces per indentation level in Python.");
+  const deselected = await addTextSource(page.request, email, id, "Argentina won the FIFA World Cup in 2022.");
+  await waitReady(page.request, email, id, 2);
   await page.goto(`/notebook/${id}`);
-  const request = page.waitForRequest((r) => r.url().endsWith("/chat/turns"));
+  const answerSource = page.locator(`[data-testid="source-row"][data-source-id="${deselected}"]`);
+  await answerSource.getByTestId("source-checkbox").uncheck();
+  await expect(page.getByTestId("sources-pill")).toHaveText("1 source");
+
+  const request = page.waitForRequest((r) => r.method() === "POST" && new URL(r.url()).pathname === `/api/notebooks/${id}/chat/turns`);
   const answer = await ask(page, "Who won the FIFA World Cup in 2022?");
-  const body = JSON.parse((await request).postData()!);
-  expect(body.active_source_ids).toHaveLength(1);
-  await expect(answer).toContainText("The selected sources do not contain information about");
+  expect((await request).postDataJSON().active_source_ids).toEqual([selected]);
+  await expect(answer).toContainText("The selected sources do not contain information");
+  await expect(answer).not.toContainText("Argentina");
   await expect(answer.getByTestId("citation-badge")).toHaveCount(0);
+
+  await answerSource.getByTestId("source-checkbox").check();
+  await expect(page.getByTestId("sources-pill")).toHaveText("2 sources");
+  const grounded = await ask(page, "Who won the FIFA World Cup in 2022?");
+  await expect(grounded).toContainText("Argentina");
+  await expect(grounded.getByTestId("citation-badge")).toHaveCount(1);
 });
 
 test("GC-E05: history and working citations persist across reload; clear chat keeps sources Ready", async ({ page }) => {

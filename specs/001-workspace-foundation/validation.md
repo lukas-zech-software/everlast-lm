@@ -91,7 +91,7 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 | `WS-08` | `workspace.test.ts` | `FR-WM-01` | 101 code points accepted by schema; did not enforce 100 code-point upper bound. |
 | `WS-09` | `workspace.test.ts` | `FR-WM-01` | `normalizeNotebookTitle` not implemented for default `"Untitled notebook"` fallback. |
 | `WS-10` | `workspace.test.ts` | `FR-WM-01` | `normalizeNotebookTitle` not implemented for whitespace trimming and character preservation. |
-| `WS-11` | `workspace.test.ts` | `FR-WM-01` | `validateNotebookTitle` not implemented for over-limit reporting without silent truncation. |
+| `WS- 11` | `workspace.test.ts` | `FR-WM-01` | `validateNotebookTitle` not implemented for over-limit reporting without silent truncation. |
 | `WS-12` | `workspace.test.ts` | `FR-WM-01` | `validateNotebookTitle` not implemented for surrogate pair code-point counting. |
 
 ---
@@ -347,7 +347,7 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 
 | Case ID | Suite | Requirement | Observed Red Failure Reason |
 | :--- | :--- | :--- | :--- |
-| `C02-11` | `scoped-context.test.ts` | `C-02`, `FR-WM-04` | `validateScopeSourceOwnership` helper not implemented; cross-notebook source check fails. |
+| `C02- 11` | `scoped-context.test.ts` | `C-02`, `FR-WM-04` | `validateScopeSourceOwnership` helper not implemented; cross-notebook source check fails. |
 | `C02-12` | `scoped-context.test.ts` | `C-02`, `FR-WM-04` | `validateScopeSourceOwnership` helper not implemented; unknown source ID check fails. |
 | `C02-13` | `scoped-context.test.ts` | `C-02` | `validateSourceStatusReady` helper not implemented; non-Ready selection unhandled. |
 | `C02-14` | `scoped-context.test.ts` | `C-02` | `filterScopedChunks` helper not implemented; whole-request rejection not enforced. |
@@ -382,7 +382,7 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 
 | Suite / Test | Case IDs | Status | Verified Behavior |
 | :--- | :--- | :--- | :--- |
-| `packages/contracts/test/scoped-context.test.ts` | `C02-11`..`C02-15` | **GREEN** | Strictly verified cross-notebook source rejection with `InvalidScopeError` even under same owner; unknown source rejection; non-Ready status rejection; whole-request rejection (zero chunks returned, no silent fallback to valid subset); and inspector read isolation preserving active generation selection. |
+| `packages/contracts/test/scoped-context.test.ts` | `C02- 11`..`C02-15` | **GREEN** | Strictly verified cross-notebook source rejection with `InvalidScopeError` even under same owner; unknown source rejection; non-Ready status rejection; whole-request rejection (zero chunks returned, no silent fallback to valid subset); and inspector read isolation preserving active generation selection. |
 | `packages/contracts/test/context-provenance.test.ts` | `PROV-01`..`PROV-05` | **GREEN** | Strictly verified conversation history filtering excludes both question and answer if any used source or revision is ineligible; verified complete provenance checking including uncited/summary sources; verified exclusion of null/empty provenance turns; verified deterministic context cache key computation across notebook, sorted revisions, authorization, and parameters; and verified distinction between mere deselection and deleted/revoked source placeholders. |
 | `packages/evals/test/workspace-isolation.test.ts` | `ISO-01`..`ISO-03` | **GREEN** | Strictly verified deterministic canary containment (`OMEGA-991` zero-leakage into foreign notebook context); tampered cross-notebook source ID rejection throwing `InvalidScopeError`; and defense-in-depth enforcement ensuring foreign owner and foreign notebook chunks never pass the scope guard. |
 | `packages/db/test/workspace.integration.test.ts` | `DB-15`..`DB-18` | **GREEN** | Strictly verified two-owner identical file independence; verified immutable submission snapshots unaffected by later checkbox toggles; verified revision bump snapshot invalidation throwing `SourceSnapshotInvalidError`; and verified delete/read serialization race orders. |
@@ -416,9 +416,9 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 | `ADM-06` | `source-admission.test.ts` | `FR-WM-07` | `QuotaSummarySchema` is not exported from contracts. |
 | `BND-01`..`BND-06` | `source-boundaries.test.ts` | `FR-WM-07`, `FR-SI-01` | `validateDeclaredAdmission`, `validateWorkerReceivedSource`, `validateWorkerExtractedWords`, `detectDishonestDeclaration` are not functions. |
 | `DB-19`..`DB-24` | `workspace.integration.test.ts` | `FR-WM-07` | `seedSourceSlots` is not a function; `reserveSourceSlot` stub throws "Not implemented"; atomic two-connection races and batch logic unhandled. |
-| `API-11`, `API-12`, `API-14`, `API-15` | `workspace.test.ts` | `FR-WM-07` | Route `/api/notebooks/{id}/sources/admission` and DELETE error row unhandled (404 Not Found). |
+| `API- 11`, `API-12`, `API-14`, `API-15` | `workspace.test.ts` | `FR-WM-07` | Route `/api/notebooks/{id}/sources/admission` and DELETE error row unhandled (404 Not Found). |
 | `PERF-03` | `quota-performance.test.ts` | `FR-WM-07`, `SC-003` | Route `/api/notebooks/{id}/sources/admission` returns 404; admission latency cannot be verified. |
-| `JOURNEY-09`..`JOURNEY-11` | `workspace.spec.ts` | `FR-WM-07` | `#source-quota-counter` / `.quota-count` not rendered in modal and sidebar; Add source button disabled state not bound to occupancy. |
+| `JOURNEY-09`..`JOURNEY- 11` | `workspace.spec.ts` | `FR-WM-07` | `#source-quota-counter` / `.quota-count` not rendered in modal and sidebar; Add source button disabled state not bound to occupancy. |
 
 ---
 
@@ -447,9 +447,9 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 | `packages/contracts/test/source-admission.test.ts` | `ADM-01`..`ADM-06` | **GREEN** | Strictly verified configuration parsing: integer bounds 50–300 (default 50), rejection of non-integers, floats, negative values, and bounds outside [50, 300]; verified non-negative bytes and extracted words validation; verified lowering configured limit below usage blocks admission without deleting content; and verified `QuotaSummarySchema` export. |
 | `packages/contracts/test/source-boundaries.test.ts` | `BND-01`..`BND-06` | **GREEN** | Strictly verified pre-upload declared bytes boundary (rejects 200,000,001 bytes, admits 199,999,999 and 200,000,000 bytes); verified worker-received actual bytes boundary; verified worker extracted words boundary (admits 500,000 words, rejects 500,001 words with exact message `"Exceeds 500,000 words limit"`); verified dishonest declaration detection; and verified slot release upon extraction failure. |
 | `packages/db/test/workspace.integration.test.ts` | `DB-19`..`DB-24` | **GREEN** | Strictly verified atomic reservation under notebook lock; verified two-connection race for 50th slot (exactly one admitted, one rejected); verified partial batch admission (45/50 + 10 admits first 5, rejects next 5); verified state consumption (`Uploading`, `Processing`, `Ready` occupy slots; `Failed` immediately releases); verified failure release and error dismissal without double-release; and verified idempotency attempt replays. |
-| `apps/api/test/workspace.test.ts` | `API-11`..`API-15` | **GREEN** | Strictly verified `POST /api/notebooks/:id/sources/admission` pre-upload admission endpoint; verified HTTP 422 rejection on quota exceeded with exact quota summary; verified client bypass protection (server rejects even if client form tampered); and verified `DELETE /api/notebooks/:id/sources/:id/error` dismissing error rows without double-releasing slots. |
+| `apps/api/test/workspace.test.ts` | `API- 11`..`API-15` | **GREEN** | Strictly verified `POST /api/notebooks/:id/sources/admission` pre-upload admission endpoint; verified HTTP 422 rejection on quota exceeded with exact quota summary; verified client bypass protection (server rejects even if client form tampered); and verified `DELETE /api/notebooks/:id/sources/:id/error` dismissing error rows without double-releasing slots. |
 | `apps/api/test/quota-performance.test.ts` | `PERF-03` | **GREEN** | Strictly verified pre-upload oversized payload admission check responds within <= 200 ms (measured ~39 ms). |
-| `apps/web/test/workspace.spec.ts` | `JOURNEY-09`..`JOURNEY-11` | **GREEN** | Strictly verified source quota counter `0 / 50 sources` displayed in both sidebar panel and Add sources modal dialog; verified at-limit disabled Add source button and dropzone when sources_used reaches limit (50); and verified error row dismissal removes the failed error item without altering the quota counter. |
+| `apps/web/test/workspace.spec.ts` | `JOURNEY-09`..`JOURNEY- 11` | **GREEN** | Strictly verified source quota counter `0 / 50 sources` displayed in both sidebar panel and Add sources modal dialog; verified at-limit disabled Add source button and dropzone when sources_used reaches limit (50); and verified error row dismissal removes the failed error item without altering the quota counter. |
 
 ---
 
@@ -519,3 +519,89 @@ Physical object purge is measured separately (CLN-*), never against the 2 s targ
 - **T048** (Downstream Implementation Execution): Open pending external Packages 1.2 and 1.3 implementation; interfaces and integration tests delivered.
 - **T049** (Full Gate v1.0 Evidence): Open pending Package 1.4 release gate integration.
 - **T050** (Foundation Handoff): **COMPLETE [x]**.
+
+
+## Pre-V4 retained work checkpoint — 2026- 11-07
+
+Traceability: FR-WM-01/04, NFR-SEC-01/02, NFR-EVAL-01..04, D21/DEV-06,
+[001-workspace-foundation] T046/T058–T061. Base: 0e77ebb.
+
+- T058/T059 local PASS: provider mock test initially failed specifically for absent
+  signup permissions; UI initially failed because Create account was present. Green:
+  two provider plan assertions/runs pass; password form signs in existing users and
+  never invokes account creation. No provider upgrade; offline tofu validate PASS.
+- T060 creation PASS: both exact T046 suite paths now exist. They compile, are
+  discoverable, and default to skipped. No cloud requests/mutations were executed.
+- Focused local run PASS: four files / 22 tests; two live suites / two tests SKIPPED
+  (not acceptance). The final safety recheck passed one fixture-guard test with
+  the same two live skips. Enabled-without-approval probe failed explicitly with
+  UNAVAILABLE before cloud access, as required.
+- Typecheck PASS; lint/spec-integrity PASS; whitespace PASS. Initial typecheck found
+  the new worker suite needed the already-approved storage SDK as a test dependency;
+  added the existing ^8.4.0 client to worker devDependencies, with no package version
+  upgrade. Restore pnpm12 package-manager metadata churn before committing.
+- Deterministic eval PASS for citation IDs/leakage; judged metrics remain unavailable
+  in this labelled local run, and this is not a release gate pass.
+- T046/T061 remain OPEN/UNAVAILABLE: approved pre-created disposable identity user,
+  labelled versioned EU test bucket with soft delete disabled, signing ADC and
+  reviewed deployment/saved state plan are absent. Current signup config was not
+  applied. Existing real accounts and buckets were not used.
+- Resumable semantics are explicit: current app issues signed PUTs; new live suite
+  checks POST-resumable denial on that capability and real PUT expiry/late sweep.
+  It does not certify arbitrary externally created resumable-session cancellation.
+  Do not close that retained T046 obligation without an applicability review/proof.
+
+Sanitized local logs are in `evidence/pre-v4-20261107/`. Missing/failed historical
+live acceptance remains unchanged. Current checklists remain 16/16 and 17/17
+checked; no reviewer markers changed. Optional Git commit hooks apply to analyze
+and implement; a reviewed final commit supplies the checkpoint.
+
+
+## CC-09 refreshed-main checkpoint — 2026- 11-09
+
+Traceability: FR-WM-01/04/07, NFR-SEC-02, C-02; T062–T064.
+Base abe17ffbcbe3015fc15c9ae3a5602bd0b708401b. Read AGENTS, Constitution2.1 IV/
+CC-09, guardrail procedure and exact architecture policy before changes; worktree
+first and immediate001pin. D22 preserves the approved signup policy; dated signup
+D21 labels above remain historical under explicit D22 supersession.
+
+- Characterization before code repair: 11 auth/provider-selection/fixtureguard tests PASS.
+- Baseline architecture: FAIL 15; baseline artifact check: FAIL 16. These are actual
+  fail-closed static Red results, not manufactured behavior failures.
+- After remediation:001graph findings0; global graph FAIL 2, both 008 guide-admission
+  cross-app/private model fixture.001 artifact check PASS 0; global artifact FAIL 12,
+  all006/008/009 missing CC-09evidence. Global lint stops at those two graph findings.
+- 39 architecture fixture tests PASS. No checker implementation/rule changes.
+- Runtime package entrypoint smoke:7 named exports resolve;2 deep implementation
+  escapes rejected.107 exact exceptions removed; all 186 retained entries are
+  byte-value identical JSON records from the base. No additions/widening.
+- 11auth/fixture tests and 20 identity/cleanup tests PASS; 2 real-service tests SKIPPED
+  by unchanged opt-in guard. Typecheck and SPA build PASS; emitted ESM preserves
+  Firebase 12.19.0 literal URLs with unchanged lazy loading.
+- Offline signup provider mock tests: 2 PASS. No cloud config apply or paid calls.
+- Spec integrity and whitespace PASS. Full combined release acceptance is pending.
+
+Manual final review covers auth browser composition, db/testkit public interfaces,
+relative/type/dynamic import consumers and exception removals. SQL/authorization/
+quota/dispatch/recovery/publication ownership is unchanged. Static coverage is
+reported separately; no manual pass replaces global automated failures.
+T046/T061 stay open for approved live fixtures, signup rollout and outstanding
+resumable applicability/proof. Logs and exact removal manifest are preserved in
+`evidence/cc09-20261109/`.
+
+Deterministic eval on the refreshed code also PASS: citation IDs160/160 and
+scoping leakage0; report/structure test doubles remain labelled. Judged metrics
+remain UNAVAILABLE/GatePending; no cloud/paid validation or signup apply occurred.
+
+
+## Pre-V4 task 001 checkpoint — 2026-11-11
+
+Traceability: FR-WM-01/04, NFR-SEC-01/02, D22; T046/T061/T065.
+- Red: `packages/testkit/test/live-fixtures.test.ts` 3 new tests failed (missing `frozenLiveFixturePlan`, `RESUMABLE_SCENARIOS`). Green: 4/4 pass.
+- Live suites now require the frozen two-user plan; user B survives A's revocation and B's objects survive A's purge (live-only assertions, SKIPPED without approval).
+- Focused local run: identity, cleanup (real local PostgreSQL), password sign-in, testkit all PASS; typecheck PASS; spec integrity PASS; architecture graph 0 findings / 184 exceptions.
+- Live plan and rollback: `evidence/pre-v4-live-plan.md`. T046/T061 remain OPEN/UNAVAILABLE: no approved disposable users/bucket, ADC or reviewed plan. Two resumable scenarios are UNAVAILABLE individually.
+
+### Integration checkpoint (task 001)
+
+Clean commit: see `git log` of `codex/pre-v4-work-001` (base b62b6e8). Shared-file patch: none required. Pending: live T046/T061 (approved disposable users/bucket/ADC/reviewed tofu plan), the two UNAVAILABLE resumable scenarios, and global release acceptance. Continuation: obtain approval, export the `WORKSPACE_IT_*` inputs listed in `evidence/pre-v4-live-plan.md`, run the two opt-in commands there.

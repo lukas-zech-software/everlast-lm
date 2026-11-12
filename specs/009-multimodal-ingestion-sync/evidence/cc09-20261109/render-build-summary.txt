@@ -1,0 +1,6 @@
+Actual node:26-slim runtime probe: node v26.13.0, command -v corepack exited127 (absent).
+Full two-stage image build succeeded after npm install --global pnpm@12.0.0.
+Image manifest list sha256:53e67574d1995b3c6fd60c6a420f79995fbf5661016480d9c979b45c79d8a082
+Image local tag everlast-pre-v4-render-009:20261109.
+Buildx required normal sandbox escalation for ~/.docker metadata; no cloud write.
+Network-disabled runtime/tool/entrypoint smoke is recorded separately. No cloud conversion run.

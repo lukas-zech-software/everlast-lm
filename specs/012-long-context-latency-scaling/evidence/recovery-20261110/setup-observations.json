@@ -1,0 +1,16 @@
+{
+  "release_result": "UNAVAILABLE",
+  "observations": [
+    {
+      "result": "UNAVAILABLE",
+      "stage": "first ordinary-API local setup",
+      "error": "Local PostgreSQL authentication used wrong disposable username; corrected to project db-test configuration before workload. This is not spec-derived Red."
+    },
+    {
+      "result": "UNAVAILABLE",
+      "stage": "first Docker build",
+      "error": "Sandbox denied Docker buildx activity metadata write; ordinary approval then allowed local build. Not counted as engine Red."
+    }
+  ],
+  "historical_context_failure": "Archived 2026-11-05 report describes reused Vitest worker exceeding 256000000-byte growth ceiling; exact peak was unavailable. Preserved as historical FAIL, never replaced by fresh PASS."
+}

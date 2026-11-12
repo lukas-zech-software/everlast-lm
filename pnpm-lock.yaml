@@ -6,6 +6,9 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 12.0.0
+        version: 12.0.0
       pnpm:
         specifier: 12.0.0
         version: 12.0.0
@@ -56,6 +59,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pnpm/exe@12.0.0':
+    resolution: {integrity: sha512-405vw2qYPPghNxoPRt2cvkGtGNU5gnInDcIe5TztQxe73yUZLqFJN/jCJFGs1xbVaIWDXEVuQ71P8npFZeatZQ==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
   pnpm@12.0.0:
     resolution: {integrity: sha512-ni49w5EZlYaNyUuBdcIXwn6VQI+gO0oidJd48rNPdzt3zdOznt6BcbIvzVO+ajU0Lp+smUimjvWN9kiM6Jp+Zw==}
     engines: {node: '>=18.*'}
@@ -87,6 +95,17 @@ snapshots:
   '@pnpm/exe.win32-x64@12.0.0':
     optional: true
 
+  '@pnpm/exe@12.0.0':
+    optionalDependencies:
+      '@pnpm/exe.darwin-arm64': 12.0.0
+      '@pnpm/exe.darwin-x64': 12.0.0
+      '@pnpm/exe.linux-arm64': 12.0.0
+      '@pnpm/exe.linux-arm64-musl': 12.0.0
+      '@pnpm/exe.linux-x64': 12.0.0
+      '@pnpm/exe.linux-x64-musl': 12.0.0
+      '@pnpm/exe.win32-arm64': 12.0.0
+      '@pnpm/exe.win32-x64': 12.0.0
+
   pnpm@12.0.0:
     optionalDependencies:
       '@pnpm/exe.darwin-arm64': 12.0.0
@@ -108,6 +127,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@everlast/cloud':
+        specifier: workspace:*
+        version: link:packages/cloud
     devDependencies:
       '@playwright/test':
         specifier: ^1.51.0
@@ -142,6 +165,9 @@ importers:
       '@everlast/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@everlast/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
       '@everlast/worker':
         specifier: workspace:*
         version: link:../worker
@@ -232,6 +258,9 @@ importers:
       '@everlast/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@everlast/notes':
+        specifier: workspace:*
+        version: link:../../packages/notes
       '@google/genai':
         specifier: ^2.32.0
         version: 2.32.0
@@ -247,10 +276,16 @@ importers:
       pdfjs-dist:
         specifier: ^6.5.438
         version: 6.5.438
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@everlast/testkit':
         specifier: workspace:*
         version: link:../../packages/testkit
+      '@google-cloud/storage':
+        specifier: ^8.4.0
+        version: 8.4.0
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5
@@ -326,6 +361,9 @@ importers:
       '@everlast/db':
         specifier: workspace:*
         version: link:../db
+      '@everlast/notes':
+        specifier: workspace:*
+        version: link:../notes
       '@everlast/testkit':
         specifier: workspace:*
         version: link:../testkit
@@ -342,6 +380,25 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
+  packages/notes:
+    dependencies:
+      '@everlast/cloud':
+        specifier: workspace:*
+        version: link:../cloud
+      '@everlast/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@everlast/db':
+        specifier: workspace:*
+        version: link:../db
+    devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       typescript:
         specifier: ^7.0.2
         version: 7.0.2

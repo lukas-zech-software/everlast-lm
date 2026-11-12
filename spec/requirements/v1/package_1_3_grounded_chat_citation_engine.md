@@ -89,6 +89,14 @@ Scenario: Uncited historical context cannot bypass deselection
 
 ---
 
+### Pre-V4 acceptance and routing (FR-GC-01, FR-GC-02, NFR-SEC-01)
+
+D23 applies to grounded chat and its FR-GC-08 code correction. Use approved
+enterprise Flash with LOW thinking via the pinned EU multi-region endpoint and
+ADC. C-02 embeddings retain their existing region. GC-E04 verifies the exact
+selected Ready source IDs on the outgoing turn and a refusal with no citation
+badges after deselecting the source that contains the answer.
+
 ### FR-GC-02 — Precise Inline Citations
 
 | Field | Value |

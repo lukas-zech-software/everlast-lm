@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildGoldenDataset, assertDatasetMinimums, datasetCounts, GoldenCaseV1Schema, datasetHash, releaseSample } from "../src/dataset.ts";
+import { buildGoldenDataset, assertDatasetMinimums, datasetCounts, GoldenCaseV1Schema, datasetHash, corpusHash, releaseSample } from "../src/dataset.ts";
 import { judgeMetric, ratio, containsForbidden } from "../src/metrics.ts";
 import { buildCorpus } from "../src/corpus.ts";
 
@@ -48,6 +49,11 @@ describe("judged release sample (Constitution v2.0.0)", () => {
     expect(releaseSample(buildGoldenDataset()).map((c) => c.id)).toEqual(a.map((c) => c.id));
     expect(new Set(a.map((c) => c.id)).size).toBe(50);
     expect(datasetCounts(a)).toMatchObject({ unanswerable: 25, synthesis: 14, history: 4, deselection: 11 });
+    // T038 / NFR-EVAL-01..04: pin the release profile to the candidate's fixture and ordered IDs.
+    expect(datasetHash(cases)).toBe("35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29");
+    expect(corpusHash()).toBe("df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd");
+    const sampleHash = createHash("sha256").update(JSON.stringify(a.map((c) => c.id))).digest("hex");
+    expect(sampleHash).toBe("c39e6521a2ef4d1695ad95d94a32a1c55aa86471f1a0bbdeb14d0875e7fc9a28");
   });
 });
 

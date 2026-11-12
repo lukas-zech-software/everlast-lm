@@ -165,3 +165,7 @@ As a writer, I want to summarize, outline, find related ideas, or critique selec
 - **Note deletion vs. converted sources**: A converted source is an immutable snapshot (FR-011); deleting or editing an origin note never alters or removes it.
 - **Offline drafts**: The FR-005 local draft is client-only and never sent to the service until a save succeeds.
 - **Out of Scope / Deferred**: Real-time multi-cursor collaborative editing; live two-way synchronization from notes to converted sources; raw binary attachments embedded in notes; Studio report generation; and later-release role permissions or sharing behavior.
+
+## Resumed architecture scope — CC-09 (2026-11-11; FR-NM-03, FR-SI-01, C-01/C-02, D21)
+
+Pre-V4 task 007 changes placement only: the note-markdown normalizer, chunker, `NoteSourceStore` port and the PostgreSQL note-source adapter move into the shared `@everlast/notes` package so the API no longer imports the worker application and the Notes eval no longer imports the API. Markdown output, revision handling, source quota admission, fenced publication and C-02 reads are unchanged; no new behavior requirement and no new exception.

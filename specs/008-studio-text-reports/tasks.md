@@ -155,7 +155,7 @@ Dev smoke test after deploying T066–T069: a Timeline over a memo without named
 
 ### Deferred
 
-- [ ] T061 Deferred (owner 2026-10-20, PoC): per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
+- [X] T061 Historically deferred (owner 2026-10-20, PoC), superseded by owner2026-11-05 and implemented/locally verified in T072–T075; final live acceptance remains T076: per-notebook cap/rate limit for on-demand Source Guide runs started by report suggestions in another output language (`apps/api/src/v2/runtime.ts` `guides.getGuides` → `startGuide`). Today the tag is validated against the FR-UI-02 supported set (security review 2026-10-20) and one run per (source, revision, language) is deduplicated, but there is no per-notebook limit (DoS class, `NFR-SEC-*`; FR-SI-02, FR-ST-11)
 
 ### Dependencies and execution order (Phase 7)
 
@@ -166,3 +166,25 @@ Dev smoke test after deploying T066–T069: a Timeline over a memo without named
 - Package 2.3 first: `[007-notes-pinboard-lifecycle] T054` and `T055` (note-to-source marker stripping, `origin_citations`, sanitization on all write paths) must land before T047/T057. `[007] T046` (note-sources in the v1 source list) and `T047`–`T049` (Right Panel notes pinboard) must land before T049/T058.
 - Package 2.1: `[005-workspace-ui-comfort] T046` also edits `apps/api/src/studio/service.ts` (`touchNotebookModified`); serialize it with T055 and T056.
 - T060 runs last.
+
+## Phase 8: Convergence
+
+- [X] T072 Add spec-derived failing PostgreSQL and mounted-API tests for two concurrent on-demand Guide runs, twenty starts per rolling hour, uncharged deduplication, terminal/restart recovery, authorization and ordinary-ingestion exclusion (FR-SI-02, FR-ST-11, NFR-SEC-02; missing); precedes T073/T074.
+- [X] T073 Implement atomic notebook-scoped persisted on-demand Guide admission in packages/db/migrations/0012_guide_admission.sql and packages/db/src/guide-admission.ts, wired into apps/api/src/v2/runtime.ts and the Guide route with safe quota errors; preserve hourly failed starts and default-language ingestion (FR-SI-02, FR-ST-11, C-02; missing); depends on T072.
+- [X] T074 Add validated configurable admission defaults (2 concurrent,20 starts/rolling hour) and startup recovery wiring; verify legitimate report suggestions and standard/custom reports remain usable (FR-SI-02, FR-ST-11, NFR-SEC-02; missing); depends on T072/T073.
+- [X] T075 Reconcile T061 owner decision, analysis/quickstart/validation and report504/OCR prerequisites; run focused tests, lint/typecheck/spec/deterministic gates and preserve recovered012 merge notes (FR-ST-10/11, NFR-EVAL-01..04; partial); depends on T073/T074.
+- [ ] T076 Obtain applicable final-candidate live four-template validity/timing and common judged evidence after admission/reliability changes; retain prior504failure and existing EU OCR processor configuration prerequisite (FR-ST-10, Gate v2.0/v3.0, NFR-EVAL-01..04; partial); depends on T075 and authorized deployed candidate.
+
+
+## Phase 9: CC-09 boundary reconciliation
+
+- [X] T077 [specs/008-studio-text-reports] Characterize current Guide admission/config/DB/runtime/restart/report-adapter behavior on current dependencies; record the actual graph and artifact failures without manufacturing product Red (FR-SI-02, FR-ST-10/11, C-02/C-03, CC-02/09).
+- [X] T078 [specs/008-studio-text-reports] Refresh spec/plan boundary inventory, exact legacy debt, workflow/transaction ownership and coverage; run scoped artifact validation and analyze before fixture remediation (FR-SI-02, FR-ST-10/11, C-02/C-03, CC-01/09); depends on T077.
+- [X] T079 [specs/008-studio-text-reports] Replace the Guide-admission test's worker DeterministicReportModel import with an API-owned valid suggestion double typed through the public contracts root; no cross-app types, helper laundering, export or policy changes (FR-ST-11, CC-09); depends on T077/T078.
+- [X] T080 [specs/008-studio-text-reports] Recheck final diff/graph, scoped 008 artifacts, focused behavior/type/spec checks and record manual versus automated evidence plus unchanged live acceptance; preserve009global artifact blockers (FR-SI-02, FR-ST-10/11, NFR-EVAL-02/04, C-02/C-03, CC-09); depends on T079.
+
+## Phase 10: Deadline regression and D23 migration
+
+- [X] T081 [specs/008-studio-text-reports] Preserve the original 3/4 gate failure and reproduce the full-duration 504 retry cascade with the report SDK double, including failed publication and existing fast transient retry behavior (FR-ST-10, C-03, NFR-EVAL-02/04, CC-09).
+- [X] T082 [specs/008-studio-text-reports] Bound retry dispatch to the original attempt window and capture content-free diagnostics. Verify scope and publication regressions, graph and artifacts with no exception expansion (FR-ST-10/11, C-02/C-03, NFR-SEC-01, CC-09); depends on T081.
+- [X] T083 [specs/008-studio-text-reports] Integrate the committed 003 D23 Flash route and 006 StructuredGenerator port. Verify generation, native tokenizer and cache identity under conflicting config and pass the required local checks (FR-ST-10, NFR-PERF-01, NFR-SEC-01, D23, CC-09); depends on the 003/006 interfaces. T076 additionally requires the authorized final candidate and agreement with 012/004.

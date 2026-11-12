@@ -1,0 +1,232 @@
+
+ RUN  v5.0.5 /private/tmp/everlast-pre-v4-impl-001-20261107
+
+ ❯ |integration| apps/web/test/password-signin.test.ts (1 test | 1 failed) 6ms
+   × offers existing-account sign-in without creating accounts 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/web/test/password-signin.test.ts > offers existing-account sign-in without creating accounts
+AssertionError: expected <button></button> to be null
+
+- Expected:
+null
+
++ Received:
+MockElement {
+  "_checked": undefined,
+  "_className": "btn",
+  "_textContent": "Create account",
+  "attributes": Map {
+    "class" => "btn",
+    "type" => "button",
+    "data-testid" => "signup",
+  },
+  "children": [],
+  "classList": MockClassList {
+    "classes": Set {
+      "btn",
+    },
+  },
+  "dataset": {
+    "testid": "signup",
+  },
+  "eventListeners": {
+    "click": [
+      [Function anonymous],
+    ],
+  },
+  "id": "",
+  "parentElement": MockElement {
+    "_checked": undefined,
+    "_className": "signin",
+    "_textContent": "",
+    "attributes": Map {
+      "class" => "signin",
+      "data-testid" => "signin-form",
+    },
+    "children": [
+      MockElement {
+        "_checked": undefined,
+        "_className": "",
+        "_textContent": "Everlast LM",
+        "attributes": Map {},
+        "children": [],
+        "classList": MockClassList {
+          "classes": Set {},
+        },
+        "dataset": {},
+        "eventListeners": {},
+        "id": "",
+        "parentElement": [Circular],
+        "scrollTop": 0,
+        "style": {},
+        "tagName": "H1",
+        "value": "",
+      },
+      MockElement {
+        "_checked": undefined,
+        "_className": "muted",
+        "_textContent": "Sign in, or create an account with a new email and password.",
+        "attributes": Map {
+          "class" => "muted",
+          "data-testid" => "signin-message",
+        },
+        "children": [],
+        "classList": MockClassList {
+          "classes": Set {
+            "muted",
+          },
+        },
+        "dataset": {
+          "testid": "signin-message",
+        },
+        "eventListeners": {},
+        "id": "",
+        "parentElement": [Circular],
+        "scrollTop": 0,
+        "style": {},
+        "tagName": "P",
+        "value": "",
+      },
+      MockElement {
+        "_checked": undefined,
+        "_className": "",
+        "_textContent": "",
+        "attributes": Map {
+          "type" => "email",
+          "name" => "email",
+          "placeholder" => "you@example.com",
+          "required" => "",
+          "data-testid" => "signin-email",
+          "autocomplete" => "email",
+        },
+        "children": [],
+        "classList": MockClassList {
+          "classes": Set {},
+        },
+        "dataset": {
+          "testid": "signin-email",
+        },
+        "eventListeners": {},
+        "id": "",
+        "parentElement": [Circular],
+        "scrollTop": 0,
+        "style": {},
+        "tagName": "INPUT",
+        "value": "",
+      },
+      MockElement {
+        "_checked": undefined,
+        "_className": "",
+        "_textContent": "",
+        "attributes": Map {
+          "type" => "password",
+          "name" => "password",
+          "placeholder" => "Password (min. 6 characters)",
+          "required" => "",
+          "minlength" => "6",
+          "data-testid" => "signin-password",
+          "autocomplete" => "current-password",
+        },
+        "children": [],
+        "classList": MockClassList {
+          "classes": Set {},
+        },
+        "dataset": {
+          "testid": "signin-password",
+        },
+        "eventListeners": {},
+        "id": "",
+        "parentElement": [Circular],
+        "scrollTop": 0,
+        "style": {},
+        "tagName": "INPUT",
+        "value": "",
+      },
+      MockElement {
+        "_checked": undefined,
+        "_className": "btn btn-primary",
+        "_textContent": "Sign in",
+        "attributes": Map {
+          "class" => "btn btn-primary",
+          "type" => "submit",
+        },
+        "children": [],
+        "classList": MockClassList {
+          "classes": Set {
+            "btn",
+            "btn-primary",
+          },
+        },
+        "dataset": {},
+        "eventListeners": {},
+        "id": "",
+        "parentElement": [Circular],
+        "scrollTop": 0,
+        "style": {},
+        "tagName": "BUTTON",
+        "value": "",
+      },
+      [Circular],
+    ],
+    "classList": MockClassList {
+      "classes": Set {
+        "signin",
+      },
+    },
+    "dataset": {
+      "testid": "signin-form",
+    },
+    "eventListeners": {
+      "submit": [
+        [Function anonymous],
+      ],
+    },
+    "id": "",
+    "parentElement": MockElement {
+      "_checked": undefined,
+      "_className": "",
+      "_textContent": "",
+      "attributes": Map {},
+      "children": [
+        [Circular],
+      ],
+      "classList": MockClassList {
+        "classes": Set {},
+      },
+      "dataset": {},
+      "eventListeners": {},
+      "id": "",
+      "parentElement": null,
+      "scrollTop": 0,
+      "style": {},
+      "tagName": "MAIN",
+      "value": "",
+    },
+    "scrollTop": 0,
+    "style": {},
+    "tagName": "FORM",
+    "value": "",
+  },
+  "scrollTop": 0,
+  "style": {},
+  "tagName": "BUTTON",
+  "value": "",
+}
+
+ ❯ apps/web/test/password-signin.test.ts:13:56
+     11|   const createUserWithEmailAndPassword = vi.fn();
+     12|   const done = renderPasswordSignIn(root as unknown as HTMLElement, { …
+     13|   expect(root.querySelector('[data-testid="signup"]')).toBeNull();
+       |                                                        ^
+     14|   expect(root.querySelector('[data-testid="signin-message"]')!.textCon…
+     15|   const form = root.querySelector("form")!;
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed (1)
+   Start at  22:11:54
+   Duration  117ms (transform 51%, import 22%, tests 16%, worker 11%)

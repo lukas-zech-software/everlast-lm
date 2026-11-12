@@ -1,0 +1,27 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-qualification-20261110c
+
+ ❯ |unit| apps/api/test/code-execution-model.test.ts (12 tests | 1 failed) 17ms
+   × NFR-PERF-01 trusted operational model setup has a fixed output/RPC budget without changing ordinary requests (LOCAL ADK transport double) 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/code-execution-model.test.ts > NFR-PERF-01 trusted operational model setup has a fixed output/RPC budget without changing ordinary requests (LOCAL ADK transport double)
+AssertionError: expected undefined to be 512 // Object.is equality
+
+- Expected:
+512
+
++ Received:
+undefined
+
+ ❯ apps/api/test/code-execution-model.test.ts:138:37
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  22:26:21
+   Duration  801ms (import 91%, transform 6%, tests 2%, worker 1%)

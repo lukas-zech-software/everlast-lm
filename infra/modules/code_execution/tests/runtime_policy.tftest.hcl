@@ -73,5 +73,5 @@ run "enabled_without_runtime_is_rejected" {
     reasoning_engine_name = ""
   }
 
-  expect_failures = [check.enabled_requires_runtime]
+  expect_failures = [output.api_env_vars]
 }

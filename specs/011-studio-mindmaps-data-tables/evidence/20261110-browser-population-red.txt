@@ -1,0 +1,42 @@
+[WebServer] (node:41410) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:41441) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › apps/web/test/mindmap-collector.spec.ts:8:1 › MM-COLLECT: captures every declared 120-node operation frame and real drag changes the viewer (1.3s)
+(node:41475) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › apps/web/test/studio-table.spec.ts:26:1 › DT-E01: generates a cited 3-vendor comparison table, displays conflicting and missing cells, sorts rows, and downloads safe CSV and XLSX files (3.3s)
+
+
+  1) [chromium] › apps/web/test/mindmap-collector.spec.ts:8:1 › MM-COLLECT: captures every declared 120-node operation frame and real drag changes the viewer 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      37 |   expect(samples).toHaveLength(20);
+      38 |   expect(new Set(samples.map(s => s.operation)).size).toBe(4);
+    > 39 |   expect(samples.every(s => s.rendered_nodes_before === (s.operation === "expand" ? 117 : 120))).toBe(true);
+         |                                                                                                  ^
+      40 |   expect(samples.every(s => s.rendered_nodes_after === (s.operation === "collapse" ? 117 : 120))).toBe(true);
+      41 |   expect(samples.every(s => s.node_count === 120 && Number.isFinite(s.duration_ms) && s.duration_ms > 0)).toBe(true);
+      42 | });
+        at /private/tmp/everlast-pre-v4-011-20261110/apps/web/test/mindmap-collector.spec.ts:39:98
+
+    Error Context: test-results/mindmap-collector-MM-COLLE-5a432-eal-drag-changes-the-viewer-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/mindmap-collector-MM-COLLE-5a432-eal-drag-changes-the-viewer-chromium/trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results/mindmap-collector-MM-COLLE-5a432-eal-drag-changes-the-viewer-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › apps/web/test/mindmap-collector.spec.ts:8:1 › MM-COLLECT: captures every declared 120-node operation frame and real drag changes the viewer 
+  1 passed (8.9s)

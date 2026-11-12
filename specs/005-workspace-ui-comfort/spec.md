@@ -122,3 +122,13 @@ As an owner working across languages and display conditions, I want to choose a 
 
 - **In-Scope Release Constraints**: This feature covers only Package 2.1 (FR-WM-02, FR-WM-03, FR-UI-02). v2.0 role permissions remain Owner-only. Language preferences are established before language-sensitive generators in Package 2.2; this specification does not claim to implement those generators.
 - **Out of Scope / Deferred**: Source Guide, notebook overview and chat controls, notes and note-to-source conversion, Studio reports, and C-03 (Packages 2.2–2.4); multi-user sharing badges and analytics (v6.0); nested notebook folders; custom raster or SVG notebook cover images; translation of raw source documents in the Source Inspector; and role permissions or notebook preference overrides for non-owners before v6.0.
+
+
+## CC-09 pre-V4 task 005 scope (2026-11-11; FR-WM-02, NFR-SEC-01, D23)
+
+The topic emoji enrichment adapter moves from the worker deployment app into the shared
+`@everlast/cloud/topic-emoji` module behind explicit exports, so API and worker share it
+through an approved boundary (D21 R1). Behavior is unchanged except for specified hardening:
+untrusted titles are sanitized and bounded, provider calls time out, and every failure
+yields no suggestion without failing ingestion. No authorization, quota, transaction,
+dispatch or publication ownership changes. Flash-Lite MINIMAL-thinking routing follows 003's D23 interface.

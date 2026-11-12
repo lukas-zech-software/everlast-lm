@@ -17,6 +17,10 @@ import { validateMindmapPayload } from "./validation.ts";
 
 export interface GenerateMindmapInput {
   chunks: readonly UnifiedDocumentChunk[];
+  original_chunks?:AsyncIterable<UnifiedDocumentChunk[]>|undefined;
+  cached_context?:string|undefined;
+  before_model_call?:(()=>Promise<void>)|undefined;
+  load_cited_chunks?:((ids:string[])=>Promise<UnifiedDocumentChunk[]>)|undefined;
   snapshot: readonly SourceRevisionPair[];
   model: MindmapModelClient;
   output_language?: string | undefined;
@@ -42,31 +46,35 @@ function dedupeFindings(findings: MindmapFinding[]): MindmapFinding[] {
 }
 
 export async function generateMindmap(input: GenerateMindmapInput): Promise<StudioGenerationOutcome<StudioMindmapPayload>> {
-  const { chunks, snapshot, model, signal, output_language } = input;
+  let chunks=[...input.chunks];
+  const { snapshot, model, signal, output_language } = input;
   signal.throwIfAborted();
 
-  if (chunks.length === 0) {
+  if (chunks.length === 0 && !input.original_chunks) {
     return refuse("InsufficientEvidence", "The selected sources contain no readable content to build a mindmap.");
   }
 
   input.reportProgress("reading", 5);
   const { items: rawFindings, coverage } = await processAllOriginalEvidenceBatches({
     chunks,
+    original_chunks:input.original_chunks,
     snapshot,
     limits: input.limits,
     signal,
     onBatchComplete: (done, total) => {
       input.reportProgress("extracting", 10 + Math.round((done / Math.max(1, total)) * 60));
     },
-    extractBatch: (batch) =>
-      model.extract({
+    extractBatch: async (batch) => {
+      await input.before_model_call?.();
+      return model.extract({
+        cached_context:input.cached_context,
         chunks: batch,
         output_language,
         signal,
-      }),
+      });},
   });
 
-  const coverageError = verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks?null:verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -76,8 +84,11 @@ export async function generateMindmap(input: GenerateMindmapInput): Promise<Stud
     return refuse("InsufficientEvidence", "The selected sources do not contain enough supported factual topics for a mindmap.");
   }
 
+  if(input.load_cited_chunks) chunks=await input.load_cited_chunks([...new Set(findings.map(f=>f.chunk_id))]);
+  if(Buffer.byteLength(JSON.stringify(findings))>16_000_000)throw new Error('Complete model compose envelope exceeds capacity');
   signal.throwIfAborted();
   input.reportProgress("composing", 75);
+  await input.before_model_call?.();
   const composed = await model.compose({
     findings,
     chunks,

@@ -1,17 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
+import { resolveEnterpriseGeminiConfig, type EnterpriseGeminiConfig } from "@everlast/cloud";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import type { Schema } from "@google/genai";
+import type { GenerateContentConfig, HttpOptions, Schema } from "@google/genai";
 import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
-import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
+import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, preferenceLines, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
- * Production: ADK for TypeScript `LlmAgent` on Gemini Flash via Vertex AI in the configured EU region with
+ * Production: ADK for TypeScript `LlmAgent` on Gemini Flash via the D23 EU multi-region endpoint with
  * keyless ADC (enterprise endpoint, contractual no-training). Developer API keys are never used.
  */
 
 export interface GroundedModelInput {
+  /** Trusted private setup only; never copied from public request DTOs. */
+  operationalProbe?: boolean | undefined;
   question: string;
   chunks: UnifiedDocumentChunk[];
   history: HistoryTurn[];
@@ -61,11 +64,25 @@ export interface AdkModelConfig {
   project: string;
   location: string;
   model: string;
+  httpOptions?: EnterpriseGeminiConfig<"flash">["clientOptions"]["httpOptions"];
+  thinkingConfig?: EnterpriseGeminiConfig<"flash">["thinkingConfig"];
   timeoutMs?: number;
   /** FR-GC-08: offer compute/clarify only when a sandbox runtime is configured (default false). */
   codeExecution?: boolean;
 }
 
+class SingleAttemptGemini extends Gemini {
+  constructor(config: AdkModelConfig) {
+    super({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    this.httpOptions = config.httpOptions;
+  }
+
+  private readonly httpOptions: AdkModelConfig["httpOptions"];
+
+  protected override getHttpOptions(): HttpOptions {
+    return { ...super.getHttpOptions(), ...this.httpOptions, retryOptions: { attempts: 1 } };
+  }
+}
 export class AdkGroundedModel implements GroundedModel {
   readonly id: string;
   private readonly runner: InMemoryRunner;
@@ -76,18 +93,36 @@ export class AdkGroundedModel implements GroundedModel {
   constructor(config: AdkModelConfig) {
     this.id = `vertex:${config.location}:${config.model}`;
     this.timeoutMs = config.timeoutMs ?? 60_000;
-    // Explicit vertexai + project + location: the SDK uses ADC and ignores any API key in the environment.
-    this.llm = new Gemini({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    this.llm = new SingleAttemptGemini(config);
+    const generationConfig: GenerateContentConfig = {
+      temperature: 0,
+      candidateCount: 1,
+      ...(config.thinkingConfig && { thinkingConfig: config.thinkingConfig }),
+    };
     const agent = new LlmAgent({
       name: "grounded_chat",
+      beforeModelCallback:({context,request})=>{
+        if(context.state.get('operational_probe')!==true)return undefined;
+        const calls=Number(context.state.get('operational_model_calls')??0);if(calls>=1)throw new ModelUnavailableError('Operational model RPC budget exceeded');
+        context.state.set('operational_model_calls',calls+1);
+        if(Buffer.byteLength(JSON.stringify({contents:request.contents,config:request.config}))>100000)throw new ModelUnavailableError('Operational complete model byte budget exceeded');
+        request.config={...request.config,maxOutputTokens:512,httpOptions:{...request.config?.httpOptions,retryOptions:{attempts:1}}};
+        return undefined;
+      },
       description: "Answers strictly from scoped source chunks with chunk-level citations.",
       model: this.llm,
-      instruction: groundingInstruction({ codeExecution: config.codeExecution ?? false }),
+      instruction: (context) => {
+        const base = groundingInstruction({ codeExecution: config.codeExecution ?? false });
+        // Only the trusted, request-local enum changes system-level form; source/custom text stays data.
+        return context.state.get("response_length") === "shorter"
+          ? `${base}\n${preferenceLines({ response_length: "shorter" }).join(" ")}`
+          : base;
+      },
       outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as Schema,
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
-      generateContentConfig: { temperature: 0, candidateCount: 1 },
+      generateContentConfig: { ...generationConfig },
     });
     this.runner = new InMemoryRunner({ agent, appName: "everlast-chat" });
     // FR-GC-08: separate single-purpose agent for the one code correction; no tools, no transfer, no state.
@@ -100,7 +135,7 @@ export class AdkGroundedModel implements GroundedModel {
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
-      generateContentConfig: { temperature: 0, candidateCount: 1 },
+      generateContentConfig: { ...generationConfig },
     });
     this.correctionRunner = new InMemoryRunner({ agent: corrector, appName: "everlast-code-correction" });
   }
@@ -147,7 +182,7 @@ export class AdkGroundedModel implements GroundedModel {
     input.signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const userId = "chat";
-      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID() });
+      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID(), state: { response_length: input.preferences?.response_length ?? "default", operational_probe:input.operationalProbe??false,operational_model_calls:0 } });
       let text = "";
       for await (const event of this.runner.runAsync({
         userId,
@@ -174,12 +209,11 @@ export class AdkGroundedModel implements GroundedModel {
 }
 
 export function createGroundedModelFromEnv(env: NodeJS.ProcessEnv = process.env): GroundedModel {
-  const project = env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
-  if (!project) throw new Error("VERTEX_PROJECT (or GCP_PROJECT_ID) is required for the chat model");
+  const { clientOptions, model, thinkingConfig } = resolveEnterpriseGeminiConfig("flash", env);
   return new AdkGroundedModel({
-    project,
-    location: env.VERTEX_LOCATION ?? env.VERTEX_AI_LOCATION ?? "europe-west4",
-    model: env.CHAT_MODEL ?? "gemini-2.5-flash",
+    ...clientOptions,
+    model,
+    thinkingConfig,
     codeExecution: env.CODE_EXECUTION_ENABLED === "true",
   });
 }

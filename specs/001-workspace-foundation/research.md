@@ -56,3 +56,16 @@ Date: 2026-10-17. Scope: FR-WM-01/04/07, C-01/C-02, NFR-SEC-01, NFR-EVAL-04 and 
 - Check raw bucket versioning/retention/holds and outstanding upload-session cleanup semantics against a disposable integration bucket before claiming purge success (FR-WM-01).
 - Declare benchmark fixtures, topology and cold/warm conditions; measure the exact SRS thresholds, not inferred latency (FR-WM-01/07).
 - Generate tasks and run analyze before implementation. No new architecture deviation, scope amendment or constitution exception was identified; no cloud approval is implied by planning (Gate v1.0).
+
+
+## Admin-only signup provider compatibility (2026-11-07; FR-WM-04, NFR-SEC-02)
+
+The pinned Google provider v6.50.0 already supports client.permissions.disabled_user_signup
+in google_identity_platform_config. The provider and Identity Platform API document
+this as disabling end-user account creation through the project's API methods.
+Existing sign-in settings are independent and remain configured. No provider bump,
+blocking Cloud Function or new service is needed. Retrieved using ketch.scrape:
+[provider v6.50.0 source documentation](https://github.com/hashicorp/terraform-provider-google/blob/v6.50.0/website/docs/r/identity_platform_config.html.markdown),
+[Identity Platform Config API](https://cloud.google.com/identity-platform/docs/reference/rest/v2/Config#ClientPermissionConfig).
+Offline provider-plan tests verify the actual v6 schema; deployed behavior remains
+pending the explicit fixture/deployment prerequisites in quickstart.

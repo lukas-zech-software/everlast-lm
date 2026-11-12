@@ -31,3 +31,18 @@ mount_secrets        = false # Set to true once Secret Manager versions are popu
 max_sources_per_notebook = 50
 max_notebooks_per_user   = 100
 deletion_protection      = false
+
+# Package 3.1 (FR-SI-01/05): keep disabled until API/resource approval and image/fixture preparation.
+enable_v3_ingestion          = false
+create_model_armor_template = false # Mutually exclusive with an existing model_armor_template_id
+render_image            = ""
+model_armor_template_id  = ""
+google_oauth_client_id   = ""
+google_picker_api_key    = "" # Public, browser-restricted Picker identifier; never a model API key
+google_picker_app_id    = ""
+drive_webhook_address   = ""
+
+# Package 3.2 (FR-GC-08): proposal only; require explicit owner resource/deployment approval.
+enable_v3_code_execution              = false
+create_code_execution_parent_runtime = false # With enable=true, choose this OR an existing runtime name
+code_execution_reasoning_engine       = ""    # Existing bare parent in europe-west4; mutually exclusive with creation

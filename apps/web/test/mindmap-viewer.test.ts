@@ -158,3 +158,23 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
     expect(viewer.getTransform().y).toBe(0);
   });
 });
+
+
+describe("[011-studio-mindmaps-data-tables] T057: real pointer pan (FR-ST-09, FR-004)", () => {
+  it("moves the scene on background drag, stops on pointer cancellation and keeps node controls out of pan", () => {
+    const dom = setupMockDOM(1440);
+    const viewer = createMindmapViewer({ artifactId: "pan", title: "Pan", payload: buildTree120() });
+    dom.document.body.append(viewer.element as unknown as MockElement);
+    const canvas = (viewer.element as unknown as MockElement).querySelector('[data-testid=mindmap-canvas]')!;
+    canvas.dispatchEvent({ type: "pointerdown", target: canvas, pointerId: 1, button: 0, clientX: 10, clientY: 20, preventDefault() {} });
+    canvas.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: 60, clientY: 50, preventDefault() {} });
+    expect(viewer.getTransform()).toEqual({ x: 50, y: 30, scale: 1 });
+    canvas.dispatchEvent({ type: "pointercancel", pointerId: 1 });
+    canvas.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: 90, clientY: 90 });
+    expect(viewer.getTransform().x).toBe(50);
+    const node = canvas.querySelector('[data-testid=mindmap-node-body]')!;
+    canvas.dispatchEvent({ type: "pointerdown", target: node, pointerId: 2, button: 0, clientX: 0, clientY: 0 });
+    canvas.dispatchEvent({ type: "pointermove", pointerId: 2, clientX: 100, clientY: 100 });
+    expect(viewer.getTransform().x).toBe(50);
+  });
+});

@@ -229,3 +229,19 @@ All 9 original Gherkin scenarios map to rows above. The retained supplemental US
 - [x] T055 Add an authenticated client session to the web app (Identity Platform sign-in, `Authorization: Bearer` on every `/api/` call from `apps/web/src/main.ts`, `notebooks.ts`, `notebook-title.ts`, `delete-notebook.ts`) and run `apps/web/test/workspace.spec.ts` against the real `apps/api/src/server.ts` as well as the mock `test-server.ts` per FR-WM-01, FR-WM-04 (missing)
 - [x] T056 Remove the `?sources_used=` query-string override of server quota occupancy in `apps/web/src/main.ts`, or move it behind the test server, so occupancy shown is server-authoritative per FR-WM-07, T040 (unrequested)
 - [x] T057 Correct `specs/001-workspace-foundation/validation.md` and `implementation-handoff.md`: database integration evidence for T009/T014/T025/T033 was produced against in-memory stores, not PostgreSQL; re-record Red/Green after T052 per Constitution II (UNAVAILABLE, never passed) (contradicts)
+
+## Phase 8: Convergence
+
+- [x] T058 Add spec-derived failing provider-plan and password sign-in tests for admin-created-only registration with existing users retaining sign-in; test disposable live-fixture safety gates before T059/T060 (FR-WM-04, NFR-SEC-01/02, Constitution II; missing).
+- [x] T059 Enforce disabled client signup in existing Identity Platform IaC, retain existing authentication methods/accounts and remove self-registration UI; synchronize owner policy across governing artifacts (FR-WM-04, NFR-SEC-02; contradicts); depends on T058.
+- [x] T060 Create discoverable gated identity.integration.test.ts and notebook-cleanup.integration.test.ts for approved disposable real-service fixtures: sign-in/revocation, direct signup denial, all generations/holds, outstanding uploads, recovery and privacy; preserve T046 until live proof exists (FR-WM-01/04, NFR-SEC-01/02; missing); depends on T058.
+- [ ] T061 Run T046/T060 only with explicitly approved disposable identity/storage inputs; retain actual observations or UNAVAILABLE and prepare concrete config/deployment instructions without cloud apply (FR-WM-01/04, NFR-SEC-01/02, Gate v1.0; missing); depends on T059/T060.
+
+
+## Phase 9: CC-09 resume and boundary reconciliation
+
+- [x] T062 Characterize existing password sign-in/provider selection and disposable fixture safeguards; retain failing architecture/artifact output on the actual refreshed baseline before T063 (FR-WM-04, NFR-SEC-02, CC-02/CC-09).
+- [x] T063 Replace auth computed Firebase CDN imports with same-version literal browser loads; replace db/testkit wildcard export maps with explicit compatible public interfaces and remove only exact exceptions actually remediated (FR-WM-01/04/07, C-02, CC-09); depends on T062.
+- [x] T064 Recheck manual workflow ownership, automatic boundary fixtures/graph, scoped001CC-09 artifacts, targeted behavior, type/spec/build/diff; record remaining global findings without weakening policy or claiming live acceptance (FR-WM-01/04, NFR-SEC-02, CC-09); depends on T063.
+
+- [x] T065 Freeze two-user live fixture plan, signup/revocation/retry/rollback inputs and per-scenario resumable applicability in `packages/testkit/src/live-fixtures.ts`, `specs/001-workspace-foundation/evidence/pre-v4-live-plan.md`; T046/T061 stay UNAVAILABLE until approved live run (FR-WM-01/04, NFR-SEC-01/02, CC-09); depends on T064.

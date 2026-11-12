@@ -1,0 +1,31 @@
+Initializing modules...
+- v1_foundation in ../../stacks/v1_foundation
+- v1_foundation.async_tasks in ../../modules/async_tasks
+- v1_foundation.code_execution in ../../modules/code_execution
+- v1_foundation.compute in ../../modules/compute
+- v1_foundation.database in ../../modules/database
+- v1_foundation.iam_identity in ../../modules/iam_identity
+- v1_foundation.project_services in ../../modules/project_services
+- v1_foundation.storage_secrets in ../../modules/storage_secrets
+
+Initializing provider plugins...
+- Reusing previous version of hashicorp/google-beta from the dependency lock file
+- Reusing previous version of hashicorp/google from the dependency lock file
+╷
+│ Error: Failed to resolve provider packages
+│ 
+│ Could not resolve provider hashicorp/google-beta: locked provider
+│ registry.opentofu.org/hashicorp/google-beta 6.50.0 does not match
+│ configured version constraint ~> 8.9, ~> 8.10; must use tofu init -upgrade
+│ to allow selection of new versions
+╵
+
+╷
+│ Error: Failed to resolve provider packages
+│ 
+│ Could not resolve provider hashicorp/google: locked provider
+│ registry.opentofu.org/hashicorp/google 6.50.0 does not match configured
+│ version constraint ~> 8.9, ~> 8.10; must use tofu init -upgrade to allow
+│ selection of new versions
+╵
+

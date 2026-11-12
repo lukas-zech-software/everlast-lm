@@ -1,0 +1,65 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-clock-20261111
+
+ ❯ |unit| packages/cloud/test/private-benchmark.test.ts (22 tests | 2 failed | 20 skipped) 10ms
+   × NFR-PERF-01 derives conservative measured offset -30000ms from bound four-timestamp receipt, never assumes symmetric latency 7ms
+   × NFR-PERF-01 derives conservative measured offset 30000ms from bound four-timestamp receipt, never assumes symmetric latency 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 derives conservative measured offset -30000ms from bound four-timestamp receipt, never assumes symmetric latency
+AssertionError: expected null to match object { offset_interval_ms: [ …(2) ], …(1) }
+
+- Expected:
+{
+  "calibration": {
+    "expires_at_ms": 160050,
+    "measured_at_ms": 100050,
+    "offset_ms": -30010,
+    "uncertainty_ms": 24,
+  },
+  "offset_interval_ms": [
+    -30034,
+    -29986,
+  ],
+}
+
++ Received:
+null
+
+ ❯ packages/cloud/test/private-benchmark.test.ts:209:87
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 derives conservative measured offset 30000ms from bound four-timestamp receipt, never assumes symmetric latency
+AssertionError: expected null to match object { offset_interval_ms: [ …(2) ], …(1) }
+
+- Expected:
+{
+  "calibration": {
+    "expires_at_ms": 160050,
+    "measured_at_ms": 100050,
+    "offset_ms": 29990,
+    "uncertainty_ms": 24,
+  },
+  "offset_interval_ms": [
+    29966,
+    30014,
+  ],
+}
+
++ Received:
+null
+
+ ❯ packages/cloud/test/private-benchmark.test.ts:209:87
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 20 skipped (22)
+   Start at  01:13:30
+   Duration  507ms (import 54%, transform 41%, tests 2%, worker 2%)
+

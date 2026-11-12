@@ -61,7 +61,8 @@
     "eval:v3-context": "node scripts/eval-v3-context.mjs",
     "check:architecture": "node scripts/check-architecture.mjs",
     "test:architecture": "node --test scripts/test/architecture*.test.mjs",
-    "check:architecture-artifacts": "node scripts/check-architecture-artifacts.mjs"
+    "check:architecture-artifacts": "node scripts/check-architecture-artifacts.mjs",
+    "benchmark:private": "node scripts/private-benchmark.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.51.0",
@@ -70,5 +71,8 @@
     "typescript-compiler": "npm:typescript@6.0.2",
     "vitest": "^5.1.0",
     "zod": "^4.6.7"
+  },
+  "dependencies": {
+    "@everlast/cloud": "workspace:*"
   }
 }

@@ -1,0 +1,79 @@
+$ node scripts/lint.mjs
+Checking spec integrity...
+✓ 201 Markdown files: all relative links and anchors resolve
+✓ 55 SRS requirement IDs: every one links to an FR card
+✓ 39 Spec Kit feature artifact(s): CC-01/CC-02 checks pass
+Checking architecture fixtures and boundaries...
+✔ C-01 historical unchanged features are not retroactively certified (6.100875ms)
+✔ C-01 resumed feature missing gate fails (1.916333ms)
+✔ C-01 a gate name alone is insufficient (1.797917ms)
+✔ C-01 populated inventory passes (1.664375ms)
+✔ C-01 source-only implementation cannot omit the feature plan (1.543167ms)
+✔ C-01..03 rejects cross-app value (36.756084ms)
+✔ C-01..03 rejects cross-app type (11.060875ms)
+✔ C-01..03 rejects cross-app re-export (10.843041ms)
+✔ C-01..03 rejects cross-app relative (11.817458ms)
+✔ C-01..03 rejects cross-app alias (10.902041ms)
+✔ C-01..03 rejects cross-app dynamic (9.818875ms)
+✔ C-01..03 rejects cross-app require (9.7405ms)
+✔ C-01..03 rejects cross-app import-type (10.472542ms)
+✔ C-01..03 rejects cross-app import-equals (10.167333ms)
+✔ C-01..03 rejects shared app (9.855375ms)
+✔ C-01..03 rejects contract runtime (10.720458ms)
+✔ C-01..03 rejects browser server (9.688167ms)
+✔ C-01..03 rejects production testkit (10.817ms)
+✔ C-01..03 rejects deep import (9.976542ms)
+✔ C-01..03 rejects relative bypass (9.820958ms)
+✔ C-01..03 rejects missing local (10.368958ms)
+✔ C-01..03 rejects missing workspace (10.784791ms)
+✔ C-01..03 rejects computed (9.572291ms)
+✔ C-01..03 allows public adapters in composition roots, local modules, and public contracts (11.789875ms)
+✔ C-01..03 rejects wildcard export and package manifest cross-app dependency (14.161667ms)
+✔ C-01..03 rejects package cycles (13.518666ms)
+✔ C-01..03 exact exception passes; expansion, duplication, expiry and stale debt fail (31.051792ms)
+✔ C-01..03 malformed and duplicate exceptions fail closed (15.530709ms)
+✔ C-01..03 rejects widening wildcard exports by adding new source modules (14.418958ms)
+✔ C-01..03 PR policy cannot add or extend exceptions (18.097209ms)
+✔ C-01..03 allows external test runners in contract tests and testkit for eval tooling (11.514667ms)
+✔ C-01..03 completed removal tasks invalidate their exceptions (13.187917ms)
+✔ C-01..03 rejects imports into skipped generated directories (11.542208ms)
+✔ C-01..03 does not confuse installed external types with repository code (11.3665ms)
+✔ C-01..03 wildcard exceptions do not block unrelated new tests (13.163084ms)
+✔ C-01..03 a tsconfig alias cannot disguise worker code as contracts (10.645292ms)
+✔ C-01..03 renamed createRequire loaders cannot bypass application boundaries (11.528667ms)
+✔ C-01..03 CLI fails with importer, target and rule diagnostics (211.835125ms)
+✔ C-01..03 CLI accepts allowed imports and rejects invalid arguments (376.972459ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1204.512458
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: no-cross-app
+apps/api/test/guide-admission.integration.test.ts:3 → apps/worker/src/studio/reports/deterministic-model.ts: public-entrypoint
+Architecture: 2 finding(s); 186 exact legacy exception(s).
+node:internal/errors:999
+  const err = new Error(message);
+              ^
+
+Error: Command failed: /private/tmp/everlast-pre-v4-001-cc09-20261109/node_modules/.pnpm/node@runtime+26.13.0/node_modules/node/bin/node scripts/check-architecture.mjs --base-ref origin/main
+    at genericNodeError (node:internal/errors:999:15)
+    at wrappedFn (node:internal/errors:544:14)
+    at checkExecSyncError (node:child_process:990:11)
+    at execFileSync (node:child_process:1026:15)
+    at file:///private/tmp/everlast-pre-v4-001-cc09-20261109/scripts/lint.mjs:17:1
+    at ModuleJob.run (node:internal/modules/esm/module_job:569:25)
+    at async node:internal/modules/esm/loader:650:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 92645,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v26.13.0
+[ELIFECYCLE] Command failed with exit code 1.

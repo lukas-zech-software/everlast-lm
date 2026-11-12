@@ -1,0 +1,24 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+ ❯ |unit| packages/evals/test/v3-scale-runner.test.ts (10 tests | 1 failed) 103ms
+   × C-02 NFR-EVAL-04 rejects changed scoped revisions even with matching source IDs and fixture label 5ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/evals/test/v3-scale-runner.test.ts > C-02 NFR-EVAL-04 rejects changed scoped revisions even with matching source IDs and fixture label
+AssertionError: expected 'PASS' to be 'UNAVAILABLE' // Object.is equality
+
+Expected: "UNAVAILABLE"
+Received: "PASS"
+
+ ❯ packages/evals/test/v3-scale-runner.test.ts:79:24
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  15:15:09
+   Duration  268ms (tests 53%, import 29%, transform 17%, worker 2%)

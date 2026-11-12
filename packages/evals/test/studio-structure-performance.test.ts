@@ -47,3 +47,16 @@ describe("[011-studio-mindmaps-data-tables] T016: Mindmap submission->Completed 
     expect(() => aggregateMindmapLatencyCohort(samples.slice(0, 19))).toThrow(/20/);
   });
 });
+
+
+describe("[011-studio-mindmaps-data-tables] T057: declared latency evidence (FR-ST-08, SC-002)", () => {
+  const cohort = (): MindmapLatencySample[] => Array.from({ length: 20 }, (_, i) => ({ sample_id: `run-${i}`, stratum: "warm", status: "Completed", submitted_at_ms: 1000, completed_at_ms: 2000, duration_ms: 1000, node_count: 24 }));
+  it("rejects duplicate attempt identities rather than counting one observation twenty times", () => {
+    const samples = cohort(); samples[1]!.sample_id = samples[0]!.sample_id;
+    expect(() => aggregateMindmapLatencyCohort(samples)).toThrow(/unique|duplicate/i);
+  });
+  it("rejects a small declared duration inconsistent with the submission-to-Completed clocks", () => {
+    const samples = cohort(); samples[0]!.completed_at_ms = 31_000;
+    expect(() => aggregateMindmapLatencyCohort(samples)).toThrow(/clock|duration|timestamp/i);
+  });
+});

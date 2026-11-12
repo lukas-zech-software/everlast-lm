@@ -366,3 +366,16 @@ describe("bounded confirmed sandbox deletion", () => {
     await assertion;
   });
 });
+
+it('NFR-PERF-01 FR-GC-08 observes create invocation and execute settlement before cleanup, including rejected execution', async () => {
+  const { runAttempt, SandboxError } = await import('../src/chat/execution/runtime.ts');
+  for (const rejects of [false, true]) {
+    const events:string[]=[];
+    const result=await runAttempt({attemptId:randomUUID(),code:'pass',files:[],
+      runtime:{id:'local-boundary-double',create:async()=>{events.push('create');return {name:'private'};},execute:async()=>{events.push('execute');if(rejects)throw new SandboxError('PythonException','diagnostic');return {stdout:'',stderr:'',files:[]};},destroy:async()=>{events.push('destroy');}},
+      onBoundary:(event:{phase:string;at:string})=>{expect(Number.isFinite(Date.parse(event.at))).toBe(true);events.push(event.phase);},
+    } as Parameters<typeof runAttempt>[0]);
+    expect(events).toEqual(['sandbox_created_at','create','execute','execution_completed_at','destroy']);
+    expect(result.kind).toBe('failed'); // invalid output / explicit provider failure are retained.
+  }
+});

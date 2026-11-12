@@ -6,14 +6,18 @@ export interface FinalReceipt {
  answer:string;
  cited_chunk_ids:string[];
 }
-export async function collectFreshFinal(response:Response,submitted:number,clock:()=>number=()=>performance.now()):Promise<FinalReceipt>{
+export async function collectFreshFinal(response:Response,submitted:number,clock:()=>number=()=>performance.now(),options:{timeoutMs?:number}={}):Promise<FinalReceipt>{
  const empty=(terminal_status:FinalReceipt['terminal_status']):FinalReceipt=>({terminal_status,client_first_validated_answer_ms:null,latency_ms:null,answer:'',cited_chunk_ids:[]});
  if(!response.ok || !response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body) return empty('error');
  const reader=response.body.getReader(),decoder=new TextDecoder('utf-8',{fatal:true});
  let buffer='',bytes=0;
+ const timeoutMs=options.timeoutMs??30_000;
+ if(!Number.isFinite(timeoutMs)||timeoutMs<=0) throw new Error('Invalid transport timeout');
+ let timer:ReturnType<typeof setTimeout>|undefined;
+ const deadline=new Promise<never>((_,reject)=>{timer=setTimeout(()=>{reject(new Error('Benchmark SSE timeout'));void reader.cancel().catch(()=>undefined);},timeoutMs);});
  try {
   for(;;){
-   const {value,done}=await reader.read();
+   const {value,done}=await Promise.race([reader.read(),deadline]);
    if(done) break;
    bytes+=value.byteLength;
    if(bytes>2000000) throw new Error('Benchmark SSE exceeds transport limit');
@@ -43,5 +47,5 @@ export async function collectFreshFinal(response:Response,submitted:number,clock
   }
   decoder.decode();
   return empty('missing');
- } finally {await reader.cancel().catch(()=>undefined);reader.releaseLock();}
+ } finally {clearTimeout(timer);void reader.cancel().catch(()=>undefined);reader.releaseLock();}
 }

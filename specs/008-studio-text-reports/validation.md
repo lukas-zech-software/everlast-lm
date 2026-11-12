@@ -124,3 +124,177 @@ now take 2–5 s each; the extract map step (up to ~10 s) is the larger share.
 - **Dev smoke (image `61542fc`)**: Gate #3 fixture on dev 4/4 Completed. A Timeline over a 195-word status memo without named people failed 4/4 with `GenerationError` (reproduced locally against Vertex: `The report has an unknown section.`).
 - **After T070–T071** (Vertex `europe-west4:gemini-2.5-flash`, keyless ADC): the memo Timeline refuses 3/3 with `InsufficientEvidence` (no supported `cast_of_characters`, FR-015); memo Briefing Doc, FAQ and Study Guide complete and validate. Gate v2.0 #3 PASS: validity 100 % (4/4), citation precision 1.000, leakage 0, P95 17.6 s.
 
+
+
+## Retained pre-V4 Guide admission —2026-11-07
+
+Traceability: FR-SI-02, FR-ST-10/11, NFR-SEC-02, NFR-EVAL-01..04, T061/T072–T076.
+
+- Red: mounted API started5held Guides instead of2. Primary polling Red charged1
+  start instead of0. Changed-preference Red left fr-FR ungenerated after en-US
+  because the old seen dispatcher skipped it; durable primary identity fixes this.
+  One initial test invocation used a stale local port and failed setup; it was not
+  counted as requirement Red. Actual db:test port54329 was then used.
+- Green:6focusedfiles/51tests PASS (DB ledger, configuration, mounted API, existing
+  Studio runtime/restart and Vertex report adapter). Typecheck/lint/spec checks PASS.
+  DB/API tests use real disposable PostgreSQL; model/provider calls are test doubles.
+- Deterministic eval: citation160/160, leakage0, labelled report/structure doubles
+  PASS; judged suites remain UNAVAILABLE/GatePending. The deterministic run preceded
+  the final primary-language identity refinement; that change affects Guide admission
+  only, not chat/model/citation evaluation. Its affected mounted API regression was
+  rerun Green afterward.
+- T061 admission implementation is complete locally; newT076retains final candidate
+  live acceptance and historical report504/75%failure. No report model/pipeline or
+  timeout was changed without a demonstrated cause. Existing OCR processor is a
+  configuration prerequisite, not new empirical acceptance.
+- Migration0012adds ledger and primary-language identity. Deploy migrations before
+  updatedAPI. Terminal slot-release DB errors fail closed until single-instance
+  restart recovery. Retained in-window failures remain charged through restart.
+- Checklist markers unchanged: requirements16/16, report-gates22/22checked.
+- No paid calls, cloud apply, deployment, push/PR/merge, issue closure or external
+  messages. See quickstart for012merge boundaries and live prerequisites.
+
+Sanitized local logs: [evidence](evidence/pre-v4-20261107/focused-green.txt).
+
+
+## Resumed boundary verification — 2026-11-09 (CC-09)
+
+Reviewer: Package 008 implementation agent. Base `3d02a51`; final diff is the
+API-local Guide suggestion fixture plus 008 spec/plan/tasks/analysis/evidence.
+No production file, manifest, public export, checker or exception changes.
+
+| Check | Result | Evidence / applicability |
+| --- | --- | --- |
+| Initial graph `node scripts/check-architecture.mjs --base-ref origin/main` | FAIL: 2 findings | [Before](evidence/cc09-20261109/graph-before.txt): one worker-model import violates no-cross-app and public-entrypoint. Initial dependency-install failure was setup-only, not governance Red; this captured run follows install. |
+| Initial global artifacts | FAIL: 8 findings | [Before](evidence/cc09-20261109/artifacts-before.txt), 008 and 009. |
+| Pre-edit behavior characterization | PASS: 6 files, 51 tests | [Characterization](evidence/cc09-20261109/characterization.txt), real disposable PostgreSQL and labelled model doubles on Vitest 5.1.0. |
+| Final graph against origin/main | PASS: 0 findings, 186 unchanged exact exceptions | [Graph](evidence/cc09-20261109/graph-after.txt). No policy expansion, new import bypass or helper re-export. |
+| Scoped 008 artifact check | PASS: 0 findings | [Scoped check](evidence/cc09-20261109/artifacts-scoped.txt), explicit spec/plan/tasks plus the changed test path. |
+| Final global artifacts against origin/main | FAIL: 4 findings, 009 only | [Global check](evidence/cc09-20261109/artifacts-global-after.txt). Do not report full lint/CI green before 009 is reconciled. |
+| Final focused Guide/config/DB/runtime/restart/report-adapter behavior | PASS: 6 files, 51 tests | [Focused run](evidence/cc09-20261109/focused-after.txt), same assertions before/after; no artificial product Red. |
+| Typecheck | PASS | [Typecheck](evidence/cc09-20261109/typecheck.txt), unchanged production code and current dependencies. |
+| Spec integrity / whitespace | PASS | [Spec check](evidence/cc09-20261109/spec-integrity.txt); final git diff --check. |
+| Manual CC-09 ownership/diff review | PASS for this slice | Plan inventory records actual authorization, transaction, quota, dispatch, cancellation and publication owners, unchanged D16 placement and exact [legacy records](evidence/cc09-20261109/legacy-exceptions.json). Not certification that legacy runtime orchestration is pure composition. |
+| Checker fixtures, build, deterministic evaluation | Reused, not rerun here | Inherited 001 [39 fixture checks](../001-workspace-foundation/evidence/cc09-20261109/architecture-fixtures.log), [build](../001-workspace-foundation/evidence/cc09-20261109/build.log) and [deterministic report](../001-workspace-foundation/evidence/cc09-20261109/deterministic.log): citation160/160, leakage0. No checker/build/product/model/schema/config implementation changes invalidate these results; the affected fixture is verified directly above. Doubles remain labelled. |
+
+Exact focused command (using the local-only connection returned by db:test:up):
+
+```sh
+pnpm exec vitest run apps/api/test/guide-admission.integration.test.ts apps/api/test/guide-admission-config.test.ts packages/db/test/guide-admission.integration.test.ts apps/api/test/studio-runtime.integration.test.ts apps/api/test/v2-restart.integration.test.ts apps/worker/test/studio-vertex-report-model.test.ts
+```
+
+The local double returns three valid public-contract suggestions. A mistaken call
+can therefore still produce SuggestionsReady and violate the existing unavailable
+assertion; a throwing stub was intentionally avoided. It has no extract/compose
+implementation, worker import or hidden helper export. Existing helper worker usage
+remains byte-for-byte unchanged.
+
+Both reviewer checklists are unchanged (16/16 and 22/22 checked). Optional Git
+before/after analyze and implement hooks were dispatched and respected disabled
+auto-commit settings; final reviewed checkpoint is manual. No cloud, paid calls,
+new resources, deployments, GitHub writes or issue closures occurred. Report504
+root cause remains unproven; final live T076 and Gate v3 acceptance remain pending.
+
+## Task 008 local deadline checkpoint — 2026-11-11 (FR-ST-10/11, C-02/C-03, NFR-EVAL-02/04)
+
+Prepared base `d58b8d1739dfca167c4a89fc82e290cc2b518f94`.
+The unchanged [historical judged log](../006-source-guide-chat-control/evidence/pre-v4-20261107/judged-run.txt)
+(SHA-256 `05c63e3b2a83335b28c7ef1b4d399c9fb9fdd896251363b3a8f92cb3f66f67ff`)
+records 3/4 validity, three 504s, a failed Study Guide and P95 64,536.1 ms.
+The associated [judged JSON](../006-source-guide-chat-control/evidence/pre-v4-20261107/judged-eval-report-v1.json)
+(SHA-256 `ea24b8c3b9f968e056666bc144a7543074db70ff73a401d3605c7d7a3ab84121`)
+also preserves the failed run and its independent OCR preflight gap.
+
+The checked-in worker regression injects a provider 504 after 20 seconds of
+virtual time during the Study Guide's topic-review compose. [Red](evidence/fanout-20261111/deadline-red.log)
+observed retries starting at 21,000 and 44,000 ms, with terminal failure at
+64,000 ms. [Green](evidence/fanout-20261111/deadline-green.log) observes one
+attempt ending at 20,000 ms and the same terminal failure with null payload.
+Immediate 429 and 504 responses still retry within the attempt window. Diagnostics
+log the fixed phase, template, section group, attempt, elapsed milliseconds,
+status and retry decision. They carry no prompt, source, response or cache handle.
+
+The [four-template replay](evidence/fanout-20261111/frozen-gate-replay.json) ran
+the unchanged Gate v2.0 #3 corpus and population through its Studio runner.
+A local SDK double injected the same 504 only for the Study Guide topic review.
+The other three templates used the deterministic report model. Validity stays
+3/4 under the injected fault, citation precision stays 1.0, leakage stays zero
+and no partial Study Guide is published. The virtual duration confirms the local
+retry mechanism. The original log cannot identify the failed model phase or prove
+that retry amplification was the only live cause. Report retry starts are bounded
+per operation. A retry that starts within the window still has the existing
+20-second SDK deadline, and the overall live P95 remains to be measured.
+
+Manual CC-09 review covers the actual report adapter and worker-test diff.
+The existing worker-local adapter owns SDK transport and shape checks. The report
+adapter owns retry dispatch and grounding validation. The runner still owns
+authorization, captured revision checks and terminal publication. No dependency
+edge, shared startup path, migration record, Guide admission, or gate threshold
+changed. Architecture fixtures passed 39/39. The graph and changed-feature
+artifact checks returned zero findings with 184 exact legacy exceptions. Typecheck,
+spec integrity and diff check passed. The focused report, runtime, restart and
+Guide-admission suites passed 59 tests across ten files with a disposable
+task-008 PostgreSQL 16 + pgvector instance. The deterministic eval exited 0 with
+160/160 citation IDs, zero leakage and valid output from all four templates.
+This was local worktree evidence using deterministic models.
+
+T083 needs the 003/006 public route and adapter before production wiring. Under
+D23, coordinate the Flash model, EU location, version, token/output bounds and
+qualification binding with 012. Task 004 owns the live evaluator model label.
+For upstream integration, record the retry dispatch limit and D23 report/native
+cache route in the package 2.4 FR card. The existing FR-ST-10 acceptance
+population, validity, precision, leakage and latency thresholds continue to apply.
+T076 remains open for the approved final-candidate run.
+
+## Local D23 integration checkpoint — 2026-11-11 (FR-ST-10/11, NFR-PERF-01, NFR-SEC-01)
+
+Integration base `7dc263f91cf9e6cceac35065556e8bb3301b918c` includes the 003
+role resolver and 006 structured transport. The 008 retry delta is
+`753c017b2ff664ff896b97d4406a22254dfcade8` on this branch. The public
+`StructuredGenerator` now carries extract and compose through the approved
+`gemini-3.8-flash` enterprise endpoint in `eu` with LOW thinking and the existing
+20-second request timeout. Native `countTokens` and cache lifecycle operations use
+the same model, project and regional endpoint, with their existing 30-second
+transport timeout. Native cache creation rejects a mismatched model request.
+The 8,192-output-token reserve, 1,048,576-token context cap and existing cache
+TTL, expiry validation and cleanup are exercised by SDK doubles. Legacy report
+model/version and Vertex embedding-region settings cannot redirect this adapter.
+
+[Red](evidence/fanout-20261111/d23-red.log) observed three expected failures on
+legacy region, model and thinking. [Green](evidence/fanout-20261111/d23-green.log)
+passed the 23 adapter and cache tests. With a dedicated disposable PostgreSQL
+instance, the report, Guide-admission, restart, runtime and report-gate suites
+passed all 59 tests in ten files. A second batch of Guide structured transport
+and Studio context tests passed all 22 tests in five files. Deterministic eval
+exited 0 with 4/4 valid reports, precision 1.0, leakage 0 and 7.5 ms local P95.
+The same run reported 160/160 citation IDs and zero chat leakage.
+`pnpm lint` passed spec integrity, all 39 architecture fixtures, graph and
+changed-feature checks, and TypeScript. The exact 006-base comparison returned
+zero graph or artifact findings and retained all 184 approved exception records.
+
+Manual CC-09 review confirms that the report adapter now consumes existing public
+cloud exports and owns retry and output/evidence validation. The cloud adapter
+owns SDK transport, the context adapter owns cache calls, and the Studio runner
+keeps access, revision and publication ownership. The diff has no API/worker
+import additions, shared wiring changes, policy edits or SQL changes.
+Guide admission and report publication fences passed their regressions.
+
+Coordinator integration inputs:
+
+- Task 004 should set the live report evaluator's `modelId` from `model.id` in
+  `packages/evals/src/studio-gate.ts`. Its current derivation uses legacy
+  `VERTEX_LOCATION` and `REPORT_MODEL` environment values.
+- Task 012 should use `resolveEnterpriseGeminiConfig("flash", env)` for report
+  benchmark tokenizer/cache qualification in
+  `apps/api/src/observability/benchmark.ts`. Bind the candidate model/version
+  `gemini-3.8-flash`, location `eu`, tokenizer identity
+  `vertex-countTokens:gemini-3.8-flash`, context cap 1,048,576 and output reserve
+  8,192 to the same serving boot and reviewed fixture profile.
+- Apply the [FR card flow-back patch](evidence/fanout-20261111/fr-card-flow-back.patch)
+  in the serialized slot. `git apply --check` passes on this base.
+
+T083 has local integration evidence. Provider entitlement, native cache
+compatibility and measured latency on the frozen cohort remain unverified.
+T076 requires the approved final-candidate live four-template and common judged
+runs, including the configured existing EU OCR processor. Historical 3/4 validity
+remains a recorded failure. The original files and hashes are unchanged.

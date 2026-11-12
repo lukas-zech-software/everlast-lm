@@ -1,0 +1,2 @@
+PASS: seven named runtime entrypoints resolve; two implementation escapes rejected.
+PASS: 107 exact exceptions removed; every one of the 186 retained JSON records equals its abe17ff predecessor.

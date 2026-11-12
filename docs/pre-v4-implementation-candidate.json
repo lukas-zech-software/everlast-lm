@@ -1,0 +1,347 @@
+{
+  "record_type": "implementation_checkpoint_not_release_acceptance",
+  "date": "2026-11-11",
+  "traceability": [
+    "CC-01",
+    "CC-06",
+    "Gate v3.0",
+    "NFR-PERF-01",
+    "NFR-EVAL-01..04"
+  ],
+  "coordinator_branch": "codex/pre-v4-resume-after-189-20261111",
+  "integrated_checkpoint": "f50782bb15444e93c5dffdf77cb61aac467c5098",
+  "release_result": "GatePending",
+  "v4_implementation_allowed": false,
+  "recovery_snapshot": "/private/tmp/everlast-pre-v4-recovery-20261107-implementation/",
+  "packages": [
+    {
+      "feature": "006-source-guide-chat-control",
+      "branch": "codex/pre-v4-impl-006-20261107",
+      "checkpoint": "0e77ebb",
+      "status": "local_verified",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-006-handoff-20261107.md",
+      "live_acceptance": "Historical Guide/length evidence retained; full judged failure retained, no new paid rerun.",
+      "initial_20261107_checks": {
+        "focused_tests": 75,
+        "final_judge_regressions": 4,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "deterministic_citation": "160/160",
+        "leakage": 0
+      },
+      "cc09_20261109": {
+        "checkpoint": "3d02a51",
+        "status": "scoped_pass",
+        "focused_tests": 66,
+        "change_scope": "docs/evidence only"
+      }
+    },
+    {
+      "feature": "001-workspace-foundation",
+      "branch": "codex/pre-v4-impl-001-20261107",
+      "checkpoint": "be90304a18259916c442b662fed9b0e26a2d0d79",
+      "status": "local_verified_live_pending",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-001-handoff-20261107.md",
+      "open": [
+        "T046 real identity/storage proof and resumable applicability",
+        "T061 signup policy apply/live verification"
+      ],
+      "live_acceptance": "UNAVAILABLE: approved disposable fixtures missing; no policy applied.",
+      "initial_20261107_checks": {
+        "focused_tests": 22,
+        "provider_mock_tests": 2,
+        "live_tests_skipped": 2,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "tofu_validate": "PASS"
+      },
+      "cc09_20261109": {
+        "checkpoint": "935eabe",
+        "status": "scoped_pass",
+        "targeted_tests": 31,
+        "architecture_fixtures": 39,
+        "live_tests": "SKIPPED; acceptance remains open"
+      }
+    },
+    {
+      "feature": "008-studio-text-reports",
+      "branch": "codex/pre-v4-impl-008-20261107",
+      "status": "local_verified_live_pending",
+      "checkpoint": "eb25d667797abb8fe961bc26e17913b860a3b7ac",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-008-handoff-20261107.md",
+      "open": [
+        "T076 live report/common judged acceptance; existing report504unresolved"
+      ],
+      "initial_20261107_checks": {
+        "focused_tests": 51,
+        "lint": "PASS",
+        "typecheck": "PASS",
+        "spec_integrity": "PASS",
+        "deterministic_citation": "160/160",
+        "leakage": 0
+      },
+      "cc09_20261109": {
+        "checkpoint": "fb75e72",
+        "status": "scoped_pass",
+        "focused_tests_before_and_after": 51,
+        "change_scope": "API-owned suggestion fixture; no production change"
+      }
+    },
+    {
+      "feature": "009-multimodal-ingestion-sync",
+      "branch": "codex/pre-v4-impl-009-20261107",
+      "status": "local_recovery_verified_live_pending",
+      "checkpoint": "f3a9e388a9ef5443795306e964dd1b4ee28577b4",
+      "handoff": "/private/tmp/everlast-pre-v4-impl-009-handoff-20261107.md",
+      "open": [
+        "T049/T050 live audio/timestamp/common judged acceptance"
+      ],
+      "initial_20261107_checks": {
+        "audio_tests": 10,
+        "typecheck": "PASS",
+        "lint": "PASS",
+        "spec_integrity": "PASS",
+        "diff": "PASS",
+        "unconfigured_live_cli": "UNAVAILABLE exit2"
+      },
+      "cc09_20261109": {
+        "checkpoint": "62b2974",
+        "status": "PASS",
+        "focused_tests": 33,
+        "infrastructure_mock_runs": 7,
+        "provider_version": "8.10.0",
+        "render_build": "PASS",
+        "network_disabled_render_smoke": "PASS"
+      },
+      "current_handoff": "/private/tmp/everlast-pre-v4-009-resume-handoff-20261109.md"
+    },
+    {
+      "feature": "010-code-execution-sandbox",
+      "status": "local_implementation_verified_producer_and_live_pending",
+      "branch": "codex/pre-v4-010-complete-20261110",
+      "base": "62b2974",
+      "checkpoint": "f2d82bafc4e054c3cb00faa9993ac9741e440d1e",
+      "current_handoff": "/private/tmp/everlast-pre-v4-010-complete-handoff-20261110.md",
+      "checks_20261109": {
+        "validator_tests": 14,
+        "red_failures_before_fix": 7,
+        "typecheck": "PASS",
+        "lint": "PASS",
+        "architecture_graph_findings": 0,
+        "architecture_artifact_findings": 0,
+        "approved_records_unchanged": 186,
+        "spec_integrity": "PASS"
+      },
+      "open": [
+        "T064 trusted production private producer/012 qualification",
+        "T052 live security/four cohorts/common judged acceptance"
+      ],
+      "checks_20261110": {
+        "collector_tests": 35,
+        "api_db_regressions": 23,
+        "parent_mock_plans": 7,
+        "module_policy_tests": 4,
+        "typecheck": "PASS",
+        "lint": "PASS",
+        "spec_integrity": "PASS",
+        "graph_findings": 0,
+        "artifact_findings": 0
+      }
+    },
+    {
+      "feature": "011-studio-mindmaps-data-tables",
+      "branch": "codex/pre-v4-011-20261110",
+      "checkpoint": "d5697e8b30812e7280a11b7c52954564f88177a5",
+      "current_handoff": "/private/tmp/everlast-pre-v4-011-handoff-20261110.md",
+      "status": "local_implementation_verified_acceptance_failed_or_pending",
+      "checks": {
+        "numeric_export": "PASS including independent CSV/OOXML inspection",
+        "unit_regressions": "PASS",
+        "postgresql_tests": 10,
+        "chromium_journeys": 4,
+        "lint_type_spec": "PASS",
+        "architecture_findings": 0,
+        "approved_records_unchanged": 185
+      },
+      "open": [
+        "T061 viewer frame gate FAIL and matching live generation/common judged acceptance pending",
+        "Issue153 plain trailing-zero decimals 1.20/-12.40 remain text; owning-package numeric/format fidelity follow-up required.",
+        "Ordinary configured API startup leaves mindmap and table model ports unset; implement planned enterprise Flash adapters/wiring."
+      ],
+      "viewer": {
+        "historical_p95_ms": 16.734000000000037,
+        "corrected_p95_ms": 16.733999999999924,
+        "threshold_ms": 16,
+        "result": "FAIL",
+        "release_eligible": false
+      }
+    },
+    {
+      "feature": "012-long-context-latency-scaling",
+      "branch": "codex/pre-v4-012-20261110",
+      "checkpoint": "57fcfdcb67f988665d2490a3f911a8ff7bb009ea",
+      "current_handoff": "/private/tmp/everlast-pre-v4-012-handoff-20261110.md",
+      "status": "clock_bootstrap_locally_verified_collector_continuity_and_live_gates_pending",
+      "checks": {
+        "unit_tests": 505,
+        "postgresql_regressions": 21,
+        "stream_report_regressions": 4,
+        "citation": "160/160",
+        "leakage": 0,
+        "architecture_findings": 0,
+        "approved_records_unchanged": 185,
+        "node26_local_image_smoke": "PASS linux/arm64,network disabled",
+        "ordinary_api_context_stress": "PASS local doubles;release UNAVAILABLE",
+        "ordinary_http_requests": 60
+      },
+      "local_image": "sha256:56b30d24965ae2c249eb7dba25f143133812c580e90da4011b4906bcd370e11b",
+      "open": [
+        "T075 collector continuity across processes and full campaign validity window",
+        "T068 target verification; T046/T047/T048/T053/T060/T064 and 010 T052/T064 live acceptance"
+      ],
+      "qualification_checkpoint": {
+        "code": "01383115e522090550518e31b7b367a09e7ed97b",
+        "handoff_successor": "e6642640b7faf18c416becf5e48dc79448aadfa6",
+        "branch": "codex/pre-v4-012-qualification-20261110c",
+        "status": "localprivatefilepathverified_targetCloudRunbridgeMISSINGCODE",
+        "handoff": "specs/012-long-context-latency-scaling/qualification-handoff-20261110c.md",
+        "checks": {
+          "focused_unit": 45,
+          "postgresql_regressions": 28,
+          "actual_server_file_tests": 12,
+          "note": "PG counts overlap; not additive",
+          "citation": "160/160",
+          "leakage": 0,
+          "invalid_drafts": 60,
+          "invalid_drafts_published": 0,
+          "architecture_findings": 0,
+          "approved_records_unchanged": 185,
+          "lint_type_spec": "PASS"
+        }
+      },
+      "bridge_checkpoint": {
+        "code": "2a4c8caef1e55e993e3c7a03100707f3f25cd2f7",
+        "handoff_tip": "663f483b40d329fe7d039b3918ece3ed9c3823e6",
+        "handoff": "specs/012-long-context-latency-scaling/bridge-handoff-20261111.md",
+        "checks": {
+          "core_readiness": 37,
+          "full_pg_server": 13,
+          "final_targeted_server": 2,
+          "note": "Counts overlap; local doubles are not release acceptance",
+          "lint_type_architecture": "PASS",
+          "approved_records": 184,
+          "citation": "160/160",
+          "leakage": 0,
+          "iac_validate": "PASS dev/staging/prod"
+        }
+      },
+      "clock_checkpoint": {
+        "code": "9f2ba939429f8a35370d537f827159f3fd1facb2",
+        "tip": "1edd46c089b28d863f4c9b2666801063ccf28946",
+        "handoff": "specs/012-long-context-latency-scaling/clock-handoff-20261111.md",
+        "tests": "22/22; lint/types/spec,39 architecture fixtures,graph/artifacts0;184 exceptions unchanged",
+        "status": "pure interval arithmetic/contracts only; acquisition/authentication/server/CLI/install missing"
+      },
+      "clock_completion": {
+        "commit": "44a81071269cd38bb53c33d028e119224b2dfb92",
+        "handoff": "specs/012-long-context-latency-scaling/clock-completion-handoff-20261111.md",
+        "focused_tests": "89/89",
+        "pg_api": "14/14; final change 1 targeted",
+        "architecture": "39 fixtures; graph 0; artifacts 0; 184 legacy records",
+        "tofu": "dev/staging/prod validate",
+        "open": "T075 continuity and full campaign duration; real Cloud Run/GCS calibration and live gates UNAVAILABLE"
+      }
+    }
+  ],
+  "cloud_writes": false,
+  "paid_runs": false,
+  "github_writes": true,
+  "usage_policy": "User corrected weeklycutoff to2%remaining;five-hourcutoff remains10%. Stopnewimplementation/tests/checks atfive_hour<=10 OR weekly<=2; finishrunningchecks andcleancheckpoint/handoff; noresetcredits.",
+  "active_package_agents": [],
+  "refreshed_main": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b",
+  "global_architecture_status": {
+    "dependency_findings": 0,
+    "artifact_findings": 0,
+    "approved_records_unchanged": 184,
+    "policy_expanded": false,
+    "scope": "changed features and actual graph; historical untouched features not certified"
+  },
+  "stop_reason": null,
+  "goal_complete": false,
+  "published_changes": [
+    {
+      "pr": 174,
+      "status": "merged",
+      "sha": "1957b3aa99c8c7faeb085b7e48fb6f369ea49f1f",
+      "authorization": "Explicit user approval after auto-review rejection; head/checks revalidated"
+    },
+    {
+      "pr": 188,
+      "status": "merged",
+      "sha": "3f4d7fdcf25f3e535c51f1696c5aa880a0f85e86",
+      "authorization": "Separate explicit user approval; unchanged head and green CI/spec revalidated; normal expected-head squash merge."
+    },
+    {
+      "pr": 189,
+      "status": "merged",
+      "head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
+      "scope": "four-file D23 governance only",
+      "merge_authorization": "Explicit user approval of PR189; exact head and green CI/spec revalidated; expected-head squash merge verified.",
+      "sha": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b"
+    }
+  ],
+  "next_package": "Parallel branch handoff; see docs/pre-v4-fanout-protocol.md.",
+  "usage_observation": {
+    "five_hour_remaining_percent": 50,
+    "weekly_remaining_percent": 77,
+    "note": "At completion of 012 clock checkpoint. Recheck before resuming."
+  },
+  "cloud_observation": "docs/pre-v4-cloud-observation-20261110.json",
+  "current_handoff": "docs/pre-v4-implementation-handoff-2026-11-11.md",
+  "cutoff_audit_in_current_resumed_run": 1,
+  "usage_cutoff_remaining_percent": {
+    "five_hour": 10,
+    "weekly": 2
+  },
+  "qualification_checkpoint": {
+    "code": "01383115e522090550518e31b7b367a09e7ed97b",
+    "handoff_successor": "e6642640b7faf18c416becf5e48dc79448aadfa6",
+    "branch": "codex/pre-v4-012-qualification-20261110c",
+    "status": "localprivatefilepathverified_targetCloudRunbridgeMISSINGCODE",
+    "handoff": "specs/012-long-context-latency-scaling/qualification-handoff-20261110c.md",
+    "checks": {
+      "focused_unit": 45,
+      "postgresql_regressions": 28,
+      "actual_server_file_tests": 12,
+      "note": "PG counts overlap; not additive",
+      "citation": "160/160",
+      "leakage": 0,
+      "invalid_drafts": 60,
+      "invalid_drafts_published": 0,
+      "architecture_findings": 0,
+      "approved_records_unchanged": 185,
+      "lint_type_spec": "PASS"
+    }
+  },
+  "architecture_remediation_remaining": {
+    "records": 184,
+    "004T035": 97,
+    "004T036": 87,
+    "note": "One actual cloud wildcard retired by 012 bridge; route remaining remediation through owning packages; no widened exceptions."
+  },
+  "model_region_decision": {
+    "status": "owner_approved_D23_merged_PR189_runtime_migration_pending",
+    "approval": "Approve Gemini EU exception,2026-11-11",
+    "record": "docs/pre-v4-model-region-proposal-20261111.md",
+    "scope": "enterpriseGeminiinference/tokenizer/cache eu;otherapprovedregionsunchanged;no global/DeveloperAPI fallback",
+    "cloud_or_paid_execution_approved": false,
+    "authority_checkpoint": "36185dd",
+    "region_map": "docs/gemini-model-region-map.md",
+    "pull_request": "https://github.com/lukas-zech-software/everlast-lm/pull/189",
+    "pr_head": "30f0be27f0946db3b6c154852bcc2cc6ebfac262",
+    "runtime_migration": "pending; no provider calls or cloud changes authorized",
+    "main_merge": "1e5c361f7c85ad59fedc8ee2ffff33ad7269823b"
+  }
+}

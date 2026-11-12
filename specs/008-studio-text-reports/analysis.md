@@ -48,3 +48,98 @@ After fixes: **0 open findings**.
 ## Metrics
 
 Requirements: 18 FR, 6 SC; tasks: 35; coverage 100 %; ambiguity 0; duplication 0; critical issues 0.
+
+
+## Pre-V4 admission analysis — 2026-11-07 (CC-01..CC-08)
+
+Focused consistency review of on-demand Guide admission (FR-SI-02/FR-ST-11,
+NFR-SEC-02) and retained report acceptance (FR-ST-10, NFR-EVAL-01..04):
+
+| Obligation | Coverage | Disposition |
+| --- | --- | --- |
+| Atomic2concurrent/20rolling-hour defaults, configurable positive integers | T072–T074; DB/API/config tests | Implemented, locally verified |
+| Dedup before charging; failed starts remain counted; terminal/restart recovery | T072–T074 | Implemented, locally verified |
+| Ordinary primary Guide exclusion/polling race | T072–T074; mountedAPI test | Implemented, locally verified |
+| Authorization/revision/standard report availability | T072–T074; scoped DB/API regressions | Implemented, locally verified |
+| Live four-template validity/timing and common judged acceptance | T076 | Open, UNAVAILABLE on final candidate |
+
+CC-01: policy synchronized in spec/plan/card/SRS/architecture; oldT061deferral is
+historical. CC-02: API Red observed5calls instead of2; primary polling Red
+observed1charged start instead of0 before fixes. CC-03: C-02 generation snapshot
+path unchanged, admission rechecks owner/Ready revision. CC-04: no citation retry or
+leakage relaxation. CC-05: existing contracts/pipelines retained; additive safe
+error code only. CC-06: v2retained work, V4unchanged, no gate pass inferred.
+CC-07: metadata-only ledger, Owner checks, no cloud writes. CC-08: existing
+PostgreSQL/TypeScript stack, additive migration0012, no new service.
+
+No new critical/high design inconsistency identified. Report504root cause remains
+insufficiently localized; unchanged historical failure and openT076are explicit.
+Both reviewer checklists remain unchanged (16/16and22/22checked). Hooks before/after
+analyze/implement are optional Git commit; dispatched scripts respect disabled
+auto-commit configuration, final reviewed checkpoint is manual.
+
+
+## Resumed CC-09 analysis before fixture remediation —2026-11-09
+
+Reviewed base 3d02a51plus refreshed008spec/plan/tasks; scoped to FR-SI-02,
+FR-ST-10/11,C-02/C-03,NFR-SEC-02 and current ConstitutionIV/CC-09.
+
+| ID | Category | Severity/status before fix | Location | Finding and disposition |
+| --- | --- | --- | --- | --- |
+| CC09-008-1 | Forbidden dependency | CRITICAL, open pendingT079 | apps/api/test/guide-admission.integration.test.ts:3 | One concrete worker-model import yields no-cross-app and public-entrypoint findings. No exception exists. Remove it via a local valid suggestion double; no new helper/type/export bypass. |
+| CC09-008-2 | Missing boundary evidence | CRITICAL at resumed base; resolved in design T078 | spec/plan/tasks | Previously four 008 artifact findings; populated real inventory and qualifiedtasks. Scoped validateArtifacts now returns zero. |
+| CC09-008-3 | Live acceptance | Existing openT076, unchanged | validation/quickstart | Report504cause remains unproven and final four-template/judged evidence unavailable; neither static remediation nor local tests claim acceptance. |
+
+Six scoped obligations have coverage in T077–T080: explicit public fixture imports;
+unchanged exceptions/exports; admission and primary identity; scope/publication;
+transaction/dispatch/recovery placement; truthful release evidence. Coverage6/6;
+four new tasks; no new design ambiguity, duplication or unmapped task. The two
+non-grandfathered graph diagnostics are the actual governance Red, and T079 is
+the only permitted implementation change to resolve them. No product behavior
+failure is asserted: pre-edit six-file characterization passes51tests onVitest 5.1.0.
+
+CC-01 PASS: existing IDs and card/README aligned; scope is fixture/boundary evidence.
+CC-02 PASS: characterize before fixture change; do not force false product Red.
+CC-03 PASS (manual): current C-02snapshot/read/recheck path unchanged.
+CC-04 PASS (manual): citation/refusal/leakage logic unchanged, affected regressions retained.
+CC-05 PASS (manual): canonical contracts and existing deterministic pipelines unchanged.
+CC-06 PASS (manual): onepackage, no V4 or releasepass.
+CC-07 PASS (manual): owner/Readychecks and atomic ledger kept, no cloud/credentials added.
+CC-08 PASS (manual): same stack/dependencies/placement.
+CC-09 FAIL (graph before fix); designinventory/scope PASS (manual): fixture repair must
+make graphzero without policy change; scoped 008artifact checkPASS. Final evidence
+will distinguish the remaining009artifact failures from008and global graph results.
+
+Analyzer output is read-only; this dated record is retained separately as authorized
+workflow evidence. No exception self-approval or checker weakening was performed.
+
+
+### Final CC-09 disposition — 2026-11-09
+
+T079 removes the sole new edge without changing policy, exports or production code.
+CC09-008-1 is resolved: graph check against origin/main reports zero findings and
+186 exact legacy exceptions. CC09-008-2 remains resolved: scoped 008 artifacts pass.
+Global artifact validation has four findings, all in 009; they are not a PASS and
+remain assigned to the next package. No new manual ownership or requirement gap
+was found in the final diff. CC-09 PASS is limited to this resumed fixture/artifact
+slice and the documented exact legacy records; it is not a completed R1/R2 migration.
+The same six files/51 tests pass before and after the change on current Vitest 5.1.0.
+No test was weakened or forced to fail. Live T076 remains open; report timeouts,
+model/pipeline logic, scope, quotas, dispatch and publication are unchanged.
+
+## Scoped pre-implementation analysis — 2026-11-11 (CC-09)
+
+| Obligation | Coverage | Disposition |
+| --- | --- | --- |
+| Preserve four-template failure and isolate the deadline | T081 | The historical log identifies a Study Guide failure and three 504s but has no phase or attempt durations. A timed SDK double tests the retry hypothesis without asserting production root cause. |
+| Report retry dispatch, terminal failure and diagnostics | T081/T082 | Red precedes changes to the report adapter. The runner owns terminal publication. The existing transport timeout, retry count ceiling and validation rules remain applicable. |
+| Approved keyless route, output bounds and native cache/tokenizer | T083 | Integration starts from task 006 commit 7dc263f, which contains the 003 route and the public StructuredGenerator. The baseline checkpoint can run without these interfaces. |
+| Guide admission and release acceptance | T072–T076 | Existing behavior tests cover admission. T076 remains live acceptance under unchanged requirements and needs the 012 cache profile and 004 evaluator labels. |
+
+Four affected obligations have coverage, with no duplication or unmapped new
+task. CC-01 traceability and CC-02 ordering align across the spec, plan and
+tasks. C-02/C-03 remain with the existing scopes, model validation and runner.
+CC-09 design review (manual) found no new forbidden edge, ownership shift,
+exception expansion or checker bypass. The only planned new dependency during
+integration uses the existing public cloud entry point. The spec integrity and
+changed-feature checks are separate from runtime qualification.

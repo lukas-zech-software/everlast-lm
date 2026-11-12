@@ -141,3 +141,158 @@ Branch `fix/v2-006-live-gate` (base `main` 5a8dbe0, which includes the Gate v2.0
 | `NFR-EVAL-01..04` (50-case sample) | citation precision 18/18, hallucination 0/18, semantic support 18/18, leakage 0; negative rejection 24/25 (**fail**). NEG-060, SYN-041 and SYN-050 errored (likely residual 429s); the NEG-060 error counts as a missed rejection. |
 
 The fixes from #135 work for Longer and cut Source Guide rejections from 6/20 to 2/20, but they did not fix Shorter or the German summary and topic limits. Gate v2.0 stays approved by owner override ([record](../../docs/gate-v2-live-evaluation.md)). Remaining defects are follow-ups, not blockers.
+
+## Pre-v4 follow-up, 2026-11-05–07 (T089–T091; FR-SI-02, FR-GC-07)
+
+Code base: `ef28a5c` (includes main `8835c5c` / Zod 4). Exact final source hashes, all completed live attempts, incomplete-run reasons and the synthetic vendor output are retained in [attempts.json](evidence/pre-v4-20261107/attempts.json).
+
+The first fresh guide run rejected the German Infrastructure summary (19/20, P95 3.98 s). Prompt headroom alone subsequently passed once but then failed German topic/summary limits. The diagnostic Vendor summary transcribed every record and reached 275 words. Final generation uses fixed system instructions, targets 120–160 words/30-character topic labels, and summarizes central themes in 3–5 sentences instead of enumerating records. The 250-word/40-code-point validators, short-source rule and invalid-output rejection remain unchanged; no output is truncated or regenerated.
+
+Shorter initially averaged 100% of Default. Putting compact composition in the user payload still failed. A validated request-local Shorter enum now selects fixed system-level composition guidance; source/custom text remains untrusted data, concurrent requests cannot share settings, and Default/Longer instructions remain unchanged.
+
+| Verification | Result |
+| :- | :- |
+| Final live Source Guide, 2026-11-07 | **PASS**, 20/20 GuideReady, P95 2,677.47 ms including 1,000 ms watcher dispatch bound, no rejected cases |
+| Live response length, 2026-11-06 | **PASS**, Shorter/Default 0.435; Longer/Default 2.3733; 8 eligible cases, 6 Default refusals excluded under the existing rule |
+| Full judged run, 2026-11-06 | Grounding metrics **PASS**: citations 22/22, semantic support 22/22, hallucination 0/22, rejection 25/25, leakage 0; length again passes (43%/241%) |
+| Full judged command overall | **FAIL**, not GatePassed: OCR configuration unavailable; separate report gate 3/4 valid, P95 64.54 s after provider 504 failures; pre-final guide candidate 19/20 |
+| Focused regression suite | **PASS**, 8 files / 69 tests (chat, model routing, preferences, guide contracts/pipeline/client, length metric) |
+| Typecheck, lint, spec integrity, diff whitespace | **PASS** |
+| Deterministic eval | **PASS**, citation precision 160/160, leakage 0; report/structure deterministic checks pass |
+
+Red → Green: prompt regression tests failed before the bounded composition changes; request-isolation test failed without trusted Shorter routing; guide system-instruction and non-enumeration tests each failed before their implementation. Existing hard-limit tests remain enabled.
+
+The [judged report](evidence/pre-v4-20261107/judged-eval-report-v1.json) retains all 50 sample IDs/category counts and dataset hash `35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29`; [full log](evidence/pre-v4-20261107/judged-run.txt) retains subsequent report/guide failures. The [standalone length script](evidence/pre-v4-20261107/length-run.mjs) reuses the production chat pipeline and fixed release sample.
+
+Live usage: 121 guide generation calls, 131 length-generation attempts across baseline/intermediate/final/full-judged runs. These exclude embedding requests, the main 50-case chat/judge pass, report calls and transport retries. Exact billed cost is **UNAVAILABLE** (billing data not queried). Local DB interruptions and a provider 503 are recorded as unavailable/failed attempts, never passes. No further paid run was started after these results.
+
+This closes the bounded Package 2.2 implementation follow-up, not the global release gate. The live guide harness uses actual Vertex generation with a singleton in-memory source reader and a declared dispatch bound, not deployed end-to-end ingestion timing. Reviewer-owned checklists remain untouched (requirements-quality 0/18); the parent explicitly authorized bounded fixes while preserving those markers. Optional commit hooks were handled by explicit authorized commits; no mandatory implement hook is registered.
+
+
+## Integration checkpoint and harness resilience, 2026-11-07 (T092–T094)
+
+Worktree `everlast-pre-v4-impl-006-20261107` starts at coordinator `5cb968b` and
+integrates `ea54297` and `4fd99c0` as `f533dd7`/`27e8563`; the main merge commit
+was already inherited. Product source behavior matches the completed checkpoint.
+Its dated Guide/length evidence remains historical supporting evidence, not a fresh
+release-candidate pass. No new live model calls or infrastructure changes were made.
+
+Red: three judge-resilience tests failed on missing attempt records and five retries
+of malformed JSON; the DB-backed report test threw the provider error before report
+construction. Green: 11 focused files / 75 tests pass, including bounded retry timing,
+malformed/schema-invalid verdict rejection, authorization failure, private-safe
+reporting, Guide generation and length isolation/grounding/verifier regressions.
+Typecheck and lint/spec integrity pass. The disposable test database is local only.
+
+Remaining limits: the earlier global judged report is still FAIL (report504/OCR and
+pre-final Guide19/20); gate-v2 historical owner acceptance is preserved. This fix
+retains judge failures in completed evaluation reports; it does not introduce product
+model retries or make unrelated ingestion/response-length setup failures recoverable.
+The final coordinator must run the qualifying integrated release sample after those
+prerequisites are resolved and assess current-candidate evidence applicability.
+
+Full deterministic evaluation passes citation160/160 and leakage0, with 60/60
+adversarial out-of-prompt drafts blocked. Labelled report/structure model doubles
+pass; judged metrics remain UNAVAILABLE and report GatePending, as expected.
+
+
+## CC-09 reconciliation on current dependencies, 2026-11-09 (T095–T097)
+
+Reviewer: package006agent (`/root/package_006`); inspected base 935eabe and final
+006document/evidence diff. See [boundary inventory](plan.md#architecture-boundary-evidence--cc-09-2026-11-09-fr-si-02-fr-gc-07-nfr-eval-0104)
+and [exact encountered policy records](evidence/cc09-20261109/legacy-exceptions.json).
+No policy, importer, export, workflow or runtime configuration is changed.
+
+| Check | Status | Evidence / applicability |
+| --- | --- | --- |
+| Manual workflow/port review | PASS (manual, scoped) | Named Judge/StructuredGenerationClient/source-reader ports, SDK adapters and CLI/API roots; persistence/authorization/publication and D16 placement unchanged |
+| Scoped 006artifact validation | PASS | evidence/cc09-20261109/artifacts-scoped.log; all 006 spec/plan/tasks fields present |
+| Global artifacts vs origin/main | FAIL | evidence/cc09-20261109/artifacts-after.log;12 before → 8 after; remaining findings only 008/009 |
+| Global graph vs origin/main | FAIL | evidence/cc09-20261109/architecture.log;2 known 008 guide-admission fixture findings,186 exact legacy exceptions; none new 006 |
+| Current focused regression | PASS | evidence/cc09-20261109/focused.log; Vitest 5.1.0, 12 files / 66 tests, disposable local PostgreSQL; judge retry/report, Guide/client/context/runtime, concurrent length and verifier |
+| Typecheck | PASS | evidence/cc09-20261109/typecheck.log |
+| 39 architecture checker fixtures | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/architecture-fixtures.log at935eabe; checker/policy/manifest/production source unchanged in 006 slice |
+| Integrated build | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/build.log at935eabe; no runtime/source/config diff |
+| Deterministic eval | PASS (reused) | ../001-workspace-foundation/evidence/cc09-20261109/deterministic.log at935eabe; citation160/160, leakage0; no behavior/source/config change to invalidate applicability |
+
+The focused command names judge-resilience, judge-report.integration,
+chat-length-instruction, chat-preferences, package-v2-2-gemini, package-v2-2,
+package-v2-2-context, worker/API package-v2-2-runtime, contract package-v2-2,
+response-length and chat-verifier tests. All cloud/model behavior is injected/faked;
+no paid calls occur. Named @everlast/db/testing resolves through 001's explicit
+public export; no new migration exception is needed.
+
+Historical passing Guide/length cohorts and failed full judged report remain dated
+support only. This checkpoint is neither new live acceptance nor Gate v3 PASS.
+Global lint cannot be declared passing while008/009 gates remain failing.
+
+Final spec-integrity check PASS (201 Markdown files,55 SRS links,39 feature
+artifacts); whitespace check PASS after normalizing a captured log's trailing
+blank line. Actual diff against 935eabe contains 006 documents/evidence only;
+application/package/checker/policy/lockfile diff is empty.
+
+## Task 006 D23 adapter and integration handoff (FR-SI-02, FR-GC-04/05/07, C-02, NFR-EVAL-01..04)
+
+Work branch `codex/pre-v4-work-006`. The immutable task source was
+`105c3f1`; this work was based on the committed 003 routing handoff
+`11fdc8d`. Use `19da374` as the base for the isolated 006 delta.
+
+### Interface for 008 and 011 (FR-ST-08/09/10/11, D23, CC-09)
+
+Import `createEnterpriseStructuredGenerator`, `StructuredGenerator` and
+`StructuredGenerationError` from `@everlast/cloud`. Use
+`createEnterpriseStructuredGenerator("flash", env, { timeoutMs, createClient })`
+for report extraction/composition, mind maps and tables. The role fixes the
+model, EU endpoint and `LOW` thinking. For Flash-Lite, the `"flash-lite"` role
+selects `MINIMAL`. The transport options are optional, including the test
+factory. The generic `generateStructured<T>` request takes trusted
+`systemInstruction`, scoped JSON `contents`, `responseSchema`, a
+`safeParse` schema, optional `generationConfig.maxOutputTokens` and optional
+`cachedContent`. The adapter returns schema-validated data or a
+`StructuredGenerationError` with a fixed reason, optional upstream status,
+and a `transient` flag. Consumers own retry timing, support validation and
+publication. Remove legacy budget settings when migrating. The compatibility
+constructor used by existing 008 tests still supports 2.5-era report settings.
+The production suggestion fallback shares the migrated 006 Flash-Lite client.
+
+### Verification (CC-02, CC-09, C-02, NFR-EVAL-04)
+
+| Check | Outcome |
+| --- | --- |
+| Red: `pnpm exec vitest run apps/worker/test/package-v2-2-gemini.test.ts` | 5 expected failures, 3 passes. The existing adapter inherited the embedding region, used 2.5, lacked the Flash contract and put overview/follow-up instructions in contents. |
+| Green: `pnpm exec vitest run apps/worker/test/package-v2-2 apps/api/test/package-v2-2 packages/contracts/test/package-v2-2.test.ts packages/evals/test/source-guide-gate.eval.test.ts apps/worker/test/studio-vertex-report-model.test.ts apps/worker/test/studio-suggestions.test.ts` | 90/90 across 10 files with an isolated pgvector PostgreSQL 16 database. Also passed with the consumer patch applied. |
+| `pnpm typecheck`, `node scripts/check-spec-integrity.mjs` | PASS. |
+| `pnpm test:architecture` | PASS, 39/39. |
+| `pnpm check:architecture --base-ref 19da374` and `pnpm check:architecture-artifacts --base-ref 19da374` | PASS on the consumer patch rehearsal with 178 exact D21 records and zero findings. The standalone branch retains 184 records pending the coordinated import changes. |
+| `pnpm eval:deterministic --out /private/tmp/everlast-006-deterministic` | PASS on the local patch rehearsal. Citation precision 160/160, leakage 0, no publications in 60 adversarial cases. The deterministic report retains GatePending. |
+| Live Source Guide latency, model quality and judged evaluation (FR-SI-02, FR-GC-07, NFR-EVAL-01..04) | Pending on the approved integrated release candidate and live authorization. |
+
+Manual CC-09 review of the 006 diff, 2026-11-11. The cloud adapter depends
+on contracts and the Gemini SDK through the existing cloud module. It has no
+application imports. Worker Guide workflows still own scope, retries, and
+publication checks, and existing DB adapters own persistence. No admission,
+authorization, revision, quota, cancellation, transaction, or recovery paths
+were edited. Both the 008 compatibility fixtures and the 006 API composition
+passed with the adapter extracted.
+
+### Serialized integration (CC-09, D21, D23, NFR-EVAL-01..04)
+
+Apply [the consumer patch](evidence/d23-consumer-integration.patch) in the
+integration slot. It switches API startup and the Guide eval adapter to
+the cloud export, asserts the approved route through the API composition,
+updates the FR card, and removes exactly these D21 records:
+
+| Former importer | Former target | Rules removed |
+| --- | --- | --- |
+| `apps/api/src/server.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-cross-app`, `public-entrypoint` |
+| `apps/api/test/package-v2-2-runtime.test.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-cross-app`, `public-entrypoint` |
+| `packages/evals/src/source-guide-gate.ts` | `apps/worker/src/package-v2-2-gemini.ts` | `no-shared-to-app`, `public-entrypoint` |
+
+Task 004 owns the shared eval labels. Before running release evaluation,
+derive the Guide identity from `model.location` and `model.model` in
+`runSourceGuideReleaseGate`. Its historical environment-derived label would
+otherwise report `vertex:europe-west4:gemini-2.5-flash-lite` for a D23 request.
+Keep the other eval-to-worker workflow edges tracked under their existing
+D21 records. Task 008 owns Guide admission and report startup wiring, and
+task 011 owns Studio startup wiring. Issues #7, #40 and #43 remain tied to
+their original acceptance evidence.

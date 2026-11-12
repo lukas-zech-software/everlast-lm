@@ -1,0 +1,27 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-qualification-20261110c
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (8 tests | 1 failed) 70ms
+   × NFR-PERF-01 keeps the effect lock after timeout until an abort-ignoring port actually settles; late success never qualifies 17ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 keeps the effect lock after timeout until an abort-ignoring port actually settles; late success never qualifies
+AssertionError: expected 2 to be 1 // Object.is equality
+
+- Expected
++ Received
+
+- 1
++ 2
+
+ ❯ apps/api/test/benchmark-readiness.test.ts:107:108
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  22:07:03
+   Duration  335ms (import 49%, tests 28%, transform 21%, worker 2%)

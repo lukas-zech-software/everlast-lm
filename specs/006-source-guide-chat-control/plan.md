@@ -13,7 +13,7 @@ Implement Package 2.2 on the existing v1 TypeScript monorepo without changing sh
 
 - **Language/runtime**: TypeScript 5.x strict ESM, Node.js 24, pnpm workspace.
 - **Dependencies**: Existing Zod, native Node HTTP, Vitest and the already-installed `@google/genai` SDK. Inject `StructuredGenerationClient`; tests use a deterministic fake or an injected fake `GoogleGenAI` transport. No new framework, datastore, cloud service, or dependency.
-- **Model routing (`D3`, architecture model routing)**: Source Guide, notebook overview and follow-ups use `gemini-2.5-flash-lite` through `@google/genai` with `vertexai: true` on Vertex AI in `europe-west4` (`VERTEX_LOCATION` override), keyless ADC, structured JSON output (`responseMimeType: "application/json"` + response schema), temperature 0 and a bounded timeout. `GEMINI_API_KEY`/`GOOGLE_API_KEY` are never read. 429, 5xx and timeouts are `transient` for the 3-attempt retry; invalid or non-schema JSON is permanent. Source text is passed as untrusted data (`NFR-SEC-01`).
+- **Model routing (D23, FR-SI-02, FR-GC-04/05)**: Use task 003's enterprise Gemini Flash-Lite role for Guide, overview and follow-ups: `gemini-3.5-flash-lite`, EU multi-region `eu`, explicit EU endpoint, keyless ADC and `MINIMAL` thinking. Preserve JSON response schema, temperature 0, a single candidate, bounded timeout, and existing retry classification. Keep instructions in the system field and the selected language and scoped text in JSON contents. The historical 2.5 configuration applies only to legacy consumers pending their own migration.
 - **Storage (`D16`, SRS §5.5 DEV-04)**: v2 records (Source Guides, overviews, chat configuration, feedback, follow-ups) stay in the single API process until v3; saved responses live in the Package 2.3 notes store (same process). Access control, sources and chat history stay in PostgreSQL. v2 background work (Source Guide generation) runs in `apps/api/src/v2/runtime.ts`; the PoC runs one API instance. The designed v3 tables wait in `packages/db/migrations/v3-draft/`.
 - **Ready trigger (`FR-SI-02`, Gate v2.0 #1)**: a bounded-interval in-process watcher in the API polls PostgreSQL for `(source_id, active_revision)` Ready transitions and dispatches the Ready-source hooks once per revision, without depending on `GET /sources`; listing-time dispatch stays as an idempotent fallback. The observed `Ready` time is stored with the guide (`ready_at`).
 - **Authorization/residency**: API auth continues through existing owner identity middleware; v2 is Owner-only. Model endpoints are the Vertex AI enterprise endpoint (no training) in `europe-west4` (`NFR-SEC-01`, `D3`). No cloud APIs or infrastructure are enabled/changed.
@@ -63,3 +63,90 @@ Do not modify other package schemas or migrations; do not edit managed templates
 ## Complexity Tracking
 
 No new frameworks, datastores, cloud services or architecture decisions; D16 governs v2 storage. Injecting a model interface isolates external calls for deterministic testing. No SRS deviation or scope change is proposed.
+
+## Pre-v4 live-failure refinement (FR-SI-02, FR-GC-07)
+
+Reserve prompt headroom (120–160 words, topic labels ≤30 characters) under the existing summary/topic validators. Keep first-answer invalid-output failure and transient retry semantics unchanged. Give Shorter one compact factual sentence with terse labelled facts; preserve the existing Default/Longer guidance. Verify the unchanged relative-length thresholds and guide gate on the synthetic corpus through production generation paths. No new model, storage, dependency or architectural deviation.
+
+Trusted length routing (`FR-GC-07`, `NFR-SEC-02`): the validated Shorter enum is stored in the request-local ADK session and selects fixed system-level composition guidance. Source text and custom instructions are never promoted into system instructions. Concurrent requests retain independent length settings; the shared grounding rules, schema and citation verifier remain unchanged.
+
+Source Guide constraints (`FR-SI-02`) are sent as the fixed Vertex `systemInstruction`; source chunks and the requested output language remain structured input data. Validation still rejects oversized or invalid first outputs; no regeneration or truncation is introduced.
+
+Summary composition (`FR-SI-02`): for longer sources, generate 3–5 sentences about central themes and representative details; do not transcribe every record of a list/table. This addresses the observed 275-word German vendor-list summary without removing generated content or changing the 250-word acceptance limit.
+
+
+## Pre-v4 evaluation resilience (FR-GC-07, NFR-EVAL-01..04)
+
+Judge provider retries are limited to five total attempts for transient 429/5xx
+responses. Retain each attempt's purpose, outcome, HTTP status and elapsed time,
+including backoff in cumulative elapsed time. Malformed or schema-invalid verdicts
+fail immediately; product citation validation is never retried. Exhausted provider
+errors must produce a failing report retaining the affected case and the original
+case population, rather than aborting before a report or omitting failed cases.
+Attempt records contain no prompts, source text or raw provider error messages.
+
+
+## Architecture Boundary Evidence — CC-09 (2026-11-09; FR-SI-02, FR-GC-07, NFR-EVAL-01..04)
+
+Resumed base 935eabe includes canonical D21/Constitution 2.1.0 and current dependency
+upgrades. The original 2026-10-19 technical context above is historical: current
+runtime is Node 26 / TypeScript 7 / pnpm 12, and D16/specs013persist v2 records in PostgreSQL
+while retaining single-API placement. This slice changes006 documents/evidence only;
+product and harness repairs from 0e77ebb are inherited unchanged.
+
+Pre-research assessment: the inherited006 artifacts lack CC-09 evidence; record FAIL
+until inventory and scoped artifact validation are complete. Post-design manual
+assessment: no new edge, public interface or workflow is proposed; characterize
+current behavior with existing tests rather than manufacture behavioral Red. The
+automated artifact failure supplies the actual governance Red evidence.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-GC-07, FR-GC-01/02, C-02 | apps/api/src/chat/model.ts and prompt.ts;006 model adapter | Request-local trusted length instruction and ADK adapter; no transport orchestration | GroundedModel.generate and validated ResponsePreferences; fixed Shorter enum only | ChatService calls GroundedModel; adapter uses ADK/GenAI and canonical contracts; no new cross-module consumer | apps/api/src/server.ts wires AdkGroundedModel; model.ts builds request-local adapter sessions | apps/api/test/chat-length-instruction.test.ts, chat-preferences.test.ts and chat-verifier.test.ts: concurrent Default/Shorter isolation, untrusted source/custom text, immediate refusal |
+| FR-SI-02, FR-GC-04/05, C-02 | apps/worker/src/package-v2-2.ts and package-v2-2-runtime.ts;006 workflow | Deterministic generation, scope/read/recheck and state coordination | StructuredGenerationClient and PackageV22SourceReader; PackageV22RuntimeOptions injects provider/validateScope/getSourceMetadata/model | Canonical contracts; existing named DB get/save methods own persistence, pipeline never embeds SQL; current API consumption is unchanged D21 debt | apps/api/src/server.ts wires Vertex adapter; apps/api/src/v2/runtime.ts wires provider/authorization/repository context and Ready dispatch | apps/worker/test/package-v2-2.test.ts and package-v2-2-context.test.ts; apps/api/test/package-v2-2-runtime.test.ts: scoped revisions, cache invalidation, failure and publication rechecks without HTTP |
+| FR-SI-02, NFR-SEC-01 | apps/worker/src/package-v2-2-gemini.ts;006 model adapter | Vertex structured call, limits/instructions, transport error classification | VertexStructuredGenerationClient implements StructuredGenerationClient; injected GenAiFactory/GenAiClientLike | @google/genai and Zod-like schema input; source/custom content stays structured data | createVertexStructuredGenerationFromEnv in API server composition | apps/worker/test/package-v2-2-gemini.test.ts: fixed system Guide instructions, injected SDK transport, hard limits and fail-closed invalid output |
+| NFR-EVAL-01..04, FR-GC-07 | packages/evals/src/judge.ts, runner.ts, report.ts;006 repair of quality harness | Eval workflow uses Judge port; VertexJudge adapter uses injected client; report serializes observed attempts/errors | Judge.judgeClaims/judgeSupport/judgeRejection and JudgeAttempt; EvalEnvironment injects judge/model/embedder/ocr/pool | Judge interface and canonical contracts; unchanged runner imports API/worker under exact D21 records; no new consumer/export | packages/evals/src/cli.ts constructs enterprise client/VertexJudge and runEvaluation inputs; integration fixtures inject fakes | packages/evals/test/judge-resilience.test.ts and judge-report.integration.test.ts: bounded 429/5xx, cumulative time, invalid-verdict failure, per-run isolation and case-preserving GateFailed |
+| NFR-EVAL-01..04, FR-GC-07 | packages/evals/test/judge-report.integration.test.ts;006 regression fixture | Disposable PostgreSQL setup and injected provider failure | Explicit @everlast/db/testing and cloud root exports; local judge/runner/report imports | Test-only fixture consumes named public DBtesting interface fixed by001; no application production dependency | Test beforeAll creates disposable database; fake client contains no cloud calls | Existing case survives 403 and report omits private provider detail; inherited001runtime-exports.log proves named public export resolution |
+
+**Workflow ownership (manual):** API remains owner of request authorization, Ready
+watcher/dispatch and current runtime lifecycle. Source reader uses C-02 and exact
+revision snapshots; generation rechecks them before DB publication. Named DB adapter
+methods retain SQL, transactions and persistence fencing. The Guide workflow uses
+injected model/source ports; model adapters own SDK construction, not business
+workflows. ChatService owns validated request publication; Shorter changes only
+trusted request-local composition. Eval runner owns test-case coordination through
+typed Judge/model/embedding/OCR interfaces; VertexJudge owns provider calls/retries
+and report code owns serialization. No auth, transaction, quota, cancellation,
+dispatch, recovery or publication responsibility moves in this slice. D16 and C-01..03
+are unchanged. No new direct CRUD call or forwarding layer is introduced.
+
+**Exact unchanged debt:** see evidence/cc09-20261109/legacy-exceptions.json. The
+reviewed runner imports API chat service/model/verifier and worker ingestion;
+evals manifest depends on API/worker and still exposes its legacy wildcard. API
+server/runtime and old runtime tests consume006 worker modules. These are existing
+no-shared-to-app/no-cross-app/public-entrypoint/wildcard-export records, not approved
+new architecture. Each retains baseline 13e76bd5229af7d52146456297e1aa92a220908d, owner
+@lukas-zech-software, canonical D21, expiry 2027-02-05 and qualified removal tasks
+specs/004-ui-skeleton-quality-gates T035 (R1) or T036 (R3). No exception is added,
+updated, self-approved or broadened; no export tree grows. Existing repository
+interfaces and placement are described, not claimed to be a completed R1 extraction.
+
+**Automated versus manual evidence:** run the actual graph with --base-ref origin/main
+and scoped 006 artifact validation. Preserve global failures for008 fixture/dependency
+and008/009 artifact work. The unchanged checker/build and deterministic160/160,
+leakage 0 results from001 evidence/cc09-20261109remain applicable because this 006 diff
+changes no implementation/checker/manifest/runtime configuration. Still run focused
+006 behavior and type/spec checks on current dependencies. Manual review cannot
+replace a failed automated gate. Results and exact evidence are in validation.md.
+
+## Architecture Boundary Evidence — CC-09 structured generation (FR-SI-02, FR-GC-04/05/07, C-02, NFR-EVAL-01..04)
+
+Base for the 006 delta: task 003 routing handoff `11fdc8d` plus the 006 instruction commit. D23 route selection belongs to the existing cloud resolver.
+
+| SRS / contract | Module and owner | Responsibility | Public exports / ports | Allowed dependencies / consumers | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-02, FR-GC-04/05, NFR-SEC-01 | `packages/cloud/src/structured-generation.ts`, 006 | SDK request, schema validation and transient error classification | `VertexStructuredGenerationClient`, `StructuredGenerator`, `StructuredGenerationError`, `GenAiFactory`, `createVertexStructuredGenerationFromEnv` via `@everlast/cloud` | Canonical contracts, cloud-local route resolver and SDK. API, eval and Studio may use the public package. | `apps/api/src/server.ts` and `packages/evals/src/source-guide-gate.ts` | `apps/worker/test/package-v2-2-gemini.test.ts` captures exact EU, thinking, system/contents and cache/schema payloads with a local transport. |
+| FR-SI-02, FR-GC-04/05/07, C-02 | `apps/worker/src/package-v2-2.ts`, `package-v2-2-runtime.ts`, 006 | Scoped snapshots, authorization/revision rechecks, retries and publication; DB adapters own writes | Existing `StructuredGenerationClient` and `PackageV22SourceReader` ports | Existing worker workflow and recorded D21 caller edges | `apps/api/src/v2/runtime.ts` | Worker 006 pipeline/context tests and `apps/api/test/package-v2-2-runtime.test.ts` verify existing fences, Ready dispatch, storage and language. |
+| FR-ST-10/11, FR-ST-08/09, NFR-SEC-01 | `packages/cloud/src/structured-generation.ts`, 006 | Public typed structured transport for 008/011 | `StructuredGenerator` exposes the bounded per-call output and cache options; the role selects thinking. The worker compatibility module retains the existing legacy constructor for 008 until migration. | Consumers use `@everlast/cloud`; no imports of an application in the shared adapter | Owning 008/011 composition | Injected Flash payload checks and existing report and suggestion suites. |
+
+No changes to Guide admission, cancellation, transactions, quota reservation or the Ready watcher. Preserve all six existing D21 records for the three worker adapter edges in the standalone branch while the owning consumers still use the compatibility entry point. The serialized integration patch moves the API server, API runtime test and Guide eval imports to the shared export and deletes exactly those six records. The eval workflow's other worker imports remain independently tracked.

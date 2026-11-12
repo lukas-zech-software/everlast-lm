@@ -15,6 +15,9 @@
       "path": "packages/cloud"
     },
     {
+      "path": "packages/notes"
+    },
+    {
       "path": "packages/testkit"
     },
     {

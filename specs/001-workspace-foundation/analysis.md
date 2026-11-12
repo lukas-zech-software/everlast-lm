@@ -50,3 +50,78 @@
 
 - Package 1.1 (`specs/001-workspace-foundation`) passes `/speckit-analyze` with zero blocking or non-blocking issues.
 - Ready for `/speckit-implement` execution starting at Phase 1 Setup (`T001`–`T004`).
+
+
+## Pre-V4 retained-work analysis — 2026- 11-07 (FR-WM-01/04, NFR-SEC-01/02)
+
+Read-only analysis followed separate flow-back and preceded implementation.
+Converge found two actionable high gaps: missing discoverable real-service suites
+(T046), and open signup contrary to the recorded owner policy. T058–T061 were
+appended without renumbering earlier tasks. No critical cross-artifact contradiction
+remains after the explicit D21/DEV-06/card/spec/plan flow-back. Existing checklists:
+requirements 16/16 and workspace-isolation-quotas 17/17 checked; unchanged.
+
+| Requirement | Test/task coverage | Remaining acceptance |
+| --- | --- | --- |
+| FR-WM-04 admin-only signup, existing sign-in | T058/T059 provider and UI tests | Actual policy rollout and disposable real Identity Platform verification |
+| FR-WM-01/04 live cleanup and revocation | T046/T060/T061, existing local tests | Approved fixtures and successful real run; resumable obligation applicability remains explicit |
+
+| Gate | Design recheck before implementation and after refinements |
+| --- | --- |
+| CC-01 | PASS: D21/DEV-06, 001 spec/plan/card and tasks agree; live status remains pending. |
+| CC-02 | PASS: provider/UI Red precedes Green; harness checks supplement existing tests. |
+| CC-03 | PASS: no source-read/snapshot path is changed. |
+| CC-04 | PASS: no generation/citation behavior changes; deterministic eval remains required. |
+| CC-05 | PASS: no shared contract duplication or new pipeline. |
+| CC-06 | PASS: existing package only, inherited predecessor checkpoint, no V4 implementation. |
+| CC-07 | PASS design: admin provisioning, keyless fixture access and production guards; real verification UNAVAILABLE. |
+| CC-08 | PASS: existing provider v6/storage client/TypeScript stack; test-only existing storage client dependency, no new service. |
+
+No unmapped new tasks; T061/T046 cannot be marked passed from local test skips.
+No mandatory before/after analyze/implement hooks are registered; optional Git
+commit hooks are satisfied by the reviewed final checkpoint.
+
+
+## CC-09 resumed analysis and final-diff review — 2026- 11-09
+
+Traceability: FR-WM-01/04/07, NFR-SEC-02, C-02; Constitution 2.1.0, canonical D21.
+Historical signup-D21 references above are provisional labels, superseded by
+canonical D22/DEV-06 as explained in solution-architecture.md; no policy reversal.
+
+Read-only analysis after separate spec/plan/tasks refresh and before implementation:
+T062 characterizes existing auth/fixture behavior and captures15 graph findings;
+T063 maps actual load/export repairs and removal-only exceptions; T064 owns final
+manual/static/regression verification. No missing in-scope requirement/task map or
+critical design ambiguity remained before implementation. Existing custom checklists
+were not edited or self-approved.
+
+| Finding | Severity / scope | Disposition |
+| --- | --- | --- |
+| Missing001CC-09artifact evidence | CRITICAL,001 | Resolved by actual boundary/workflow inventory and scoped validator result0 |
+| Computed auth imports and stale whole-file exception fingerprints | CRITICAL,001 | Same pinned literal CDN loads; exact old exceptions removed, no rebaseline |
+| Expanded wildcard exports/new private fixture imports | CRITICAL,001shared interface | Named public exports; runtime resolution/escape rejection and typecheck; exact remediated exception removal only |
+| Cross-app008guide-admission fixture | CRITICAL,008 | Remains two graph findings, assigned subsequent package agent; not masked |
+| Missing006/008/009CC-09evidence | CRITICAL,other resumed features | Remains12global artifact findings; not edited in001scope |
+
+CC-01/02: traced refresh and actual Redgraph plus passing behavior characterization.
+CC-03/04/05: contracts, scoping, citation validation and deterministic pipelines unchanged.
+CC-06: isolated existing001 worktree branched from refreshed coordinator, no V4 work.
+CC-07/08: browser-safe pinned SDK, no server credentials/new service/upgrade.
+CC-09: manual actual-diff ownership review PASS and automated001scopePASS,
+with global checker/lint FAIL explicitly retained for other packages.
+
+Final convergence: no remaining 001 boundary work in T062–T064. T046/T061 live
+acceptance stays OPEN/UNAVAILABLE; no checked task or manual review substitutes
+for approved fixture runs or release acceptance.
+
+## Pre-V4 task 001 analysis refresh (2026-11-11; FR-WM-01/04, NFR-SEC-01/02, CC-09)
+
+Read-only analysis of spec/plan/tasks after the CC-09 plan/tasks delta (plan.md delta, T065) and before the code change was committed: every in-scope requirement maps to a task and test; no critical ambiguity. T046/T061 remain the only open items and are UNAVAILABLE pending approved disposable users, bucket, ADC and reviewed plan.
+
+| Finding | Severity / scope | Disposition |
+| --- | --- | --- |
+| Live acceptance cannot run without approved fixtures | HIGH, 001 | Frozen plan in `evidence/pre-v4-live-plan.md`; tests fail closed with UNAVAILABLE |
+| Resumable cancellation not verifiable through API | MEDIUM, 001 | Recorded per scenario in `RESUMABLE_SCENARIOS`; two UNAVAILABLE |
+| Shared files (server/runtime/registry, policy, lockfile, manifests) | none | Not touched; no shared-file patch is required |
+
+CC-01/02: Red (3 failing) → Green (4/4). CC-09: test-only fixture module, no boundary, exception or dependency change; graph 0 findings, 184 exceptions unchanged.

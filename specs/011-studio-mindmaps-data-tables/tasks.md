@@ -138,3 +138,26 @@ These tasks verify earlier Red-first work; they do not introduce the first tests
 ### Incremental delivery
 
 MVP is foundation plus US1, with complete cited map and durable lifecycle. Add US2 guarded navigation/images, then US3 cited comparison/export. Every increment follows Red→Green→Refactor; partial delivery does not satisfy the full package/release gate. Preserve accepted oversized-table failure and all conflicting values, shared report behavior and unchanged C-01/C-02. The read-only analysis report maps every local FR-001–017 and SC-001–011 to Red tests and implementation/verification tasks.
+
+## Phase 7: Convergence
+
+- [x] [011-studio-mindmaps-data-tables] T057 Write failing drag-to-pan and strict latency/frame evidence tests before recovering the scoped e7436b5 improvements (FR-ST-08/09, SC-002/003; partial).
+- [x] [011-studio-mindmaps-data-tables] T058 Implement pointer pan and strict sample validation preserving all failures and thresholds; no node drag may submit chat (FR-ST-09, NFR-EVAL-04; partial); depends on T057 Red.
+- [x] [011-studio-mindmaps-data-tables] T059 Recover collector tests for ordinary API measurement and real browser frame populations (FR-ST-08/09, C-03, SC-002/003; missing).
+- [x] [011-studio-mindmaps-data-tables] T060 Implement scoped collectors and provenance with explicit local/live evidence distinctions; refresh CC-09 boundary inventory, public exports, workflow/transaction ownership and final graph/artifact checks without new exceptions (FR-ST-08/09/18, C-03, CC-09, Gate v3.0; missing); depends on T057/T059 Red.
+- [ ] [011-studio-mindmaps-data-tables] T061 Qualify required real generation N>=20/P95<=20s, 120-node viewer P95<=16ms, valid exports/recovery/current scope and common fixed 50-case judged report on approved matching deployment. Retain historical 16.734000000000037ms viewer FAIL (FR-ST-08/09/18, NFR-EVAL-01..04, Gate v3.0; partial).
+
+## Phase 8: Numeric export decision implementation
+
+- [x] [011-studio-mindmaps-data-tables] T062 Write spec-derived Red independent CSV parse/import and real XLSX cell-type/formula tests for numeric precision, identifiers, formula bypasses, conflict/missing/header/row citation mapping and logical/physical bounds (FR-ST-18, NFR-SEC-02, CC-02/09; contradicts).
+- [x] [011-studio-mindmaps-data-tables] T063 Implement numeric/string export projection and separate citation columns; preserve canonical C-03 payloads, row ordering and live authorization. Update affected export assertions only for the approved download change (FR-ST-18, C-03, NFR-EVAL-02/04; contradicts); depends on T062 Red.
+- [x] [011-studio-mindmaps-data-tables] T064 Verify focused tests, browser exports/recovery, lint/type/spec/diff and CC-09 graph/artifact checks; retain exact FAIL/UNAVAILABLE live gates in quickstart/handoff (FR-ST-08/09/18, C-03, NFR-EVAL-01..04, Gate v3.0; partial); depends on T058/T060/T063.
+
+2026-11-10 CC-09 final review/evidence is in plan, analysis and quickstart. T057–T060/T062–T064 completion is local implementation/diagnostics only. T061 remains open; no historical checkbox is release acceptance. Earlier T040/T044 text-only export wording is superseded by the approved FR-ST-18 numeric projection in T062/T063.
+
+
+### Fan-out follow-up (FR-ST-08/09/18, C-02/C-03, D23, CC-09)
+
+- [x] [011-studio-mindmaps-data-tables] T065 Capture Red for trailing-zero decimal formatting/raw CSV and production map/table ports, including malformed/out-of-scope records (FR-ST-08/18, C-02/C-03, D23; CC-02).
+- [x] [011-studio-mindmaps-data-tables] T066 Implement scale-preserving export and schema-constrained EU Flash extraction with existing deterministic composition; serialize startup wiring and validate both entry points (FR-ST-08/18, C-02/C-03, D23; CC-09). Depends on T065 and committed 003/006 interfaces.
+- [x] [011-studio-mindmaps-data-tables] T067 Diagnose both original 120-node frame runs, capture the fixed local viewer diagnostic, and verify the final diff with the focused tests and CC-09 checks (FR-ST-09, NFR-EVAL-01..04, Gate v3.0; CC-09). Depends on T066; retains T061 for live acceptance.

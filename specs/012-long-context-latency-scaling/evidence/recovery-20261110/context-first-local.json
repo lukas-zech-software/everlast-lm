@@ -1,0 +1,90 @@
+{
+  "schema": "everlast.studio-context-v3-report/2",
+  "timestamp": "2026-11-10T14:11:32.049Z",
+  "profile": "local-api",
+  "result": "PASS",
+  "release_result": "UNAVAILABLE",
+  "qualification": "LOCAL whitespace tokenizer, scripted model, hashing embeddings and cache-provider doubles; real PostgreSQL/C-02/admission/Studio lifecycle",
+  "boundaries": [
+    {
+      "source_tokens": 999999,
+      "original_chunks": 40,
+      "extracted_chunks": 40,
+      "max_batch_tokens": 3003,
+      "max_batch_chunks": 3,
+      "completed": true,
+      "mode": "CachedFullContext",
+      "cache_hit": false,
+      "model_calls": 334
+    },
+    {
+      "source_tokens": 1000000,
+      "original_chunks": 40,
+      "extracted_chunks": 40,
+      "max_batch_tokens": 3003,
+      "max_batch_chunks": 3,
+      "completed": true,
+      "mode": "CachedFullContext",
+      "cache_hit": false,
+      "model_calls": 334
+    },
+    {
+      "source_tokens": 1000001,
+      "original_chunks": 40,
+      "extracted_chunks": 40,
+      "max_batch_tokens": 3004,
+      "max_batch_chunks": 4,
+      "completed": true,
+      "mode": "ChunkMapReduce",
+      "cache_hit": false,
+      "model_calls": 334
+    }
+  ],
+  "quota": {
+    "admitted": 300,
+    "rejected_301": true,
+    "ready_sources": 300,
+    "originals_processed": 300,
+    "completed": true
+  },
+  "guide_routing": {
+    "guide_count": 40,
+    "needle_cited": true
+  },
+  "studio_consumers": {
+    "report": true,
+    "mindmap": true,
+    "data_table": true,
+    "mindmap_originals": 40,
+    "table_originals": 40
+  },
+  "cache": {
+    "miss": true,
+    "hit": true,
+    "expiry": true,
+    "restart": true,
+    "revocation": true,
+    "create_failure_recovery": true,
+    "provider_creates": 9,
+    "provider_deletes": 4,
+    "original_chunks_transferred": 580
+  },
+  "memory": {
+    "node": "v26.13.0",
+    "exec_argv": [
+      "--max-old-space-size=256"
+    ],
+    "rss_before_bytes": 289521664,
+    "rss_after_bytes": 356892672,
+    "rss_delta_bytes": 67371008,
+    "peak_rss_bytes": 386465792,
+    "peak_growth_limit_bytes": 256000000,
+    "c02_page_limit": 16,
+    "model_concurrency_limit": 4
+  },
+  "missing_release_prerequisites": [
+    "qualified enterprise EU model/tokenizer/provider cache",
+    "approved deployed candidate and prospective readiness/clock evidence",
+    "complete cloud Gate v3 and judged release sample"
+  ]
+}

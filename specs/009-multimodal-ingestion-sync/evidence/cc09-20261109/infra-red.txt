@@ -1,0 +1,22 @@
+Test assertion failed Approved v3 ingestion must reach the full project's API selection through the dev wrapper.
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Mocked OpenTofu plan assertions failed: 
+
+1 !== 0
+
+    at file:///private/tmp/everlast-pre-v4-009-resume-20261109/scripts/test-v3-ingestion-infra.mjs:18:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
+    at async node:internal/modules/esm/loader:646:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.3.0

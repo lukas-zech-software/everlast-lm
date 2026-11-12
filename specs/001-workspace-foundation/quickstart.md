@@ -83,3 +83,54 @@ Record build commit, runtime/configuration, test database size, region, network/
 ## Handoff and Stop Condition
 
 Plan/design documents complete and traceable; no application code or `tasks.md` created. Next: `/speckit-tasks` for `specs/001-workspace-foundation`, then `/speckit-analyze`. Before implementation, share concrete task IDs, allowed files, worktree/branch/base and acceptance checks with every participating session. Do not mark tests or Gate v1.0 passed based on this guide.
+
+
+## Pre-V4 retained real-service checks (FR-WM-01/04, NFR-SEC-01/02; T046/T060/T061)
+
+Normal runs discover but skip the two opt-in live suites; those skips do not pass
+T046. Enabling a suite without the exact fixture acknowledgement fails UNAVAILABLE
+before cloud access. Acknowledgement is a guard, not owner authorization: obtain
+approval for disposable fixtures before configuring it. Never substitute the app's
+ordinary account, workspace bucket or cloud SQL connection.
+
+Identity: use a pre-created disposable **project-level** email/password user (this
+runner does not target an Identity Platform tenant). Supply WORKSPACE_IT_PROJECT,
+WORKSPACE_IT_IDENTITY_UID, WORKSPACE_IT_API_KEY, WORKSPACE_IT_EMAIL and securely
+injected WORKSPACE_IT_PASSWORD. Set WORKSPACE_IT_APPROVED_FIXTURE to the exact
+`<project>/identity/<uid>` only after fixture approval. With WORKSPACE_IDENTITY_IT=1,
+run `pnpm exec vitest run apps/api/test/identity.integration.test.ts`. ADC needs
+configuration read, account lookup and account-update permission. The suite first
+requires authoritative disabledUserSignup=true, signs in the existing user, probes
+direct signup with the already-existing email (so the test cannot create an account),
+then revokes this disposable user's prior tokens. The API key must belong to the
+approved project; the issued token's audience/subject are verified. Never print
+credentials or tokens or write them into committed/plain environment files.
+
+Storage: use local TEST_DATABASE_URL from `pnpm db:test:up` and a pre-created
+approved bucket in europe-west4, versioning enabled, no retention policy and soft
+delete disabled, labelled `everlast-fixture=disposable`. Supply WORKSPACE_IT_PROJECT
+and WORKSPACE_IT_BUCKET; set WORKSPACE_IT_APPROVED_FIXTURE to the exact
+`<project>/storage/<bucket>` after approval. With WORKSPACE_STORAGE_IT=1, run
+`pnpm exec vitest run apps/worker/test/notebook-cleanup.integration.test.ts`. ADC
+needs object read/write/list/delete, object hold-update, bucket metadata read and
+service-account signing (V4 signed PUT). The suite allocates random notebook
+prefixes, verifies holds/retry, versions, expiry/late upload, hard absence and status
+privacy, and cleans only its own prefixes. It also verifies that the application's
+PUT capability cannot initiate a resumable POST session. This does not certify
+arbitrary administrator-created resumable-session cancellation; the current app
+issues signed PUT capabilities, not resumable-session URLs. Retain any additional
+T046 resumable obligation until its applicable path/proof is explicitly reviewed.
+
+### Concrete signup deployment proposal (D22/DEV-06, T059)
+
+Change only the managed `module.v1_foundation.module.iam_identity` Identity Platform
+config's `client.permissions.disabled_user_signup` from absent/false to true. No new
+API, account, service, provider major version or resource is introduced. Preserve
+existing accounts, configured sign-in methods, authorized domains and other client
+permissions. The web image removes self-registration and directs users to admins.
+Before any apply, refresh current dev state and generate/review a saved OpenTofu
+plan using the actual approved environment inputs; reject unrelated changes,
+replacements or placeholder images. Do not apply an old API-only plan. Verify
+existing authorized sign-in and direct registration denial after authorized rollout.
+This package performed offline mock plans only; there is no live saved-state plan
+or deployment acceptance yet.

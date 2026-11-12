@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { z } from "zod";
 import { parseSourceLimitsConfig } from "@everlast/contracts";
 
 /**
@@ -86,6 +89,8 @@ export function loadCodeExecutionConfig(env: NodeJS.ProcessEnv = process.env): C
 export interface BenchmarkConfig {
   approvedNotebookIds: string[];
   revision: string;
+  evidenceFile: string;
+  fixtures: Record<string, { fixture_hash: string; forbidden_facts: string[] }>;
 }
 
 export function loadBenchmarkConfig(env: NodeJS.ProcessEnv = process.env): BenchmarkConfig | undefined {
@@ -93,6 +98,20 @@ export function loadBenchmarkConfig(env: NodeJS.ProcessEnv = process.env): Bench
   if (!raw) return undefined;
   const approvedNotebookIds = raw.split(",").map(s => s.trim()).filter(Boolean);
   if (!approvedNotebookIds.length) return undefined;
+  for (const id of approvedNotebookIds) z.string().uuid().parse(id);
   const revision = env.K_REVISION ?? env.COMMIT_SHA ?? "dev";
-  return { approvedNotebookIds, revision };
+  const fixtures = env.BENCHMARK_FIXTURES_FILE ? z.record(z.string().uuid(), z.object({fixture_hash:z.string().regex(/^[a-f0-9]{64}$/),forbidden_facts:z.array(z.string().min(1)).min(1)}).strict()).parse(JSON.parse(readFileSync(env.BENCHMARK_FIXTURES_FILE,"utf8"))) : {};
+  const evidenceFile=resolve(env.BENCHMARK_EVIDENCE_FILE ?? ".local/benchmark/private.jsonl"),publicRoot=resolve(env.WEB_DIST_DIR??"apps/web/dist");
+  if(evidenceFile===publicRoot||evidenceFile.startsWith(publicRoot+"/"))throw new Error("Private benchmark evidence cannot be served as a public asset");
+  return { approvedNotebookIds, revision, fixtures, evidenceFile };
+}
+
+/** [008-studio-text-reports] T074 — FR-SI-02, FR-ST-11: startup validation. */
+export function loadGuideAdmissionConfig(env: NodeJS.ProcessEnv = process.env): {maxConcurrent:number;maxStartsPerHour:number} {
+  const positive=(key:string,fallback:number)=>{
+    const value=env[key]===undefined?fallback:Number(env[key]);
+    if(!Number.isSafeInteger(value)||value<1)throw new Error(`${key} must be a positive integer`);
+    return value;
+  };
+  return {maxConcurrent:positive("GUIDE_MAX_CONCURRENT",2),maxStartsPerHour:positive("GUIDE_MAX_STARTS_PER_HOUR",20)};
 }

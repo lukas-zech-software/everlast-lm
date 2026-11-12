@@ -1,0 +1,158 @@
+$ env -u GEMINI_API_KEY -u GOOGLE_API_KEY -u GOOGLE_GENAI_API_KEY node packages/evals/src/cli.ts release --concurrency 1 --out reports/pre-v4-006/judged
+[eval] NFR-SEC-01 preflight failed: SEC-OCR
+[eval] lane 1: corpus ingested (inventory:Ready/5, security:Ready/27, teams:Ready/1, people:Ready/1, budget:Ready/4, roadmap:Ready/1, vendors:Ready/1, incidents:Ready/3, travel:Ready/1, handbook:Ready/2)
+[32mINFO[39m: [ADK] 2026-11-06T10:23:12.552Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:18.976Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:22.899Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:26.012Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:27.327Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:30.602Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:32.286Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:35.796Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:36.922Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:38.452Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] cases 10/50
+[32mINFO[39m: [ADK] 2026-11-06T10:23:41.242Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:42.341Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:43.393Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:44.896Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:46.533Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:48.076Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:51.685Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:54.732Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:56.111Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:23:57.809Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] cases 20/50
+[32mINFO[39m: [ADK] 2026-11-06T10:24:01.496Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:05.412Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:07.064Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:08.592Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:10.256Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:11.413Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:15.018Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:16.800Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:20.562Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:23.257Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] cases 30/50
+[32mINFO[39m: [ADK] 2026-11-06T10:24:26.125Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:28.445Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:31.820Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:33.347Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:36.401Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:37.882Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:40.744Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:42.155Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:44.946Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:46.339Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:48.366Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:49.592Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:52.293Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:53.554Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] cases 40/50
+[32mINFO[39m: [ADK] 2026-11-06T10:24:56.227Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:57.455Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:24:59.356Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:00.954Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:02.562Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:04.121Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:05.851Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:07.876Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:09.396Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:12.404Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] cases 50/50
+[32mINFO[39m: [ADK] 2026-11-06T10:25:27.245Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:30.387Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:31.708Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:33.643Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:35.588Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:37.590Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:41.169Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:42.733Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:44.783Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:46.774Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:48.300Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:50.348Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:52.778Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:54.436Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:56.353Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:25:58.743Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:00.271Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:02.230Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:06.198Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:07.821Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:09.819Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:12.263Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:14.400Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:16.540Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:18.886Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:21.565Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:23.950Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:27.306Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:30.057Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[32mINFO[39m: [ADK] 2026-11-06T10:26:32.895Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false
+[eval] FR-GC-07 response length: pass (shorter 0.43, longer 2.413333333333333)
+# Gate v1.0 evaluation report (release)
+
+- **State:** GateFailed
+- **Commit:** ef28a5c21ef9468772c539f9bcaf4df6d2c31b39+dirty
+- **Timestamp:** 2026-11-06T10:26:36.549Z
+- **Dataset:** v1.0.0 (35f54e2553cd), counts {"unanswerable":25,"deselection":11,"history":4,"synthesis":14,"total":50}
+- **Judged sample:** 50 cases (stratified-largest-remainder-v1): NEG-003, NEG-007, NEG-012, NEG-016, NEG-020, NEG-025, NEG-029, NEG-034, NEG-038, NEG-042, NEG-047, NEG-051, NEG-056, NEG-060, NEG-064, NEG-069, NEG-073, NEG-078, NEG-082, NEG-086, NEG-091, NEG-095, NEG-100, NEG-104, NEG-108, DES-003, DES-007, DES-012, DES-017, DES-021, DES-026, DES-030, HIS-003, HIS-008, HIS-013, HIS-018, SYN-003, SYN-007, SYN-011, SYN-016, SYN-020, SYN-024, SYN-028, SYN-033, SYN-037, SYN-041, SYN-046, SYN-050, SYN-054, SYN-058
+- **Models:** chat=vertex:europe-west4:gemini-2.5-flash, embedding=vertex:europe-west4:gemini-embedding-001, judge=vertex:europe-west4:gemini-2.5-flash-lite, ocr=none
+
+| Criterion | Status | Detail |
+| :-- | :-- | :-- |
+| #1 Upload → valid C-01 | pending | 10 corpus documents ingested; UI evidence: missing |
+| #2 NFR-EVAL-01..04 | pass | see metrics |
+| #3 Citation navigation | pending | missing UI evidence (run pnpm test:e2e) |
+
+| Metric | Value | Status | Numerator/Denominator | Failing cases |
+| :-- | :-- | :-- | :-- | :-- |
+| citation_precision | 1 | pass | 22/22 |  |
+| scoping_leakage_count | 0 | pass | —/— |  |
+| hallucination_rate | 0 | pass | 0/22 |  |
+| semantic_support_rate | 1 | pass | 22/22 |  |
+| negative_rejection_rate | 1 | pass | 25/25 |  |
+
+## NFR-SEC-01 preflight
+
+| Check | Status | Detail |
+| :-- | :-- | :-- |
+| SEC-01 No consumer/developer API key in the runtime environment | pass | none present |
+| SEC-VERTEX-chat Grounded chat (vertex:europe-west4:gemini-2.5-flash) uses Vertex AI with ADC in europe-west4 | pass | vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground |
+| SEC-VERTEX-embedding Embeddings (gemini-embedding-001) uses Vertex AI with ADC in europe-west4 | pass | vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground |
+| SEC-VERTEX-judge Eval judge (gemini-2.5-flash-lite) uses Vertex AI with ADC in europe-west4 | pass | vertexai=true apiKey=none location=europe-west4 project=lukas-gcloud-playground |
+| SEC-OCR OCR processor configured | unavailable | no Document AI processor configured: scanned pages cannot be OCR'd |
+| SEC-ADC Keyless Application Default Credentials available | pass | access token obtained |
+
+## FR-GC-07 response length (v2.0 release metric)
+
+- **Status:** pass
+- **Shorter / Default:** 43 % (≤ 50 %) · **Longer / Default:** 241 % (≥ 150 %)
+- **Sample case IDs:** SYN-028, SYN-033, SYN-037, SYN-041, SYN-046, SYN-050, SYN-054, SYN-058
+- **Excluded (Default refusal):** SYN-003, SYN-007, SYN-011, SYN-016, SYN-020, SYN-024
+- **Generation parameters:** {"style":"default","lengths":["default","shorter","longer"],"token_count":"Intl.Segmenter word-like segments, citation badges removed","history":"none (empty thread per answer)","aggregation":"mean of per-case ratios","eligibility":"answerable synthesis cases; Default refusals excluded (excluded_case_ids)"}
+
+## Failures
+
+- preflight SEC-OCR unavailable: no Document AI processor configured: scanned pages cannot be OCR'd
+
+{"severity":"WARNING","message":"Vertex AI structured generation failed","model":"gemini-2.5-flash","upstream_status":504,"upstream_error":"ApiError","upstream_message":"{\"error\":{\"code\":504,\"message\":\"Deadline expired before operation could complete.\",\"status\":\"DEADLINE_EXCEEDED\"}}"}
+{"severity":"WARNING","message":"Vertex AI structured generation failed","model":"gemini-2.5-flash","upstream_status":504,"upstream_error":"ApiError","upstream_message":"{\"error\":{\"code\":504,\"message\":\"Deadline expired before operation could complete.\",\"status\":\"DEADLINE_EXCEEDED\"}}"}
+{"severity":"WARNING","message":"Vertex AI structured generation failed","model":"gemini-2.5-flash","upstream_status":504,"upstream_error":"ApiError","upstream_message":"{\"error\":{\"code\":504,\"message\":\"Deadline expired before operation could complete.\",\"status\":\"DEADLINE_EXCEEDED\"}}"}
+[eval] Gate v2.0 #3 Studio reports (vertex:europe-west4:gemini-2.5-flash): FAIL
+[eval]   validity 75 % (3/4), citation precision 1.000, leakage 0, P95 64536.1 ms (≤ 25000 ms)
+[eval]   study_guide: Failed — Report generation failed unexpectedly.
+[eval] Gate v2.0 #1 Source Guide (vertex:europe-west4:gemini-2.5-flash-lite): FAIL
+[eval]   GuideReady 95 % (19/20), P95 from Ready 2984 ms (< 10000 ms; generation P95 1984 ms + watcher dispatch ≤ 1000 ms)
+[eval]   summary words 0–155, key topics 0–10
+[eval]   Vendor_Contracts.md [de-DE]: ZodError: [
+  {
+    "code": "custom",
+    "path": [
+      "summary_md"
+    ],
+    "message": "summary must not exceed 250 words"
+  }
+]
+[ELIFECYCLE] Command failed with exit code 1.

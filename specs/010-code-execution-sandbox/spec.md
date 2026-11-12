@@ -199,3 +199,24 @@ The project owner decided that, for now, the managed sandbox defines the limits.
 
 - SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
 - Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.
+
+
+## CC-09 recovery scope (2026-11-09; FR-GC-08, NFR-PERF-01)
+
+Resume the existing benchmark evidence and default-off managed-parent infrastructure.
+Use canonical C-01/C-02, preserve execution isolation/publication fences and D16.
+No new deployment-app dependency, public telemetry bypass or policy exception is permitted.
+Historical completion markers do not establish live T052 acceptance.
+
+
+Completion refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09): T063 must submit bounded authenticated ordinary SSE requests, run two-user samples concurrently with distinct proven owners/notebooks, and correlate trusted private serving/readiness/fixture evidence. Preserve every attempt. Missing evidence is UNAVAILABLE, never a label-derived pass.
+
+## Local collector refinement (FR-GC-08, NFR-PERF-01, NFR-SEC-02)
+
+Malformed or late evidence invalidates the affected sample and stops new
+dispatch while retaining all attempted requests, including an in-flight peer.
+The frozen calibration must cover dispatch, server execution evidence and
+evidence receipt. A known failure remains visible even when later missing
+evidence leaves its cohort incomplete. An incomplete cohort has no qualifying
+percentiles and keeps its declared sample count. The release gate requires the
+guarded 012 timing campaign and private export on the calibrated client process.

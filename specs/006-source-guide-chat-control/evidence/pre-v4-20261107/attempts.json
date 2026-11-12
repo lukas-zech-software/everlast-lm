@@ -1,0 +1,1666 @@
+{
+  "scope": [
+    "FR-SI-02",
+    "FR-GC-07",
+    "NFR-EVAL-01..04"
+  ],
+  "base_commit": "ef28a5c21ef9468772c539f9bcaf4df6d2c31b39",
+  "source_hashes": {
+    "apps/api/src/chat/model.ts": "a0bc9052d7fa29bad7ddb0f8da37d1b5900ca6b7deb6ca182408c5b32556142d",
+    "apps/api/src/chat/prompt.ts": "9c065746c0cb382481036c49b7d4c209be8d68205db0c23fac1e55498cf69761",
+    "apps/worker/src/package-v2-2-gemini.ts": "e1eb613fd9a7a07355bd85c5a09446a75af76b14b4c9cf8858290c397acd141e"
+  },
+  "guide_attempts": [
+    {
+      "name": "guide-before",
+      "status": "ran",
+      "result": {
+        "model": "vertex:europe-west4:gemini-2.5-flash-lite",
+        "dispatch_delay_ms": 1000,
+        "cases": [
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 5739.4105,
+            "from_ready_ms": 6739.4105,
+            "summary_words": 111,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1206.1323750000001,
+            "from_ready_ms": 2206.132375,
+            "summary_words": 109,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 981.1276669999997,
+            "from_ready_ms": 1981.1276669999997,
+            "summary_words": 84,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 960.9205829999992,
+            "from_ready_ms": 1960.9205829999992,
+            "summary_words": 75,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1734.1515419999996,
+            "from_ready_ms": 2734.1515419999996,
+            "summary_words": 95,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1288.1126250000016,
+            "from_ready_ms": 2288.1126250000016,
+            "summary_words": 132,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1025.7954580000005,
+            "from_ready_ms": 2025.7954580000005,
+            "summary_words": 85,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1586.2083750000002,
+            "from_ready_ms": 2586.208375,
+            "summary_words": 77,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 781.2478330000013,
+            "from_ready_ms": 1781.2478330000013,
+            "summary_words": 46,
+            "key_topics": 4,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 740.346540999999,
+            "from_ready_ms": 1740.346540999999,
+            "summary_words": 23,
+            "key_topics": 2,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "de-DE",
+            "status": "GuideFailed",
+            "generation_ms": 2975.312249999999,
+            "from_ready_ms": 3975.312249999999,
+            "summary_words": 0,
+            "key_topics": 0,
+            "supported": false,
+            "problem": "ZodError: [\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"summary_md\"\n    ],\n    \"message\": \"summary must not exceed 250 words\"\n  }\n]"
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1844.2500409999993,
+            "from_ready_ms": 2844.2500409999993,
+            "summary_words": 107,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1254.1710829999975,
+            "from_ready_ms": 2254.1710829999975,
+            "summary_words": 98,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1051.6289169999982,
+            "from_ready_ms": 2051.628916999998,
+            "summary_words": 75,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1483.8530419999988,
+            "from_ready_ms": 2483.853041999999,
+            "summary_words": 73,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1670.9602919999998,
+            "from_ready_ms": 2670.9602919999998,
+            "summary_words": 155,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1712.2505420000016,
+            "from_ready_ms": 2712.2505420000016,
+            "summary_words": 227,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1187.017832999998,
+            "from_ready_ms": 2187.017832999998,
+            "summary_words": 64,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 834.6856249999983,
+            "from_ready_ms": 1834.6856249999983,
+            "summary_words": 48,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 936.8077499999999,
+            "from_ready_ms": 1936.80775,
+            "summary_words": 28,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          }
+        ],
+        "ready_rate": 0.95,
+        "p95_from_ready_ms": 3975.312249999999,
+        "passed": false
+      }
+    },
+    {
+      "name": "guide-after",
+      "status": "ran",
+      "result": {
+        "model": "vertex:europe-west4:gemini-2.5-flash-lite",
+        "dispatch_delay_ms": 1000,
+        "cases": [
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 6277.709375,
+            "from_ready_ms": 7277.709375,
+            "summary_words": 104,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1371.006292,
+            "from_ready_ms": 2371.006292,
+            "summary_words": 109,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1270.8194580000009,
+            "from_ready_ms": 2270.819458000001,
+            "summary_words": 200,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1073.8970420000005,
+            "from_ready_ms": 2073.8970420000005,
+            "summary_words": 85,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1758.121583,
+            "from_ready_ms": 2758.121583,
+            "summary_words": 98,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 887.1210410000003,
+            "from_ready_ms": 1887.1210410000003,
+            "summary_words": 64,
+            "key_topics": 6,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1068.0482079999983,
+            "from_ready_ms": 2068.0482079999983,
+            "summary_words": 90,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1235.3616249999995,
+            "from_ready_ms": 2235.3616249999995,
+            "summary_words": 70,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 729.4593329999989,
+            "from_ready_ms": 1729.4593329999989,
+            "summary_words": 52,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 719.0483330000006,
+            "from_ready_ms": 1719.0483330000006,
+            "summary_words": 42,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1659.735166999999,
+            "from_ready_ms": 2659.735166999999,
+            "summary_words": 93,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1239.0927499999998,
+            "from_ready_ms": 2239.09275,
+            "summary_words": 78,
+            "key_topics": 9,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1281.796000000002,
+            "from_ready_ms": 2281.796000000002,
+            "summary_words": 182,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1059.8170000000027,
+            "from_ready_ms": 2059.8170000000027,
+            "summary_words": 82,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1311.3969580000012,
+            "from_ready_ms": 2311.396958000001,
+            "summary_words": 60,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1328.559624999998,
+            "from_ready_ms": 2328.559624999998,
+            "summary_words": 91,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1908.302334,
+            "from_ready_ms": 2908.302334,
+            "summary_words": 249,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1309.5791250000002,
+            "from_ready_ms": 2309.579125,
+            "summary_words": 56,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 791.7732079999987,
+            "from_ready_ms": 1791.7732079999987,
+            "summary_words": 47,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 960.2609580000026,
+            "from_ready_ms": 1960.2609580000026,
+            "summary_words": 28,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          }
+        ],
+        "ready_rate": 1,
+        "p95_from_ready_ms": 2908.302334,
+        "passed": true
+      }
+    },
+    {
+      "name": "guide-merged",
+      "status": "ran",
+      "result": {
+        "model": "vertex:europe-west4:gemini-2.5-flash-lite",
+        "dispatch_delay_ms": 1000,
+        "cases": [
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 4683.732625000001,
+            "from_ready_ms": 5683.732625000001,
+            "summary_words": 85,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1318.8139579999997,
+            "from_ready_ms": 2318.8139579999997,
+            "summary_words": 106,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1111.3578339999995,
+            "from_ready_ms": 2111.3578339999995,
+            "summary_words": 88,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1065.0914159999993,
+            "from_ready_ms": 2065.0914159999993,
+            "summary_words": 85,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1647.667375000001,
+            "from_ready_ms": 2647.667375000001,
+            "summary_words": 95,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1833.547208,
+            "from_ready_ms": 2833.547208,
+            "summary_words": 186,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1369.3805830000001,
+            "from_ready_ms": 2369.380583,
+            "summary_words": 117,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1279.562,
+            "from_ready_ms": 2279.562,
+            "summary_words": 75,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 923.0400419999987,
+            "from_ready_ms": 1923.0400419999987,
+            "summary_words": 59,
+            "key_topics": 4,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 697.265707999999,
+            "from_ready_ms": 1697.265707999999,
+            "summary_words": 23,
+            "key_topics": 2,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1857.4876249999998,
+            "from_ready_ms": 2857.4876249999998,
+            "summary_words": 100,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideFailed",
+            "generation_ms": 1866.7514589999992,
+            "from_ready_ms": 2866.751458999999,
+            "summary_words": 0,
+            "key_topics": 0,
+            "supported": false,
+            "problem": "ZodError: [\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"key_topics\",\n      6\n    ],\n    \"message\": \"key topic must contain 1–40 Unicode code points after trimming\"\n  }\n]"
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1215.746874999997,
+            "from_ready_ms": 2215.746874999997,
+            "summary_words": 100,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1033.0652499999997,
+            "from_ready_ms": 2033.0652499999997,
+            "summary_words": 82,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1255.1886249999989,
+            "from_ready_ms": 2255.188624999999,
+            "summary_words": 60,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1656.1105420000022,
+            "from_ready_ms": 2656.110542000002,
+            "summary_words": 157,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1957.965541999998,
+            "from_ready_ms": 2957.965541999998,
+            "summary_words": 249,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1501.117083000001,
+            "from_ready_ms": 2501.117083000001,
+            "summary_words": 56,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1049.952957999998,
+            "from_ready_ms": 2049.952957999998,
+            "summary_words": 43,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1075.9511249999996,
+            "from_ready_ms": 2075.9511249999996,
+            "summary_words": 28,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          }
+        ],
+        "ready_rate": 0.95,
+        "p95_from_ready_ms": 2957.965541999998,
+        "passed": false
+      }
+    },
+    {
+      "name": "guide-system",
+      "status": "ran",
+      "result": {
+        "model": "vertex:europe-west4:gemini-2.5-flash-lite",
+        "dispatch_delay_ms": 1000,
+        "cases": [
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 6103.067292000001,
+            "from_ready_ms": 7103.067292000001,
+            "summary_words": 70,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1663.895834,
+            "from_ready_ms": 2663.895834,
+            "summary_words": 121,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1136.9788749999989,
+            "from_ready_ms": 2136.978874999999,
+            "summary_words": 88,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1053.1735840000001,
+            "from_ready_ms": 2053.173584,
+            "summary_words": 82,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1648.2803750000003,
+            "from_ready_ms": 2648.2803750000003,
+            "summary_words": 84,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1543.2952910000004,
+            "from_ready_ms": 2543.2952910000004,
+            "summary_words": 155,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1154.3047499999993,
+            "from_ready_ms": 2154.3047499999993,
+            "summary_words": 81,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1363.9903749999994,
+            "from_ready_ms": 2363.9903749999994,
+            "summary_words": 62,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 903.1994590000013,
+            "from_ready_ms": 1903.1994590000013,
+            "summary_words": 51,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 872.4149580000012,
+            "from_ready_ms": 1872.4149580000012,
+            "summary_words": 33,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1637.038375,
+            "from_ready_ms": 2637.038375,
+            "summary_words": 50,
+            "key_topics": 4,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1653.7867910000023,
+            "from_ready_ms": 2653.7867910000023,
+            "summary_words": 103,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1411.3383749999994,
+            "from_ready_ms": 2411.3383749999994,
+            "summary_words": 98,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1138.1857500000006,
+            "from_ready_ms": 2138.1857500000006,
+            "summary_words": 84,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1637.3202920000003,
+            "from_ready_ms": 2637.3202920000003,
+            "summary_words": 126,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1542.2075409999998,
+            "from_ready_ms": 2542.2075409999998,
+            "summary_words": 148,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "de-DE",
+            "status": "GuideFailed",
+            "generation_ms": 1978.5389590000013,
+            "from_ready_ms": 2978.5389590000013,
+            "summary_words": 0,
+            "key_topics": 0,
+            "supported": false,
+            "problem": "ZodError: [\n  {\n    \"code\": \"custom\",\n    \"path\": [\n      \"summary_md\"\n    ],\n    \"message\": \"summary must not exceed 250 words\"\n  }\n]"
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1351.0065829999985,
+            "from_ready_ms": 2351.0065829999985,
+            "summary_words": 52,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 976.8432500000017,
+            "from_ready_ms": 1976.8432500000017,
+            "summary_words": 46,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 765.1102920000012,
+            "from_ready_ms": 1765.1102920000012,
+            "summary_words": 21,
+            "key_topics": 2,
+            "supported": true,
+            "problem": null
+          }
+        ],
+        "ready_rate": 0.95,
+        "p95_from_ready_ms": 2978.5389590000013,
+        "passed": false
+      }
+    },
+    {
+      "name": "guide-summary",
+      "status": "ran",
+      "result": {
+        "model": "vertex:europe-west4:gemini-2.5-flash-lite",
+        "dispatch_delay_ms": 1000,
+        "cases": [
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 5268.220834,
+            "from_ready_ms": 6268.220834,
+            "summary_words": 64,
+            "key_topics": 4,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1263.1092500000004,
+            "from_ready_ms": 2263.1092500000004,
+            "summary_words": 93,
+            "key_topics": 8,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 854.2300830000004,
+            "from_ready_ms": 1854.2300830000004,
+            "summary_words": 62,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1026.979542000001,
+            "from_ready_ms": 2026.979542000001,
+            "summary_words": 78,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1321.6366660000003,
+            "from_ready_ms": 2321.6366660000003,
+            "summary_words": 61,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1385.6709169999995,
+            "from_ready_ms": 2385.6709169999995,
+            "summary_words": 121,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1047.7629589999997,
+            "from_ready_ms": 2047.7629589999997,
+            "summary_words": 90,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 1177.0333329999994,
+            "from_ready_ms": 2177.0333329999994,
+            "summary_words": 62,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 953.1004590000011,
+            "from_ready_ms": 1953.1004590000011,
+            "summary_words": 54,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "en-US",
+            "status": "GuideReady",
+            "generation_ms": 819.4532500000005,
+            "from_ready_ms": 1819.4532500000005,
+            "summary_words": 33,
+            "key_topics": 3,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Infrastructure_Inventory.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1410.3359580000015,
+            "from_ready_ms": 2410.3359580000015,
+            "summary_words": 49,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Security_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1579.637584,
+            "from_ready_ms": 2579.637584,
+            "summary_words": 105,
+            "key_topics": 9,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Service_Ownership.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1230.5153329999994,
+            "from_ready_ms": 2230.5153329999994,
+            "summary_words": 98,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "People_Directory.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 995.4258340000015,
+            "from_ready_ms": 1995.4258340000015,
+            "summary_words": 69,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Budget_2027.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1465.608750000003,
+            "from_ready_ms": 2465.608750000003,
+            "summary_words": 64,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Roadmap_2027.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1404.0658750000002,
+            "from_ready_ms": 2404.0658750000002,
+            "summary_words": 109,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Vendor_Contracts.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1322.5345000000016,
+            "from_ready_ms": 2322.5345000000016,
+            "summary_words": 67,
+            "key_topics": 7,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Incident_Log.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 1677.4704590000001,
+            "from_ready_ms": 2677.470459,
+            "summary_words": 93,
+            "key_topics": 10,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Travel_Policy.md",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 896.1452500000014,
+            "from_ready_ms": 1896.1452500000014,
+            "summary_words": 47,
+            "key_topics": 5,
+            "supported": true,
+            "problem": null
+          },
+          {
+            "source_title": "Office_Handbook.pdf",
+            "output_language": "de-DE",
+            "status": "GuideReady",
+            "generation_ms": 758.8946669999968,
+            "from_ready_ms": 1758.8946669999968,
+            "summary_words": 21,
+            "key_topics": 2,
+            "supported": true,
+            "problem": null
+          }
+        ],
+        "ready_rate": 1,
+        "p95_from_ready_ms": 2677.470459,
+        "passed": true
+      }
+    }
+  ],
+  "length_attempts": [
+    {
+      "name": "length-before",
+      "datasetHash": "35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29",
+      "corpusHash": "df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd",
+      "sample": [
+        "NEG-003",
+        "NEG-007",
+        "NEG-012",
+        "NEG-016",
+        "NEG-020",
+        "NEG-025",
+        "NEG-029",
+        "NEG-034",
+        "NEG-038",
+        "NEG-042",
+        "NEG-047",
+        "NEG-051",
+        "NEG-056",
+        "NEG-060",
+        "NEG-064",
+        "NEG-069",
+        "NEG-073",
+        "NEG-078",
+        "NEG-082",
+        "NEG-086",
+        "NEG-091",
+        "NEG-095",
+        "NEG-100",
+        "NEG-104",
+        "NEG-108",
+        "DES-003",
+        "DES-007",
+        "DES-012",
+        "DES-017",
+        "DES-021",
+        "DES-026",
+        "DES-030",
+        "HIS-003",
+        "HIS-008",
+        "HIS-013",
+        "HIS-018",
+        "SYN-003",
+        "SYN-007",
+        "SYN-011",
+        "SYN-016",
+        "SYN-020",
+        "SYN-024",
+        "SYN-028",
+        "SYN-033",
+        "SYN-037",
+        "SYN-041",
+        "SYN-046",
+        "SYN-050",
+        "SYN-054",
+        "SYN-058"
+      ],
+      "result": {
+        "name": "response_length",
+        "generation_parameters": {
+          "style": "default",
+          "lengths": [
+            "default",
+            "shorter",
+            "longer"
+          ],
+          "token_count": "Intl.Segmenter word-like segments, citation badges removed",
+          "history": "none (empty thread per answer)",
+          "aggregation": "mean of per-case ratios",
+          "eligibility": "answerable synthesis cases; Default refusals excluded (excluded_case_ids)"
+        },
+        "excluded_case_ids": [
+          "SYN-003",
+          "SYN-007",
+          "SYN-011",
+          "SYN-016",
+          "SYN-020",
+          "SYN-024"
+        ],
+        "status": "fail",
+        "passed": false,
+        "shorter_ratio": 1,
+        "longer_ratio": 2.445,
+        "case_ids": [
+          "SYN-028",
+          "SYN-033",
+          "SYN-037",
+          "SYN-041",
+          "SYN-046",
+          "SYN-050",
+          "SYN-054",
+          "SYN-058"
+        ],
+        "samples": [
+          {
+            "case_id": "SYN-028",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-033",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-037",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-041",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-046",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-050",
+            "default_tokens": 15,
+            "shorter_tokens": 15,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-054",
+            "default_tokens": 25,
+            "shorter_tokens": 25,
+            "longer_tokens": 55
+          },
+          {
+            "case_id": "SYN-058",
+            "default_tokens": 25,
+            "shorter_tokens": 25,
+            "longer_tokens": 54
+          }
+        ]
+      }
+    },
+    {
+      "name": "length-after-2",
+      "datasetHash": "35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29",
+      "corpusHash": "df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd",
+      "sample": [
+        "NEG-003",
+        "NEG-007",
+        "NEG-012",
+        "NEG-016",
+        "NEG-020",
+        "NEG-025",
+        "NEG-029",
+        "NEG-034",
+        "NEG-038",
+        "NEG-042",
+        "NEG-047",
+        "NEG-051",
+        "NEG-056",
+        "NEG-060",
+        "NEG-064",
+        "NEG-069",
+        "NEG-073",
+        "NEG-078",
+        "NEG-082",
+        "NEG-086",
+        "NEG-091",
+        "NEG-095",
+        "NEG-100",
+        "NEG-104",
+        "NEG-108",
+        "DES-003",
+        "DES-007",
+        "DES-012",
+        "DES-017",
+        "DES-021",
+        "DES-026",
+        "DES-030",
+        "HIS-003",
+        "HIS-008",
+        "HIS-013",
+        "HIS-018",
+        "SYN-003",
+        "SYN-007",
+        "SYN-011",
+        "SYN-016",
+        "SYN-020",
+        "SYN-024",
+        "SYN-028",
+        "SYN-033",
+        "SYN-037",
+        "SYN-041",
+        "SYN-046",
+        "SYN-050",
+        "SYN-054",
+        "SYN-058"
+      ],
+      "result": {
+        "name": "response_length",
+        "generation_parameters": {
+          "style": "default",
+          "lengths": [
+            "default",
+            "shorter",
+            "longer"
+          ],
+          "token_count": "Intl.Segmenter word-like segments, citation badges removed",
+          "history": "none (empty thread per answer)",
+          "aggregation": "mean of per-case ratios",
+          "eligibility": "answerable synthesis cases; Default refusals excluded (excluded_case_ids)"
+        },
+        "excluded_case_ids": [
+          "SYN-003",
+          "SYN-007",
+          "SYN-011",
+          "SYN-016",
+          "SYN-024"
+        ],
+        "status": "fail",
+        "passed": false,
+        "shorter_ratio": null,
+        "longer_ratio": null,
+        "case_ids": [
+          "SYN-020",
+          "SYN-028",
+          "SYN-033",
+          "SYN-037",
+          "SYN-041",
+          "SYN-046",
+          "SYN-050",
+          "SYN-054",
+          "SYN-058"
+        ],
+        "samples": [
+          {
+            "case_id": "SYN-020",
+            "default_tokens": 21,
+            "shorter_tokens": 0,
+            "longer_tokens": 74,
+            "shorter_refused": true
+          },
+          {
+            "case_id": "SYN-028",
+            "default_tokens": 15,
+            "shorter_tokens": 10,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-033",
+            "default_tokens": 15,
+            "shorter_tokens": 14,
+            "longer_tokens": 0,
+            "longer_refused": true
+          },
+          {
+            "case_id": "SYN-037",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-041",
+            "default_tokens": 15,
+            "shorter_tokens": 14,
+            "longer_tokens": 26
+          },
+          {
+            "case_id": "SYN-046",
+            "default_tokens": 15,
+            "shorter_tokens": 10,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-050",
+            "default_tokens": 15,
+            "shorter_tokens": 14,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-054",
+            "default_tokens": 25,
+            "shorter_tokens": 25,
+            "longer_tokens": 56
+          },
+          {
+            "case_id": "SYN-058",
+            "default_tokens": 27,
+            "shorter_tokens": 24,
+            "longer_tokens": 47
+          }
+        ],
+        "detail": "Shorter/Longer refusal where Default answered (fails closed): SYN-020, SYN-033"
+      }
+    },
+    {
+      "name": "length-after-4",
+      "datasetHash": "35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29",
+      "corpusHash": "df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd",
+      "sample": [
+        "NEG-003",
+        "NEG-007",
+        "NEG-012",
+        "NEG-016",
+        "NEG-020",
+        "NEG-025",
+        "NEG-029",
+        "NEG-034",
+        "NEG-038",
+        "NEG-042",
+        "NEG-047",
+        "NEG-051",
+        "NEG-056",
+        "NEG-060",
+        "NEG-064",
+        "NEG-069",
+        "NEG-073",
+        "NEG-078",
+        "NEG-082",
+        "NEG-086",
+        "NEG-091",
+        "NEG-095",
+        "NEG-100",
+        "NEG-104",
+        "NEG-108",
+        "DES-003",
+        "DES-007",
+        "DES-012",
+        "DES-017",
+        "DES-021",
+        "DES-026",
+        "DES-030",
+        "HIS-003",
+        "HIS-008",
+        "HIS-013",
+        "HIS-018",
+        "SYN-003",
+        "SYN-007",
+        "SYN-011",
+        "SYN-016",
+        "SYN-020",
+        "SYN-024",
+        "SYN-028",
+        "SYN-033",
+        "SYN-037",
+        "SYN-041",
+        "SYN-046",
+        "SYN-050",
+        "SYN-054",
+        "SYN-058"
+      ],
+      "result": {
+        "name": "response_length",
+        "generation_parameters": {
+          "style": "default",
+          "lengths": [
+            "default",
+            "shorter",
+            "longer"
+          ],
+          "token_count": "Intl.Segmenter word-like segments, citation badges removed",
+          "history": "none (empty thread per answer)",
+          "aggregation": "mean of per-case ratios",
+          "eligibility": "answerable synthesis cases; Default refusals excluded (excluded_case_ids)"
+        },
+        "excluded_case_ids": [
+          "SYN-003",
+          "SYN-007",
+          "SYN-011",
+          "SYN-016",
+          "SYN-020",
+          "SYN-024"
+        ],
+        "status": "pass",
+        "passed": true,
+        "shorter_ratio": 0.435,
+        "longer_ratio": 2.373333333333333,
+        "case_ids": [
+          "SYN-028",
+          "SYN-033",
+          "SYN-037",
+          "SYN-041",
+          "SYN-046",
+          "SYN-050",
+          "SYN-054",
+          "SYN-058"
+        ],
+        "samples": [
+          {
+            "case_id": "SYN-028",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-033",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-037",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-041",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 29
+          },
+          {
+            "case_id": "SYN-046",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 40
+          },
+          {
+            "case_id": "SYN-050",
+            "default_tokens": 15,
+            "shorter_tokens": 7,
+            "longer_tokens": 37
+          },
+          {
+            "case_id": "SYN-054",
+            "default_tokens": 25,
+            "shorter_tokens": 7,
+            "longer_tokens": 49
+          },
+          {
+            "case_id": "SYN-058",
+            "default_tokens": 25,
+            "shorter_tokens": 10,
+            "longer_tokens": 54
+          }
+        ]
+      }
+    }
+  ],
+  "incomplete_length_attempts": [
+    {
+      "name": "length-after",
+      "status": "FAIL",
+      "detail": "Initial candidate (temporary Default/Longer targets later reverted) stopped with RetryableFailure503 on SYN-028 Longer; 9 ADK generation attempts logged.",
+      "log": "\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:36.576Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-003 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:40.794Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-007 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:45.258Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-011 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:47.053Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-016 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:50.428Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-020 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:53.303Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-024 default null\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:54.988Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-028 default The Varnhold service is owned by Team Cobalt. Team Cobalt is led by Teodor Vashkin.\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:56.811Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nSYN-028 shorter Teodor Vashkin leads Team Cobalt, which owns the Varnhold service.\n\u001b[32mINFO\u001b[39m: [ADK] 2026-11-05T18:17:58.446Z Sending out request, model: gemini-2.5-flash, backend: VERTEX_AI, stream: false\nfile:///private/tmp/everlast-pre-v4-006/apps/api/src/chat/service.ts:144\n      if (err instanceof ModelUnavailableError) throw new AppError(\"RetryableFailure\", 503, GENERATION_ERROR_MESSAGE);\n                                                      ^\n\nAppError: An error occurred while generating the response. Please try again.\n    at ChatService.generate (file:///private/tmp/everlast-pre-v4-006/apps/api/src/chat/service.ts:144:55)\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async ChatService.runTurnCore (file:///private/tmp/everlast-pre-v4-006/apps/api/src/chat/service.ts:321:17)\n    at async ChatService.runTurn (file:///private/tmp/everlast-pre-v4-006/apps/api/src/chat/service.ts:233:24)\n    at async runTurn (file:///private/tmp/everlast-pre-v4-006/packages/evals/src/runner.ts:107:20)\n    at async Object.answer (file:///private/tmp/everlast-pre-v4-006/packages/evals/src/runner.ts:377:21)\n    at async Object.answer (file:///private/tmp/everlast-pre-v4-006/reports/pre-v4-006/length-run.mjs:14:83)\n    at async runResponseLengthEval (file:///private/tmp/everlast-pre-v4-006/packages/evals/src/response-length.ts:103:20)\n    at async file:///private/tmp/everlast-pre-v4-006/reports/pre-v4-006/length-run.mjs:14:16 {\n  code: 'RetryableFailure',\n  status: 503\n}\n\nNode.js v26.3.0\n"
+    },
+    {
+      "name": "length-after-3",
+      "status": "UNAVAILABLE",
+      "detail": "ECONNREFUSED127.0.0.1:54329 before any model call; local Docker database restarted."
+    }
+  ],
+  "diagnostic_vendor_guide": {
+    "summary_md": "Die Liste der Anbieterträge zeigt, welche Unternehmen von welchen Dienstleistern unterstützt werden und wann die Verträge enden. Quillon wird von Halcyne Systems bis März 2028 unterstützt, während Varnhold von Morrow & Pike bis Juni 2029 betreut wird. Ostrelle hat einen Vertrag mit Tessaline GmbH bis September 2030, und Brindmoor wird von Quorvale Ltd bis Dezember 2028 unterstützt. Caskwell wird von Arbeth Networks bis März 2029 versorgt, und Drevanne wird ebenfalls von Halcyne Systems bis Juni 2030 betreut. Elmspire wird von Morrow & Pike bis September 2028 unterstützt, und Fennick hat einen Vertrag mit Tessaline GmbH bis Dezember 2029. Garrowby wird von Quorvale Ltd bis März 2030 unterstützt, und Hollisand wird von Arbeth Networks bis Juni 2028 versorgt. Iverleigh wird von Halcyne Systems bis September 2029 unterstützt, und Jorvane hat einen Vertrag mit Morrow & Pike bis Dezember 2030. Kettlemere wird von Tessaline GmbH bis März 2028 unterstützt, und Lunwick wird von Quorvale Ltd bis Juni 2029 betreut. Marrowgate wird von Arbeth Networks bis September 2030 unterstützt, und Nethercott wird von Halcyne Systems bis Dezember 2028 versorgt. Orlvane wird von Morrow & Pike bis März 2029 unterstützt, und Pellmont hat einen Vertrag mit Tessaline GmbH bis Juni 2030. Quarrendon wird von Quorvale Ltd bis September 2028 unterstützt, und Rookhaven wird von Arbeth Networks bis Dezember 2029 betreut. Sallowmere wird von Halcyne Systems bis März 2030 unterstützt, und Thistlecombe wird von Morrow & Pike bis Juni 2028 versorgt. Umberleigh wird von Tessaline GmbH bis September 2029 unterstützt, und Vexbridge hat einen Vertrag mit Quorvale Ltd bis Dezember 2030. Wendlebury wird von Arbeth Networks bis März 2028 unterstützt, und Yarrowfield wird von Halcyne Systems bis Juni 2029 betreut.",
+    "key_topics": [
+      "Anbieterträge",
+      "Vertragsende",
+      "Dienstleister",
+      "Halcyne Systems",
+      "Morrow & Pike",
+      "Tessaline GmbH",
+      "Quorvale Ltd",
+      "Arbeth Networks"
+    ],
+    "supporting_chunk_ids": [
+      "de653e5a-ef1d-4487-8ff4-b4587f07d50a"
+    ]
+  },
+  "billing": {
+    "billed_cost": "UNAVAILABLE: no billing export queried",
+    "guide_calls": 121,
+    "length_generation_attempts": 131,
+    "count_detail": "Five standalone20-case guide runs +20guide cases in full judged run +one raw vendor diagnostic. Standalone length runs30+9+32+0+30=101 ADK calls; full judged length adds30. These counts exclude embeddings, standard50-case chat/judging, report generation and transport retries."
+  },
+  "final_guide": "guide-summary",
+  "final_standalone_length": "length-after-4",
+  "limitations": [
+    "Full judged run remains GateFailed because DocumentAI OCR configuration was unavailable; report gate had504 failures.",
+    "Six Default-refusal cases remain excluded from length eligibility per existing owner-approved rule.",
+    "Guide live gate uses real Vertex generation with in-memory singleton source reader and adds1000ms dispatch bound; not a deployed end-to-end ingestion timing proof.",
+    "No future release gate or deployment is certified by these package results."
+  ]
+}

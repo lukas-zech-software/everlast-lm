@@ -105,3 +105,81 @@ Re-executed read-only cross-artifact analysis (`check-prerequisites.sh --json --
 - **Tasks Completed**: `48/48` (`[x] T001`..`T048` in `tasks.md`).
 - **Critical / High / Medium / Ambiguity / Duplication Findings**: `0`.
 - **Convergence Status**: **CONVERGED** for Package 3.2 local implementation, deterministic verification, and documentation flow-back. Next package (`specs/011-studio-structure-extraction`) branches cleanly from this completed branch and starts migrations at `0011`.
+
+
+## Read-only recovery analysis — 2026-11-09 (FR-GC-08, CC-01..CC-09)
+
+Reviewed current spec/plan/tasks, D18-D20 and the proposed recovery diff before
+implementation. Boundary inventory maps the pure evaluator, CLI and optional IaC
+composition; no new app/shared edge, exception or workflow extraction is proposed.
+CC-01/02: recovered tests provide seven actual failing behaviors against current
+code; strict validation and truthful uncollected-path refusal are traced to T049/T050.
+CC-03/04/05/07: runtime source scope, citation/publication, isolation and auth paths
+are unchanged, not newly certified by this recovery. CC-06/08: approved provider
+8.10 constraints and default-off creation preserved; no R6 gate or apply.
+CC-09: graph and changed artifacts pass, 186 approved records unchanged.
+No high/critical scoped design finding blocks recovering the reviewed safeguard.
+T063 remains open: true collection needs serving/runtime provenance and ordinary
+application event observations; configured flags must never substitute for this.
+Only optional Git hooks are configured; before_analyze ran with auto-commit disabled.
+
+
+Post-recovery CC-09 review: actual source diff is the pure observation validator
+and existing CLI report path; no new workflow, infrastructure client or import
+boundary was introduced. Graph0 findings and 186 unchanged approved exceptions.
+T061 recovery complete locally; T062/T063/T052 remain open, not waived by this
+checkpoint. Optional before_implement/after_implement hooks use disabled auto-commit;
+manual reviewed commit records this bounded recovery.
+
+
+## Completion re-analysis — 2026-11-10 (FR-GC-08, CC-01..CC-09)
+
+Read current constitution/procedure/card/README and analyzed T062/T063 design before
+implementation; the prior approved recovery remains intact. No high/critical scoped
+design conflict was found. New pure collector/HTTP/private-file adapters use public
+contracts and explicit effect ports; production producers have canonical private
+contracts without depending on eval/testkit. Root eval exports are explicit; its
+unused wildcard and exactly one now-stale exception were removed, never widened.
+
+Actual initial collector scaffold: four failing behavior assertions, two passing;
+not an import-only failure. Final collector/transport/CLI/evaluator suite35PASS,
+typecheckPASS; local API/DB retry/scope/history regressions23PASS using disposable
+PostgreSQL54329. Original managed-parent mock dev plans7PASS and standalone policies
+4PASS, provider validation/fmtPASS. Lint includes39architecturefixturesPASS, graph0
+findings/185 unchanged retained records, changed-feature artifacts0 and spec checks.
+
+CC-03/04/05/07: source reads remain ordinary API C-02 admission; private files contain
+only identifiers/digests/timestamps. Public DTOs and execution/publication behavior
+are unchanged. Known failed/unknown executions are retained; missing evidence does
+not pass. CC-06/08: no V4, apply, API enablement, paid model/runtime call, framework
+or datastore change. CC-09 final diff records schema/port/CLI/IaC ownership and
+behavior tests; no new forbidden edge or policy expansion.
+
+T062 and T063 are locally implemented. T064 producer integration and T052 live
+cohorts/security/common judged acceptance remain OPEN. No full release convergence
+or measured provider performance/security pass is inferred.
+
+## Parallel continuation analysis (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-01..CC-09)
+
+Reviewed the spec, plan, tasks, constitution, architecture procedure, FR card,
+cross-package rules and T075 clock handoff before changing implementation.
+The added local spec maps malformed and late evidence to T065/T066 with T065
+Red first. Frozen sample counts, 2.5-second status and 4-second P95 rules
+still map to T043, T049–T052 and T063–T066. Boundary and publication checks
+remain covered by the 010 API/DB tests. The scoped design has no local
+critical conflict. Two open live integration findings remain.
+
+| Finding | Severity | Covered by | Required evidence |
+| --- | --- | --- | --- |
+| Request-entry qualification time cannot satisfy warm readiness | High | T064 and 012 T075 | Preserve actual preceding qualification evidence per boot and declared readiness basis |
+| Single-boot clock bootstrap has no acquisition-to-export collector integration or full 80-request duration proof | High | T064 and 012 T075 | Verify the same-process clock port, actual cold setup and guarded final export within the conservative window or verified renewal |
+
+CC-01 traces the refinement through the feature and FR-card patch. CC-02 uses
+behavioral Red and Green. CC-03 and CC-04 retain existing source, publication,
+answer timing and population rules. CC-05 uses the canonical trace and private
+measurement schemas. CC-06 and CC-08 restrict work to the 010 local slice and
+existing stack. CC-07 leaves live acceptance open and retains identifier-only
+private evidence. For CC-09 the eval collector owns workflow and guard calls,
+the private file adapter owns file operations and the evaluator remains pure.
+No application import, public HTTP or storage API, lease, authorization,
+transaction, or publication changes. The checker is required on the final diff.

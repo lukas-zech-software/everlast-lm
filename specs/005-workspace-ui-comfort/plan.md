@@ -71,3 +71,12 @@ The SRS, Package 2.1 FR card, and `spec/requirements/README.md` govern visible b
 ## Complexity Tracking
 
 None. All gates pass at design level; no architecture exception, scope deferral, or new cloud product is required. The `@google/genai` dependency is an existing architecture-approved client (Solution Architecture §1), scoped to the first-source topic-icon call.
+
+
+## Architecture Boundary Evidence (CC-09 pre-V4 task 005 delta, 2026-11-11; FR-WM-02, NFR-SEC-01, D23)
+
+| SRS / contract | Module path and owner | Responsibility | Public exports / ports | Allowed consumers | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-WM-02, NFR-SEC-01, D23 | `packages/cloud/src/topic-emoji.ts` (package 005, `@lukas-zech-software`) | Model adapter: bounded/sanitized input, timeout, output validation, Vertex client | `@everlast/cloud/topic-emoji`: `selectTopicEmoji`, `sanitizeTopicEmojiInput`, `VertexTopicEmojiClient`, `VertexTopicEmojiSelector`, `TopicEmoji*` types/consts | API runtime and worker ready-hook through the public subpath export | `apps/api/src/server.ts` (unchanged until integration slot) | `packages/cloud/test/topic-emoji.test.ts`, `apps/worker/test/topic-emoji.test.ts` |
+
+`apps/worker/src/ingestion/topic-emoji.ts` is now a compatibility re-export of the shared module so existing consumers and their four D21 exceptions are unchanged. The scoped integration edit (repoint `apps/api/src/server.ts` and `apps/api/src/v2/runtime.ts` to `@everlast/cloud/topic-emoji`, delete the four D21 records, 184 → 180) is saved in `evidence/pre-v4-shared-integration.patch` and verified to give 0 findings. No transport, transaction, quota, dispatch or publication ownership moved; no dependency or exception added. Flash-Lite MINIMAL-thinking routing awaits 003's D23 interface; model/location are injectable options with the current defaults.

@@ -359,3 +359,10 @@ Generation validates task format, ordering and transcription only. No behavior t
 - [x] T041 Make `filterEligibleHistory` in `apps/api/src/chat/context.ts` exclude turns with missing provenance and turns whose captured revision cannot be confirmed current (both are currently treated as eligible) per FR-GC-01, CP-03, NFR-EVAL-04 (contradicts)
 - [x] T042 Mount the chat, chat-history and citation-preview routes in `apps/api/src/server.ts` with persisted `ChatServiceDependencies` (PostgreSQL thread/message store, real message IDs instead of `"generated-user-id"`/`"generated-asst-id"`) per FR-GC-06 (missing)
 - [x] T043 Wire `apps/web/src/chat/turn.ts`, `history.ts`, `citations.ts`, `citation-preview.ts` and `citation-navigation.ts` to the API: submit with explicit `active_source_ids`, render status events, load history on open, clear-chat and search calls per FR-GC-01, FR-GC-03, FR-GC-06 (partial)
+
+## Phase 8: Pre-V4 routing and refusal (CC-09, D23)
+
+- [x] T044 Red: Capture real ADK/SDK transport for chat, correction and private probes with conflicting environment settings. Assert approved host, model, ADC, LOW thinking, structured output and one-attempt probe limits (FR-GC-01, FR-GC-08, NFR-SEC-01).
+- [x] T045 Red: Re-enable GC-E04 and exercise real checkbox selection and refusal through the browser, API and local C-02 stack (FR-GC-01, FR-GC-02, FR-SI-03, NFR-EVAL-02/04).
+- [x] T046 Green: Add the typed cloud configuration and explicit export, wire the chat and correction adapters, and restore GC-E04 against the accepted refusal (depends on T044 and T045; FR-GC-01, FR-GC-02, FR-GC-08, NFR-SEC-01).
+- [x] T047 Review the actual import graph, composition and workflow boundaries, run affected tests, spec integrity and architecture gates, and publish the committed interface and pending integration evidence (depends on T046; CC-09, NFR-SEC-01/02, NFR-EVAL-02/04).

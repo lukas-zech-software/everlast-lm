@@ -20,8 +20,8 @@ import {
   type SourceRecord,
 } from "@everlast/db";
 import type { Embedder, ObjectStorage } from "@everlast/cloud";
-import { ingestNoteSource } from "@everlast/worker/ingestion/note-markdown";
-import type { NoteSourceStore } from "./service.ts";
+import { ingestNoteSource } from "./note-source-ingest.ts";
+import type { NoteSourceStore } from "./note-source-store.ts";
 
 /**
  * Note-sources as v1 PostgreSQL sources (FR-NM-03, FR-NM-04, FR-WM-07, FR-SI-01, C-01; owner decision 2026-10-20,

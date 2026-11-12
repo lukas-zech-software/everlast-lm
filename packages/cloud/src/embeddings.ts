@@ -13,7 +13,7 @@ export type EmbeddingTask = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 export interface Embedder {
   /** Pinned model identifier stored with every revision so re-embedding is a planned job. */
   readonly model: string;
-  embed(texts: string[], task: EmbeddingTask): Promise<number[][]>;
+  embed(texts: string[], task: EmbeddingTask, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]>;
 }
 
 export interface VertexConfig {
@@ -46,7 +46,9 @@ export class VertexEmbedder implements Embedder {
     this.batchSize = options.batchSize ?? 1;
   }
 
-  async embed(texts: string[], task: EmbeddingTask): Promise<number[][]> {
+  async embed(texts: string[], task: EmbeddingTask, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]> {
+    if(options?.maxAttempts!==undefined&&(!Number.isSafeInteger(options.maxAttempts)||options.maxAttempts<1||options.maxAttempts>5))throw new Error("Invalid embedding attempt budget");
+    options?.signal?.throwIfAborted();
     const out: number[][] = [];
     const concurrency = 8;
     const batches: string[][] = [];
@@ -56,7 +58,7 @@ export class VertexEmbedder implements Embedder {
     const workers = Array.from({ length: Math.min(concurrency, batches.length) }, async () => {
       while (next < batches.length) {
         const index = next++;
-        results[index] = await this.embedBatch(batches[index]!, task);
+        results[index] = await this.embedBatch(batches[index]!, task, 0, options);
       }
     });
     await Promise.all(workers);
@@ -64,12 +66,13 @@ export class VertexEmbedder implements Embedder {
     return out;
   }
 
-  private async embedBatch(texts: string[], task: EmbeddingTask, attempt = 0): Promise<number[][]> {
+  private async embedBatch(texts: string[], task: EmbeddingTask, attempt = 0, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]> {
+    options?.signal?.throwIfAborted();
     try {
       const response = await this.client.models.embedContent({
         model: this.model,
         contents: texts,
-        config: { taskType: task, outputDimensionality: EMBEDDING_DIMENSIONS, autoTruncate: false },
+        config: { taskType: task, outputDimensionality: EMBEDDING_DIMENSIONS, autoTruncate: false, ...(options?{httpOptions:{retryOptions:{attempts:1}},...(options.signal?{abortSignal:options.signal}:{})}:{}) },
       });
       const vectors = (response.embeddings ?? []).map((e) => e.values ?? []);
       if (vectors.length !== texts.length || vectors.some((v) => v.length !== EMBEDDING_DIMENSIONS)) {
@@ -78,9 +81,9 @@ export class VertexEmbedder implements Embedder {
       return vectors.map(normalize);
     } catch (err) {
       const status = (err as { status?: number }).status;
-      if (attempt < 4 && (status === 429 || (status !== undefined && status >= 500))) {
+      if (!options?.signal?.aborted && attempt < (options?.maxAttempts??5)-1 && (status === 429 || (status !== undefined && status >= 500))) {
         await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
-        return this.embedBatch(texts, task, attempt + 1);
+        return this.embedBatch(texts, task, attempt + 1, options);
       }
       throw err;
     }

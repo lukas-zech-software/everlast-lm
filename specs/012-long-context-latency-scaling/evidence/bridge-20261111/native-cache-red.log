@@ -1,0 +1,33 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-bridge-20261111
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (12 tests | 1 failed) 4503ms
+   × NFR-PERF-01 provider-native cache 10MB cap rejects originals before any token/count/create RPC without truncation (SDK double) 28ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 provider-native cache 10MB cap rejects originals before any token/count/create RPC without truncation (SDK double)
+AssertionError: expected [Function] to throw error matching /native.*byte/ but got 'Operational cache actual tokenizer en…'
+
+- Expected:
+/native.*byte/
+
++ Received:
+"Operational cache actual tokenizer envelope unavailable"
+
+ ❯ apps/api/test/benchmark-readiness.test.ts:164:73
+    162|  const pages=[[{chunk_id:randomUUID(),source_id:randomUUID(),revision:…
+    163|  const beforeCount=cacheSdk.countTokens.mock.calls.length,beforeCreate…
+    164|  await expect(cache.create({pages,signal:new AbortController().signal}…
+       |                                                                         ^
+    165|  expect(cacheSdk.countTokens.mock.calls.length).toBe(beforeCount);expe…
+    166| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 11 passed (12)
+   Start at  00:45:19
+   Duration  4.95s (tests 93%, import 4%, transform 3%)
+

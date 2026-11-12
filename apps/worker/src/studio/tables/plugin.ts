@@ -76,6 +76,10 @@ export class DataTableGeneratorPlugin implements StudioGeneratorPlugin {
       : ("auto" as const);
     return generateDataTable({
       chunks: ctx.chunks,
+      original_chunks:ctx.original_chunks,
+      cached_context:ctx.cached_context,
+      before_model_call:ctx.before_model_call,
+      load_cited_chunks:ctx.load_cited_chunks,
       snapshot: ctx.snapshot,
       model: this.model,
       focus_prompt: ctx.params_json.focus_prompt,

@@ -138,3 +138,38 @@ The project owner decided that, for now, the managed sandbox defines the FR-GC-0
 
 - SVG validation decodes XML character references before checking CSS and attribute references, then safely escapes serialized attributes. XML comments or child elements inside styles, CSS comments, and CDATA are rejected so token boundaries cannot hide external resources. Safe local references and escaped chart labels remain supported.
 - Sandbox deletion polls the provider operation to terminal success; an accepted DELETE is not proof of destruction. The entire deletion attempt, including credentials, response reads, and polling, is bounded to 5 seconds. Failed, stalled, or unconfirmed deletion remains pending in the durable cleanup ledger for reconciliation; the 15-second execution deadline and no-replay rule remain unchanged.
+
+### Measurement evidence consistency (2026-11-05; FR-GC-08, NFR-PERF-01, Gate v3.0 #2)
+
+The code-execution latency aggregator is not a live application collector. Runtime configuration without measurements must report UNAVAILABLE (exit 2), never success. Imported observations require an explicit UTC-predeclared plan with the accepted D18–D20 provider profile, all four cold/warm one/two-user cohorts and at least 20 samples per cohort. Sample identities must be unique/in-range; undeclared cohorts, post-hoc declarations, invalid event chronology, incomplete successful samples and malformed one/two-attempt retry metadata are rejected. Retain original observations, fixture/plan/input hashes, candidate revision and collector/environment provenance. Aggregation consistency alone does not establish real-service acceptance.
+
+
+## Collector and private qualification refinement (2026-11-10; FR-GC-08, NFR-PERF-01, CC-09)
+
+Ordinary authenticated chat/SSE collection preserves every attempted request and
+uses separate proven Owner notebooks for paired concurrency. The fresh public
+execution trace is correlated to private request/owner/source revision, immutable
+candidate, serving boot/revision, fixture and runtime-config evidence. Both
+qualification and measured clock calibration are bound to the approved manifest.
+Cold/warm classification declares its measured basis in advance; application-serving
+and provider-runtime readiness are not silently substituted. Missing/contradictory
+evidence makes acceptance unavailable, never a passing zero or client-supplied label.
+
+Client submission-to-received Running-code timing remains independent of measured
+server creation-to-completion timing. Calibration maps clock domains without
+resetting submission or excluding slow samples. Failed SSE outcomes, zero actual
+attempts and unknown retry completion remain failures without invented end times.
+Unqualified collection stops further dispatch while retaining the partial population.
+All existing N>=20/four-cohort/2.5s/4s/isolation/deadline criteria remain unchanged.
+Canonical private evidence schemas are additive in packages/contracts; a trusted
+producer must observe actual execution and dependency qualification. The consumer
+implementation and default-off typed parent IaC do not constitute live acceptance.
+
+### Collector evidence retention (FR-GC-08, NFR-PERF-01, NFR-SEC-02)
+
+A malformed receipt or an expired calibrated observation stops further timed
+dispatch and retains the attempted request and any valid private observation.
+Known failures remain visible in a partial cohort, whose declared population
+stays fixed and whose percentiles remain unavailable. The v3 release campaign
+requires 012 clock continuity through private evidence export and uses observed
+qualification for the selected cold/warm readiness basis.

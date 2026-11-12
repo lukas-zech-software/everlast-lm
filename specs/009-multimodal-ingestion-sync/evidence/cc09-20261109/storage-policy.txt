@@ -1,0 +1,7 @@
+tests/workspace_policy.tftest.hcl... pass
+  run "workspace_bucket_permits_permanent_purge"... pass
+  run "workspace_bucket_is_private_and_in_region"... pass
+  run "signed_uploads_are_browser_compatible"... pass
+  run "least_privilege_object_access"... pass
+
+Success! 4 passed, 0 failed.

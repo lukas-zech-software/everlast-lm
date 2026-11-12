@@ -1,0 +1,4 @@
+$ tofu -chdir=infra/environments/dev validate && tofu -chdir=infra/environments/staging validate && tofu -chdir=infra/environments/prod validate
+[32m[1mSuccess![0m The configuration is valid.[0m
+[32m[1mSuccess![0m The configuration is valid.[0m
+[32m[1mSuccess![0m The configuration is valid.[0m

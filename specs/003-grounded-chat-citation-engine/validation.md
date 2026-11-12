@@ -635,3 +635,56 @@ export PATH="/opt/homebrew/n/versions/node/24.14.0/bin:/opt/homebrew/bin:$PATH" 
 git diff --check
 ```
 - Result: 0 whitespace or formatting anomalies. Clean exit code 0.
+
+## Pre-V4 Task 003 checkpoint (2026-11-11)
+
+Prepared base `e56167f76bdd419504d95a5e6fcdf048cf0dfd3d`.
+Implementation and public interface `f5a6bb77e202f67ad473b60a1ab0979c4acfb53e`
+on `codex/pre-v4-work-003`. Reviewed by the Task 003 agent against the
+prepared base. Integration should transfer the Task 003 delta.
+
+### Interface for packages 004, 005, 006, 008, 011 and 012 (D23, NFR-SEC-01)
+
+```ts
+import { resolveEnterpriseGeminiConfig, type EnterpriseGeminiConfig, type GeminiModelRole } from "@everlast/cloud";
+
+const { clientOptions, model, thinkingConfig } = resolveEnterpriseGeminiConfig("flash", env);
+const client = new GoogleGenAI(clientOptions);
+```
+
+Pass `model` to the applicable SDK operation and `thinkingConfig` in generation
+config. The role `"flash"` resolves to `gemini-3.8-flash` with `LOW`;
+`"flash-lite"` resolves to `gemini-3.5-flash-lite` with `MINIMAL`. Project
+precedence is `VERTEX_PROJECT`, `GCP_PROJECT_ID`, then `GOOGLE_CLOUD_PROJECT`.
+The dedicated `GEMINI_LOCATION` defaults to `eu`; other values are rejected.
+The options pin Vertex AI and `https://aiplatform.eu.rep.googleapis.com`.
+For ADK, pass the project and location explicitly and carry the base URL into
+the SDK through the Gemini HTTP options, as the 003 adapter does. Keep the
+existing embedding client and its region separate.
+
+### Local verification (FR-GC-01/02/08, NFR-SEC-01/02, NFR-EVAL-02/04)
+
+| Check | Result |
+| --- | --- |
+| Red and Green, `pnpm exec vitest run apps/api/test/chat-routing.test.ts` | Red captured `https://vertex-override.invalid` with old wiring. Green exercised the actual ADK and both SDK versions down to their final fetch. Chat and correction emitted EU Flash, LOW, bearer ADC and JSON output configuration. A retryable private failure used one outbound attempt, an oversized probe used none, and sent probes were limited to 512 output tokens. Direct SDK Flash-Lite used the pinned host and MINIMAL. Metadata and provider responses were local fixtures. |
+| `pnpm test:e2e apps/web/test/chat.spec.ts` | PASS, 8 Chromium journeys with a disposable PostgreSQL/pgvector container, the real API and C-02 path, and the existing fixture model. The original one-source GC-E04 passed when re-enabled. The strengthened journey captured the exact selected ID, displayed a refusal with zero badges, then displayed a cited answer after reselection. |
+| `pnpm test:unit` | PASS, 553 tests. |
+| Targeted Vitest, `apps/api/test/{chat-routing,chat,chat-verifier,chat-length-instruction,chat-sanitize,code-execution-model,chat-context-plan}.test.ts` | PASS, 46 tests. |
+| `pnpm eval:deterministic --out /private/tmp/everlast-task-003-evidence` | PASS on the exact implementation commit for NFR-EVAL-02/04. 222 standard cases, citation precision 160/160, zero scoping leaks, and zero publications from 60 adversarial drafts. Full release status remains GatePending. |
+| `pnpm typecheck`, `node scripts/check-spec-integrity.mjs`, `git diff --check e56167f` | PASS. |
+| `pnpm test:architecture`, `pnpm check:architecture`, `pnpm check:architecture-artifacts` | PASS, 39 fixtures, zero findings and 184 exact legacy exceptions. Both architecture checkers also passed with `--base-ref e56167f`. |
+| Manual CC-09 | PASS. The API model uses the explicit cloud export, the cloud resolver uses the SDK and no application imports, and the browser journey uses existing test helpers. ChatService retains C-02, authorization, cancellation and publication ownership. The correction adapter changes model transport while the sandbox controller retains correction eligibility and attempt policy. No exception changes were needed. |
+
+### Integration and pending checks
+
+Package 004 owns migration of the judged evaluator's explicit historical chat
+constructor and its judge, preflight and release evidence. Any ChatService
+extraction or shared fixture changes route through the coordinator and D21
+owner map. Existing ChatService edges from the E2E server and eval runner are
+assigned to `specs/004-ui-skeleton-quality-gates T035` under D21. There is
+no shared-file patch outstanding for 003.
+
+Live provider entitlement, deployed routing and the common judged release
+campaign are pending. They require a separately approved integrated candidate
+and workload. Usage observed at checkpoint was 30% five-hour and 74% weekly
+remaining.

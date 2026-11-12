@@ -1,3 +1,6 @@
+import { StudioContextSessions, type StudioContextRuntime } from "./context-cache.ts";
+import type { CorpusTokenizer } from "@everlast/db";
+import type { ScopedCorpusManifest } from "@everlast/contracts";
 import {
   InvalidScopeError,
   requiredReportSections,
@@ -28,6 +31,9 @@ export interface StudioAccessVerifier {
 /** C-02 getScopedContext: the only read path for source content. Receives captured `ownerId` for owner-bound reads. */
 export interface StudioScopedContext {
   getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]>;
+  streamOriginals?(ownerId:string,notebookId:string,snapshot:SourceRevisionPair[]):AsyncIterable<UnifiedDocumentChunk[]>;
+  buildLedger?(ownerId:string,notebookId:string,snapshot:SourceRevisionPair[],tokenizer:CorpusTokenizer):Promise<ScopedCorpusManifest>;
+  loadCitedChunks?(ownerId:string,notebookId:string,snapshot:SourceRevisionPair[],ids:string[]):Promise<UnifiedDocumentChunk[]>;
 }
 
 export type StudioPayloadValidator = (
@@ -38,6 +44,8 @@ export type StudioPayloadValidator = (
 ) => string | null;
 
 export interface StudioJobRunnerDeps {
+  contextSessions?:StudioContextSessions|undefined;
+  contextRuntime?:StudioContextRuntime|undefined;
   repo: StudioArtifactRepository;
   registry: StudioPluginRegistry;
   scopedContext: StudioScopedContext;
@@ -149,7 +157,7 @@ export class StudioJobRunner {
   private readonly deps: StudioJobRunnerDeps;
 
   constructor(deps: StudioJobRunnerDeps) {
-    this.deps = deps;
+    this.deps = {...deps,contextSessions:deps.contextSessions??(deps.contextRuntime?new StudioContextSessions(deps.contextRuntime):undefined)};
   }
 
   async cancel(id: string): Promise<StudioArtifactRecord> {
@@ -213,6 +221,8 @@ export class StudioJobRunner {
       if (err instanceof CancelledSignal || err instanceof StudioLeaseFenceError || controller.signal.aborted) {
         return (await repo.getById(id))!;
       }
+      if(err instanceof SourceSnapshotInvalidError)return failAttempt({code:"SourceChanged",message:err.message});
+      if(err instanceof InvalidScopeError)return failAttempt({code:"Unauthorized",message:"Access to the selected sources was revoked."});
       return failAttempt({
         code: "GenerationError",
         message: initial.plugin_type === "report" ? "Report generation failed unexpectedly." : "Studio generation failed unexpectedly.",
@@ -251,7 +261,8 @@ export class StudioJobRunner {
     guard();
 
     const ids = snapshot.map((p) => p.source_id);
-    const chunks = await scopedContext.getScopedContext(artifact.notebook_id, ids, artifact.owner_id);
+    const streaming=!!(scopedContext.streamOriginals && scopedContext.loadCitedChunks);
+    let chunks = streaming?[]:await scopedContext.getScopedContext(artifact.notebook_id, ids, artifact.owner_id);
     guard();
     const revisions = new Map(snapshot.map((p) => [p.source_id, p.revision]));
     for (const c of chunks) {
@@ -264,6 +275,14 @@ export class StudioJobRunner {
       }
     }
 
+    const sessions=this.deps.contextSessions;
+    const session=streaming&&sessions&&scopedContext.buildLedger?await sessions.acquire({
+      ledger:await scopedContext.buildLedger(artifact.owner_id,artifact.notebook_id,snapshot,sessions.tokenizer),language:artifact.output_language??"en",parameters:{plugin:artifact.plugin_type,subtype:artifact.subtype,params:artifact.params_json},chunks:()=>scopedContext.streamOriginals!(artifact.owner_id,artifact.notebook_id,snapshot),verify:()=>access.verifySnapshot(artifact.owner_id,artifact.notebook_id,snapshot),signal,
+    }):undefined;
+    let originalCount=0,streamComplete=false;
+    const originals=async function*(stream:AsyncIterable<UnifiedDocumentChunk[]>){
+      for await(const page of stream){originalCount+=page.length;yield page;}streamComplete=true;
+    };
     const plugin = registry.get(artifact.plugin_type);
     const outcome = await plugin.generate({
       artifact_id: artifact.id,
@@ -272,6 +291,8 @@ export class StudioJobRunner {
       params_json: artifact.params_json,
       snapshot,
       chunks,
+      ...(session?{cached_context:session.handle,before_model_call:session.beforeCall}:{}),
+      ...(streaming?{original_chunks:originals(scopedContext.streamOriginals!(artifact.owner_id,artifact.notebook_id,snapshot)),load_cited_chunks:(ids:string[])=>scopedContext.loadCitedChunks!(artifact.owner_id,artifact.notebook_id,snapshot,ids)}:{}),
       output_language: artifact.output_language ?? undefined,
       signal,
       reportProgress: (stage, percent) => {
@@ -281,15 +302,22 @@ export class StudioJobRunner {
     guard();
     if (outcome.status === "refused") return { code: outcome.code, message: outcome.message };
 
+    if(streaming){
+      const coverage=(outcome.payload as {coverage?:{total_chunks:number;processed_batch_count:number;batch_count:number;all_original_chunks_visited:boolean}}).coverage;
+      if(!streamComplete || (coverage && (coverage.total_chunks!==originalCount || coverage.processed_batch_count!==coverage.batch_count || !coverage.all_original_chunks_visited))) return {code:"CitationValidationFailed",message:"Original evidence coverage is incomplete."};
+      const citations=(outcome.payload as {citations?:{chunk_id:string}[]}).citations??[];
+      chunks=await scopedContext.loadCitedChunks!(artifact.owner_id,artifact.notebook_id,snapshot,[...new Set(citations.map(c=>c.chunk_id))]);
+    }
     const validator = this.deps.validators?.[artifact.plugin_type] ?? DEFAULT_VALIDATORS[artifact.plugin_type];
     const problem = validator(outcome.payload, chunks, snapshot, artifact.subtype);
     if (problem) return { code: "CitationValidationFailed", message: problem };
 
+    await session?.beforeCall();
     const post = await verify();
     if (post) return post;
     guard();
 
-    if (artifact.plugin_type !== "report" && repo.completeWithFence) {
+    if (repo.completeWithFence) {
       await repo.completeWithFence(artifact.id, outcome.payload, { leaseToken });
     } else {
       await repo.complete(artifact.id, outcome.payload);

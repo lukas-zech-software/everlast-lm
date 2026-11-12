@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GoogleGenAI } from "@google/genai";
+import type { GoogleGenAI, ThinkingConfig } from "@google/genai";
 
 /**
  * LLM-as-a-judge for the judged suites (NFR-EVAL-01 hallucination, NFR-EVAL-02 semantic support,
@@ -13,8 +13,18 @@ export interface ClaimVerdict {
   reason: string;
 }
 
+export interface JudgeAttempt {
+  call_id: number;
+  purpose: "claims" | "support" | "rejection";
+  attempt: number;
+  outcome: "success" | "error";
+  status?: number;
+  elapsed_ms: number;
+}
+
 export interface Judge {
   readonly model: string;
+  readonly attempts?: readonly JudgeAttempt[];
   /** Each answer sentence is checked against the full text of the ACTIVE sources only. */
   judgeClaims(input: { question: string; activeSourcesText: string; sentences: string[] }): Promise<ClaimVerdict[]>;
   /** Does the cited chunk entail the sentence? */
@@ -32,28 +42,44 @@ const RejectionSchema = z.object({ refused: z.boolean(), leaked_answer: z.boolea
 export class VertexJudge implements Judge {
   readonly model: string;
   private readonly client: GoogleGenAI;
+  private readonly thinkingConfig: ThinkingConfig | undefined;
+  readonly attempts: JudgeAttempt[] = [];
+  private nextCallId = 0;
 
-  constructor(options: { client: GoogleGenAI; model?: string | undefined }) {
+  constructor(options: { client: GoogleGenAI; model?: string | undefined; thinkingConfig?: ThinkingConfig }) {
     this.client = options.client;
+    this.thinkingConfig = options.thinkingConfig;
     this.model = options.model ?? "gemini-2.5-flash-lite";
   }
 
-  private async ask<T>(prompt: string, schema: z.ZodType<T>, responseSchema: Record<string, unknown>, attempt = 0): Promise<T> {
-    try {
-      const response = await this.client.models.generateContent({
-        model: this.model,
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
-        config: { temperature: 0, responseMimeType: "application/json", responseSchema },
-      });
-      return schema.parse(JSON.parse(response.text ?? ""));
-    } catch (err) {
-      const status = (err as { status?: number }).status;
-      if (attempt < 4 && (status === 429 || (status !== undefined && status >= 500) || err instanceof SyntaxError)) {
-        await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
-        return this.ask(prompt, schema, responseSchema, attempt + 1);
+  private async ask<T>(prompt: string, schema: z.ZodType<T>, responseSchema: Record<string, unknown>, purpose: JudgeAttempt["purpose"]): Promise<T> {
+    const call_id = ++this.nextCallId;
+    const started = performance.now();
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        const response = await this.client.models.generateContent({
+          model: this.model,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            temperature: 0,
+            responseMimeType: "application/json",
+            responseSchema,
+            ...(this.thinkingConfig && { thinkingConfig: this.thinkingConfig }),
+            httpOptions: { retryOptions: { attempts: 1 } },
+          },
+        });
+        const value = schema.parse(JSON.parse(response.text ?? ""));
+        this.attempts.push({ call_id, purpose, attempt, outcome: "success", elapsed_ms: performance.now() - started });
+        return value;
+      } catch (err) {
+        const status = typeof (err as { status?: unknown })?.status === "number" ? (err as { status: number }).status : undefined;
+        this.attempts.push({ call_id, purpose, attempt, outcome: "error", ...(status === undefined ? {} : { status }), elapsed_ms: performance.now() - started });
+        // Retry transport/provider availability only. Invalid verdicts and product citations fail immediately.
+        if (attempt === 5 || (status !== 429 && !(status !== undefined && status >= 500 && status <= 599))) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 1000 * 2 ** (attempt - 1)));
       }
-      throw err;
     }
+    throw new Error("Judge attempt limit reached");
   }
 
   async judgeClaims(input: { question: string; activeSourcesText: string; sentences: string[] }): Promise<ClaimVerdict[]> {
@@ -82,7 +108,7 @@ Return one verdict per statement index.`;
         },
       },
       required: ["verdicts"],
-    });
+    }, "claims");
     // Fail closed: a statement without a verdict counts as unsupported.
     return input.sentences.map((_, index) => result.verdicts.find((v) => v.index === index) ?? { index, supported: false, reason: "no verdict" });
   }
@@ -102,7 +128,7 @@ CLAIM: ${input.sentence}`;
       type: "OBJECT",
       properties: { entailed: { type: "BOOLEAN" }, reason: { type: "STRING" } },
       required: ["entailed", "reason"],
-    });
+    }, "support");
     return result.entailed;
   }
 
@@ -117,6 +143,6 @@ RESPONSE: ${input.response}`;
       type: "OBJECT",
       properties: { refused: { type: "BOOLEAN" }, leaked_answer: { type: "BOOLEAN" }, reason: { type: "STRING" } },
       required: ["refused", "leaked_answer", "reason"],
-    });
+    }, "rejection");
   }
 }

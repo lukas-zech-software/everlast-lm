@@ -1,0 +1,45 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-20261110
+
+ ❯ |integration| apps/api/test/code-execution-scope.test.ts (8 tests | 1 failed) 724ms
+   ❯ T032 source replacement, deletion and revocation fences (FR-010, C-02) (2)
+     × CE-SCP-04: re-syncing (replacing) a captured source to revision 2 during execution refuses publication with ScopeChanged and never substitutes revision 2 60ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/api/test/code-execution-scope.test.ts > T032 source replacement, deletion and revocation fences (FR-010, C-02) > CE-SCP-04: re-syncing (replacing) a captured source to revision 2 during execution refuses publication with ScopeChanged and never substitutes revision 2
+AssertionError: expected [ { schema_version: 1, …(7) } ] to deeply equal [ { state: 'Failed', …(7) } ]
+
+- Expected
++ Received
+
+@@ -1,10 +1,12 @@
+  [
+    {
+      "attempts": [
+        {
+-         "artifacts": [],
++         "artifacts": [
++           "/api/notebooks/05d46474-f77d-4edb-a64d-21e442285191/chat/messages/1c7991a6-2bf4-4575-909d-c676ebf63d39/charts/2470273a-9dfd-4c9f-98a6-dde1223c6ddc",
++         ],
+          "attempt_id": "92f76af4-ae2d-4c7e-9918-29a9f286e0ae",
+          "code": "# FIXTURE:pstdev
+  import json, statistics
+  import matplotlib.pyplot as plt
+  rows = json.load(open('data.json'))['values']
+
+ ❯ apps/api/test/code-execution-scope.test.ts:294:28
+    292|     expect(charts.rows.every((r) => r.state === "invalidated")).toBe(t…
+    293|     const canonical=await api.db.pool.query('SELECT trace FROM code_ex…
+    294|     expect(observedTraces).toEqual([canonical.rows[0].trace]);
+       |                            ^
+    295|   });
+    296|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 7 passed (8)
+   Start at  15:16:51
+   Duration  1.99s (import 49%, tests 38%, transform 13%)

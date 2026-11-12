@@ -1,0 +1,59 @@
+diff --git a/scripts/architecture-policy.json b/scripts/architecture-policy.json
+--- a/scripts/architecture-policy.json
++++ b/scripts/architecture-policy.json
+@@ -255,34 +255,6 @@
+     },
+     {
+       "rule": "no-cross-app",
+-      "from": "apps/api/test/media-content.test.ts",
+-      "to": "apps/worker/src/index.ts",
+-      "fingerprint": "e81b69ab0355e80a8e3b7a19223c59bc6b97ab5820eaf76b50897462ec63f0eb",
+-      "line": 8,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+-    {
+-      "rule": "no-cross-app",
+-      "from": "apps/api/test/media-content.test.ts",
+-      "to": "apps/worker/src/ingestion/media.ts",
+-      "fingerprint": "36fd5b30fed9697f30d762df9259087a6bf89d27b6920a5300d1227723da0a52",
+-      "line": 9,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T035",
+-      "reason": "R1: extract shared application workflows behind public package interfaces."
+-    },
+-    {
+-      "rule": "no-cross-app",
+       "from": "apps/api/test/notes-pg-support.ts",
+       "to": "apps/worker/src/index.ts",
+       "fingerprint": "e81b69ab0355e80a8e3b7a19223c59bc6b97ab5820eaf76b50897462ec63f0eb",
+@@ -1589,20 +1561,6 @@
+       "to": "apps/worker/src/studio/tables/model.ts",
+       "fingerprint": "6a931285e502d5b2a14de016144e47f3964355c364dc3d63aff6a5b6d711961d",
+       "line": 60,
+-      "count": 1,
+-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+-      "owner": "@lukas-zech-software",
+-      "decision": "D21",
+-      "expires": "2027-02-05",
+-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
+-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
+-    },
+-    {
+-      "rule": "public-entrypoint",
+-      "from": "apps/api/test/media-content.test.ts",
+-      "to": "apps/worker/src/ingestion/media.ts",
+-      "fingerprint": "36fd5b30fed9697f30d762df9259087a6bf89d27b6920a5300d1227723da0a52",
+-      "line": 9,
+       "count": 1,
+       "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
+       "owner": "@lukas-zech-software",

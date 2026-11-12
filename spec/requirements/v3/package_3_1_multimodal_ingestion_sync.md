@@ -222,3 +222,30 @@ Discovered or decided during `/speckit-implement`; they refine existing requirem
 - The worker ZIP reader rejects stored-size mismatches and bounds deflate output by the declared uncompressed size, verifies the actual size, and enforces the remaining archive budget before accepting data.
 
 Caption review (FR-SI-01, NFR-SEC-02): extract plain transcript text using the existing inert HTML parser, decode entities exactly once, and retain text-only rendering in viewers. Never treat extracted caption text as sanitized HTML.
+
+### Benchmark evidence validation — 2026-11-05 (FR-SI-01, SC-002, Gate v3.0 #1)
+
+The declared plan must precede every acceptance timestamp. Observations have exactly the predeclared unique attempt IDs 1..N and finite chronological upload/acceptance/transcript/index clocks; malformed or reversed clocks cannot produce a passing latency. The runner validates that its supported serial FLAC/Chirp 2 regional execution matches the declared codec, language, model and region before any provider request; unsupported execution plans are UNAVAILABLE rather than silently measured under different settings. Accepted attempts are checkpointed as unfinished before transcription, then updated with outcome/error and cleanup status, so interruption or provider failure cannot erase the denominator. Runtime, source commit and plan/fixture hashes accompany the report. These safeguards do not replace the real 30-minute benchmark or the integrated timestamp click scenario.
+
+### Infrastructure recovery refinement —2026-11-09 (FR-SI-01/05, NFR-SEC-01/02, CC-09)
+
+Dev exposes the existing foundation inputs with disabled/empty defaults; optional
+managed screening is default-off, europe-west4-only, mutually exclusive with an
+existing local templateID. Prompt-injection/jailbreak LOW_AND_ABOVE plus block
+enforcement, fail-closed partial errors and no sanitize logs preserve current
+screening semantics. Current approved provider8.xconstraints select8.10.0, with
+consistent locks; no recovered older constraints replace them. Actual Node26
+render bootstrap uses pinned npm/pnpm12 because corepack is absent. This changes
+no canonical contracts/workflow ownership, authorizes no resource/API apply or
+paid cohort, and leaves T049/T050 live acceptance open. See009plan's CC-09inventory
+and implementation evidence for scoped static/manual checks versus live proof.
+
+### Fan-out qualification refinement — 2026-11-11 (FR-SI-01/04, SC-001/002)
+
+Validate the declared native FLAC's SHA-256, byte size and exact 30-minute
+STREAMINFO sample count before calling Speech. Offline metadata validation and
+direct provider timing are supporting evidence. Where the application queues
+or preprocesses audio, measure from application acceptance to its complete
+validated transcript. The deployed Interview.mp3 case uses approved spoken
+audio with a known passage at 04:15 and verifies citation highlight and seek.
+The cohort size, failed-attempt handling and 45-second P95 target are unchanged.

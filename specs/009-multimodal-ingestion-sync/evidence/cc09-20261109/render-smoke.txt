@@ -1,0 +1,5 @@
+v26.13.0
+LibreOffice 25.2.3.2 520(Build:2)
+
+ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers
+PASS: render entrypoint imports and rejects absent job configuration without network

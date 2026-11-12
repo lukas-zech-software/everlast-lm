@@ -1,0 +1,56 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-bridge-20261111
+
+ ❯ |unit| packages/cloud/test/private-benchmark.test.ts (2 tests | 2 failed) 6ms
+   ❯ NFR-PERF-01 bounded private remote channel (2)
+     × exports a boot/candidate-bound immutable challenge over the object port without a public endpoint 4ms
+     × rejects unknown/source-bearing challenge fields rather than exporting them 1ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 bounded private remote channel > exports a boot/candidate-bound immutable challenge over the object port without a public endpoint
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ packages/cloud/test/private-benchmark.test.ts:16:84
+     14|  it('exports a boot/candidate-bound immutable challenge over the objec…
+     15|   const f=fixture();const bridge=new PrivateBenchmarkBridge({identity:…
+     16|   await bridge.tick();expect(f.saved.some(name=>name.endsWith('/challe…
+       |                                                                                    ^
+     17|  });
+     18|  it('rejects unknown/source-bearing challenge fields rather than expor…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |unit| packages/cloud/test/private-benchmark.test.ts > NFR-PERF-01 bounded private remote channel > rejects unknown/source-bearing challenge fields rather than exporting them
+AssertionError: promise resolved "undefined" instead of rejecting
+
+- Expected:
+Error {
+  "message": "rejected promise",
+}
+
++ Received:
+undefined
+
+ ❯ packages/cloud/test/private-benchmark.test.ts:21:30
+     19|   const f=fixture(),read=f.files.read;f.files.read=async(kind:string)=…
+     20|   const bridge=new PrivateBenchmarkBridge({identity:f.id,files:f.files…
+     21|   await expect(bridge.tick()).rejects.toThrow();expect(f.saved).toEqua…
+       |                              ^
+     22|  });
+     23| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  00:36:10
+   Duration  115ms (transform 46%, import 22%, tests 19%, worker 12%)
+

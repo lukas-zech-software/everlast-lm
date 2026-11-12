@@ -1,0 +1,33 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-qualification-20261110c
+
+ ❯ |integration| apps/api/test/code-execution-scope.test.ts (11 tests | 1 failed) 1106ms
+   × FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or optional failure write to ordinary execution 330ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |integration| apps/api/test/code-execution-scope.test.ts > FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or optional failure write to ordinary execution
+AssertionError: expected { …(5) } to be undefined
+
+- Expected:
+undefined
+
++ Received:
+{
+  "candidate_commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "instance_boot_id": "11dee549-5f6b-49ab-bee9-0f1033cc9033",
+  "machine_config": "default",
+  "observed_at": "2026-11-10T21:27:15.937Z",
+  "runtime_config_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+}
+
+ ❯ apps/api/test/code-execution-scope.test.ts:514:181
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  22:27:13
+   Duration  2.32s (tests 49%, import 44%, transform 6%)

@@ -1,0 +1,93 @@
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-work-008-d23
+
+ ❯ |unit| apps/worker/test/studio-context-vertex.test.ts (1 test | 1 failed) 7ms
+   ❯ enterprise EU report context (1)
+     × counts original text and the complete cache envelope on the same frozen D23 Flash route 7ms
+stdout | apps/worker/test/studio-vertex-report-model.test.ts > [008-studio-text-reports] T083 report model routing (D23, NFR-SEC-01) > uses keyless enterprise EU Flash with a JSON schema and unchanged deadline despite conflicting legacy config
+The user provided project/location will take precedence over the API key from the environment variables.
+
+ ❯ |integration| apps/worker/test/studio-vertex-report-model.test.ts (22 tests | 2 failed) 98ms
+   ❯ [008-studio-text-reports] T083 report model routing (D23, NFR-SEC-01) (1)
+     × uses keyless enterprise EU Flash with a JSON schema and unchanged deadline despite conflicting legacy config 75ms
+   ❯ VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10) (2)
+     × uses approved LOW Flash thinking and bounds output tokens on every report call 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/worker/test/studio-context-vertex.test.ts > enterprise EU report context > counts original text and the complete cache envelope on the same frozen D23 Flash route
+AssertionError: expected "vi.fn()" to be called with arguments: [ { vertexai: true, …(3) } ]
+
+Received:
+
+  1st vi.fn() call:
+
+  [
+    {
+      "httpOptions": {
+-       "baseUrl": "https://aiplatform.eu.rep.googleapis.com",
+        "timeout": 30000,
+      },
+-     "location": "eu",
++     "location": "europe-west4",
+      "project": "approved-test-project",
+      "vertexai": true,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ apps/worker/test/studio-context-vertex.test.ts:34:33
+     32|       REPORT_MODEL_VERSION: "legacy-version",
+     33|     });
+     34|     expect(mocks.clientOptions).toHaveBeenCalledWith({
+       |                                 ^
+     35|       vertexai: true,
+     36|       project: "approved-test-project",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  |integration| apps/worker/test/studio-vertex-report-model.test.ts > [008-studio-text-reports] T083 report model routing (D23, NFR-SEC-01) > uses keyless enterprise EU Flash with a JSON schema and unchanged deadline despite conflicting legacy config
+AssertionError: expected 'gemini-2.5-flash' to be 'gemini-3.8-flash' // Object.is equality
+
+Expected: "gemini-3.8-flash"
+Received: "gemini-2.5-flash"
+
+ ❯ apps/worker/test/studio-vertex-report-model.test.ts:59:26
+     57|       REPORT_MODEL: "gemini-2.5-flash",
+     58|     }), fake.factory)!;
+     59|     expect(REPORT_MODEL).toBe("gemini-3.8-flash");
+       |                          ^
+     60|     await model.extract({ subtype: "faq", chunks: batch, output_langua…
+     61|     expect(fake.options[0]).toEqual({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  |integration| apps/worker/test/studio-vertex-report-model.test.ts > VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10) > uses approved LOW Flash thinking and bounds output tokens on every report call
+AssertionError: expected { thinkingConfig: { …(1) }, …(1) } to deeply equal { maxOutputTokens: 8192 }
+
+- Expected
++ Received
+
+  {
+    "maxOutputTokens": 8192,
++   "thinkingConfig": {
++     "thinkingBudget": 0,
++   },
+  }
+
+ ❯ apps/worker/test/studio-vertex-report-model.test.ts:90:38
+     88|     await model.extract({ subtype: "faq", chunks: batch, signal });
+     89|     await model.compose({ subtype: "faq", findings: [{ kind: "qa", tex…
+     90|     expect(REPORT_GENERATION_CONFIG).toEqual({ maxOutputTokens: 8192 }…
+       |                                      ^
+     91|     for (const req of fake.requests) {
+     92|       expect(req.config.thinkingConfig).toEqual({ thinkingLevel: "LOW"…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  3 failed | 20 passed (23)
+   Start at  19:56:16
+   Duration  564ms (transform 46%, import 40%, tests 13%, worker 1%)

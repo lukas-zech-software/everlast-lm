@@ -66,3 +66,14 @@ describe("[011-studio-mindmaps-data-tables] T014: All-original chunk batching an
     expect(verifyEvidenceCoverage(incompleteCoverage, fixture.chunks, fixture.snapshot)).toMatch(/batch/i);
   });
 });
+
+it('NFR-PERF-01 C-01/C-03 validates every oversized original interval, no-finding batch and scope',async()=>{
+ const {randomUUID}=await import('node:crypto');
+ const source=randomUUID(),chunk=randomUUID(),text='😀 original '.repeat(3000);
+ const result=await processAllOriginalEvidenceBatches({chunks:[{source_id:source,chunk_id:chunk,revision:1,text,token_count:6000,locator:{page_number:1,start_offset:0,end_offset:Array.from(text).length}}],snapshot:[{source_id:source,revision:1}],signal:new AbortController().signal,extractBatch:async batch=>{expect(batch.reduce((n,c)=>n+c.token_count,0)).toBeLessThanOrEqual(4000);return [];}});
+ expect(result.original_coverage?.originals[0]?.length).toBe(Array.from(text).length);
+ expect(result.original_coverage?.segments.length).toBeGreaterThan(1);
+ expect(result.original_coverage?.completed_segments.length).toBe(result.original_coverage?.segments.length);
+ expect(result.items).toEqual([]);
+ await expect(processAllOriginalEvidenceBatches({chunks:[{source_id:source,chunk_id:chunk,revision:2,text:'stale',token_count:1,locator:{page_number:1,start_offset:0,end_offset:5}}],snapshot:[{source_id:source,revision:1}],signal:new AbortController().signal,extractBatch:async()=>[]})).rejects.toThrow(/scope|revision/);
+});

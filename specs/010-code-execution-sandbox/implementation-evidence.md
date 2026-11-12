@@ -185,3 +185,94 @@ Each fix started from a failing regression test (`apps/api/test/code-execution-p
 - **Deferred (efficiency, not correctness):** the periodic `invalidateChartsOfUnavailableSources` scan. Source deletion already invalidates charts synchronously, and the chart route re-checks provenance on each request. Narrowing the scan is a follow-up.
 
 Gates: build, lint/typecheck and spec integrity PASS; `pnpm test` 1159 passed / 11 skipped (live sandbox UNAVAILABLE); `eval:deterministic` citation precision 160/160, leakage 0, adversarial 0/60 published.
+
+
+## Execution checkpoint (2026-11-05; [010-code-execution-sandbox] T049–T052)
+
+Candidate parent: `77bac2b62586bce6bf81c9a7efbb42febc862a22`; isolated branch `codex/pre-v4-package-3-2-20261105`, worktree `/private/tmp/everlast-lm-pre-v4-package-3-2-20261105`. Node26/pnpm12 frozen install; disposable PostgreSQL16/pgvector at local port54331, separate test schemas. The package commit contains the repaired runner and this checkpoint; no cloud candidate deployment occurred.
+
+| Check | Outcome |
+| --- | --- |
+| `pnpm exec vitest run --project unit packages/evals/test/code-execution-performance.test.ts` before repair | RED: 7 newly added tests failed on intended gaps; 7 legacy tests passed. |
+| Same focused command after repair | PASS: 14/14 tests. |
+| Package contract/runtime/API/DB/web/eval regressions using TEST_DATABASE_URL | PASS: 18 suites, 172 tests. |
+| `E2E_PORT=4332 pnpm exec playwright test apps/web/test/code-execution.spec.ts apps/web/test/code-execution-history.spec.ts --project=chromium` with local TEST_DATABASE_URL | PASS: 6/6 tests, 14.4s (after resolving sandbox Chromium launch restriction). |
+| `pnpm eval:deterministic` with local TEST_DATABASE_URL | PASS: citation precision 160/160, leakage 0; package structure/reports deterministic gates pass. Judged metrics remain UNAVAILABLE. |
+| `pnpm typecheck`, `pnpm lint`, `node scripts/check-spec-integrity.mjs`, `git diff --check` | PASS. |
+| Unconfigured runner | UNAVAILABLE: writes report and exits 2. |
+| Configured runner without observations (CLI regression) | UNAVAILABLE: writes report and exits 2; no successful no-op. |
+| Live managed service, all four real N≥20 application cohorts, common fixed50 judged gate | UNAVAILABLE: no approved parent runtime or matching deployment; T052 remains open. |
+
+T049–T051 complete the local evidence safeguards and documentation reconciliation. Original T044–T047 checkmarks record historical implementation/check attempts, including their documented unavailability; they do not imply live acceptance. T052 is the current open acceptance obligation. The benchmark import contract and exact command are in the quickstart; reports retain original valid observations plus plan/input hashes, source revision and dirty state. A passing aggregate of supplied samples alone is not real-service proof.
+
+
+## Recovery checkpoint — 2026-11-09 (FR-GC-08, NFR-PERF-01, CC-09)
+
+Reviewed a6a38e5 safeguards recovered onto current main-derived 62b2974. New
+worktree and immediate feature pin; reviewer checklist unchanged. Seven actual
+validator/CLI tests failed before recovery, all 14 pass afterward. Typecheck,
+lint (39 architecture fixtures, graph0/186 unchanged exceptions, changed artifacts0),
+spec integrity and whitespace checks PASS. Logs: evidence/recovery-20261109/.
+009 deterministic citation160/160/leakage0 evidence remains applicable to unchanged
+source/publication paths; no fresh deterministic or paid judged run is claimed here.
+
+This is PARTIAL recovery. Optional parent infrastructure 0e00bf8 is NOT integrated.
+T062 remains open for selective recovery, provider mocks/schema and wiring tests.
+T063 remains open for actual ordinary-application collection. Current runtime stores
+attempt startedAt before provider creation and emits running_code, but the benchmark
+has no authenticated application collector, source/serving provenance or measured
+cold/warm classification. Do not infer these from configuration or labels. Review
+existing attempt trace/status boundaries and later012 private evidence, implement
+bounded real collection with tests, then execute only approved frozen live cohorts.
+T052 live security/four-cohort/common judged acceptance remains OPEN.
+
+No cloud/model/sandbox calls, resource apply, deployment or GitHub write occurred.
+No policy exception was added, modified or removed. Existing 8.10 provider locks,
+prior package fixes and render bootstrap remain unchanged.
+
+
+## Completion implementation checkpoint — 2026-11-10
+
+T062 selectively recovered only typed bare-parent code/wiring/tests from0e00bf8.
+Current8.10 constraints/locks and preceding ingestion/Guide/signup/render changes
+are preserved. Creation remains default-off; no backend/state/cloud mutation.
+T063 implements ordinary authenticated bounded HTTP/SSE collection, pure cohort
+orchestration and a private file adapter behind explicit ports. Canonical additive
+producer schemas are in contracts. The API producer/012 qualification is T064 and
+remains open, as does T052 live acceptance. No telemetry endpoint was added.
+
+Actual verification and reviewed boundary evidence are in analysis.md and
+evidence/completion-20261110/. Deterministic citation160/160 and leakage0 evidence
+from009 is reused for unchanged source/publication/model paths; the only shared
+contract changes are additive private schemas, and23current API/DB regressions pass.
+No fresh judged, sandbox/provider/model call, deployment or cloud apply is claimed.
+The initial mock command failed only because local modules were not initialized;
+backend-disabled readonly-lock init resolved setup and the actual policy suite passed.
+Reviewer-owned37item sandbox checklist remains unchanged.
+
+## Parallel collector checkpoint (FR-GC-08, NFR-PERF-01, NFR-SEC-02, CC-09)
+
+Prepared base `14c88ee24e4e5c9ececb957e294b9af78f2cc800` in dedicated
+`codex/pre-v4-work-010`. T065/T066 finish the local collector slice. Actual
+managed isolation, trusted timed cohorts and judged release acceptance stay
+open under T052/T064. The 012 integration and four-cohort population are
+specified in [the quickstart](quickstart.md#campaign-inputs-and-t075-handoff-fr-gc-08-nfr-perf-01-nfr-sec-02).
+
+| Check | Local result |
+| --- | --- |
+| Spec-derived collector/CLI Red before implementation | Five failures. Malformed receipt aborted the campaign, expired server and late private evidence were accepted, continuity was unchecked, and FIFO preflight blocked. |
+| Collector, CLI and performance Vitest unit selection | 36 passed. Includes confirmed timed-out failures in partial cohorts, unchanged denominator and preservation of the other Owner's in-flight sample. |
+| Runtime, manifest, output, model and contract Vitest unit selection | 327 passed. Covers create invocation and execute settlement before cleanup, bounds, exact representation and chart validation. |
+| 010 API, DB, transport and deterministic code-execution Vitest integration selection | 75 passed on disposable PostgreSQL 16/pgvector. Covers exact computed output and chart, scoped Owner/foreign access, correction and timeout, lease and cleanup, durable traces and publication fencing. Eleven managed tests skipped with live opt-in disabled. |
+| `TEST_DATABASE_URL=<disposable-db> pnpm eval:deterministic` | 160/160 citation precision, zero leakage and deterministic Studio gates passed. The first invocation without the disposable database reported UNAVAILABLE. The rerun used only local adapters. |
+| `ARCHITECTURE_BASE_REF=14c88ee pnpm lint`, spec integrity and diff checks | Passed. Architecture fixtures 39/39, graph and feature artifact findings 0, exact legacy records unchanged at 184. |
+| Managed sandbox security, live four-cohort campaign and fixed-50 judged eval | UNAVAILABLE. No managed runtime, cloud deployment or paid workload executed. |
+
+The final diff preserves module ownership. The eval collector owns orchestration
+and calls the clock/evidence ports. The private reader owns nonblocking private
+file open and regular-file validation. The pure evaluator exposes known failures
+in partial cohorts and retains the declared denominator. The existing API
+controller, storage, C-02 authorization, cleanup and publication are unchanged.
+The optional T075 port is implemented on the consumer, with production guarded
+composition still open. The task used the prepared feature and left historical
+reviewer checklist markers intact.

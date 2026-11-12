@@ -74,3 +74,73 @@ The documentation inconsistencies found during analysis were corrected before th
 - All final unit and focused suites, typecheck, lint, integrity, deterministic eval, and diff checks pass; deterministic local timing remains distinct from cloud P95. The final convergence pass verifies T057–T059.
 - Keep full Gate v1 upload/citation evidence and Package 2.1 prerequisites distinct from this feature evidence; do not claim Gate v2.0 #2 until Package 2.3 converts the saved note and a subsequent grounded turn cites it.
 - Do not declare Gate v2.0 #2 passed until Package 2.3 FR-NM-03 converts the saved note and a subsequent grounded turn cites the converted source.
+
+## Pre-v4 follow-up analysis, 2026-11-07 (CC-01..CC-08)
+
+The T089–T091 changes map to FR-002/FR-012 and upstream FR-SI-02/FR-GC-07. Spec, plan and package card agree on generation headroom, record summarization and trusted request-local Shorter routing (CC-01); observed failing regression tests precede implementation (CC-02). C-02 scope/snapshot handling and citation/refusal validation are unchanged; concurrent length isolation and no source/custom promotion are tested (CC-03/04/07). No schema, datastore, service or dependency is added (CC-05/08). Work is restricted to the existing v2 package; v3/v4 release acceptance is not inferred, and the recorded global judged failure remains open (CC-06). No new consistency finding in this bounded change; reviewer checklists were not marked reviewed. See validation.md for passing package metrics and retained global limitations.
+
+
+## Integration and eval-resilience analysis, 2026-11-07 (T092–T094)
+
+Checkpoint integration preserves T089–T091 behavior/evidence without repeating paid
+runs. The resilience gap was verified: provider retries were bounded but had no
+attempt records, malformed JSON was retried, and exhausted judge errors escaped
+metric computation before a report. T092 Red tests reproduced all three behaviors;
+T093 retains private-safe attempt outcomes and cumulative elapsed time, retries only
+429/5xx, and records case-local judge failures without dropping the case population.
+Affected judged metrics become unavailable and the report fails through errored cases.
+
+CC-01: feature spec/plan, upstream card and T092–T094 agree. CC-02: observed Red
+preceded Green implementation. CC-03/04: product C-02, refusal and citation validation
+are unchanged and existing verifier tests pass. CC-05: additive evaluation metadata
+only; no shared contract fork. CC-06: no new release acceptance is claimed; historical
+judged/report/OCR failures remain. CC-07: attempt records omit prompts, source text
+and raw provider error messages. CC-08: no runtime dependency, service or datastore
+is added. Reviewer-owned checklists retain 18 unchecked entries and were not edited.
+No further high/critical finding in this scoped integration.
+
+
+## Resumed CC-09 analysis, 2026-11-09 (T095–T097)
+
+Read-only analysis was rerun after refreshing spec/plan/tasks and before the
+verification stage. Scope: 006 Guide/Shorter/judge repairs inherited at base 935eabe;
+this reconciliation changes documents/evidence only. Boundary inventory names
+workflow, transport, adapter and composition ownership, exact public ports and
+regression paths. No new runtime implementation is needed for 006.
+
+| Finding | Severity | Result |
+| --- | --- | --- |
+| Missing resumed 006 CC-09 spec/plan/tasks and inventory | CRITICAL before refresh | RESOLVED: actual artifact Red captured; scoped validator now reports no findings |
+| Existing eval-to-app, API-to-worker and wildcard interface debt | Unchanged D21 migration debt |25 exact policy records copied with baseline, owner, removal task and expiry; no policy or edge changed |
+| Global 008/009artifact and008 fixture graph defects | Out of this package; remains FAIL | Eight artifact findings and two graph findings preserved and assigned to later package agents |
+
+CC-01: artifacts cite FR-SI-02/FR-GC-07/NFR-EVAL-01..04 and canonical D21; no behavior
+refinement requires new upstream scope. CC-02: existing regression tests characterize
+unchanged code; governance Red precedes artifact repair. CC-03/04: exact scope,
+request-local length, invalid-output/refusal and publication guards remain unchanged.
+CC-05: existing typed ports and contracts retained. CC-06: Gate v3 still pending and
+legacy v2 owner override preserved. CC-07: no new cloud, credentials or authorization
+behavior. CC-08: no runtime/dependency/export modification. CC-09 pre-research FAIL
+for missing evidence; post-design manual PASS for this docs-only slice, scoped
+artifact PASS. Global automated gates remain FAIL as recorded; manual review does
+not substitute for them. No remaining scoped high/critical finding or new exception.
+
+The manual review describes current owner placement; it does not claim that the
+existing R1/R3migration has been completed. Eighteen reviewer checklist entries stay
+unchecked and unchanged. Before/after analyze and implement hooks are optional Git
+commit hooks only; no mandatory hook applies. Final checkpoint commit records this
+package completion; no paid release run or live acceptance was performed.
+
+## Phase 16 pre-implementation analysis (FR-SI-02, FR-GC-04/05/07, C-02, CC-09)
+
+Reviewed the pinned 006 spec, plan, tasks, FR card, D23 model map and the
+003 resolver at `f5a6bb7`. The prior 2.5 routing in the active plan conflicted
+with D23. The revised plan matches the approved Flash-Lite role, assigns the
+adapter to cloud and keeps existing workflows behind their current ports.
+T098 precedes T099 and covers the role-specific request and trusted payload.
+Existing pipeline regressions cover the retained scope, validation and
+publication behavior. The six D21 records still match the three existing
+callers and are removed only with their caller changes in the integration patch.
+No new cross-application edge or exception is planned. No blocking finding for
+standalone 006 after these revisions. Live acceptance and serialized wiring
+are separate pending checks under T100.

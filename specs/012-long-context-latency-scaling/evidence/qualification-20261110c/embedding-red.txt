@@ -1,0 +1,20 @@
+
+ RUN  v5.1.0 /private/tmp/everlast-pre-v4-012-qualification-20261110c
+
+ ❯ |unit| apps/api/test/benchmark-readiness.test.ts (11 tests | 1 failed) 4486ms
+   × NFR-PERF-01 signed retrieval setup limits actual embedding RPC attempts and carries abort, preserving ordinary retry defaults (SDK double) 7ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |unit| apps/api/test/benchmark-readiness.test.ts > NFR-PERF-01 signed retrieval setup limits actual embedding RPC attempts and carries abort, preserving ordinary retry defaults (SDK double)
+AssertionError: expected "vi.fn()" to be called 1 times, but got 5 times
+ ❯ apps/api/test/benchmark-readiness.test.ts:155:192
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 10 passed (11)
+   Start at  22:28:41
+   Duration  4.85s (tests 94%, import 4%, transform 1%)

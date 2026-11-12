@@ -1,0 +1,7 @@
+$ node scripts/lint.mjs
+Checking spec integrity...
+✓ 196 Markdown files: all relative links and anchors resolve
+✓ 55 SRS requirement IDs: every one links to an FR card
+✓ 39 Spec Kit feature artifact(s): CC-01/CC-02 checks pass
+Checking TypeScript compilation...
+✓ All lint checks passed.

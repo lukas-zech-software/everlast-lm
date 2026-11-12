@@ -1,0 +1,57 @@
+$ node scripts/lint.mjs
+Checking spec integrity...
+✓ 201 Markdown files: all relative links and anchors resolve
+✓ 55 SRS requirement IDs: every one links to an FR card
+✓ 39 Spec Kit feature artifact(s): CC-01/CC-02 checks pass
+Checking architecture fixtures and boundaries...
+✔ C-01 historical unchanged features are not retroactively certified (4.490792ms)
+✔ C-01 resumed feature missing gate fails (2.018625ms)
+✔ C-01 a gate name alone is insufficient (1.52375ms)
+✔ C-01 populated inventory passes (1.586875ms)
+✔ C-01 source-only implementation cannot omit the feature plan (10.146708ms)
+✔ C-01..03 rejects cross-app value (35.9385ms)
+✔ C-01..03 rejects cross-app type (12.764792ms)
+✔ C-01..03 rejects cross-app re-export (10.678084ms)
+✔ C-01..03 rejects cross-app relative (9.830166ms)
+✔ C-01..03 rejects cross-app alias (10.008959ms)
+✔ C-01..03 rejects cross-app dynamic (10.692166ms)
+✔ C-01..03 rejects cross-app require (10.393125ms)
+✔ C-01..03 rejects cross-app import-type (11.501ms)
+✔ C-01..03 rejects cross-app import-equals (11.067917ms)
+✔ C-01..03 rejects shared app (10.638917ms)
+✔ C-01..03 rejects contract runtime (10.950208ms)
+✔ C-01..03 rejects browser server (11.172708ms)
+✔ C-01..03 rejects production testkit (10.135083ms)
+✔ C-01..03 rejects deep import (10.406708ms)
+✔ C-01..03 rejects relative bypass (9.971167ms)
+✔ C-01..03 rejects missing local (10.473542ms)
+✔ C-01..03 rejects missing workspace (10.424208ms)
+✔ C-01..03 rejects computed (10.874ms)
+✔ C-01..03 allows public adapters in composition roots, local modules, and public contracts (11.962708ms)
+✔ C-01..03 rejects wildcard export and package manifest cross-app dependency (12.660125ms)
+✔ C-01..03 rejects package cycles (10.848833ms)
+✔ C-01..03 exact exception passes; expansion, duplication, expiry and stale debt fail (26.5335ms)
+✔ C-01..03 malformed and duplicate exceptions fail closed (15.090208ms)
+✔ C-01..03 rejects widening wildcard exports by adding new source modules (11.574708ms)
+✔ C-01..03 PR policy cannot add or extend exceptions (14.48ms)
+✔ C-01..03 allows external test runners in contract tests and testkit for eval tooling (9.685958ms)
+✔ C-01..03 completed removal tasks invalidate their exceptions (11.734833ms)
+✔ C-01..03 rejects imports into skipped generated directories (9.837ms)
+✔ C-01..03 does not confuse installed external types with repository code (10.998541ms)
+✔ C-01..03 wildcard exceptions do not block unrelated new tests (12.209125ms)
+✔ C-01..03 a tsconfig alias cannot disguise worker code as contracts (9.217667ms)
+✔ C-01..03 renamed createRequire loaders cannot bypass application boundaries (9.4245ms)
+✔ C-01..03 CLI fails with importer, target and rule diagnostics (187.931584ms)
+✔ C-01..03 CLI accepts allowed imports and rejects invalid arguments (337.533084ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 39
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1106.438666
+Architecture: 0 finding(s); 186 exact legacy exception(s).
+Architecture artifacts: 0 finding(s).
+Checking TypeScript compilation...
+✓ All lint checks passed.

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+import { CodeExecutionRuntimeConfigSchema } from '@everlast/contracts';
 import type { CodeExecutionFailureCode } from "@everlast/contracts";
 
 /**
@@ -34,6 +36,8 @@ export class SandboxError extends Error {
 
 export interface SandboxHandle {
   name: string;
+  /** Internal observation emitted only after the actual managed provider response passed profile validation. */
+  profileObservation?:{runtime_config_sha256:string;observed_at:string;machine_config:'default'};
 }
 
 export interface SandboxFile {
@@ -201,7 +205,8 @@ export class AgentPlatformSandboxRuntime implements SandboxRuntime {
       await this.destroy(handle).catch(() => undefined);
       throw new SandboxError("SecurityViolation", "sandbox profile differs from the approved managed default");
     }
-    return handle;
+    const configured=CodeExecutionRuntimeConfigSchema.parse({reasoning_engine:this.options.reasoningEngine,region:this.options.location,vcpu:2,memory_gb:1.5,network:'none',file_io_mb:100,deadline_ms:15000});
+    return {...handle,profileObservation:{runtime_config_sha256:createHash('sha256').update(JSON.stringify(configured)).digest('hex'),observed_at:new Date().toISOString(),machine_config:'default'}};
   }
 
   async execute(handle: SandboxHandle, input: { code: string; files: SandboxFile[] }, signal: AbortSignal): Promise<RawExecution> {
@@ -313,6 +318,8 @@ async function readCapped(response: Response, maxChars: number): Promise<string 
 // ---- Per-attempt lifecycle -----------------------------------------------------------------------------------
 
 export interface AttemptInput {
+  /** NFR-PERF-01: trusted local observer; failures cannot affect execution. */
+  onBoundary?: (event: {phase:"sandbox_created_at"|"execution_completed_at";at:string}) => void;
   runtime: SandboxRuntime;
   attemptId: string;
   code: string;
@@ -394,8 +401,10 @@ export async function runAttempt(input: AttemptInput): Promise<AttemptOutcome> {
   if (inputBytes > MAX_FILE_IO_BYTES) return failed("TemporaryStorageLimit");
   if (input.signal?.aborted) return failed("GenerationCancelled");
 
+  const observe=(phase:"sandbox_created_at"|"execution_completed_at")=>{try{input.onBoundary?.({phase,at:new Date().toISOString()});}catch{/* Private evidence unavailable. */}};
   let handle: SandboxHandle;
   try {
+    observe("sandbox_created_at");
     handle = await input.runtime.create(input.attemptId, input.signal);
   } catch (err) {
     return failed(err instanceof SandboxError ? err.failureCode : "ProviderUnavailable");
@@ -425,7 +434,9 @@ export async function runAttempt(input: AttemptInput): Promise<AttemptOutcome> {
       }, input.deadlineMs ?? EXECUTION_DEADLINE_MS);
     });
     const cancelled = new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
-    const raw = await Promise.race([input.runtime.execute(handle, { code: input.code, files: input.files }, controller.signal), deadline, cancelled]);
+    const actualExecution=input.runtime.execute(handle, { code: input.code, files: input.files }, controller.signal);
+    const observedExecution=actualExecution.then(raw=>{observe("execution_completed_at");return raw;},error=>{observe("execution_completed_at");throw error;});
+    const raw = await Promise.race([observedExecution, deadline, cancelled]);
     // Late results after the deadline/cancellation never reach this point: the race already rejected.
     const classified = classify(raw);
     const io = { stdout: clip(raw.stdout), stderr: clip(raw.stderr), submitted };

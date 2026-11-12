@@ -1,15 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { StudioPluginRegistry } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
-import type { GenAiFactory, GenAiFactoryOptions, GenerateContentRequest } from "../src/package-v2-2-gemini.ts";
+import type { GenAiFactory, GenAiFactoryOptions, GenerateContentRequest } from "@everlast/cloud";
 import { ReportGenerationError } from "../src/studio/reports/model.ts";
 import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.ts";
 import { StudioJobRunner } from "../src/studio/runner.ts";
 import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_HISTORY, SRC_TECH, historyChunks, techChunks } from "./studio-fixtures.ts";
 
 /**
- * [008-studio-text-reports] T043 — Vertex AI Flash `ReportModelClient` (model routing: Flash for Studio; D3
- * europe-west4; NFR-SEC-01 keyless ADC; FR-ST-11 non-overridable grounding; FR-GC-01/02). The `@google/genai`
+ * [008-studio-text-reports] T043 — Vertex AI Flash `ReportModelClient` (model routing: Flash for Studio; D23
+ * EU multi-region; NFR-SEC-01 keyless ADC; FR-ST-11 non-overridable grounding; FR-GC-01/02). The `@google/genai`
  * client is a FAKE (no network); the adapter is loaded dynamically so each test fails on its own reason.
  */
 
@@ -46,37 +46,51 @@ const keylessEnv = (values: Record<string, string>) =>
 const batch = historyChunks();
 const signal = new AbortController().signal;
 
-describe("VertexReportModel client configuration (model routing, D3, NFR-SEC-01)", () => {
-  it("uses Vertex AI Flash in europe-west4 with a JSON schema, temperature 0 and a bounded timeout; no API key", async () => {
-    const { createVertexReportModelFromEnv, REPORT_MODEL } = await load();
+describe("[008-studio-text-reports] T083 report model routing (D23, NFR-SEC-01)", () => {
+  it("uses keyless enterprise EU Flash with a JSON schema and unchanged deadline despite conflicting legacy config", async () => {
+    const { createVertexReportModelFromEnv, REPORT_MODEL, REPORT_TIMEOUT_MS } = await load();
     const fake = fakeVertex([{ findings: [] }]);
-    const model = createVertexReportModelFromEnv(keylessEnv({ VERTEX_PROJECT: "everlast-eu" }), fake.factory)!;
-    expect(REPORT_MODEL).toBe("gemini-2.5-flash");
+    const model = createVertexReportModelFromEnv(keylessEnv({
+      VERTEX_PROJECT: "everlast-eu",
+      VERTEX_LOCATION: "europe-west4",
+      GOOGLE_VERTEX_BASE_URL: "https://unapproved.invalid",
+      REPORT_MODEL: "gemini-2.5-flash",
+    }), fake.factory)!;
+    expect(REPORT_MODEL).toBe("gemini-3.8-flash");
     await model.extract({ subtype: "faq", chunks: batch, output_language: "en-US", signal });
-    expect(fake.options[0]).toMatchObject({ vertexai: true, project: "everlast-eu", location: "europe-west4" });
-    expect(fake.options[0]!.httpOptions.timeout).toBeGreaterThan(0);
-    expect(fake.options[0]!.httpOptions.timeout).toBeLessThanOrEqual(25_000);
+    expect(fake.options[0]).toEqual({
+      vertexai: true,
+      project: "everlast-eu",
+      location: "eu",
+      httpOptions: { baseUrl: "https://aiplatform.eu.rep.googleapis.com", timeout: REPORT_TIMEOUT_MS },
+    });
+    expect(REPORT_TIMEOUT_MS).toBe(20_000);
+    expect(model.id).toBe("vertex:eu:gemini-3.8-flash");
     const req = fake.requests[0]!;
-    expect(req.model).toBe("gemini-2.5-flash");
+    expect(req.model).toBe("gemini-3.8-flash");
     expect(req.config).toMatchObject({ temperature: 0, responseMimeType: "application/json" });
     expect(req.config.responseSchema).toBeTypeOf("object");
     expect(String(req.config.systemInstruction)).toMatch(/only/i);
     expect(createVertexReportModelFromEnv(keylessEnv({}), fake.factory)).toBeUndefined();
+    expect(() => createVertexReportModelFromEnv(keylessEnv({
+      VERTEX_PROJECT: "everlast-eu",
+      GEMINI_LOCATION: "global",
+    }), fake.factory)).toThrow(/GEMINI_LOCATION must be eu/);
   });
 });
 
 describe("VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10)", () => {
-  it("disables Flash thinking and bounds output tokens on every report call", async () => {
+  it("uses approved LOW Flash thinking and bounds output tokens on every report call", async () => {
     const { VertexReportModel, REPORT_GENERATION_CONFIG } = await load();
     const c = batch[0]!;
     const fake = fakeVertex([{ findings: [] }, { sections: [{ key: "faq", heading: "FAQ", items: [{ text: "x", finding: 0 }] }] }]);
     const model = VertexReportModel.fromFactory("p", fake.factory);
     await model.extract({ subtype: "faq", chunks: batch, signal });
     await model.compose({ subtype: "faq", findings: [{ kind: "qa", text: "x", chunk_id: c.chunk_id, source_id: c.source_id }], signal });
-    expect(REPORT_GENERATION_CONFIG).toEqual({ thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: expect.any(Number) });
+    expect(REPORT_GENERATION_CONFIG).toEqual({ maxOutputTokens: 8192 });
     for (const req of fake.requests) {
-      expect(req.config.thinkingConfig).toEqual({ thinkingBudget: 0 });
-      expect(req.config.maxOutputTokens).toBeGreaterThanOrEqual(4096);
+      expect(req.config.thinkingConfig).toEqual({ thinkingLevel: "LOW" });
+      expect(req.config.maxOutputTokens).toBe(8192);
       expect(req.config).toMatchObject({ temperature: 0, responseMimeType: "application/json" });
     }
   });
@@ -214,6 +228,81 @@ describe("[008-studio-text-reports] T068 transient upstream errors are retried (
     const rejected = fakeVertex([status(400), { findings: [] }]);
     await expect(VertexReportModel.fromFactory("p", rejected.factory, { retryDelaysMs: [0, 0] }).extract({ subtype: "faq", chunks: batch, signal })).rejects.toBeInstanceOf(ReportGenerationError);
     expect(rejected.requests).toHaveLength(1);
+  });
+});
+
+describe("[008-studio-text-reports] T081 report deadline and terminal publication (FR-ST-10, C-03)", () => {
+  it("does not dispatch another attempt after a full-duration Study Guide 504", async () => {
+    const { VertexReportModel, REPORT_TIMEOUT_MS } = await load();
+    const attempts: number[] = [];
+    const warnings = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      const factory: GenAiFactory = () => ({
+        models: {
+          async generateContent(req) {
+            const data = JSON.parse(req.contents);
+            if (data.sources) {
+              const source = data.sources[0];
+              return { text: JSON.stringify({ findings: [
+                { kind: "summary", text: source.text, chunk_id: source.chunk_id },
+              ] }) };
+            }
+            if (data.required_sections.includes("topic_review")) {
+              attempts.push(performance.now());
+              await new Promise<void>((resolve) => setTimeout(resolve, REPORT_TIMEOUT_MS));
+              throw Object.assign(new Error("Deadline expired: private upstream detail"), { status: 504 });
+            }
+            return { text: JSON.stringify({
+              sections: data.required_sections.map((key: string) => ({
+                key, heading: key, items: [{ text: "Supported fact.", finding: 0 }],
+              })),
+            }) };
+          },
+        },
+      });
+      const repo = new InMemoryStudioArtifactRepository();
+      const registry = new StudioPluginRegistry();
+      registry.register(new ReportGeneratorPlugin(VertexReportModel.fromFactory("p", factory)));
+      const runner = new StudioJobRunner({
+        repo,
+        registry,
+        scopedContext: new FakeScopedContext(batch),
+        access: new FakeAccess(new Map([[SRC_HISTORY, 1]])),
+      });
+      const queued = await repo.createQueued({
+        notebook_id: NB,
+        owner_id: OWNER,
+        subtype: "study_guide",
+        title: "Study Guide",
+        params_json: {},
+        snapshot: [{ source_id: SRC_HISTORY, revision: 1 }],
+      });
+      const started = performance.now();
+      const execution = runner.run(queued.id);
+      await vi.runAllTimersAsync();
+      const done = await execution;
+      expect(done.status).toBe("Failed");
+      expect(done.payload_json).toBeNull();
+      expect(JSON.stringify(done)).not.toContain("private upstream detail");
+      expect(attempts, `Study Guide failed after ${performance.now() - started} virtual ms`).toEqual([started]);
+      expect(performance.now() - started).toBe(REPORT_TIMEOUT_MS);
+      const diagnostic = warnings.mock.calls.map(([line]) => JSON.parse(line))
+        .find((entry) => entry.message === "Studio report model attempt failed");
+      expect(diagnostic).toMatchObject({
+        phase: "compose",
+        subtype: "study_guide",
+        sections: ["topic_review"],
+        attempt: 1,
+        upstream_status: 504,
+        attempt_elapsed_ms: REPORT_TIMEOUT_MS,
+        retry_scheduled: false,
+      });
+      expect(JSON.stringify(diagnostic)).not.toContain("private upstream detail");
+    } finally {
+      vi.useRealTimers();
+      warnings.mockRestore();
+    }
   });
 });
 

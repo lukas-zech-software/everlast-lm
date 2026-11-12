@@ -1,19 +1,48 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { UnifiedDocumentChunkSchema } from "@everlast/contracts";
-import { countOccupiedSources, getSourceById, reserveSources } from "@everlast/db";
-import type { Embedder } from "@everlast/cloud";
-import { ingestNoteSource } from "../src/ingestion/note-markdown.ts";
-import { createWorkerHarness, type WorkerHarness } from "./support.ts";
+import { countOccupiedSources, createNotebook, getSourceById, reserveSources } from "@everlast/db";
+import { createTestDatabase, createTestUser, type TestDatabase } from "@everlast/db/testing";
+import { HashingTestEmbedder, LocalObjectStorage, type Embedder } from "@everlast/cloud";
+import { ingestNoteSource } from "../src/note-source-ingest.ts";
+
+interface Harness {
+  db: TestDatabase;
+  storage: LocalObjectStorage;
+  embedder: HashingTestEmbedder;
+  ownerId: string;
+  notebookId: string;
+  close(): Promise<void>;
+}
+async function createHarness(): Promise<Harness> {
+  const db = await createTestDatabase();
+  const dir = await mkdtemp(join(tmpdir(), "everlast-notes-ingest-"));
+  const ownerId = await createTestUser(db.pool);
+  const notebookId = (await createNotebook(db.pool, ownerId, {})).notebook.id;
+  return {
+    db,
+    storage: new LocalObjectStorage({ root: dir, publicBaseUrl: "http://localhost" }),
+    embedder: new HashingTestEmbedder({ NODE_ENV: "test" }),
+    ownerId,
+    notebookId,
+    close: async () => {
+      await db.drop();
+      await rm(dir, { recursive: true, force: true });
+    },
+  };
+}
 
 /**
  * [007-notes-pinboard-lifecycle] T017 rewritten for the owner decision 2026-10-20 — a note-source runs the v1
  * Markdown ingestion at once (FR-SI-01, FR-NM-03, C-01, FR-WM-07). Real PostgreSQL and local storage.
  */
 
-let h: WorkerHarness;
+let h: Harness;
 beforeAll(async () => {
-  h = await createWorkerHarness();
+  h = await createHarness();
 });
 afterAll(async () => {
   await h?.close();

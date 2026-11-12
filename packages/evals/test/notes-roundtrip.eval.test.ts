@@ -8,7 +8,7 @@ import { captureScopeSnapshot, createNotebook } from "@everlast/db";
 import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "@everlast/db/testing";
 import { ChatService, type TurnObservation } from "@everlast/api/chat/service";
 import type { GroundedModel } from "@everlast/api/chat/model";
-import { createPostgresNoteSources } from "@everlast/api/notes/note-sources";
+import { createPostgresNoteSources } from "@everlast/notes/note-sources";
 
 /**
  * Deterministic NFR-EVAL-02 (citation ID precision) and NFR-EVAL-04 (scope leakage) for note-sources

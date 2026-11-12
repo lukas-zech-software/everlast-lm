@@ -1,0 +1,69 @@
+$ node packages/evals/src/cli.ts deterministic
+[eval] lane 1: corpus ingested (inventory:Ready/5, security:Ready/27, teams:Ready/1, people:Ready/1, budget:Ready/4, roadmap:Ready/1, vendors:Ready/1, incidents:Ready/3, travel:Ready/1, handbook:Ready/2)
+[eval] lane 2: corpus ingested (inventory:Ready/5, security:Ready/27, teams:Ready/1, people:Ready/1, budget:Ready/4, roadmap:Ready/1, vendors:Ready/1, incidents:Ready/3, travel:Ready/1, handbook:Ready/2)
+[eval] cases 10/222
+[eval] cases 20/222
+[eval] cases 30/222
+[eval] cases 40/222
+[eval] cases 50/222
+[eval] cases 60/222
+[eval] cases 70/222
+[eval] cases 80/222
+[eval] cases 90/222
+[eval] cases 100/222
+[eval] cases 110/222
+[eval] cases 120/222
+[eval] cases 130/222
+[eval] cases 140/222
+[eval] cases 150/222
+[eval] cases 160/222
+[eval] cases 170/222
+[eval] cases 180/222
+[eval] cases 190/222
+[eval] cases 200/222
+[eval] cases 210/222
+[eval] cases 220/222
+[eval] cases 222/222
+[eval] lane 1: corpus ingested (inventory:Ready/5, security:Ready/27, teams:Ready/1, people:Ready/1, budget:Ready/4, roadmap:Ready/1, vendors:Ready/1, incidents:Ready/3, travel:Ready/1, handbook:Ready/2)
+[eval] lane 2: corpus ingested (inventory:Ready/5, security:Ready/27, teams:Ready/1, people:Ready/1, budget:Ready/4, roadmap:Ready/1, vendors:Ready/1, incidents:Ready/3, travel:Ready/1, handbook:Ready/2)
+[eval] cases 10/60
+[eval] cases 20/60
+[eval] cases 30/60
+[eval] cases 40/60
+[eval] cases 50/60
+[eval] cases 60/60
+[eval] adversarial pass: 60 drafts with out-of-prompt citations, 0 published (must be 0)
+# Gate v1.0 evaluation report (deterministic)
+
+- **State:** GatePending
+- **Commit:** be90304a18259916c442b662fed9b0e26a2d0d79+dirty
+- **Timestamp:** 2026-11-07T21:27:28.690Z
+- **Dataset:** v1.0.0 (35f54e2553cd), counts {"unanswerable":110,"deselection":52,"history":20,"synthesis":60,"total":222}
+- **Judged sample:** full dataset
+- **Models:** chat=deterministic-lexical-citing-model (+ adversarial), embedding=test-hashing-embedder-v1, judge=none (judged suite not run)
+
+| Criterion | Status | Detail |
+| :-- | :-- | :-- |
+| #1 Upload → valid C-01 | pending | 10 corpus documents ingested; UI evidence: missing |
+| #2 NFR-EVAL-01..04 | unavailable | see metrics |
+| #3 Citation navigation | pending | missing UI evidence (run pnpm test:e2e) |
+
+| Metric | Value | Status | Numerator/Denominator | Failing cases |
+| :-- | :-- | :-- | :-- | :-- |
+| citation_precision | 1 | pass | 160/160 |  |
+| scoping_leakage_count | 0 | pass | —/— |  |
+| hallucination_rate | — | unavailable | —/— | UNAVAILABLE: judged suite requires the Vertex AI enterprise endpoint |
+| semantic_support_rate | — | unavailable | —/— | UNAVAILABLE: judged suite requires the Vertex AI enterprise endpoint |
+| negative_rejection_rate | — | unavailable | —/— | UNAVAILABLE: judged suite requires the Vertex AI enterprise endpoint |
+
+## FR-GC-07 response length (v2.0 release metric)
+
+- **Status:** unavailable (UNAVAILABLE: response-length metric requires the judged release runner (Vertex AI model))
+- **Shorter / Default:** — (≤ 50 %) · **Longer / Default:** — (≥ 150 %)
+- **Sample case IDs:** —
+- **Excluded (Default refusal):** —
+- **Generation parameters:** {"style":"default","lengths":["default","shorter","longer"],"token_count":"Intl.Segmenter word-like segments, citation badges removed","history":"none (empty thread per answer)","aggregation":"mean of per-case ratios","eligibility":"answerable synthesis cases; Default refusals excluded (excluded_case_ids)"}
+
+[eval] Gate v2.0 #3 Studio reports (deterministic-report-model (test double)): PASS
+[eval]   validity 100 % (4/4), citation precision 1.000, leakage 0, P95 2.3 ms (≤ 25000 ms)
+[eval] Gate v3.0 #3 Studio structure (Mindmap & Data Table): PASS (precision=1.000, leakage=0, late_fact=true)

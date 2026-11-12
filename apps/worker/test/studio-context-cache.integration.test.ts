@@ -43,6 +43,7 @@ describe('NFR-PERF-01 NFR-SEC-01/02 studio context cache integration', () => {
       contentDigest: 'c'.repeat(64),
       providerHandle: 'handle-owner1',
       ttlSeconds: 60,
+      providerExpiresAt:Date.now()+60000,
     });
 
     // Owner 1 has access
