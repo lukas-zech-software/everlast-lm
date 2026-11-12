@@ -74,18 +74,18 @@ export interface GateEvaluationResult {
 }
 
 /**
- * Validates evaluation metrics against binding Gate v1.0 release thresholds:
- * - NFR-EVAL-01: epsilon_hallucination < 0.05 (0.05 fails)
+ * Validates evaluation metrics against binding Gate v1.0 release thresholds (D24 / DEV-07 hobby-tier):
+ * - NFR-EVAL-01: epsilon_hallucination < 0.10 (0.10 fails)
  * - NFR-EVAL-02: Precision_ID = 1.00 (0.99 fails)
- * - NFR-EVAL-03: Negative Rejection Rate >= 0.99 (0.989 fails, 0.99 passes)
+ * - NFR-EVAL-03: Negative Rejection Rate >= 0.90 (0.899 fails, 0.90 passes)
  * - NFR-EVAL-04: Scoping Leakage = 0 chunks (1 fails)
  */
 export function evaluateGateMetrics(metrics: EvalMetrics): GateEvaluationResult {
   const failures: string[] = [];
 
-  if (metrics.hallucination_rate >= 0.05) {
+  if (metrics.hallucination_rate >= 0.10) {
     failures.push(
-      `hallucination_rate ${metrics.hallucination_rate} exceeds threshold < 0.05 (NFR-EVAL-01)`
+      `hallucination_rate ${metrics.hallucination_rate} exceeds threshold < 0.10 (NFR-EVAL-01)`
     );
   }
 
@@ -95,9 +95,9 @@ export function evaluateGateMetrics(metrics: EvalMetrics): GateEvaluationResult 
     );
   }
 
-  if (metrics.negative_rejection_rate < 0.99) {
+  if (metrics.negative_rejection_rate < 0.90) {
     failures.push(
-      `negative_rejection_rate ${metrics.negative_rejection_rate} does not meet required >= 0.99 (NFR-EVAL-03)`
+      `negative_rejection_rate ${metrics.negative_rejection_rate} does not meet required >= 0.90 (NFR-EVAL-03)`
     );
   }
 

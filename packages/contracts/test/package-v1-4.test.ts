@@ -189,12 +189,12 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
         expect(result.failures).toHaveLength(0);
       });
 
-      it("fails when hallucination_rate >= 0.05 (0.05 fails, 0.049 passes)", () => {
-        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.05 });
+      it("fails when hallucination_rate >= 0.10 (0.10 fails, 0.099 passes)", () => {
+        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.10 });
         expect(boundaryFail.passed).toBe(false);
         expect(boundaryFail.failures.some((f) => f.includes("hallucination"))).toBe(true);
 
-        const boundaryPass = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.049 });
+        const boundaryPass = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.099 });
         expect(boundaryPass.passed).toBe(true);
       });
 
@@ -204,12 +204,12 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
         expect(boundaryFail.failures.some((f) => f.includes("citation_precision"))).toBe(true);
       });
 
-      it("fails when negative_rejection_rate < 0.99 (0.989 fails, 0.99 passes)", () => {
-        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.989 });
+      it("fails when negative_rejection_rate < 0.90 (0.899 fails, 0.90 passes)", () => {
+        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.899 });
         expect(boundaryFail.passed).toBe(false);
         expect(boundaryFail.failures.some((f) => f.includes("negative_rejection"))).toBe(true);
 
-        const boundaryPass = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.99 });
+        const boundaryPass = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.90 });
         expect(boundaryPass.passed).toBe(true);
       });
 
@@ -251,7 +251,7 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
       const failedReport: ReleaseGateReport = {
         ...validReport,
         status: "GateFailed",
-        failures: ["hallucination_rate 0.06 exceeds threshold < 0.05"],
+        failures: ["hallucination_rate 0.12 exceeds threshold < 0.10"],
       };
       const parsed = ReleaseGateReportSchema.parse(failedReport);
       expect(parsed.status).toBe("GateFailed");
@@ -264,7 +264,7 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
         status: "GatePassed",
         metrics: {
           ...validReport.metrics,
-          hallucination_rate: 0.08, // Fails gate threshold!
+          hallucination_rate: 0.12, // Fails gate threshold!
         },
       };
       expect(() => ReleaseGateReportSchema.parse(inconsistentReport)).toThrow();

@@ -297,6 +297,17 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
   approval.
 - **Model efficiency**: Every model call MUST select the smallest approved Gemini model tier
   that satisfies the package's quality and latency targets.
+- **Project tier & proportionality (`D24` / `DEV-07`)**: Everlast LM is a **single-developer
+  private hobby experiment project** with no commercial SLA. Specifications, plans, and
+  benchmarks MUST NOT introduce enterprise-SLA latency/scale targets, hardware-impossible
+  frame budgets (`rAF` intervals `< 16.7 ms` on `60 Hz` displays), probabilistic LLM-judge
+  bars stricter than `< 10%` hallucination / `>= 90%` rejection, live multi-hour paid cloud
+  benchmark campaigns, or custom cryptographic measurement bridges. When an architectural
+  decision changes an interface from streaming to full-response buffering (`D13`), any
+  affected latency target (`TTFT`) MUST be recalibrated in the same change. If measuring an
+  NFR would require custom cloud-bridge ceremony or paid multi-hour runs, agents MUST stop and
+  propose a `DEV-xx`/`Dn` recalibration rather than building measurement infrastructure around
+  an unrealistic target.
 
 ## Workflow & Gates
 
@@ -340,7 +351,7 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 | `CC-05` | IV. Contracts & Pipelines | Uses shared `C-01..C-03` schemas in `packages/contracts`; uses deterministic pipelines unless dynamic tool selection requires ADK `LlmAgent`. |
 | `CC-06` | V. Release & Package Order | Honors `Gate v(k)` and within-release package prerequisites; excludes deferred items (`D5`/`DEV-03`, `D8`/`DEV-02`, `D10` before `v6.0`). |
 | `CC-07` | VI. Security, RBAC & Residency | Enforces server-side auth (`Owner`-only in `v1–v5`, RBAC in `v6`), atomic quota slot reservation, enterprise no-training endpoints (`NFR-SEC-01`), and `europe-west4` residency. |
-| `CC-08` | Platform & Cost | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources. |
+| `CC-08` | Platform & Cost | Fits the pnpm TypeScript / Cloud Run / single Cloud SQL Postgres stack without unrecorded frameworks, datastores, or fixed-idle-cost resources, and satisfies single-developer hobby-tier proportionality (`D24` / `DEV-07`: realistic latencies, `rAF >= 16.7 ms`, `N <= 10` cohorts, no paid multi-hour cloud gate ceremony). |
 | `CC-09` | IV. Architectural Boundaries & Evidence | Records module ownership, public exports, dependency directions and workflow/transaction ownership; forbids new boundary violations; links regression and boundary-check evidence plus individually scoped legacy exceptions. Separates manual review from automated-check availability. |
 
 - **Multi-session isolation & feature pinning**:
@@ -378,4 +389,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-09`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 2.2.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-12
+**Version**: 2.3.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-12

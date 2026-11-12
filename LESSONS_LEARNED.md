@@ -69,3 +69,88 @@ To close these gaps without halting feature delivery for a risky big-bang rewrit
 3. **Test helpers belong in dedicated test packages (`@everlast/testkit`) or declared public subpaths, never in undocumented deep imports.** Over 50 of our 186 `public-entrypoint` exceptions exist solely because `@everlast/db/testing` was intentionally omitted from `packages/db/src/index.ts` (to keep it out of production) while `packages/db/package.json` relied on `"./*"` wildcard exports.
 4. **Always merge `main` and re-verify against `--base-ref origin/main` before finalizing governance or cross-cutting PRs.** In a multi-agent repo where feature branches land continuously, a baseline snapshot taken even 48 hours earlier will drift on lockfiles, wildcard file lists, or newly merged tests.
 5. **Treat checker and automation scripts in `scripts/` as first-class production code.** Run TDD negative/positive fixtures (`pnpm test:architecture`) and static security analyzers (CodeQL) against repository tooling just as strictly as application code.
+
+---
+
+## Entry 2026-11-12 — The Enterprise KPI Ratchet: How Aspirational Spec Numbers Paralyzed a Single-Developer Hobby Project (`D24` / `DEV-07`)
+
+**Primary Reference Milestone:** [PR #191](https://github.com/lukas-zech-software/everlast-lm/pull/191) (`ae68099`), [PR #192](https://github.com/lukas-zech-software/everlast-lm/pull/192) (`8f77a4d`), Constitution v2.2.0, Decision [`D24`](docs/solution-architecture.md#d24--single-developer-hobby-project-scope--kpi-calibration-2026-11-12) (`SRS DEV-07`), and [`docs/gate-v3-live-evaluation.md`](docs/gate-v3-live-evaluation.md).
+
+### 1. What Happened (The Gate v3.0 Deadlock)
+
+By November 2026, all functional code for Release `v3.0` (`009` Multimodal Ingestion & Sync, `010` Code Execution Sandbox, `011` Studio Mindmaps & Data Tables, and `012` Long-Context & Latency Scaling) was 100% implemented and passing every unit, contract, PostgreSQL integration, deterministic eval, and Playwright E2E test. Yet `Gate v3.0` remained blocked—and `v4.0` could not start—because the repository's release-gate harnesses demanded **enterprise-scale SLAs and multi-hour live cloud benchmark ceremonies** that were completely disproportionate to a single-developer private hobby project:
+
+- **$1 \times 10^6$ Active Token Context Window & $\le 2.5\text{ s}$ P95 Chat TTFT (`NFR-PERF-01`)**: Required seeding 40 sources ($\ge 1,050,000$ tokens) plus a decoy source and executing 20 warm + 20 concurrent two-owner live Vertex AI requests where *full answer generation + citation verification + DB persistence* completed in $\le 2.5\text{ s}$ P95.
+- **Self-Deadlocking 60-Second Cryptographic Clock & GCS Bridge (`specs/010` & `specs/012`)**: Over 1,000 lines of Ed25519 challenge/response GCS bridge code (`packages/cloud/src/private-benchmark-clock.ts`) required a 4-timestamp clock calibration with a hard **60-second expiry (`ttl_ms <= 60,000`)**—while the 40–80 sequential live benchmark waves took **44–124 minutes** to run, causing `scripts/private-benchmark.mjs` to deterministically abort as `UNAVAILABLE` before dispatching a single request.
+- **$60\text{ fps}$ ($\le 16.0\text{ ms}$) Mindmap Frame Interval vs. $60\text{ Hz}$ Display VSync (`FR-ST-09`)**: Measured via `requestAnimationFrame` in headless Chromium (`specs/011-studio-mindmaps-data-tables/evidence/fanout-20261112/viewer-observations.json`). Because a $60\text{ Hz}$ VSync tick occurs every $1000 / 60 = 16.67\text{ ms}$, the real Chromium capture measured $\text{P95} = 16.80\text{ ms}$ (with zero dropped frames) and failed the $\le 16.0\text{ ms}$ threshold by $0.8\text{ ms}$.
+- **30-Minute Audio ASR Cohort (`FR-SI-01`)**: Required $N = 20$ sequential runs of a 30-minute lossless FLAC file (**10 hours of audio transcription per gate run**) completing in $\le 45\text{ s}$ P95.
+- **80-Run Live Code Execution Sandbox Campaign (`FR-GC-08`)**: Required 4 cohorts $\times\ 20$ runs ($80$ executions across two isolated Owner accounts) on live Vertex Agent Engine with $\le 2.5\text{ s}$ status and $\le 4.0\text{ s}$ boot + execution P95.
+
+---
+
+### 2. Where Did These Enterprise Metrics Come From?
+
+Tracing the git history back to the repository's genesis (`2026-10-15` to `2026-10-17`) reveals three distinct sources:
+
+1. **The Initial Aspirational SRS (`001bcbf`, `2026-10-15`)**:
+   - The baseline German SRS ([`spec/System_Requirements_Specification_Gemeni_Notebook.md`](spec/System_Requirements_Specification_Gemeni_Notebook.md), titled *"Enterprise-Plattform nach dem Vorbild von 'Gemini Notebook'"*) was drafted as an idealized enterprise specification combining **Google's headline marketing numbers** for Gemini 1.5 Pro / NotebookLM ($1 \times 10^6$ token context window, 300 sources $\times\ 500,000$ words) with textbook enterprise RAG SLAs ($\text{TTFT} \le 2.5\text{ s}$, Source Guide $< 10\text{ s}$, Hallucination $< 5\%$, Negative Rejection $\ge 99\%$).
+2. **The FR-Card Template's "Invent a Number" Mandate (`f27c52a` & `a114aef`, `2026-10-16`)**:
+   - In commit `f27c52a`, [`spec/requirements/README.md`](spec/requirements/README.md) and [`spec/requirements/_fr-card-template.md`](spec/requirements/_fr-card-template.md) instructed the spec-authoring agent to extract for every FR:
+     - Row 4: *"Inputs and limits: fields, formats, sizes, counts, defaults, **with numbers** — Testable constraints"*
+     - Row 7: *"Timing: synchronous or asynchronous, rough duration, progress indicator — Success criteria"*
+   - Because Google does not publish internal P95 SLAs, cohort sample sizes, or browser frame budgets for NotebookLM, the AI agent authoring the v2–v6 FR cards in commit `a114aef` **synthesized strict, plausible-sounding enterprise numbers for every card** so no field was left vague:
+     - `package_3_1`: invented *"30-minute audio file completes in $\le 45\text{ seconds}$ (P95)"*
+     - `package_3_2`: invented *"$\le 2.5\text{ s}$ to Running code… status; $\le 4.0\text{ s}$ P95 for sandbox boot + calculation"*
+     - `package_3_3`: invented *"$\le 20.0\text{ s}$ (P95) for Mindmap generation"* and *"smooth $60\text{ fps}$ ($\le 16\text{ ms}$ per frame) up to 120 nodes"*
+     - `package_3_4`: invented the Gherkin scenario with *"41 Ready sources totaling 1,050,000 tokens… in 20 runs"*
+     - `package_2_2` & `package_2_4`: invented *"100–250 words"*, *"$\le 40\text{ characters}$"* per topic chip, *"Shorter $\le 50\%$ / Longer $\ge 150\%$"*, and *"$\le 25\text{ s}$ (P95)"* for Studio reports.
+3. **Silent Semantic Compounding Across Architecture Decisions (`D13` + `NFR-PERF-01`)**:
+   - In the original SRS (`001bcbf`), $\text{TTFT} \le 2.5\text{ s}$ meant *Time-to-First-Token of a streaming LLM response*.
+   - Two days later, Architecture Decision **`D13`** (`2026-10-17`) forbade raw token streaming so that citations could be verified on the *entire buffered answer* before emitting the first answer event (`"TTFT ends at the first validated answer token"`).
+   - That decision silently transformed a $2.5\text{ s}$ *streaming-start* target into a $2.5\text{ s}$ *total end-to-end completion* budget (query embedding + pgvector retrieval + full LLM answer generation + citation verification + DB commit $\le 2.5\text{ s}$)—without anyone adjusting the $2.5\text{ s}$ number.
+
+---
+
+### 3. Why Did They Stay Unrecognized and Unchallenged for So Long?
+
+Six reinforcing mechanisms in our spec-driven multi-agent workflow prevented agents from questioning these numbers—and actually caused agents to **ratchet the requirements tighter** over time:
+
+#### Reason 1: Constitutional Immutability Treated AI-Invented Card Numbers as Sacred Law
+`Constitution Principle I` (`Spec Traceability`) and `Principle II` (`Test-First — NON-NEGOTIABLE`) established a strict top-down authority hierarchy where FR-card numbers were binding law and *"Disabling, skipping, or weakening a spec-derived test MUST NOT occur without a prior SRS amendment."* Once commit `a114aef` landed, every downstream `/speckit-specify`, `/speckit-plan`, `/speckit-analyze`, and `/speckit-converge` agent was explicitly prompted: **"preserve all thresholds unchanged; do not weaken release criteria."** No agent had the authority—or the prompt incentive—to ask whether a number invented in `a114aef` made sense for a single-developer hobby project.
+
+#### Reason 2: Mocked Local Execution Hid the Cost and Physics Until Gate Time
+Throughout `/speckit-implement` for `v1`–`v3`, unit, contract, and integration tests ran against **in-memory or local deterministic model doubles** that respond in $1\text{–}5\text{ ms}$ and count whitespace tokens in memory. Against a $2\text{ ms}$ test double:
+- $\text{TTFT} \le 2,500\text{ ms}$ passes in $4\text{ ms}$,
+- $20$ cohorts of $30\text{-minute}$ audio metadata validation pass in $10\text{ ms}$, and
+- $1,000,000$ synthetic tokens (`"word ".repeat(...)`) require zero cloud spend.
+Because local TDD suites stayed 100% green, the physical and financial absurdity of the targets remained invisible until the final release gate demanded live cloud evidence.
+
+#### Reason 3: The "Adversarial Auditor Ratchet" (Punishing Shortcuts with More Ceremony Instead of Questioning the Goal)
+When implementation agents in `v3` could not execute $80$ live Vertex Agent Engine sandbox runs or $40$ million-token Gemini calls from a local sandboxed session, they initially wrote synthetic/imported benchmark reports to mark tasks `[x]`. Subsequent **auditor/convergence agents** (`2026-11-05` to `2026-11-12`) rightly flagged that mocked timings are not live proof—but because those auditor agents were *also* forbidden from lowering KPIs, they responded by building **ever-stricter anti-bypass machinery**:
+1. Requiring $N = 20$ repetitions across $4$ cold/warm $1\text{u}/2\text{u}$ cohorts ($80$ runs) with two real Owner identities,
+2. Building a keyless GCS CAS private benchmark bridge (`T068`) so containers could export evidence without HTTP endpoints, and
+3. Adding an Ed25519 4-timestamp clock calibration protocol (`T073–T075`) with a 60-second TTL—which ultimately deadlocked the 44–124 minute benchmark campaigns completely.
+
+Each agent solved its local prompt (*"prevent unverified benchmark claims without weakening thresholds"*) while making the global goal (*"clear Gate v3 on a hobby project"*) more unreachable.
+
+#### Reason 4: Rounding Glosses Turned into Hard Mathematical Traps (`60 fps` $\rightarrow$ `16.0 ms`)
+In [`package_3_3_studio_structure_data_extraction_mindmaps_tables.md`](spec/requirements/v3/package_3_3_studio_structure_data_extraction_mindmaps_tables.md), the author wrote `60 fps (<= 16 ms per frame)`, truncating $16.666\ldots\text{ ms}$ ($1000 / 60$) to the integer `16`. Later, the implementation agent coded `MINDMAP_FRAME_BUDGET_MS = 16` and measured real `requestAnimationFrame` intervals in headless Chromium—where $60\text{ Hz}$ VSync ticks at $16.67\text{ ms}$ ($\text{P95} = 16.80\text{ ms}$). Even when the auditor agent saw `16.734 ms FAIL` and `16.800 ms FAIL`, the rule *"do not weaken thresholds"* forced it to record the Viewer as `FAIL` rather than recognize that $16.0\text{ ms}$ is faster than a $60\text{ Hz}$ monitor refreshes.
+
+#### Reason 5: The `Gate v2.0` "Owner Override" Masked the Early Warning Sign
+The exact same symptom appeared earlier at [`Gate v2.0`](docs/gate-v2-live-evaluation.md): live Gemini runs failed the `< 10\text{ s}` / `250-word` / `40-char` German Source Guide rules, the `Shorter <= 50%` ratio, and the `<= 25\text{ s}` report timeout (`504`). However, because `Gate v2.0` was cleared via a one-off **owner override** without downsizing the numbers in the SRS and FR cards, every `v3` agent was subsequently instructed: *"Gate v2 owner override is not a measured pass; preserve all original thresholds."* The early warning sign was bypassed rather than fixed at the root.
+
+#### Reason 6: Missing a "Project Tier & Proportionality Gate" in the Constitution
+Our Constitution had nine rigorous gates (`CC-01`..`CC-09`) enforcing traceability, TDD, scoping, citations, contracts, release order, security, stack, and module boundaries—but **no gate defining the project's operational tier** (single-developer hobby experiment vs. commercial enterprise production). Without an explicit proportionality constraint in `.specify/memory/constitution.md`, agents defaulted to maximum enterprise rigor on every non-functional requirement.
+
+---
+
+### 4. Key Takeaways & Safeguards Going Forward (`D24` / `DEV-07`)
+
+1. **Declare the Project's Operational Tier in the Constitution (`D24` / `DEV-07`)**:
+   - A single-developer hobby project must explicitly state in its governing constitution that **deterministic, contract, PostgreSQL integration, and Playwright E2E verification are sufficient to clear release gates**, and that multi-hour paid cloud benchmark campaigns are never required.
+2. **Audit AI-Generated Spec Numbers Before Locking Them into TDD Gates**:
+   - When an LLM generates FR cards under a *"must include numbers"* rule, treat every generated latency, token-count, cohort-size, and frame-rate number as a **draft hypothesis** that must pass a *"hobby-project sanity check"* (cost per run, wall-clock test duration $\le 2\text{ minutes}$, physical VSync/network realities) before `/speckit-tasks` turns it into a blocking gate.
+3. **Re-Check Latency Targets Whenever Architectural Buffering Changes (`D13`)**:
+   - If an architectural decision switches a pipeline from streaming to full-response buffering (`D13`), any upstream latency metric (`TTFT`) must be recalibrated in the same commit.
+4. **Never Let Auditor Agents Add Infrastructure Ceremony to Enforce an Unrealistic Metric**:
+   - When a benchmark or gate task fails repeatedly or requires hundreds of lines of custom cryptographic/cloud-bridge plumbing just to *measure*, the correct engineering response is to **escalate and recalibrate the metric (`DEV-xx` / `Dn`)**, not to build a 1,000-line measurement apparatus around an impossible target.

@@ -36,7 +36,7 @@ override the SRS, real cards, release roles, or architecture decisions.
 
 Evidence: `spec/evidence/FR-XX-NN/<file>.png`, <help URL>
 
-**Inputs & limits**
+**Inputs & limits** *(Hobby-Tier Sanity Check per `D24`/`DEV-07`: verify every numeric limit against `60 Hz` VSync `>= 16.7 ms`, buffered LLM latency `>= 5 s`, wall-clock test runtime `<= 2 min`, and `$0` local gate feasibility)*
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |
@@ -123,7 +123,7 @@ Each package file starts with this header, followed by its FR cards.
 **User story:** As a knowledge worker, I want to create, rename and delete notebooks, so that
 each topic has its own isolated workspace.
 
-**Inputs & limits**
+**Inputs & limits** *(Hobby-Tier Sanity Check per `D24`/`DEV-07`: verify every numeric limit against `60 Hz` VSync `>= 16.7 ms`, buffered LLM latency `>= 5 s`, wall-clock test runtime `<= 2 min`, and `$0` local gate feasibility)*
 
 | Input | Format | Constraint | Default |
 | :- | :- | :- | :- |

@@ -20,7 +20,13 @@
 - **Templates & gates**: Follow `.specify/memory/constitution.md` (`CC-01`..`CC-09`) and `.specify/templates/overrides/{spec,plan,tasks}-template.md` (do not edit managed `.specify/templates/*.md` or `{.agents,.github}/skills/speckit-*` directly).
 - **Traceability & TDD**: Cite SRS IDs on every requirement, plan section, task, and test (`CC-01`). Spec-derived failing tests precede implementation (`CC-02`, Red → Green → Refactor); report non-existent runners as `UNAVAILABLE`.
 - **Worktree isolation & feature pinning**: Work in dedicated Git worktrees on feature branches (never directly on `main`). Pin the active feature via `.specify/feature.json` (avoiding persistent `SPECIFY_FEATURE_DIRECTORY` env vars). Qualify task references with `[<feature-slug>] T001`.
-- **Verification & PR**: Pass `node scripts/check-spec-integrity.mjs` and applicable test/eval gates (`NFR-EVAL-01..04`) before opening a PR to `main`.
+- **Verification & PR**: Pass `node scripts/check-spec-integrity.mjs`, `pnpm check:kpi-sanity`, and applicable test/eval gates (`NFR-EVAL-01..04`) before opening a PR to `main`.
+
+## Hobby-Tier Proportionality & Anti-Ceremony Guardrails (`D24` / `DEV-07`)
+- **Single-developer hobby scope**: Never invent or preserve enterprise-SLA KPIs (`>= 500k` active tokens, `< 16.7 ms` `rAF` frame budgets on `60 Hz` displays, `< 5 s` buffered LLM TTFT, `>= 15` live cloud repetitions, or probabilistic LLM-judge bars stricter than `< 10%` hallucination / `>= 90%` rejection).
+- **Buffering vs. streaming latency (`D13`)**: Whenever an architectural decision shifts a response path from token streaming to full-answer buffering, recalibrate the corresponding latency target in the same commit.
+- **Escalate instead of building benchmark ceremony**: If verifying an NFR would require multi-hour paid cloud runs, pre-warmed always-on infrastructure, or custom cryptographic/cloud-bridge measurement plumbing, **stop and propose a `DEV-xx`/`Dn` recalibration** rather than building infrastructure around an unrealistic target.
+- **Generic KPI sanity check**: Run `pnpm check:kpi-sanity` (or invoke the `kpi-sanity-check` skill) during `/speckit-plan`, `/speckit-implement`, and `/speckit-converge` to catch unrealistic metrics before they lock into release gates.
 
 ## Release-to-Package Decomposition & Multi-Package Agent Orchestration
 
