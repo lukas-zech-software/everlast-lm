@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { GoogleGenAI } from "@google/genai";
+import type { GoogleGenAI, ThinkingConfig } from "@google/genai";
 
 /**
  * LLM-as-a-judge for the judged suites (NFR-EVAL-01 hallucination, NFR-EVAL-02 semantic support,
@@ -42,11 +42,13 @@ const RejectionSchema = z.object({ refused: z.boolean(), leaked_answer: z.boolea
 export class VertexJudge implements Judge {
   readonly model: string;
   private readonly client: GoogleGenAI;
+  private readonly thinkingConfig: ThinkingConfig | undefined;
   readonly attempts: JudgeAttempt[] = [];
   private nextCallId = 0;
 
-  constructor(options: { client: GoogleGenAI; model?: string | undefined }) {
+  constructor(options: { client: GoogleGenAI; model?: string | undefined; thinkingConfig?: ThinkingConfig }) {
     this.client = options.client;
+    this.thinkingConfig = options.thinkingConfig;
     this.model = options.model ?? "gemini-2.5-flash-lite";
   }
 
@@ -58,7 +60,13 @@ export class VertexJudge implements Judge {
         const response = await this.client.models.generateContent({
           model: this.model,
           contents: [{ role: "user", parts: [{ text: prompt }] }],
-          config: { temperature: 0, responseMimeType: "application/json", responseSchema },
+          config: {
+            temperature: 0,
+            responseMimeType: "application/json",
+            responseSchema,
+            ...(this.thinkingConfig && { thinkingConfig: this.thinkingConfig }),
+            httpOptions: { retryOptions: { attempts: 1 } },
+          },
         });
         const value = schema.parse(JSON.parse(response.text ?? ""));
         this.attempts.push({ call_id, purpose, attempt, outcome: "success", elapsed_ms: performance.now() - started });

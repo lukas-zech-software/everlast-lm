@@ -113,7 +113,7 @@ describe("Gate v1.0 lifecycle", () => {
 });
 
 describe("NFR-SEC-01 preflight (hermetic: explicit env, no ambient variables)", () => {
-  const vertex = { name: "chat", purpose: "chat", vertexai: true, location: "europe-west4", project: "p" };
+  const vertex = { name: "chat", purpose: "chat", vertexai: true, location: "europe-west4", project: "p", route: "regional" as const, endpoint: "https://europe-west4-aiplatform.googleapis.com/" };
 
   it("EVS-01: enterprise Vertex clients in europe-west4 with ADC and no developer keys pass", async () => {
     const report = await runSecurityPreflight({ env: {}, clients: [vertex], ocr: { name: "documentai:europe-west4:proc" }, live: false });
@@ -131,6 +131,22 @@ describe("NFR-SEC-01 preflight (hermetic: explicit env, no ambient variables)", 
   it("EVS-03: a non-Vertex client, an API-key client or a non-EU region fails", async () => {
     for (const client of [{ ...vertex, vertexai: false }, { ...vertex, apiKey: "k" }, { ...vertex, location: "us-central1" }]) {
       expect((await runSecurityPreflight({ env: {}, clients: [client], ocr: { name: "documentai:europe-west4:p" }, live: false })).passed).toBe(false);
+    }
+  });
+
+  it("EVS-05: D23 Gemini and regional embeddings must use their own endpoints", async () => {
+    const gemini = { ...vertex, route: "gemini" as const, location: "eu", endpoint: "https://aiplatform.eu.rep.googleapis.com" };
+    const embedding = { ...vertex, name: "embedding" };
+    const input = { env: {}, ocr: { name: "documentai:eu:p" }, live: false };
+    const approved = await runSecurityPreflight({ ...input, clients: [gemini, embedding] });
+    expect(approved.passed).toBe(true);
+    expect(approved.endpoints.map(({ endpoint }) => endpoint)).toEqual(["aiplatform.eu.rep.googleapis.com", "europe-west4-aiplatform.googleapis.com", "eu-documentai.googleapis.com"]);
+    for (const clients of [
+      [{ ...gemini, location: embedding.location, endpoint: embedding.endpoint }, embedding],
+      [gemini, { ...embedding, location: gemini.location, endpoint: gemini.endpoint }],
+      [{ ...gemini, endpoint: "https://aiplatform.eu.rep.googleapis.com.invalid" }, embedding],
+    ]) {
+      expect((await runSecurityPreflight({ ...input, clients })).passed).toBe(false);
     }
   });
 

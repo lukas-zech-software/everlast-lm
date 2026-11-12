@@ -63,3 +63,13 @@ The spec, plan and tasks trace all three Pre-V4 requirements. No critical
 CC-09 issue blocks the report-only work. Existing application edges are scoped
 to the candidate's D21 records. Producer availability and concrete workload
 approval are hold points for T039/T040.
+
+### D23 release candidate integration (NFR-SEC-01, NFR-EVAL-01..04)
+
+T039's chat and judge wiring uses the committed 003/006 route resolver. The
+CLI is the composition root, the security preflight checks role and endpoint,
+and the judge still owns verdict validation and retry accounting. EVS-05
+failed before the role-aware check accepted the approved EU host. The same
+test rejects cross-role endpoints and lookalike hosts. This scope adds no
+application dependencies, production effects, quota, publication or
+transaction changes.

@@ -35,6 +35,8 @@ export interface PreflightReport {
 
 export const DEVELOPER_KEY_VARIABLES = ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENAI_API_KEY"];
 export const APPROVED_REGION = "europe-west4";
+const REGIONAL_ENDPOINT = "https://europe-west4-aiplatform.googleapis.com";
+const GEMINI_ENDPOINT = "https://aiplatform.eu.rep.googleapis.com";
 
 const NO_TRAINING_REFERENCE =
   "Google Cloud Service Specific Terms (Vertex AI / Generative AI on Vertex AI: customer data is not used to train foundation models without permission) and https://cloud.google.com/vertex-ai/generative-ai/docs/data-governance";
@@ -44,7 +46,7 @@ const RETENTION_STATEMENT =
 export interface PreflightInput {
   env: NodeJS.ProcessEnv;
   /** Vertex clients actually used by the run (inspected, not assumed). */
-  clients: { name: string; purpose: string; vertexai: boolean; apiKey?: string | undefined; location?: string | undefined; project?: string | undefined }[];
+  clients: { name: string; purpose: string; vertexai: boolean; apiKey?: string | undefined; location?: string | undefined; project?: string | undefined; route: "gemini" | "regional"; endpoint: string }[];
   ocr: { name: string };
   /** Performs a live authenticated call to verify ADC (release mode). */
   live: boolean;
@@ -60,12 +62,16 @@ export async function runSecurityPreflight(input: PreflightInput): Promise<Prefl
     detail: presentKeys.length ? `present: ${presentKeys.join(", ")}` : "none present",
   });
   for (const client of input.clients) {
-    const ok = client.vertexai && !client.apiKey && client.location === APPROVED_REGION;
+    const isGemini = client.route === "gemini";
+    const region = isGemini ? "eu" : APPROVED_REGION;
+    const requiredEndpoint = isGemini ? GEMINI_ENDPOINT : REGIONAL_ENDPOINT;
+    const endpoint = client.endpoint.replace(/\/$/, "");
+    const ok = client.vertexai && !client.apiKey && client.location === region && endpoint === requiredEndpoint;
     checks.push({
       id: `SEC-VERTEX-${client.name}`,
-      description: `${client.purpose} uses Vertex AI with ADC in ${APPROVED_REGION}`,
+      description: `${client.purpose} uses Vertex AI with ADC in ${region} at ${requiredEndpoint}`,
       status: ok ? "pass" : "fail",
-      detail: `vertexai=${client.vertexai} apiKey=${client.apiKey ? "set" : "none"} location=${client.location ?? "unset"} project=${client.project ?? "unset"}`,
+      detail: `vertexai=${client.vertexai} apiKey=${client.apiKey ? "set" : "none"} location=${client.location ?? "unset"} project=${client.project ?? "unset"} endpoint=${endpoint}`,
     });
   }
   const ocrMatch = /^documentai:([^:]+):/.exec(input.ocr.name);
@@ -94,9 +100,9 @@ export async function runSecurityPreflight(input: PreflightInput): Promise<Prefl
     }
   }
   const endpoints: EndpointEvidence[] = input.clients.map((c) => ({
-    service: "Vertex AI (Gemini)",
+    service: c.route === "gemini" ? "Vertex AI (Gemini)" : "Vertex AI (regional)",
     purpose: c.purpose,
-    endpoint: `${c.location ?? "?"}-aiplatform.googleapis.com`,
+    endpoint: c.endpoint.replace(/^https:\/\//, "").replace(/\/$/, ""),
     region: c.location ?? "unset",
     authentication: c.apiKey ? "API key (forbidden)" : "ADC / service account",
     no_training: { status: "contractual", reference: NO_TRAINING_REFERENCE },

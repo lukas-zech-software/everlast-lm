@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { GoogleAuth } from "google-auth-library";
+import { GoogleGenAI } from "@google/genai";
 import { createTestDatabase } from "@everlast/db/testing";
-import { createOcrEngine, createVertexClient, HashingTestEmbedder, NoOcrEngine, vertexConfigFromEnv, VertexEmbedder } from "@everlast/cloud";
+import { createOcrEngine, createVertexClient, HashingTestEmbedder, NoOcrEngine, resolveEnterpriseGeminiConfig, vertexConfigFromEnv, VertexEmbedder } from "@everlast/cloud";
 import { AdkGroundedModel } from "@everlast/api/chat/model";
 import { assertDatasetMinimums, buildGoldenDataset, corpusHash, datasetCounts, datasetHash, DATASET_VERSION, releaseSample, RELEASE_SAMPLE_SIZE } from "./dataset.ts";
 import { AdversarialCitingModel, LexicalCitingModel } from "./deterministic-models.ts";
@@ -89,6 +90,8 @@ if (!process.env.TEST_DATABASE_URL) unavailable("TEST_DATABASE_URL is not set (s
 if (mode === "release") {
   try {
     vertexConfigFromEnv();
+    resolveEnterpriseGeminiConfig("flash");
+    resolveEnterpriseGeminiConfig("flash-lite");
   } catch (err) {
     unavailable((err as Error).message);
   }
@@ -145,22 +148,29 @@ try {
     const vertex = vertexConfigFromEnv();
     const client = createVertexClient(vertex);
     const embedder = new VertexEmbedder({ client, model: process.env.EMBEDDING_MODEL });
-    const chat = new AdkGroundedModel({ project: vertex.project, location: vertex.location, model: process.env.CHAT_MODEL ?? "gemini-2.5-flash" });
-    const judge = new VertexJudge({ client, model: process.env.JUDGE_MODEL });
+    const chatRoute = resolveEnterpriseGeminiConfig("flash");
+    const judgeRoute = resolveEnterpriseGeminiConfig("flash-lite");
+    const chat = new AdkGroundedModel({ ...chatRoute.clientOptions, model: chatRoute.model, thinkingConfig: chatRoute.thinkingConfig });
+    const judgeClient = new GoogleGenAI(judgeRoute.clientOptions);
+    const judge = new VertexJudge({ client: judgeClient, model: judgeRoute.model, thinkingConfig: judgeRoute.thinkingConfig });
     const ocr = createOcrEngine();
     const chatClient = chat.llm.apiClient as unknown as { vertexai: boolean; apiKey?: string; location?: string; project?: string };
-    const genaiClient = client as unknown as { vertexai: boolean; apiKey?: string; location?: string; project?: string };
+    const regionalClient = client as unknown as Parameters<typeof pick>[0] & { apiClient: { getBaseUrl(): string } };
+    const judgeIdentity = judgeClient as unknown as Parameters<typeof pick>[0];
     preflight = await runSecurityPreflight({
       env: process.env,
       clients: [
-        { name: "chat", purpose: `Grounded chat (${chat.id})`, ...pick(chatClient) },
-        { name: "embedding", purpose: `Embeddings (${embedder.model})`, ...pick(genaiClient) },
-        { name: "judge", purpose: `Eval judge (${judge.model})`, ...pick(genaiClient) },
+        { name: "chat", purpose: `Grounded chat (${chat.id})`, ...pick(chatClient), route: "gemini", endpoint: chatRoute.clientOptions.httpOptions.baseUrl },
+        { name: "embedding", purpose: `Embeddings (${embedder.model})`, ...pick(regionalClient), route: "regional", endpoint: regionalClient.apiClient.getBaseUrl() },
+        { name: "judge", purpose: `Eval judge (${judge.model})`, ...pick(judgeIdentity), route: "gemini", endpoint: judgeRoute.clientOptions.httpOptions.baseUrl },
       ],
       ocr,
       live: true,
     });
-    if (!preflight.passed) log(`NFR-SEC-01 preflight failed: ${preflight.checks.filter((c) => c.status !== "pass").map((c) => c.id).join(", ")}`);
+    if (!preflight.passed) {
+      const failedChecks = preflight.checks.filter((check) => check.status !== "pass");
+      throw new Error(`NFR-SEC-01 preflight failed before inference: ${failedChecks.map((check) => check.id).join(", ")}`);
+    }
     run = await runEvaluation({ pool: db.pool, embedder, model: chat, ocr, judge, concurrency, log }, selected);
     if (!diagnostic) {
       try {
@@ -176,7 +186,7 @@ try {
       }
       log(`FR-GC-07 response length: ${responseLength.status} (shorter ${responseLength.shorter_ratio}, longer ${responseLength.longer_ratio})`);
     }
-    models = { chat: chat.id, embedding: `vertex:${vertex.location}:${embedder.model}`, judge: `vertex:${vertex.location}:${judge.model}`, ocr: ocr.name };
+    models = { chat: chat.id, embedding: `vertex:${vertex.location}:${embedder.model}`, judge: `vertex:${judgeRoute.clientOptions.location}:${judge.model}`, ocr: ocr.name };
   }
 
   const ui = await readUiEvidence();

@@ -122,3 +122,11 @@ the deterministic evaluator exercise the integration. T039 still owns the
 judge transport and role-specific endpoint preflight. The label updates
 do not establish live qualification or change publication, authorization,
 transactions, or deployment.
+
+The Gate v3 candidate applies the T039 transport subset for chat and the
+judge. The CLI supplies the explicit D23 routes, separates the regional
+embedding client, and stops before inference when preflight fails. The judge
+owns its existing bounded retry loop and disables nested SDK retries. EVS-05
+checks distinct approved endpoints, cross-role substitution and a lookalike
+host. Full deployed preflight and Studio structure identity evidence remain
+part of T039/T040.
