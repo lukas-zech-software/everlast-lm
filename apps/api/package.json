@@ -15,7 +15,7 @@
     "@everlast/notes": "workspace:*",
     "@everlast/worker": "workspace:*",
     "@google/adk": "2.4.0",
-    "@google/genai": "^2.32.0",
+    "@google/genai": "^3.1.0",
     "exceljs": "4.4.0",
     "google-auth-library": "^11.3.3",
     "zod": "^4.6.7"
