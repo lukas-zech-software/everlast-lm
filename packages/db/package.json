@@ -24,7 +24,7 @@
   "dependencies": {
     "@everlast/contracts": "workspace:*",
     "pg": "^8.13.3",
-    "google-auth-library": "^11.3.3"
+    "google-auth-library": "^11.3.4"
   },
   "devDependencies": {
     "@everlast/cloud": "workspace:*",
