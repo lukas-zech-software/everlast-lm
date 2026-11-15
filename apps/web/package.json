@@ -15,7 +15,7 @@
     "@everlast/cloud": "workspace:*",
     "@everlast/db": "workspace:*",
     "@everlast/worker": "workspace:*",
-    "@playwright/test": "^1.51.0",
+    "@playwright/test": "^1.65.0",
     "typescript": "^7.0.2",
     "@everlast/testkit": "workspace:*"
   }
