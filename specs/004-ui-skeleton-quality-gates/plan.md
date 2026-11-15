@@ -148,3 +148,16 @@ part of T039/T040.
 ### Hobby-tier KPI threshold alignment (D24 / DEV-07)
 
 `packages/contracts/src/package-v1-4.ts` aligns `evaluateGateMetrics` with D24 (`hallucination_rate < 0.10`, `negative_rejection_rate >= 0.90`), preserving deterministic ID precision (`1.00`) and zero scoping leakage (`0`) with no architecture boundary, publication, authorization, or transaction changes.
+
+## Dependency PR #194 review — 2026-11-15 (CC-09)
+
+Traceability: C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04. Reviewer: Codex.
+Reviewed dependency head: `221bb8048bd7e33413e7459b303fc393a3adaa59`, against `8c159515c52e04c0b926b328e11530dd0b4381fb`.
+
+The patch changes Node type declarations only across the root, API, worker, render, cloud, notes and testkit manifests. Runtime imports, public exports and deployment wiring are unchanged. Node remains major 26.
+
+Manual boundary review: PASS for this manifest/lockfile-only dependency delta. No workspace edge, public export, route/service responsibility, quota, transaction, cancellation or publication fence changes. Existing 90 exact D21 exceptions remain unchanged; this review does not close their removal tasks.
+
+Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524466716) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
+
+This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
