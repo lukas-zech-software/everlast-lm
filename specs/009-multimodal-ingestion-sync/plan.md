@@ -191,3 +191,16 @@ three stale D21 records for the API media fixture as a scoped deletion patch
 with the remediation, and re-run the graph check after serialized integration.
 The 006 Ready and 007 normalization registration stays in the integration slot.
 The FR card/SRS flow-back for the preflight detail is a coordinator patch.
+
+## Dependency PR #195 review — 2026-11-15 (CC-09)
+
+Traceability: C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04. Reviewer: Codex.
+Reviewed dependency head: `35d0aef4caababb3996cbff6e49c249ace25ed64`, against `8c159515c52e04c0b926b328e11530dd0b4381fb`.
+
+The worker uses an inert HTML JSDOM document in apps/worker/src/ingestion/dom.ts; render uses application/xml in apps/render/src/sanitize.ts. Neither enables scripts or resource loading, so script-blocked asynchronous parsing is not requested. No canvas rendering API is used by these adapters. Review covers Readability extraction, namespace-aware OOXML sanitization and malformed XML rejection.
+
+Manual boundary review: PASS for this manifest/lockfile-only dependency delta. No workspace edge, public export, route/service responsibility, quota, transaction, cancellation or publication fence changes. Existing 90 exact D21 exceptions remain unchanged; this review does not close their removal tasks.
+
+Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524481454) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
+
+This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
