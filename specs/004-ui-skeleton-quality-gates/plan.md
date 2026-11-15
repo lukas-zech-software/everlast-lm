@@ -5,6 +5,20 @@
 **SRS IDs**: FR-UI-01, NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01, C-01, C-02, Gate v1.0
 **Input**: `specs/004-ui-skeleton-quality-gates/spec.md`, clarified in `47c4e90`.
 
+
+## Dependency PR #197 review — 2026-11-15 (CC-09)
+
+Traceability: C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04. Reviewer: Codex.
+Reviewed dependency head: `79e900e2a4c43de4e350d84c1bc83d6d6f5e4e32`, against `8c159515c52e04c0b926b328e11530dd0b4381fb`.
+
+Playwright remains a development-only dependency in the root and apps/web manifests. Browser binaries are installed by the existing CI command from the matching Playwright version. No browser production import, application interface or deployment dependency is added.
+
+Manual boundary review: PASS for this manifest/lockfile-only dependency delta. No workspace edge, public export, route/service responsibility, quota, transaction, cancellation or publication fence changes. Existing 90 exact D21 exceptions remain unchanged; this review does not close their removal tasks.
+
+Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524522027) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
+
+This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
+
 ## Summary
 
 Implement exactly package 1.4 from [FR cards](../../spec/requirements/v1/package_1_4_ui_skeleton_quality_gates.md) and [binding rules](../../spec/requirements/README.md). Prerequisite plan created before task generation; no application code is produced here. Main infrastructure baseline `6f3d6b2` (`D14` OpenTofu in `infra/stacks/v1_foundation/`) is merged and aligned across packages 1.1–1.3 (`d797ca0`, `e2725ee`, `ff04006`).
