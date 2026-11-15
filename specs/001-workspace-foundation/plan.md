@@ -192,3 +192,16 @@ explicit subsequent package work. See validation.md and evidence/cc09-20261109.
 ### CC-09 pre-V4 task 001 delta (2026-11-11; FR-WM-01/04, NFR-SEC-01/02)
 
 Module: packages/testkit/src/live-fixtures.ts (package 001, test-only). Adds `frozenLiveFixturePlan` and `RESUMABLE_SCENARIOS` via the existing `./live-fixtures` public export; consumers are the two opt-in live suites only. Composition root: those suites' beforeAll. No route, service, SQL, transaction, dispatch or publication ownership moved; no exception added or widened; no dependency change. Live T046/T061 stay open.
+
+## Dependency PR #198 review — 2026-11-15 (CC-09)
+
+Traceability: C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04. Reviewer: Codex.
+Reviewed dependency head: `e4c06ee2e4322e4716ac7ea594c1312447a49e19`, against `8c159515c52e04c0b926b328e11530dd0b4381fb`.
+
+The existing GoogleAuth consumers remain identity/connection transport composition, worker ingestion adapters, cloud OCR, database IAM connection setup and evaluation preflight. Only the dependency patch version changes; credential selection, authorization coordination, transaction ownership and no-training endpoint policy remain unchanged.
+
+Manual boundary review: PASS for this manifest/lockfile-only dependency delta. No workspace edge, public export, route/service responsibility, quota, transaction, cancellation or publication fence changes. Existing 90 exact D21 exceptions remain unchanged; this review does not close their removal tasks.
+
+Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524544833) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
+
+This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
