@@ -102,3 +102,16 @@ payload and output limits. Explicit constructor calls used by historical
 fixtures and the Package 004 evaluator keep their call contract until the
 evaluator's owning migration. See [validation.md](validation.md) for evidence
 and the interface for downstream packages.
+
+## Dependency PR #196 review — 2026-11-15 (CC-09)
+
+Traceability: C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04. Reviewer: Codex.
+Reviewed dependency head: `7d7c8d28c9fc558c5f5a78afdd6e6c5dc0395ebe`, against `8c159515c52e04c0b926b328e11530dd0b4381fb`.
+
+The SDK stays behind the existing cloud/model adapters. packages/cloud/src/gemini-config.ts explicitly selects vertexai: true and the approved EU base URL; embeddings and topic emoji also explicitly select Vertex. The Developer API default-version change therefore does not select a consumer endpoint. Structured generation, report context/cache and judged evaluation retain their existing ports. ADK retains its separate locked SDK dependency; no cross-version SDK object exchange is introduced.
+
+Manual boundary review: PASS for this manifest/lockfile-only dependency delta. No workspace edge, public export, route/service responsibility, quota, transaction, cancellation or publication fence changes. Existing 90 exact D21 exceptions remain unchanged; this review does not close their removal tasks.
+
+Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524501737) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
+
+This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
