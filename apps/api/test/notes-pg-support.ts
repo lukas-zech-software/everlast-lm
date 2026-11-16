@@ -115,7 +115,10 @@ export async function startNotesApi(options: { sourceLimit?: number; v2?: Partia
     v2 = createV2Runtime({ pool: db.pool, sourceLimit, model, storage, embedder, notifyJobs, ...options.v2 });
     return { embedder, storage, notifyJobs, v2, chat: new ChatService({ pool: db.pool, embedder, model }) };
   }, options.db ? { db: options.db } : {});
-  const worker = createWorkerHandler({ pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() } }, { NODE_ENV: "test" });
+  const worker = createWorkerHandler(
+    { pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, studioRunner: v2.studioRunner },
+    { NODE_ENV: "test" }
+  );
   drain = () => worker.drain();
 
   const call = async (as: string, method: string, path: string, json?: unknown) => {

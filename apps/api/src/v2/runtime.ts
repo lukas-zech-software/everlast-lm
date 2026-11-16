@@ -150,6 +150,8 @@ export interface V2Runtime {
   drainPublicationEvents(): Promise<number>;
   /** Stops background work (the Ready watcher). */
   close(): void;
+  /** Shared configured Studio runner for in-process test worker drains so test doubles/contextRuntime stay consistent. */
+  studioRunner: Pick<StudioJobRunner, "run">;
 }
 
 const SCOPED_CHUNK_LIMIT = 200;
@@ -598,5 +600,6 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       if (readyTimer) clearInterval(readyTimer);
       readyTimer = null;
     },
+    studioRunner: runAndTouch,
   };
 }
