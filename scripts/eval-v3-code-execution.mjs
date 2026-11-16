@@ -13,11 +13,13 @@
  * --collect requires an approved frozen plan/manifest, private producer evidence and two Owner credentials.
  * Configuration alone still exits 2 with `[UNAVAILABLE]`.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { join, resolve } from "node:path";
 import { OwnerPrivateDirectory } from "@everlast/cloud/private-benchmark";
+import { assertDevOnlyEnvironment, withDevTestEnvironment } from "../packages/testkit/src/live-fixtures.ts";
 import {
   CODE_EXECUTION_FIXTURE_VERSION,
   LATENCY_TABLE_PAGE,
@@ -111,6 +113,32 @@ export async function runCodeExecutionCli(argv, clockSession) {
     }
     validateCodeExecutionPlan(plan);
     if (!provenance.planSha256) provenance.planSha256 = hash(JSON.stringify(plan));
+    if (argv.includes("--smoke")) {
+      assertDevOnlyEnvironment(process.env);
+      const engine = process.env.CODE_EXECUTION_REASONING_ENGINE ?? "";
+      if (!/\/locations\/europe-west4\/reasoningEngines\/\d+$/.test(engine)) {
+        return unavailable("CODE_EXECUTION_REASONING_ENGINE in europe-west4 is required on dev for --smoke", evaluateCodeExecutionBenchmark(plan, []));
+      }
+      return await withDevTestEnvironment({ env: process.env }, async () => {
+        const apiRequire = createRequire(new URL("../apps/api/package.json", import.meta.url));
+        const { GoogleAuth } = await import(apiRequire.resolve("google-auth-library"));
+        const { AgentPlatformSandboxRuntime, REQUIRED_LIBRARIES, runAttempt } = await import("../apps/api/src/chat/execution/runtime.ts");
+        const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+        const runtime = new AgentPlatformSandboxRuntime({
+          reasoningEngine: engine,
+          location: "europe-west4",
+          accessToken: async () => (await (await auth.getClient()).getAccessToken()).token ?? "",
+        });
+        const started = Date.now();
+        const code = `${REQUIRED_LIBRARIES.map((l) => `import ${l}`).join("\n")}\nimport statistics\nemit('sd', statistics.pstdev(range(1, 13)), unit='ms')`;
+        const outcome = await runAttempt({ runtime, attemptId: randomUUID(), code, files: [] });
+        const pass = outcome.kind === "completed" && Math.abs(Number(outcome.results[0]?.value) - Math.sqrt(143 / 12)) < 1e-9;
+        provenance.collector = "dev-smoke";
+        const file = writeReport({ status: pass ? "PASS" : "FAIL", pass, mode: "dev-smoke", elapsedMs: Date.now() - started, outcome });
+        console.log(JSON.stringify({ status: pass ? "PASS" : "FAIL", pass, elapsedMs: Date.now() - started, report: file }));
+        return pass ? 0 : 1;
+      });
+    }
     if (clockSession && (!argv.includes("--collect") || observationsPath)) {
       return unavailable("guarded acquisition requires ordinary --collect", evaluateCodeExecutionBenchmark(plan, []));
     }
@@ -146,10 +174,12 @@ export async function runCodeExecutionCli(argv, clockSession) {
       const reader = createCodeExecutionPrivateFileReader(evidencePath, manifest, plan.fixture.sha256);
       try { await reader.preflight(); } catch { return unavailable("qualified private producer evidence is unavailable or does not match the frozen scope", evaluateCodeExecutionBenchmark(plan, [])); }
       const submit = createCodeExecutionHttpTransport({ baseUrl: manifest.api_base_url, credentials });
-      const result = await collectCodeExecutionCohorts(plan, manifest, {
-        submit, measurement: reader.measurement, deadlineMs: COLLECTION_DEADLINE_MS,
-        ...(clockSession ? { assertClockCurrent: clockSession.assertClockCurrent } : {}),
-      });
+      const result = await withDevTestEnvironment({ env: process.env }, () =>
+        collectCodeExecutionCohorts(plan, manifest, {
+          submit, measurement: reader.measurement, deadlineMs: COLLECTION_DEADLINE_MS,
+          ...(clockSession ? { assertClockCurrent: clockSession.assertClockCurrent } : {}),
+        })
+      );
       provenance.collector = "ordinary-application-sse";
       const exportCollection = () => writeReport({
         ...result.report, status: result.status, pass: result.status === "PASS", release_eligible: false,

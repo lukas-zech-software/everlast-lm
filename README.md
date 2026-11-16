@@ -336,23 +336,23 @@ pnpm dev
 ```
 
 <details>
-<summary><strong>Running live Vertex AI release-gate evaluations (<code> europe-west4 </code>)</strong></summary>
+<summary><strong>Running live Vertex AI &amp; GCP smoke tests on <code>dev</code> (<code>europe-west4</code>)</strong></summary>
 
 <br>
 
-Live release-gate evaluations (`NFR-EVAL-01..04` 50-case stratified sample with Gemini 2.5 Flash and Flash-Lite judge on Vertex AI, plus `v3.0` multimodal, code-sandbox, and 1M-token scale benchmarks) require keyless Google Cloud Application Default Credentials in `europe-west4`:
+Live cloud smoke tests run strictly against the **`dev` environment** using keyless Google Cloud Application Default Credentials in `europe-west4` (`gemini-3.5-flash`, `gemini-3.5-flash-lite`, `text-embedding-005`, `100k` context cache, Vertex Agent Engine Sandbox, GCS, and Identity Platform). If `everlast-dev-pg` is scaled down to zero, the harness prompts for permission before starting it and scales it back down afterward (leaving manually started instances running):
 
 ```bash
 gcloud auth application-default login
 
 TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast \
-VERTEX_PROJECT=<gcp-project-id> \
+VERTEX_PROJECT=<gcp-dev-project-id> \
 VERTEX_LOCATION=europe-west4 \
-DOCUMENT_AI_PROCESSOR_NAME=projects/<gcp-project-id>/locations/eu/processors/<processor-id> \
-pnpm eval:judged
+GCS_WORKSPACE_BUCKET=<dev-workspace-bucket> \
+pnpm test:cloud:dev
 ```
 
-See [`docs/gate-v1-live-evaluation.md`](docs/gate-v1-live-evaluation.md) and [`infra/README.md`](infra/README.md) for full cloud setup and OpenTofu deployment instructions.
+Individual suites also support `--smoke` (e.g., `pnpm eval:judged -- --smoke`, `node scripts/eval-v3-studio.mjs --smoke`, `node scripts/eval-v3-scale.mjs --smoke`). See [`docs/gate-v3-live-evaluation.md`](docs/gate-v3-live-evaluation.md) and [`infra/README.md`](infra/README.md) for cloud setup details.
 
 </details>
 

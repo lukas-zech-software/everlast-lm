@@ -63,8 +63,14 @@ const p95 = (values: number[]) => {
   return sorted[Math.max(0, Math.ceil(0.95 * sorted.length) - 1)] ?? 0;
 };
 
-export async function runSourceGuideGate(options: { model: StructuredGenerationClient; modelId: string; dispatchDelayMs: number }): Promise<SourceGuideGateResult> {
-  const sources = sourceGuideGateFixture();
+export async function runSourceGuideGate(options: {
+  model: StructuredGenerationClient;
+  modelId: string;
+  dispatchDelayMs: number;
+  maxSources?: number;
+}): Promise<SourceGuideGateResult> {
+  const allSources = sourceGuideGateFixture();
+  const sources = options.maxSources ? allSources.slice(0, options.maxSources) : allSources;
   const reader: PackageV22SourceReader = {
     // C-02 singleton scope: only the requested revision of the requested source is returned.
     async readReadySources(request) {
@@ -116,14 +122,23 @@ export async function runSourceGuideGate(options: { model: StructuredGenerationC
 
 export type SourceGuideReleaseGateResult = { status: "unavailable"; reason: string } | { status: "ran"; result: SourceGuideGateResult };
 
-/** Release variant with the Vertex AI Flash-Lite client; never reports a pass it did not run. */
-export async function runSourceGuideReleaseGate(env: NodeJS.ProcessEnv): Promise<SourceGuideReleaseGateResult> {
+/** Release/smoke variant with the Vertex AI Flash-Lite client; never reports a pass it did not run. */
+export async function runSourceGuideReleaseGate(
+  env: NodeJS.ProcessEnv,
+  options: { maxSources?: number } = {}
+): Promise<SourceGuideReleaseGateResult> {
   const { createVertexStructuredGenerationFromEnv } = await import("@everlast/cloud");
   const model = createVertexStructuredGenerationFromEnv(env);
   if (!model) return { status: "unavailable", reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)" };
+  const maxSources = env.EVERLAST_FULL_RELEASE_EVAL === "1" ? options.maxSources : (options.maxSources ?? 2);
   return {
     status: "ran",
-    result: await runSourceGuideGate({ model, modelId: `vertex:${model.location}:${model.model}`, dispatchDelayMs: Number(env.V2_READY_WATCH_MS ?? 1_000) }),
+    result: await runSourceGuideGate({
+      model,
+      modelId: `vertex:${model.location}:${model.model}`,
+      dispatchDelayMs: Number(env.V2_READY_WATCH_MS ?? 1_000),
+      ...(maxSources ? { maxSources } : {}),
+    }),
   };
 }
 
