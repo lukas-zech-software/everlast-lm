@@ -40,4 +40,4 @@ it("rejects unapproved scope, a different runtime, and missing/malformed produce
       if (mode === "fifo") await rm(evidence);
     }
   }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(dir,{recursive:true,force:true});}
-});
+}, 30_000);

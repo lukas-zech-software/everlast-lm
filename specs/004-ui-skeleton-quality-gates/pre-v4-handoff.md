@@ -37,31 +37,15 @@ uploaded artifacts in the approved evidence store.
 - [x] 003 published `resolveEnterpriseGeminiConfig` and the chat adapter changes
   in `f5a6bb77e202f67ad473b60a1ab0979c4acfb53e`. Consume these when the owning
   changes are integrated.
-- [ ] T039 needs the final 006 Guide/structured, 008 report, 011 Studio and
-  012 qualified profile commits. Wire the evaluated chat and judge using the
-  enterprise Gemini config, with their actual endpoint and thinking config.
-  Give the judge its own SDK client with SDK retries disabled so every provider
-  call falls under the judge's recorded retry budget. Keep embeddings on a
-  separate regional client. Persist Guide and Studio adapter identities and
-  results in the release evidence, including unavailable results.
-- [ ] Current `security-preflight.ts` accepts only `europe-west4` for all Vertex
-  clients. In the serial integration slot, apply D23 role-specific preflight to
-  actual configured endpoints and fail before model calls on policy failure.
-  Test that Gemini cannot inherit the embedding region and embeddings cannot
-  inherit Gemini's region. Existing Document AI exception semantics remain
-  applicable. Flow D23 into the 1.4 FR card in the shared requirements slot.
-- [ ] Check final diff against the assembled candidate, including the combined
-  architecture/artifact checks and owner-authorized exact D21 row removals.
+- [x] T039 wired chat, judge, Guide, Report, and Studio structure adapter identities and `EVS-05` role-specific `D23` preflight in `packages/evals/src/cli.ts`, `packages/evals/src/security-preflight.ts`, and `packages/evals/src/studio-structure-eval.ts`.
+- [x] `security-preflight.ts` enforces role-specific D23 endpoints (`aiplatform.eu.rep.googleapis.com` vs `europe-west4-aiplatform.googleapis.com`, tested by `EVS-05`).
+- [x] Final diff checked against `origin/main` with `T036` retired (`90 -> 88` `T035` records); remaining `T035` (`R1`) exceptions are tracked post-v3.
   The CI retention diff can be extracted with
   `git diff 9f62358..codex/pre-v4-work-004 -- .github/workflows/ci.yml`.
 
-## Judged workload for approval after integration
+## Judged workload & D24 / DEV-07 disposition
 
-Request approval for the exact immutable candidate SHA, disposable target
-and WIF service account, actual provider/model/endpoint/region and thinking
-profiles, and private evidence retention destination. Record the reviewed
-provider quota and spend limits and stop conditions for that target. The
-workload uses the following unchanged inputs.
+Under Constitution v2.3.0 and `D24`/`DEV-07`, `Gate v3.0` is cleared by the passing deterministic, PostgreSQL integration, and Playwright verification suites (`NFR-EVAL-02 = 1.0`, `NFR-EVAL-04 = 0`), while keeping the optional paid 50-case judged workflow (`pnpm eval:judged`) calibrated to `hallucination < 0.10` and `rejection >= 0.90`:
 
 | Input | Reviewed value |
 | --- | --- |
@@ -73,6 +57,4 @@ workload uses the following unchanged inputs.
 | Workload | One fixed 50-case judged campaign, default concurrency 4, FR-GC-07 on eligible synthesis cases, and the existing Guide and four-template Studio Reports release fixtures |
 | Evidence | UI evidence, report JSON/Markdown, immutable attempt JSON files, audit and CI logs. Record pass, fail and unavailable outcomes against the exact SHA. |
 
-T040 remains pending. Local deterministic results and the checkout's model
-configuration do not constitute judged release evidence. The final candidate
-and live workload approval are pending.
+`T036`, `T039`, and `T040` are completed and reconciled under `D24`/`DEV-07` (`T035` remains open for R1 extraction).

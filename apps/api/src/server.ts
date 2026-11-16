@@ -18,7 +18,7 @@ import { ChatService } from "./chat/service.ts";
 import { createGroundedModelFromEnv, type GroundedModel } from "./chat/model.ts";
 import { createV2Runtime } from "./v2/runtime.ts";
 import { GoogleDelegationBroker } from "./routes/connections.ts";
-import { VertexTopicEmojiSelector } from "@everlast/cloud/topic-emoji";
+import { VertexTopicEmojiClient, VertexTopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 
@@ -170,7 +170,9 @@ export async function startApiServer(env: NodeJS.ProcessEnv = process.env, extra
           storage,
           embedder,
           notifyJobs,
-          ...(modelConfigured ? { topicEmoji: new VertexTopicEmojiSelector() } : {}),
+          ...(modelConfigured
+            ? { topicEmoji: new VertexTopicEmojiSelector(new VertexTopicEmojiClient({ env })) }
+            : {}),
         }));
   const sandboxRuntime = privateComposition?.runtime ?? createSandboxRuntime(env);
   const codeExecution = sandboxRuntime ? { runtime: sandboxRuntime, storage } : undefined;

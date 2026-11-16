@@ -2,20 +2,6 @@
   "version": 1,
   "exceptions": [
     {
-      "rule": "contracts-only",
-      "from": "packages/contracts/src/scoped-context.ts",
-      "to": "node:crypto",
-      "fingerprint": "2d28fbe4daad061a6077a3494140bc0934cdb55e4ab6b955547581cec69e8f24",
-      "line": 2,
-      "count": 1,
-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
-      "owner": "@lukas-zech-software",
-      "decision": "D21",
-      "expires": "2027-02-05",
-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
-    },
-    {
       "rule": "no-cross-app",
       "from": "apps/api/package.json",
       "to": "apps/worker/package.json",
@@ -1246,20 +1232,6 @@
       "expires": "2027-02-05",
       "removalTask": "specs/004-ui-skeleton-quality-gates T035",
       "reason": "R1: extract shared application workflows behind public package interfaces."
-    },
-    {
-      "rule": "wildcard-export",
-      "from": "packages/contracts/package.json",
-      "to": "./*",
-      "fingerprint": "9bf6c0eacc04705b586fd5c84d4d35b398879accb1019a92e65593e0179710db",
-      "line": 1,
-      "count": 1,
-      "baseline": "13e76bd5229af7d52146456297e1aa92a220908d",
-      "owner": "@lukas-zech-software",
-      "decision": "D21",
-      "expires": "2027-02-05",
-      "removalTask": "specs/004-ui-skeleton-quality-gates T036",
-      "reason": "R3: replace legacy wildcard/deep or runtime-bound imports with explicit, correctly scoped public interfaces."
     }
   ]
 }

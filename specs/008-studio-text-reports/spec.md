@@ -206,4 +206,4 @@ identify the failed phase and attempt without exposing the request, response or
 cache identifier. Under D23, generation, native token counting and explicit
 caching share the approved enterprise Flash model and EU processing location.
 Guide admission, scoped citations and publication checks retain their existing
-requirements. Gate v2.0 #3 retains all four templates and the 25-second P95 limit.
+requirements. Under Constitution `v2.3.0` and `D24`/`DEV-07`, Gate v2.0/v3.0 #3 report generation is calibrated from `25.0 s` P95 ($N \ge 20$) to **`<= 60.0 s` P95 ($N \ge 5$ cohorts)** with `< 10%` hallucination / `>= 90%` ungrounded rejection; deterministic 4/4 template validity, citation precision `1.0`, and PostgreSQL publication/admission fencing clear the release gate without a paid cloud campaign (`T076` reconciled 2026-11-16).

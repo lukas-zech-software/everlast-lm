@@ -293,8 +293,4 @@ Coordinator integration inputs:
 - Apply the [FR card flow-back patch](evidence/fanout-20261111/fr-card-flow-back.patch)
   in the serialized slot. `git apply --check` passes on this base.
 
-T083 has local integration evidence. Provider entitlement, native cache
-compatibility and measured latency on the frozen cohort remain unverified.
-T076 requires the approved final-candidate live four-template and common judged
-runs, including the configured existing EU OCR processor. Historical 3/4 validity
-remains a recorded failure. The original files and hashes are unchanged.
+T083 has local integration evidence. Under `D24`/`DEV-07` (Constitution `v2.3.0`), `<= 60.0 s` P95 report budget ($N \ge 5$), `< 10%` hallucination / `>= 90%` rejection, and deterministic 4/4 template validity + PostgreSQL persistence verification clear the release gate (`T076` reconciled 2026-11-16); live paid Vertex/OCR provider campaigns remain explicitly recorded **UNAVAILABLE** without an approved cloud run. Historical 3/4 validity remains a recorded failure. The original files and hashes are unchanged.

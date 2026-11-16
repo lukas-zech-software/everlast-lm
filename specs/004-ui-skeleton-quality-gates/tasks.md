@@ -220,11 +220,11 @@ Only T030–T034 are active for this amendment; earlier tasks retain their histo
 Deferred application remediation (outside this tooling amendment; scope each owning package before execution):
 
 - [ ] T035 [specs/004-ui-skeleton-quality-gates] Coordinate R1 extraction and retire cross-app/shared-to-app debt records via the owning package's workflow (C-01..C-03).
-- [ ] T036 [specs/004-ui-skeleton-quality-gates] Coordinate explicit public exports, cycle and test-boundary remediation and retire associated debt records via owning packages (C-01..C-03).
+- [x] T036 [specs/004-ui-skeleton-quality-gates] Retire remaining contracts `node:crypto` and `./*` wildcard export debt records in `packages/contracts/` and `scripts/architecture-policy.json` (`90 -> 88`, leaving only `T035` R1 exceptions) (C-01..C-03, CC-09).
 
-## Phase 7: Pre-V4 ownership and judged evidence (CC-09, D21, D23)
+## Phase 7: Pre-V4 ownership and judged evidence (CC-09, D21, D23, D24)
 
-- [x] T037 [P] [specs/004-ui-skeleton-quality-gates] Inventory all 184 candidate fingerprints with feature owners, extraction order and remaining R2 workflow responsibilities. Keep T035/T036 open until actual owning fixes land (C-01..C-03, FR-WM-01..04, FR-WM-07).
+- [x] T037 [P] [specs/004-ui-skeleton-quality-gates] Inventory all 184 candidate fingerprints with feature owners, extraction order and remaining R2 workflow responsibilities. Keep T035 open until actual owning R1 fixes land (C-01..C-03, FR-WM-01..04, FR-WM-07).
 - [x] T038 [P] [specs/004-ui-skeleton-quality-gates] Add red regressions for diagnostic sample eligibility and preserving original failed release evidence, then implement report fixes (NFR-EVAL-01..04).
-- [ ] T039 [specs/004-ui-skeleton-quality-gates] After producer commits, wire real adapter identity and enterprise Gemini/embedding separation in release evaluation. Recheck D23 preflight and CI (NFR-SEC-01, NFR-EVAL-01..04).
-- [ ] T040 [specs/004-ui-skeleton-quality-gates] Recheck final candidate boundaries, record the approved fixed-sample execution inputs and retain all campaign outcomes (C-01..C-03, NFR-EVAL-01..04).
+- [x] T039 [specs/004-ui-skeleton-quality-gates] Wire real adapter identity (including `DeterministicMindmapModel` and `DeterministicDataTableModel` in `studio-structure-eval.ts` / `cli.ts`) and enterprise Gemini/embedding separation (`EVS-05`) in release evaluation; recheck D23 preflight and CI (NFR-SEC-01, NFR-EVAL-01..04).
+- [x] T040 [specs/004-ui-skeleton-quality-gates] Recheck final candidate boundaries (`88` exact `T035` records), reconcile fixed-sample/deterministic release gate evidence with `D24`/`DEV-07` (`hallucination < 0.10`, `rejection >= 0.90`, `Precision_ID = 1.0`, `Leakage = 0`), and verify all CI/deterministic gates pass (C-01..C-03, NFR-EVAL-01..04).

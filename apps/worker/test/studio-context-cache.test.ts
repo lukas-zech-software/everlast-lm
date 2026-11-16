@@ -75,10 +75,12 @@ describe('NFR-PERF-01 NFR-SEC-01/02 Studio context cache lifecycle', () => {
 
   it('expires entries past expires_at and treats restart as cache miss without orphan reattachment', async () => {
     const cache = new StudioContextCache();
+    const now = Date.now();
     const entry = await cache.create({
       ...baseInput,
       providerHandle: 'handle-expire',
-      providerExpiresAt:Date.now()+1,
+      now,
+      providerExpiresAt: now + 1,
       ttlSeconds: 0.001, // 1 ms
     });
 

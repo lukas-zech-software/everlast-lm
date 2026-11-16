@@ -108,3 +108,7 @@ Read-only analysis after the CC-09 plan/tasks delta and before implementation: F
 | Adapter lives in a deployment app and is consumed by the API (D21 R1, 4 records) | HIGH, 005 | Extracted to `packages/cloud`; removal patch saved for the integration slot |
 | 003 routing interface not yet available for MINIMAL thinking | MEDIUM, 005 | T061 open; model/location injectable; defaults unchanged |
 | Shared files (`apps/api/src/server.ts`, `runtime.ts`, policy) | none edited | Scoped patch only |
+
+### T061 integration analysis (FR-WM-02, NFR-SEC-01, D23, D24, CC-09)
+
+Task 003's D23 routing resolver (`packages/cloud/src/gemini-config.ts`) is merged on `main`, and the API imports in `apps/api/src/server.ts` and `apps/api/src/v2/runtime.ts` already point to `@everlast/cloud/topic-emoji` (with those 4 D21 exceptions already retired on `main`). `packages/cloud/src/topic-emoji.ts` now consumes `resolveEnterpriseGeminiConfig("flash-lite", this.env)` (`eu`, `gemini-3.5-flash-lite`, `MINIMAL` thinking), `apps/api/src/server.ts` passes `{ env }`, and first-Ready eligibility, sticky custom icons, and publication retain their existing owners. Under `D24` / `DEV-07`, local verification satisfies release clearance without paid live Vertex smoke.

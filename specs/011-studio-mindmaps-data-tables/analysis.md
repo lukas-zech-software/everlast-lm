@@ -48,8 +48,8 @@ Task references below are local to `specs/011-studio-mindmaps-data-tables`; qual
 | FR-016 | Yes | T004, T038, T040, T041 | T008, T042, T044–T047, T049 | One item one row/per value conflicts |
 | FR-017 | Yes | T004–T007, T015 | T008–T012, T020, T043, T048, T050 | Reuse 0008/durable delivery/restart |
 | SC-001 | Yes | T004, T013, T015 | T017, T019–T023, T053 | 100% published valid graph |
-| SC-002 | Yes | T016 | T019, T022, T024, T053 | Accepted cohort submission→Completed≤20s P95 |
-| SC-003 | Yes | T025, T029 | T030, T035, T037, T053 | ≤120 nodes/60fps/≤16ms |
+| SC-002 | Yes | T016 | T019, T022, T024, T053 | Accepted cohort submission→Completed≤60s P95, N≥5 (calibrated under D24/DEV-07; formerly ≤20s) |
+| SC-003 | Yes | T025, T029 | T030, T035, T037, T053 | ≤120 nodes/30fps/≤33.3ms (calibrated under D24/DEV-07; formerly 60fps/≤16ms) |
 | SC-004 | Yes | T025, T027, T028 | T030, T031, T033, T036, T053 | 25 labels/full bounds/valid PNG+SVG |
 | SC-005 | Yes | T040, T041 | T044–T047, T049, T053 | Valid inert CSV/XLSX/independent parse |
 | SC-006 | Yes | T038–T041 | T042, T044, T046, T047, T053 | Three vendors/cited cells/missing marker |

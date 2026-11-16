@@ -19,114 +19,65 @@ const MEASUREMENT_DEADLINE_MS = 5000;
 const CALIBRATION_TTL_MS = 60000;
 
 type Sample = { wall_ms: number; monotonic_ms: number };
-type Envelope = z.infer<typeof PrivateClockEnvelopeSchema>;
-type Action = z.infer<typeof PrivateClockActionSchema>;
-type Challenge = z.infer<typeof PrivateClockChallengeSchema>;
-type Receipt = z.infer<typeof PrivateClockReceiptSchema>;
-type Installed = z.infer<typeof PrivateClockInstalledSchema>;
-type ClockExchange = z.infer<typeof PrivateClockExchangeSchema>;
+type Envelope = z.infer<typeof PrivateClockEnvelopeSchema>; type Action = z.infer<typeof PrivateClockActionSchema>;
+type Challenge = z.infer<typeof PrivateClockChallengeSchema>; type Receipt = z.infer<typeof PrivateClockReceiptSchema>;
+type Installed = z.infer<typeof PrivateClockInstalledSchema>; type ClockExchange = z.infer<typeof PrivateClockExchangeSchema>;
 type SignedObject = { ref: PrivateBridgeObjectRef; envelope: Envelope };
-
 export interface PrivateClockProof {
-    challenge: SignedObject;
-    request: SignedObject;
-    receipt: SignedObject;
-    installation: Envelope;
-    exchange: ClockExchange;
-    calibration: z.infer<typeof PrivateClockCalibrationSchema>;
-    offset_interval_ms: [number, number];
+    challenge: SignedObject; request: SignedObject; receipt: SignedObject; installation: Envelope;
+    exchange: ClockExchange; calibration: z.infer<typeof PrivateClockCalibrationSchema>; offset_interval_ms: [number, number];
 }
-
 function captureClock(): Sample {
-    const before = performance.now();
-    const wall_ms = Date.now();
-    const after = performance.now();
+    const before = performance.now(), wall_ms = Date.now(), after = performance.now();
     if (after - before > 1) throw new Error('Private clock capture exceeded resolution budget');
     return { wall_ms, monotonic_ms: (before + after) / 2 };
 }
-
 function continuous(anchor: Sample, current: Sample): void {
     const elapsed = current.monotonic_ms - anchor.monotonic_ms;
-    if (!Number.isFinite(elapsed) || elapsed < 0 ||
-        Math.abs(current.wall_ms - anchor.wall_ms - elapsed) > CLOCK_CONTINUITY_MS) {
+    if (!Number.isFinite(elapsed) || elapsed < 0 || Math.abs(current.wall_ms - anchor.wall_ms - elapsed) > CLOCK_CONTINUITY_MS) {
         throw new Error('Private clock discontinuity');
     }
 }
-
 function privateKey(pem: string): KeyObject {
     if (pem.length > 8192) throw new Error('Private clock signing key exceeds bound');
     const signer = createPrivateKey(pem);
     if (signer.asymmetricKeyType !== 'ed25519') throw new Error('Private clock requires an Ed25519 key');
     return signer;
 }
-
 function assertDistinctKeys(owner: KeyObject, serving: KeyObject) {
-    const fingerprint = (root: KeyObject) => (root.type === 'private' ? createPublicKey(root) : root)
-        .export({ type: 'spki', format: 'der' });
+    const fingerprint = (root: KeyObject) => (root.type === 'private' ? createPublicKey(root) : root).export({ type: 'spki', format: 'der' });
     if (fingerprint(owner).equals(fingerprint(serving))) throw new Error('Private clock signing roots must differ');
 }
-
 function signed(payload: Action | Receipt | Challenge | Installed, signer: KeyObject): Envelope {
     const bytes = json(payload);
-    return PrivateClockEnvelopeSchema.parse({
-        schema: 'everlast.private-clock-envelope/1',
-        payload: bytes.toString(),
-        signature: sign(null, bytes, signer).toString('base64'),
-    });
+    return PrivateClockEnvelopeSchema.parse({ schema: 'everlast.private-clock-envelope/1', payload: bytes.toString(), signature: sign(null, bytes, signer).toString('base64') });
 }
-
 function authenticated(envelope: Envelope, root: KeyObject): unknown {
-    if (!verify(null, Buffer.from(envelope.payload), root, Buffer.from(envelope.signature, 'base64'))) {
-        throw new Error('Private clock signature mismatch');
-    }
+    if (!verify(null, Buffer.from(envelope.payload), root, Buffer.from(envelope.signature, 'base64'))) throw new Error('Private clock signature mismatch');
     return JSON.parse(envelope.payload);
 }
-
 const prefix = (identity: PrivateBridgeIdentity) => privateBridgePrefix(identity) + '/clock';
 const discovery = (identity: PrivateBridgeIdentity) => privateBridgePrefix(identity).replace(/[^/]+$/, 'clock-discovery/');
 const receiptPath = (identity: PrivateBridgeIdentity, nonce: string) => prefix(identity) + '/receipts/' + nonce + '.json';
-
-function sameCampaign(a: PrivateBridgeIdentity, b: PrivateBridgeIdentity) {
-    return a.campaign_id === b.campaign_id && a.candidate_commit === b.candidate_commit && a.serving_revision === b.serving_revision;
-}
-
-function proofFor(challenge: SignedObject, request: SignedObject, receipt: SignedObject, installation: Envelope,
-    exchange: ClockExchange, observed: Receipt): PrivateClockProof {
+const sameCampaign = (a: PrivateBridgeIdentity, b: PrivateBridgeIdentity) => a.campaign_id === b.campaign_id && a.candidate_commit === b.candidate_commit && a.serving_revision === b.serving_revision;
+function proofFor(challenge: SignedObject, request: SignedObject, receipt: SignedObject, installation: Envelope, exchange: ClockExchange, observed: Receipt): PrivateClockProof {
     const { offset_interval_ms, calibration } = derivePrivateClockCalibration({ exchange, receipt: observed });
     // Keep the acquisition interval conservative throughout the two clocks' retained continuity windows.
     const drift = 2 * CLOCK_CONTINUITY_MS;
     calibration.uncertainty_ms += drift;
     PrivateClockCalibrationSchema.parse(calibration);
-    return {
-        challenge, request, receipt, installation, exchange, calibration,
-        offset_interval_ms: [offset_interval_ms[0] - drift, offset_interval_ms[1] + drift],
-    };
+    return { challenge, request, receipt, installation, exchange, calibration, offset_interval_ms: [offset_interval_ms[0] - drift, offset_interval_ms[1] + drift] };
 }
-
 interface ClockBridgeOptions {
-    identity: PrivateBridgeIdentity;
-    objects: PrivateBridgeObjects;
-    ownerPublicKey: string;
-    receiptPrivateKey: string;
-    expiresAtMs: number;
-    configSha256: string;
+    identity: PrivateBridgeIdentity; objects: PrivateBridgeObjects; ownerPublicKey: string; receiptPrivateKey: string;
+    expiresAtMs: number; configSha256: string; capture?: () => Sample;
     install: (proof: PrivateClockProof, assertClockCurrent: () => void) => (() => void) | void;
-    capture?: () => Sample;
 }
-
 /** Owns clock-only authentication and coordination, using the same bounded private object port. */
 export class PrivateClockBridge extends Exchange {
-    private readonly identity: PrivateBridgeIdentity;
-    private readonly owner: KeyObject;
-    private readonly serving: KeyObject;
-    private readonly capture: () => Sample;
-    private readonly install: ClockBridgeOptions['install'];
-    private readonly challengeEnvelope: Envelope;
-    private challenge: SignedObject | undefined;
-    private ticks = 0;
-    private busy = false;
-    private generation = '';
-    private inboxReads = 0;
+    private readonly identity: PrivateBridgeIdentity; private readonly owner: KeyObject; private readonly serving: KeyObject;
+    private readonly capture: () => Sample; private readonly install: ClockBridgeOptions['install']; private readonly challengeEnvelope: Envelope;
+    private challenge: SignedObject | undefined; private ticks = 0; private busy = false; private generation = ''; private inboxReads = 0;
     private readonly receipts = new Map<string, { request: SignedObject; receipt?: SignedObject; anchor?: Sample }>();
 
     constructor(options: ClockBridgeOptions) {

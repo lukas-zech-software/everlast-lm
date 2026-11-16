@@ -53,6 +53,7 @@ export interface DataTableComposeRequest {
 }
 
 export interface DataTableModelClient {
+  readonly id?: string;
   extract(request: DataTableExtractRequest): Promise<TableObservation[]>;
   compose(request: DataTableComposeRequest): Promise<{
     payload: StudioDataTablePayload;
@@ -95,6 +96,7 @@ function canonicalItemKey(label: string): string {
 const SUMMARY_ATTRIBUTE_ID = "summary";
 
 export class DeterministicDataTableModel implements DataTableModelClient {
+  readonly id = "deterministic-data-table-model";
   async extract(req: DataTableExtractRequest): Promise<TableObservation[]> {
     req.signal.throwIfAborted();
     const out: TableObservation[] = [];

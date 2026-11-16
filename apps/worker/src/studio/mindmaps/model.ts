@@ -45,6 +45,7 @@ export interface MindmapComposeRequest {
 }
 
 export interface MindmapModelClient {
+  readonly id?: string;
   extract(request: MindmapExtractRequest): Promise<MindmapFinding[]>;
   compose(request: MindmapComposeRequest): Promise<StudioMindmapPayload>;
 }
@@ -72,6 +73,7 @@ function cleanLabel(text: string): string {
  * and builds a balanced acyclic hierarchy (depth 2..5, up to 120 nodes) with field-level citations.
  */
 export class DeterministicMindmapModel implements MindmapModelClient {
+  readonly id = "deterministic-mindmap-model";
   async extract(req: MindmapExtractRequest): Promise<MindmapFinding[]> {
     req.signal.throwIfAborted();
     const out: MindmapFinding[] = [];

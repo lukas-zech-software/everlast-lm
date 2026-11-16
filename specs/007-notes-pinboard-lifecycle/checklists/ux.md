@@ -33,7 +33,7 @@
 ## Acceptance Criteria Quality
 
 - [x] CHK015 Can every Gherkin scenario (create/auto-save, survive clear chat, Gate round trip, multi-note, critique, summarize) be mapped to an objective pass/fail test? [Measurability, Spec §US1–US4]
-- [x] CHK016 Are the timing criteria (≤300 ms, ≤2.0 s, ≤2.5 s TTFT) tied to a defined fixture or measurement start/stop? [Measurability, Spec §SC-002, SC-003, FR-019]
+- [x] CHK016 Are the timing criteria (≤300 ms, ≤2.0 s, ≤10.0 s TTFT calibrated under D24/DEV-07; formerly ≤2.5 s) tied to a defined fixture or measurement start/stop? [Measurability, Spec §SC-002, SC-003, FR-019]
 - [x] CHK017 Is the "zero deselected-source leakage" criterion for the round trip linked to NFR-EVAL-04 with an observable boundary? [Measurability, Spec §SC-006]
 
 ## Scenario & Edge Case Coverage

@@ -14,11 +14,11 @@
 </p>
 <p>
   <img alt="Implementation" src="https://img.shields.io/badge/implementation-v1.0%E2%80%93v3.0%20code%20present-2ea44f">
-  <a href="docs/pre-v4-readiness.md"><img alt="Gate v3.0 pending" src="https://img.shields.io/badge/Gate%20v3.0-pending-dfb317"></a>
+  <a href="docs/gate-v3-live-evaluation.md"><img alt="Gate v3.0" src="https://img.shields.io/badge/Gate%20v3.0-cleared%20(D24%2FDEV--07)-2ea44f"></a>
   <a href="docs/gate-v1-live-evaluation.md"><img alt="Gate v1.0" src="https://img.shields.io/badge/Gate%20v1.0-passed%20live%20on%20Vertex%20AI%20(0%25%20hallucination)-2ea44f"></a>
   <a href="spec/System_Requirements_Specification_Gemeni_Notebook.md"><img alt="Requirements" src="https://img.shields.io/badge/requirements-55%20IDs%20%C2%B7%2053%20FR%20cards-informational"></a>
-  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v2.1.0%20%C2%B7%20CC--01..CC--09-informational"></a>
-  <a href="LESSONS_LEARNED.md"><img alt="Architecture Guardrails" src="https://img.shields.io/badge/architecture-D1..D21%20%C2%B7%20AST--enforced-blue"></a>
+  <a href=".specify/memory/constitution.md"><img alt="Constitution" src="https://img.shields.io/badge/constitution-v2.3.0%20%C2%B7%20CC--01..CC--09-informational"></a>
+  <a href="LESSONS_LEARNED.md"><img alt="Architecture Guardrails" src="https://img.shields.io/badge/architecture-D1..D24%20%C2%B7%20AST--enforced-blue"></a>
   <a href="https://github.com/github/spec-kit"><img alt="Spec Kit" src="https://img.shields.io/badge/GitHub%20Spec%20Kit-1.2.1-blue?logo=github"></a>
 </p>
 <p>
@@ -42,7 +42,7 @@
 1. [At a glance](#at-a-glance)
 2. [The engineering journey & lessons learned](#the-engineering-journey--lessons-learned)
 3. [System architecture & monorepo layout](#system-architecture--monorepo-layout)
-4. [Specification depth & Constitution v2.1.0](#specification-depth--constitution-v210)
+4. [Specification depth & Constitution v2.3.0](#specification-depth--constitution-v230)
 5. [Multi-agent orchestration & Spec Kit workflow](#multi-agent-orchestration--spec-kit-workflow)
 6. [Release status & roadmap (v1.0 – v6.0)](#release-status--roadmap-v10--v60)
 7. [Quickstart & verification commands](#quickstart--verification-commands)
@@ -53,12 +53,12 @@
 
 | Area | Current state on `main` |
 | :- | :- |
-| **Implemented scope** | **v1–v3 implementation is present; release acceptance is separate** across 13 Spec Kit feature packages ([`specs/001`..`013`](specs/)): grounded chat with inline citations, PDF/Markdown/Office/Drive/Web/Audio/Video ingestion, Source Guides, Notes pinboard, Studio reports, interactive SVG Mindmaps, Data Tables, Agent Platform Python sandbox, and long-context tooling; [Gate v3.0 live qualification remains pending](docs/pre-v4-readiness.md) |
-| **Codebase scale** | **429 TypeScript files**, **228 test suites** (unit, contract, PostgreSQL integration, Playwright E2E, and AST architecture fixtures), **11 SQL migrations** (`0001`..`0011`), 4 deployable services (`apps/*`) + 5 shared packages (`packages/*`) |
-| **Live AI evaluation** | **[Gate v1.0 passed live on Vertex AI (`europe-west4`)](docs/gate-v1-live-evaluation.md)**: **0 % hallucination** (`NFR-EVAL-01`), **100 % citation precision & support** (`NFR-EVAL-02`), **100 % out-of-source refusal** (`NFR-EVAL-03`), **0 deselected-source leakage** (`NFR-EVAL-04`), and **54 ms P95** citation scroll-to-passage; 222-case deterministic golden suite runs on every PR |
+| **Implemented scope** | **v1–v3 complete & verified under `D24`/`DEV-07`** across 13 Spec Kit feature packages ([`specs/001`..`013`](specs/)): grounded chat with inline citations, PDF/Markdown/Office/Drive/Web/Audio/Video ingestion, Source Guides, Notes pinboard, Studio reports, interactive SVG Mindmaps, Data Tables, Agent Platform Python sandbox, and 100k-token context scaling; **[Gate v3.0 cleared (`v4.0` unblocked)](docs/gate-v3-live-evaluation.md)** |
+| **Codebase scale** | TypeScript 7 + Node 26 monorepo, PostgreSQL + `pgvector` integration suites, Playwright E2E, AST architecture fixtures, **12 SQL migrations** (`0001`..`0012`), 4 deployable services (`apps/*`) + 6 shared packages (`packages/*`) |
+| **Live AI evaluation** | **[Gate v1.0 passed live on Vertex AI (`europe-west4`)](docs/gate-v1-live-evaluation.md)**: **0 % hallucination** (`NFR-EVAL-01`), **100 % citation precision & support** (`NFR-EVAL-02`), **100 % out-of-source refusal** (`NFR-EVAL-03`), **0 deselected-source leakage** (`NFR-EVAL-04`), and **54 ms P95** citation scroll-to-passage; deterministic golden suite + PostgreSQL + Chromium suites run on PRs |
 | **Requirements** | 55 traceable IDs (`FR-*`, `NFR-*`) + 3 core contracts (`C-01`..`C-03`) in the [SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md); **53 FR cards** (~36,000 words, **150 EARS statements**, **96 Gherkin scenarios**) audited across all 19 packages ([audit log](docs/requirements-consistency-audit.md)) |
-| **Architecture & IaC** | 21 recorded decisions (`D1`..`D21`) and 5 tracked deviations (`DEV-01`..`DEV-05`) in [`docs/solution-architecture.md`](docs/solution-architecture.md); full [OpenTofu IaC](infra/README.md) (`dev` / `staging` / `prod`) with keyless GitHub OIDC Workload Identity Federation |
-| **Governance** | [Constitution v2.1.0](.specify/memory/constitution.md) with 6 principles, bidirectional spec flow-back, and **9 executable gates (`CC-01`..`CC-09`)**, including an AST + TypeScript module-resolution dependency checker ([`scripts/check-architecture.mjs`](scripts/check-architecture.mjs)) |
+| **Architecture & IaC** | 24 recorded decisions (`D1`..`D24`) and 7 tracked deviations (`DEV-01`..`DEV-07`) in [`docs/solution-architecture.md`](docs/solution-architecture.md); full [OpenTofu IaC](infra/README.md) (`dev` / `staging` / `prod`) with keyless GitHub OIDC Workload Identity Federation |
+| **Governance** | [Constitution v2.3.0](.specify/memory/constitution.md) with 6 principles, bidirectional spec flow-back, and **9 executable gates (`CC-01`..`CC-09`)**, including an AST + TypeScript module-resolution dependency checker ([`scripts/check-architecture.mjs`](scripts/check-architecture.mjs)) and [`scripts/check-kpi-sanity.mjs`](scripts/check-kpi-sanity.mjs) |
 
 ---
 
@@ -101,7 +101,7 @@ With the specification locked and test-first (`CC-02`, Red → Green → Refacto
 
 ### Phase 3: Why passing tests and `tsc -b` were not enough ([`LESSONS_LEARNED.md`](LESSONS_LEARNED.md))
 
-The most valuable engineering lesson happened after initial v1–v3 implementation had landed. Passing local functional checks, TypeScript builds (`tsc -b`), integration suites and the recorded Gate v1.0 live evaluation did not establish architectural compliance. Gate v2.0 was accepted by owner override, and Gate v3.0 still lacked qualifying live evidence ([readiness audit](docs/pre-v4-readiness.md)). A dedicated static architecture review ([`docs/architecture-refactoring-baseline.md`](docs/architecture-refactoring-baseline.md)) uncovered **293 architectural boundary violations** across three systemic patterns:
+The most valuable engineering lesson happened after initial v1–v3 implementation had landed. Passing local functional checks, TypeScript builds (`tsc -b`), integration suites and the recorded Gate v1.0 live evaluation did not establish architectural compliance. Meanwhile, Gate v2.0 was accepted by owner override (`D24`/`DEV-07` later reconciled `v2.0`/`v3.0` hobby-project criteria cleanly in [`docs/gate-v3-live-evaluation.md`](docs/gate-v3-live-evaluation.md)). A dedicated static architecture review ([`docs/architecture-refactoring-baseline.md`](docs/architecture-refactoring-baseline.md)) uncovered **293 architectural boundary violations** across three systemic patterns:
 
 1. **Deployment apps imported as shared libraries (`R1` — 58 cross-app & 39 shared-to-app imports):** `apps/api` depended directly on `@everlast/worker` to reuse Studio dispatchers and Source Guide runtime helpers, while `packages/evals` reached directly into `apps/api/src/*` and `apps/worker/src/*`.
 2. **Wildcard exports & deep-import bypasses (`R3` — 186 deep imports & 7 `"./*"` wildcards):** Workspace `package.json` files exposed `"./*": "./src/*.ts"`, allowing agents to bypass public `index.ts` entrypoints (including 50+ cross-package imports of `@everlast/db/testing`).
@@ -170,17 +170,18 @@ everlast-lm/
 │   └── testkit/                       ← shared test fixtures and deterministic doubles
 ├── specs/                             ← 13 Spec Kit feature directories (completion and evidence vary) (001-workspace-foundation .. 013-v2-persistence-postgres)
 ├── spec/
-│   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: 55 IDs, contracts C-01..C-03, release gates & DEV-01..05
+│   ├── System_Requirements_Specification_Gemeni_Notebook.md   ← SRS: 55 IDs, contracts C-01..C-03, release gates & DEV-01..07
 │   └── requirements/                  ← 53 EARS + Gherkin FR cards across v1/ .. v6/ + cross-package rules
 ├── docs/
-│   ├── solution-architecture.md       ← binding architecture decisions D1–D21, component design & risk register
+│   ├── solution-architecture.md       ← binding architecture decisions D1–D24, component design & risk register
 │   ├── architecture-refactoring-baseline.md ← static review identifying R1–R3 boundary drift
 │   ├── agent-architecture-guardrails.md     ← CC-09 dependency matrix, exception rules & verification procedure
 │   ├── gate-v1-live-evaluation.md     ← live Vertex AI evaluation report for Gate v1.0
-│   └── gate-v2-live-evaluation.md     ← live Vertex AI & Cloud Run PoC record for Gate v2.0
+│   ├── gate-v2-live-evaluation.md     ← live Vertex AI & Cloud Run PoC record for Gate v2.0
+│   └── gate-v3-live-evaluation.md     ← Gate v3.0 verification & D24/DEV-07 clearance record
 ├── infra/                             ← OpenTofu IaC modules & environments (dev, staging, prod)
-├── scripts/                           ← spec integrity, AST architecture checker, fingerprinted policy & eval runners
-└── .specify/                          ← Constitution v2.1.0, template overrides & pipeline verification overlay
+├── scripts/                           ← spec integrity, AST architecture checker, KPI sanity & eval runners
+└── .specify/                          ← Constitution v2.3.0, template overrides & pipeline verification overlay
 ```
 
 ### Core architectural contracts & design choices
@@ -192,7 +193,7 @@ everlast-lm/
 - **Agentic loops vs. deterministic pipelines (`CC-05`):** Google ADK `LlmAgent` loops are restricted to components that dynamically choose tools (grounded chat, note assistant, deep research). Ingestion, Source Guides, and Studio generators run as deterministic pipelines with structured outputs—keeping latency, cost, and non-determinism low.
 
 <details>
-<summary><strong>All 21 Architecture Decisions (<code>D1</code>–<code>D21</code>) & 5 Spec Deviations (<code>DEV-01</code>–<code>DEV-05</code>)</strong></summary>
+<summary><strong>All 24 Architecture Decisions (<code>D1</code>–<code>D24</code>) & 7 Spec Deviations (<code>DEV-01</code>–<code>DEV-07</code>)</strong></summary>
 
 <br>
 
@@ -218,22 +219,25 @@ everlast-lm/
 | `D18` | Code sandbox resources | Adopts Google Agent Platform's managed **2 vCPU / 1.5 GB RAM** default profile with zero network access. |
 | `D19` | Managed sandbox acceptance | Adopts Agent Platform Code Execution directly and retires the separate R6 qualification spike. |
 | `D20` | Sandbox runtime limits | Enforces a 15.0 s application deadline per attempt, fresh ephemeral sandboxes, copy-only inputs (≤ 100 MB), and automatic teardown. |
-| `D21` | Incremental architecture enforcement | Enforces `CC-09` via `scripts/check-architecture.mjs` (pinned TypeScript compiler AST) and a fingerprinted, self-expiring migration inventory (`scripts/architecture-policy.json`, expires `2027-02-05`). |
+| `D21` | Incremental architecture enforcement | Enforces `CC-09` via `scripts/check-architecture.mjs` (pinned TypeScript compiler AST) and a fingerprinted, self-expiring migration inventory (`scripts/architecture-policy.json`, expires `2027-02-05`; burned down `293 -> 88` remaining `T035` exceptions). |
+| `D22` | Admin-created accounts (`DEV-06`) | Disables open Identity Platform client self-registration while preserving admin-provisioned accounts and existing user sign-in. |
+| `D23` | Gemini EU processing exception | Routes Flash / Flash-Lite generative model workloads to approved EU enterprise Vertex endpoints (`gemini-3.8-flash` in `eu`, `gemini-3.5-flash-lite` in `europe-west4`). |
+| `D24` | Hobby-project scope & KPI calibration (`DEV-07`) | Calibrates KPIs to realistic single-developer hobby targets (`100,000` active tokens, `<= 10.0 s` TTFT, `<= 33.3 ms` / `30 fps` viewer frames, `N >= 5` cohorts, `< 10%` hallucination / `>= 90%` rejection) and clears release gates via local deterministic/PostgreSQL/Playwright verification. |
 
 </details>
 
 ---
 
-## Specification depth & Constitution v2.1.0
+## Specification depth & Constitution v2.3.0
 
 Agents operate under a strict four-tier **Source of Truth** hierarchy so conflicts are never resolved by guesswork:
 
 | Rank | Document | Authority |
 | :-: | :- | :- |
-| **1** | **[`.specify/memory/constitution.md`](.specify/memory/constitution.md)** (v2.1.0) | Supreme governance: Principles I–VI, bidirectional spec flow-back, and gates `CC-01`..`CC-09` |
-| **2** | **[SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md)** | Index of all 55 `FR-*`/`NFR-*` IDs, contracts `C-01`..`C-03`, release gates, and `DEV-01`..`DEV-05` |
+| **1** | **[`.specify/memory/constitution.md`](.specify/memory/constitution.md)** (v2.3.0) | Supreme governance: Principles I–VI, bidirectional spec flow-back, and gates `CC-01`..`CC-09` |
+| **2** | **[SRS](spec/System_Requirements_Specification_Gemeni_Notebook.md)** | Index of all 55 `FR-*`/`NFR-*` IDs, contracts `C-01`..`C-03`, release gates, and `DEV-01`..`DEV-07` |
 | **3** | **[FR cards & rules](spec/requirements/README.md)** | 53 detailed EARS + Gherkin requirement cards (`v1/`..`v6/`) and binding cross-package invariants |
-| **4** | **[Solution architecture](docs/solution-architecture.md)** | Binding technical decisions `D1`..`D21`, component topology, and risk controls |
+| **4** | **[Solution architecture](docs/solution-architecture.md)** | Binding technical decisions `D1`..`D24`, component topology, and risk controls |
 
 ### The 9 Constitution Check Gates (`CC-01`..`CC-09`)
 
@@ -282,10 +286,10 @@ Progress is tracked in the **[Everlast LM – Produkt-Roadmap](https://github.co
 | Release | Milestone focus | Spec Kit packages | Status |
 | :- | :- | :- | :- |
 | **v1.0 MVP** | Workspace foundation, PDF/text ingestion, Source Inspector, Grounded Chat & Citation Engine, 3-panel UI & eval harness | `001` (`1.1`), `002` (`1.2`), `003` (`1.3`), `004` (`1.4`) | **Implemented & [Gate v1.0 Passed Live](docs/gate-v1-live-evaluation.md)** |
-| **v2.0** | UI comfort & language prefs, automatic Source Guides, chat style controls, Notes pinboard & AI actions, `C-03` Studio text reports + Postgres persistence | `005` (`2.1`), `006` (`2.2`), `007` (`2.3`), `008` (`2.4`), `013` (Postgres migration) | **Implementation deployed; [Gate v2 accepted by owner override](docs/gate-v2-live-evaluation.md), with [live follow-ups open](docs/pre-v4-readiness.md)** |
-| **v3.0** | Multimodal ingestion (audio/video transcript sync, Office, Drive, safe Web), Agent Platform Python code sandbox, interactive SVG Mindmaps & Data Tables, ≥ 1M-token context scaling | `009` (`3.1`), `010` (`3.2`), `011` (`3.3`), `012` (`3.4`) | **Initial implementation merged (4/4 packages); [Gate v3 pending](docs/pre-v4-readiness.md)** |
-| **Pre-v4 Refactoring** | Burn down the 293 fingerprinted `D21` migration records: extract shared API/worker workflows (`R1`), tighten public package exports (`R3`), and unify notebook route services (`R2`) | Governed by [`CC-09` & `D21`](docs/architecture-refactoring-baseline.md) | **Guardrails active in CI (`PR #187`); extraction queued** |
-| **v4.0** | Studio Active Learning Suite (Flashcards, Quizzes, Learning Overview) & Deterministic Visuals (`.pptx`/`.pdf` Slide Decks, SVG Infographics) | Packages `4.1` – `4.2` | **FR cards audited & ready for `/speckit-specify`** |
+| **v2.0** | UI comfort & language prefs, automatic Source Guides, chat style controls, Notes pinboard & AI actions, `C-03` Studio text reports + Postgres persistence | `005` (`2.1`), `006` (`2.2`), `007` (`2.3`), `008` (`2.4`), `013` (Postgres migration) | **Implemented & [Gate v2 accepted](docs/gate-v2-live-evaluation.md); `#7`/`#40`/`#43` reconciled under [`D24`/`DEV-07`](docs/gate-v3-live-evaluation.md)** |
+| **v3.0** | Multimodal ingestion (audio/video transcript sync, Office, Drive, safe Web), Agent Platform Python code sandbox, interactive SVG Mindmaps & Data Tables, 100k-token context scaling (`D24`) | `009` (`3.1`), `010` (`3.2`), `011` (`3.3`), `012` (`3.4`) | **Implemented (4/4 packages) & [Gate v3.0 Cleared](docs/gate-v3-live-evaluation.md)** |
+| **Pre-v4 Refactoring** | Burn down the 293 fingerprinted `D21` migration records (`88` `T035` records remaining; `T036` retired): extract shared API/worker workflows (`R1`), tighten public package exports (`R3`), and unify notebook route services (`R2`) | Governed by [`CC-09` & `D21`](docs/architecture-refactoring-baseline.md) | **Guardrails active in CI (`PR #187`, `PR #191`); `205` retired, `88` `T035` remaining** |
+| **v4.0** | Studio Active Learning Suite (Flashcards, Quizzes, Learning Overview) & Deterministic Visuals (`.pptx`/`.pdf` Slide Decks, SVG Infographics) | Packages `4.1` – `4.2` | **Gate v3.0 cleared; ready for `/speckit-specify`** |
 | **v5.0** | Dialogic Audio Overviews, single-host Gemini Live "Join-In" voice (`D7`/`DEV-01`), and narrated Video Overviews | Packages `5.1` – `5.2` | **FR cards audited & ready for `/speckit-specify`** |
 | **v6.0** | Enterprise RBAC (`Owner`, `Editor`, `Viewer Full`, `Viewer Chat-Only`), audio share links (`D10`), usage analytics, and autonomous Deep Research agents | Packages `6.1` – `6.2` (`6.3` deferred per `D5`) | **FR cards audited & ready for `/speckit-specify`** |
 

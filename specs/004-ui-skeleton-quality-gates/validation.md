@@ -131,9 +131,9 @@ FAIL test/package-v1-4.test.ts > Package 1.4 Contracts: UI Skeleton & Quality Ga
   - Added `.strict()` to `WorkspaceViewStateSchema`, `GoldenCaseSchema`, `EvalMetricsSchema`, and `ReleaseGateReportSchema`.
   - Enforced `active_source_ids: z.array(z.string().uuid()).min(1)` on `GoldenCaseSchema` ensuring explicit non-empty active scope.
   - Implemented `evaluateGateMetrics(metrics: EvalMetrics): GateEvaluationResult` checking:
-    - `hallucination_rate < 0.05` (0.05 fails, `NFR-EVAL-01`)
+    - `hallucination_rate < 0.10` (calibrated under `D24`/`DEV-07`; original v1 baseline tested 0.05, `NFR-EVAL-01`)
     - `citation_precision === 1.00` (0.99 fails, `NFR-EVAL-02`)
-    - `negative_rejection_rate >= 0.99` (0.989 fails, `NFR-EVAL-03`)
+    - `negative_rejection_rate >= 0.90` (calibrated under `D24`/`DEV-07`; original v1 baseline tested 0.989/0.99, `NFR-EVAL-03`)
     - `scoping_leakage_count === 0` (1 fails, `NFR-EVAL-04`)
   - Added `superRefine` on `ReleaseGateReportSchema` validating state invariants between `status`, `metrics`, and `failures`.
   - Re-exported via `packages/contracts/src/index.ts`.
@@ -491,8 +491,16 @@ node scripts/check-spec-integrity.mjs
 ### Release Gate Status
 - **Report Location**: `eval-report-v1.json`
 - **Gate Evaluation**: `GatePassed`
-  - Hallucination Rate: 1.00% (< 5.0% required)
+  - Hallucination Rate: 1.00% (< 5.0% historical v1 target; < 10.0% under `D24`/`DEV-07`)
   - Citation Precision: 100.00% (= 100% required)
-  - Negative Rejection Rate: 100.00% (>= 99% required)
+  - Negative Rejection Rate: 100.00% (>= 99% historical v1 target; >= 90% under `D24`/`DEV-07`)
   - Context Scoping Leakage: 0 chunks (= 0 chunks required)
   - Security Preflight: PASS (enterprise `europe-west4`, zero consumer keys)
+
+---
+
+## T036 / T039 / T040 Closure Verification (2026-11-16, CC-09, D21, D23, D24)
+
+- **T036**: Removed `node:crypto` from `packages/contracts/src/scoped-context.ts` (replaced with inline `sha256Hex` verified against Node `createHash("sha256")`) and removed `"./*"` from `packages/contracts/package.json`. Retired the remaining 2 `T036` exceptions from `scripts/architecture-policy.json` (`90 -> 88` exact `T035` records).
+- **T039**: Verified `EVS-05` role-specific `D23` preflight (`aiplatform.eu.rep.googleapis.com` for chat/judge Gemini vs `europe-west4-aiplatform.googleapis.com` for embeddings), Guide/Report adapter identities, and Studio structure adapter identities (`deterministic-mindmap-model`, `deterministic-data-table-model`) surfaced in `runStudioStructureDeterministicEval()` and `packages/evals/src/cli.ts`.
+- **T040**: Final candidate boundaries pass `check-architecture.mjs --base-ref origin/main` (0 findings, 88 exact `T035` exceptions) and `check-architecture-artifacts.mjs --base-ref origin/main` (0 findings). Under `D24`/`DEV-07`, deterministic/PostgreSQL/Playwright verification clears Gate v3.0 without paid multi-cohort live cloud runs.

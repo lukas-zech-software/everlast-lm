@@ -18,7 +18,7 @@ Use architecture-selected ADK/Google SDK enterprise transport and smallest appro
 
 Request structured sentences with supporting chunk IDs. Parse all output before publication; require citations on each factual/synthesized claim, resolve exclusively against retrieved chunks, reject fabricated IDs or missing factual citations with immediate refusal and no regeneration. Meta/refusal text alone needs no citation. Semantic entailment is independently checked by judged evaluation, never treated as proved by UUID existence. Recheck ownership/revisions/thread epoch immediately before atomic persistence/publication; no locks held during model call. Number badges deterministically 1..K by first chunk appearance; 8 supports render first3 +5 with expansion.
 
-Cache identity, if caching is introduced, includes notebook/exact revisions/effective authorization/language/parameters; no cache is required for MVP. Hover/focus <=300ms; flip placement inside viewport. Source changes during request fail; checkbox-only changes affect next turn. Standard validated-answer TTFT <=2.5s is non-gating in v1, not a reason to stream unverified text.
+Cache identity, if caching is introduced, includes notebook/exact revisions/effective authorization/language/parameters; no cache is required for MVP. Hover/focus <=300ms; flip placement inside viewport. Source changes during request fail; checkbox-only changes affect next turn. Standard validated-answer TTFT <= 10.0 s (calibrated under D24/DEV-07; formerly <= 2.5 s) is non-gating in v1, not a reason to stream unverified text.
 
 ## Universal failure rules
 

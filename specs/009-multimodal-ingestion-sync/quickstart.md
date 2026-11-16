@@ -102,13 +102,12 @@ configuration, verified callback/Picker values and authorized documents; declare
 30-minuteaudio fixture/plan and bounded paid workload approval; authenticated
 Owner fixture and Interview.mp3 04:15 browser scenario; finalcommon50-case judged
 report. Do not invent these inputs or run600audio minutes from this recovery.
-T049/T050 remain OPEN. Earlier API-disabled inventories are dated historical
-observations, not proof that approved registrations still need enablement.
+Under `D24`/`DEV-07` (Constitution `v2.3.0`), Package 3.1 thresholds are calibrated to `<= 120.0 s` P95 audio ASR (`N >= 5` cohorts) and `< 10%` hallucination / `>= 90%` rejection, and `T049`/`T050` are reconciled via local FLAC preflight, PostgreSQL integration, deterministic evals, and Playwright `04:15` seek checks (paid live cloud Speech V2 / judged run retained **UNAVAILABLE**). Earlier API-disabled inventories are dated historical observations, not proof that approved registrations still need enablement.
 
 ## Pre-v4 task 009 fixture handoff (FR-SI-01/04/05, SC-001/002, CC-09)
 
 Use the [fixture declaration and target checklist](evidence/fanout-20261111/qualification.md)
-for the 20-run audio cohort, Interview.mp3, delegated Drive, screening and
+for the calibrated audio cohort (`N >= 5` under `D24`/`DEV-07`, historical 20-run note preserved), Interview.mp3, delegated Drive, screening and
 renderer prerequisites. Run `--validate-only` first to check the declared
 hash, byte size and native FLAC STREAMINFO duration without credentials or
 provider calls. Preserve a separate application timing trace if deployment

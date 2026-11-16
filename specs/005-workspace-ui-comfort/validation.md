@@ -138,3 +138,12 @@ Traceability: FR-WM-02, NFR-SEC-01, D23, CC-09; T060/T061.
 - `pnpm typecheck` PASS. With the saved patch applied: `pnpm check:architecture` 0 findings / 180 exceptions (base 184); without it 0 / 184.
 - API integration suites UNAVAILABLE: `TEST_DATABASE_URL` not set (not required by this change). Live Vertex smoke UNAVAILABLE: no approved credentials. MINIMAL-thinking routing awaits 003.
 - Continuation: apply `evidence/pre-v4-shared-integration.patch` in the integration slot, then T061.
+
+## T061 integration verification (2026-11-16)
+
+Traceability: FR-WM-02, NFR-SEC-01, D23, D24/DEV-07, CC-09. Integrated onto `origin/main` (`339ca83`).
+
+- `packages/cloud/src/topic-emoji.ts` consumes `resolveEnterpriseGeminiConfig("flash-lite", this.env)` (`eu`, `gemini-3.5-flash-lite`, `MINIMAL` thinking), and `apps/api/src/server.ts` wires `new VertexTopicEmojiSelector(new VertexTopicEmojiClient({ env }))`.
+- `packages/cloud/test/topic-emoji.test.ts` and `apps/worker/test/topic-emoji.test.ts` verify EU endpoint/model/MINIMAL thinking, unsupported-region rejection without client creation, sanitization, timeout, and error fallback.
+- Manual CC-09: PASS. API uses `@everlast/cloud/topic-emoji` and `apps/worker/src/ingestion/topic-emoji.ts` preserves compatibility export; no new boundary violations or exceptions.
+- Live Vertex smoke: UNAVAILABLE locally (no ADC); not required for release gate clearance under `D24` / `DEV-07`.

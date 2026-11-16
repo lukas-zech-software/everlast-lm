@@ -118,7 +118,10 @@ export async function runLocalScalePairs(collect:(fixture:unknown,options:unknow
    const recipe={...raw,active_source_ids:ids,needle_source_id:ids[32],needle_chunk_id:needle,decoy_source_id:randomUUID()};
    scopes.push({notebookId,owner,token:n.api.token(actor),fixture:{...recipe,fixture_hash:createHash('sha256').update(JSON.stringify(recipe)).digest('hex')},needle});
   }
-  n.model.script=async({chunks})=>{active++;peak=Math.max(peak,active);try{await new Promise(resolve=>setTimeout(resolve,40));const c=chunks.find(c=>c.text.includes('142.8 bar'));return c?{status:'answered',sentences:[{kind:'claim',text:'Reactor coolant pressure must be 142.8 bar.',citations:[c.chunk_id]}]}:{status:'not_in_sources',sentences:[]};}finally{active--;}};
+  const coreAttempts=Number(scopes[0]?.fixture.max_attempts??40);
+  let callIndex=0;
+  let wakePair:(()=>void)|undefined;
+  n.model.script=async({chunks})=>{const idx=++callIndex;active++;peak=Math.max(peak,active);if(active>=2&&wakePair){wakePair();wakePair=undefined;}try{if(idx>coreAttempts&&active<2){await new Promise<void>(resolve=>{const timer=setTimeout(()=>{if(wakePair===done)wakePair=undefined;resolve();},250);const done=()=>{clearTimeout(timer);resolve();};wakePair=done;});}else{await new Promise(resolve=>setTimeout(resolve,40));}const c=chunks.find(c=>c.text.includes('142.8 bar'));return c?{status:'answered',sentences:[{kind:'claim',text:'Reactor coolant pressure must be 142.8 bar.',citations:[c.chunk_id]}]}:{status:'not_in_sources',sentences:[]};}finally{active--;}};
   const [a,b]=scopes;assert(a&&b);assert.notEqual(a.owner,b.owner);
   const report=await collect(a.fixture,{baseUrl:n.api.baseUrl,token:a.token,notebookId:a.notebookId,profile:'concurrency',concurrencyNotebookId:b.notebookId,concurrencyToken:b.token,concurrencyFixture:b.fixture,timeoutMs:5000});
   assert.equal(report.result,'UNAVAILABLE');assert.equal(report.release_eligible,false);assert.equal(report.core.attempt_count,40);assert.equal(report.concurrency?.count,20);assert.equal(peak,2);

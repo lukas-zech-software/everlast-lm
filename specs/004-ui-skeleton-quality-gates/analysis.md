@@ -73,3 +73,8 @@ failed before the role-aware check accepted the approved EU host. The same
 test rejects cross-role endpoints and lookalike hosts. This scope adds no
 application dependencies, production effects, quota, publication or
 transaction changes.
+
+### T036 / T039 / T040 final reconciliation (2026-11-16, D21, D24, CC-09)
+
+- **T036 complete**: `packages/contracts` no longer imports `node:crypto` or exposes `"./*"`, retiring all remaining `T036` debt (`90 -> 88` `T035` records).
+- **T039 / T040 complete**: `D23` chat/judge/embedding separation (`EVS-05`), `DeterministicMindmapModel`/`DeterministicDataTableModel` adapter identities, and `D24`/`DEV-07` threshold calibration (`hallucination < 0.10`, `rejection >= 0.90`, `TTFT <= 10.0 s`) are verified across `packages/contracts`, `packages/evals`, and `specs/004-ui-skeleton-quality-gates`.

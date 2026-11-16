@@ -212,3 +212,7 @@ timeouts, 8,192 output reserve, 1,048,576 context limit and existing cache TTL.
 Provider qualification, 004 evaluator labels and 012 benchmark bindings stay
 separate tasks. The [FR card flow-back patch](evidence/fanout-20261111/fr-card-flow-back.patch)
 is ready for the serialized integration slot.
+
+## D24 / DEV-07 Reconciliation — CC-09 (2026-11-16; FR-ST-10/11, Gate v2.0/v3.0)
+
+Under Constitution `v2.3.0` and `D24`/`DEV-07`, the report P95 budget is calibrated to `<= 60.0 s` ($N \ge 5$; historical 25 s / `3/4` 504 failure preserved in `validation.md`) with `< 10%` hallucination / `>= 90%` ungrounded rejection, and `T076` closes on verified 4/4 deterministic template validity, `Precision_ID = 1.0`, PostgreSQL admission/fencing integration (`59` tests in 10 files + `22` Guide/context tests), and `D23` bounded retry wiring (live EU Vertex/OCR campaign remains recorded **UNAVAILABLE** without paid deployment credentials). Documentation-only reconciliation; no boundary or exception changes.

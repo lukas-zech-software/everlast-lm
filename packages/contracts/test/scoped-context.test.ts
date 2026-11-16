@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { createHash } from "node:crypto";
 import {
   ScopedContextRequestSchema,
   SourceRevisionPairSchema,
@@ -163,7 +164,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
     expect(key1).not.toBe(key2);
     expect(key1).not.toBe(key3);
 
-    // Deterministic: identical inputs produce identical key
+    // Deterministic: identical inputs produce identical key and match node:crypto SHA-256
     const key1Recompute = computeContextCacheKey({
       notebook_id: validNotebookId,
       source_revisions: [{ source_id: validSourceId1, revision: 1 }],
@@ -171,6 +172,18 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
       language: "en",
     });
     expect(key1).toBe(key1Recompute);
+    const expectedHash = createHash("sha256")
+      .update(
+        JSON.stringify({
+          notebook_id: validNotebookId,
+          source_revisions: [{ source_id: validSourceId1, revision: 1 }],
+          subject: "usr_alpha",
+          language: "en",
+          generation_parameters: {},
+        })
+      )
+      .digest("hex");
+    expect(key1).toBe(expectedHash);
   });
 
   it("C02-09: isTurnProvenanceEligible validates historical turn provenance against active snapshot", () => {

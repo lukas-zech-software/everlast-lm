@@ -205,3 +205,7 @@ Manual boundary review: PASS for this manifest/lockfile-only dependency delta. N
 Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524544833) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
 
 This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
+
+## PR-review & D24/DEV-07 reconciliation — 2026-11-16 (CC-09, FR-WM-01/04)
+
+Reconciled `SC-CROSS`, `SC-CADENCE`, and `SC-TIMING` in `spec.md` with Constitution `v2.3.0` and `D24`/`DEV-07` (`100,000` active tokens, `<= 10.0 s` TTFT, `< 10%` hallucination / `>= 90%` rejection). `T046` and `T061` local verification passes against PostgreSQL/test doubles while live cloud execution (`WORKSPACE_IDENTITY_IT=1`, `WORKSPACE_STORAGE_IT=1`) is recorded **UNAVAILABLE** without approved disposable cloud credentials (`evidence/pre-v4-live-plan.md`). Documentation-only boundary review (`CC-09`): N/A for runtime edges and workflow ownership; existing Architecture Boundary Evidence table remains applicable.
