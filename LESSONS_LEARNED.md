@@ -74,7 +74,7 @@ To close these gaps without halting feature delivery for a risky big-bang rewrit
 
 ## Entry 2026-11-12 — The Enterprise KPI Ratchet: How Aspirational Spec Numbers Paralyzed a Single-Developer Hobby Project (`D24` / `DEV-07`)
 
-**Primary Reference Milestone:** [PR #191](https://github.com/lukas-zech-software/everlast-lm/pull/191) (`ae68099`), [PR #192](https://github.com/lukas-zech-software/everlast-lm/pull/192) (`8f77a4d`), Constitution v2.2.0, Decision [`D24`](docs/solution-architecture.md#d24--single-developer-hobby-project-scope--kpi-calibration-2026-11-12) (`SRS DEV-07`), and [`docs/gate-v3-live-evaluation.md`](docs/gate-v3-live-evaluation.md).
+**Primary Reference Milestone:** [PR #191](https://github.com/lukas-zech-software/everlast-lm/pull/191) (`ae68099`), [PR #192](https://github.com/lukas-zech-software/everlast-lm/pull/192) (`8f77a4d`), Constitution v2.3.0, Decision [`D24`](docs/solution-architecture.md#d24--single-developer-hobby-project-scope--kpi-calibration-2026-11-12) (`SRS DEV-07`), and [`docs/gate-v3-live-evaluation.md`](docs/gate-v3-live-evaluation.md). Notice also that retiring `004` `T036` reduced remaining `D21` migration exceptions to **`88`** (`T035` only), while `node scripts/check-kpi-sanity.mjs --include-specs --strict` enforces `0` failures and `0` warnings across all code and spec artifacts.
 
 ### 1. What Happened (The Gate v3.0 Deadlock)
 

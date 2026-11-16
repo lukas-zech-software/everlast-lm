@@ -34,6 +34,7 @@ export interface StudioStructureDeterministicEvalReport {
   late_fact_retained: boolean;
   invalid_citation_rejected: boolean;
   missing_scope_drilldown_blocked: boolean;
+  models: { mindmap: string; data_table: string };
   cases: StudioStructureEvalCaseResult[];
 }
 
@@ -191,6 +192,7 @@ export async function runStudioStructureDeterministicEval(): Promise<StudioStruc
     late_fact_retained: lateFactRetained,
     invalid_citation_rejected: invalidCitationRejected,
     missing_scope_drilldown_blocked: missingScopeBlocked,
+    models: { mindmap: mmModel.id, data_table: dtModel.id },
     cases,
   };
 }

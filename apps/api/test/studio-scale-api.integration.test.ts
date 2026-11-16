@@ -10,7 +10,13 @@ describe('NFR-PERF-01 ordinary Studio API stress',()=>{
   const out=await mkdtemp(join(tmpdir(),'everlast-012-stress-'));
   try{
    // A reused Vitest worker contains unrelated fixtures/heap. Own process freezes the collector's memory population.
-   await promisify(execFile)(process.execPath,['--max-old-space-size=256','scripts/eval-v3-context.mjs','--profile','local-api','--out',out],{timeout:180000,maxBuffer:1000000});
+   try{
+    await promisify(execFile)(process.execPath,['--max-old-space-size=256','scripts/eval-v3-context.mjs','--profile','local-api','--out',out],{timeout:180000,maxBuffer:1000000});
+   }catch(error){
+    const err=error as Error&{stdout?:string;stderr?:string};
+    const reportText=await readFile(join(out,'v3-context-benchmark.json'),'utf8').catch(()=>'<missing>');
+    throw new Error(`${err.message}\nreport: ${reportText}\nstdout: ${err.stdout??''}\nstderr: ${err.stderr??''}`);
+   }
    const report=JSON.parse(await readFile(join(out,'v3-context-benchmark.json'),'utf8'));
    expect(report.result).toBe('PASS');expect(report.release_result).toBe('UNAVAILABLE');
    expect(report.boundaries.map((b:{source_tokens:number})=>b.source_tokens)).toEqual([99999,100000,100001]);

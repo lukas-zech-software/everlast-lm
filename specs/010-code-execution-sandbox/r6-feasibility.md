@@ -52,7 +52,7 @@ These probes do not qualify Agent Platform. No Python numerical stack, managed i
 | Packages/correctness | math, statistics, numpy, pandas, matplotlib, scipy available; exact fixture outputs/charts and required retry semantics |
 | Fresh state and cleanup | No cross-user/attempt files or memory; idempotent deletion, crash/orphan cleanup, no late results after generation-epoch invalidation |
 | Region/security | Intended europe-west4 endpoint, approved service identity and enterprise no-training terms; no undeclared region fallback |
-| Performance | Cold/warm boot+execution ≤4.0 s P95 and submission-to-real-running-code ≤2.5 s under declared one/two-user load, separate from NFR-PERF-01 answer TTFT |
+| Performance | Cold/warm boot+execution ≤15.0 s P95 and submission-to-real-running-code ≤10.0 s (calibrated under D24/DEV-07; formerly ≤4.0 s / ≤2.5 s) under declared one/two-user load, separate from NFR-PERF-01 answer TTFT |
 
 R6 requires a project-owner-authorized EU test deployment and relevant deployment permissions, approved IaC/resources and API enablement approval if new services are needed. Those actions are outside this planning execution and have not occurred. Pyodide remains the recorded architecture fallback candidate only if managed qualification fails and an equivalently conforming design is established. No new product question remains for this plan; runtime results may later require flow-back and an explicit decision.
 

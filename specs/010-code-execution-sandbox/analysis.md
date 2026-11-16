@@ -38,7 +38,7 @@ All requirements below have tasks. Red tasks precede their covered implementatio
 | FR-001 | T007,T014,T015 | T013,T018–T021 | Quantitative delegation, scoped evidence, accepted managed runtime. |
 | FR-002 | T006,T025 | T012,T019,T028 | No network/credentials, immutable scoped bytes, ordinary integration tests. |
 | FR-003 | T004,T006,T025,T043 | T008,T012,T028,T044 | Exact resource/time/library/profile constraints; D18/D19. |
-| FR-004 | T006,T014,T016,T043 | T019,T021,T022,T044 | Truthful real-running status ≤2.5s; not answer TTFT. |
+| FR-004 | T006,T014,T016,T043 | T019,T021,T022,T044 | Truthful real-running status ≤10.0s (calibrated under D24/DEV-07; formerly ≤2.5s); not answer TTFT. |
 | FR-005 | T004,T014–T017,T034 | T018,T020–T022,T038 | Exact values, labels, citations, safe charts and drawer/download. |
 | FR-006 | T006,T024–T027 | T012,T028–T030 | One exception correction only; terminal/no-guessed-result behavior. |
 | FR-007 | T004,T005,T024,T026,T027,T033,T035 | T008,T009,T028–T030,T036,T037,T040 | Actual ordered attempts and zero-attempt pre-execution failure; private artifacts. |

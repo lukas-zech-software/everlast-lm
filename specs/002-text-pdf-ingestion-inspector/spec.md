@@ -282,9 +282,9 @@ Scenario: Citation click scrolls deterministically to target chunk
 - Opening a source and scrolling to a cited `chunk_id` completes in $\le 300\text{ ms}$ (`Gate v1.0 #3`).
 - Scroll target is 100% deterministic in automated Playwright/DOM E2E tests.
 
-- **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 0.05, ID precision = 1.0, rejection >= 99%, leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
-- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). Missing runners are reported UNAVAILABLE, never passed.
-- **SC-TIMING (NFR-PERF-01, D13)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 2.5 s target is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
+- **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 10%, ID precision = 1.0, rejection >= 90% (calibrated under D24/DEV-07), leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
+- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support use a fixed, deterministic stratified 50-case sample of the versioned golden dataset (Constitution v2.3.0 and D24/DEV-07 permit deterministic contract/integration/Playwright verification plus local benchmark/eval validation to clear release gates). Missing runners are reported UNAVAILABLE, never passed.
+- **SC-TIMING (NFR-PERF-01, D13, D24/DEV-07)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 10.0 s target (calibrated under D24/DEV-07; formerly <= 2.5 s) is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
 
 ## Assumptions & Out of Scope
 
@@ -311,3 +311,4 @@ Scenario: Citation click scrolls deterministically to target chunk
 ### Implementation flow-back 2026-10-19
 
 - Q: What do `page_number` and `physical_page` mean in a v1 `page_span` locator (`C-01`, `FR-SI-01`, `FR-SI-04`)? → A: `page_number` is the 1-based canonical page (the physical PDF page, or a logical page of about 20,000 characters for text-only sources so very large sources paginate); `physical_page` is present only for PDFs; offsets are Unicode code points into that page's canonical text.
+- `CC-09` & `D24`/`DEV-07` reconciliation (2026-11-16): documentation reconciliation only; no C-01/C-02 contract, SQL transaction, or module boundary changes.

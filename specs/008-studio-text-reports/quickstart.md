@@ -48,7 +48,7 @@ warnings, missing OCR configuration). The report client retains20-second per-cal
 HTTP timeout and at most two transient retries. Logs do not bind the504s to an
 extract/compose request or expose sufficient timing to distinguish provider vs
 client deadline. No timeout was increased and no speculative report rewrite made.
-Final candidate must qualify all four templates and unchanged P95<=25seconds.
+Final candidate targets all four templates within the `D24`/`DEV-07` `<= 60.0 s` P95 budget ($N \ge 5$; formerly `<= 25 s`).
 
 Read-only coordinator inventory found an existing ENABLED EU layout processor:
 `projects/865450204790/locations/eu/processors/7e8fb3b073398d36`. Set

@@ -145,9 +145,12 @@ checks distinct approved endpoints, cross-role substitution and a lookalike
 host. Full deployed preflight and Studio structure identity evidence remain
 part of T039/T040.
 
-### Hobby-tier KPI threshold alignment (D24 / DEV-07)
+### Hobby-tier KPI threshold alignment & T036/T039/T040 closure (D24 / DEV-07, CC-09)
 
-`packages/contracts/src/package-v1-4.ts` aligns `evaluateGateMetrics` with D24 (`hallucination_rate < 0.10`, `negative_rejection_rate >= 0.90`), preserving deterministic ID precision (`1.00`) and zero scoping leakage (`0`) with no architecture boundary, publication, authorization, or transaction changes.
+`packages/contracts/src/package-v1-4.ts` aligns `evaluateGateMetrics` with D24 (`hallucination_rate < 0.10`, `negative_rejection_rate >= 0.90`), preserving deterministic ID precision (`1.00`) and zero scoping leakage (`0`).
+
+- **T036 retired**: `packages/contracts/src/scoped-context.ts` replaces `node:crypto` with an inline pure TypeScript SHA-256 helper (`sha256Hex`) verified bit-for-bit against Node `createHash("sha256")`, and `packages/contracts/package.json` removes the unused `"./*"` wildcard export. The 2 remaining `T036` exceptions in `scripts/architecture-policy.json` are removed (`90 -> 88` exact `T035` records).
+- **T039 / T040 completed**: `DeterministicMindmapModel` and `DeterministicDataTableModel` expose explicit adapter identities recorded in `runStudioStructureDeterministicEval()` and `packages/evals/src/cli.ts`; chat and judge `D23` endpoints and regional embedding separation pass EVS-05 preflight; under `D24`/`DEV-07`, deterministic/PostgreSQL/Playwright verification satisfies Gate v3.0 without requiring a paid live judged campaign.
 
 ## Dependency PR #194 review — 2026-11-15 (CC-09)
 

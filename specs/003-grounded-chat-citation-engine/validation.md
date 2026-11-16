@@ -31,7 +31,7 @@
 ### Still open
 
 - **Judged quality (NFR-EVAL-01/03, semantic support) UNAVAILABLE**: requires `pnpm eval:judged` on Vertex AI.
-- TTFT ≤ 2.5 s is non-gating in v1 and not measured against a real model here (UNAVAILABLE).
+- Live TTFT ≤ 10.0 s (calibrated under D24/DEV-07; formerly ≤ 2.5 s) is non-gating in v1 and not measured against a real model here (UNAVAILABLE).
 
 ---
 

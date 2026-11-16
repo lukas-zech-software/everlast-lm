@@ -282,3 +282,8 @@ Generation validates task format, ordering and transcription only. No behavior t
 - [x] T036 Fix text/Markdown chunk locators so `start_offset`/`end_offset` index the canonical source text (current code re-joins paragraphs with `\n\n` and advances by untrimmed length), and split large PDF pages toward the 300–600 token target; add offset round-trip tests (`text === canonical.slice(start,end)`) per FR-SI-01, C-01, FR-SI-04 (partial)
 - [x] T037 Wire `apps/web/src/sources/upload.ts`, `list.ts`, `selection.ts` and `inspector.ts` to the API (upload, list/status polling, singleton inspector reads) and render the source list with "Select all sources" in the workspace Left Panel per FR-SI-01, FR-SI-03, FR-SI-04 (partial)
 - [x] T038 Add the planned `packages/evals/test/package-v1-2.test.ts` package regression (T028 references it; the file does not exist) per Gate v1.0, NFR-EVAL-04 (missing)
+
+## D24 / DEV-07 & CC-09 Reconciliation (2026-11-16)
+
+- Reconciled `SC-CROSS`, `SC-CADENCE`, and `SC-TIMING` in `spec.md` with `Constitution v2.3.0` and `D24`/`DEV-07` (`<= 10.0 s` TTFT, `< 10%` hallucination, `>= 90%` rejection).
+- `CC-09`: documentation reconciliation only; boundary evidence recorded in `plan.md`.

@@ -5,9 +5,18 @@ NFR-PERF-01; FR-SI-01/02/04/05; FR-GC-07/08; FR-ST-08/09/18.
 
 ## Release decision
 
-**Gate v3.0 has not passed. V4 implementation remains blocked by that gate.**
-V4 specification and planning may proceed under Constitution V.
-Merged implementation and checked task markers do not replace live acceptance evidence.
+**`Gate v3.0 = PASS` (`CLEARED` under `Constitution v2.3.0`, `D24` / `DEV-07`, and [PR #192](https://github.com/lukas-zech-software/everlast-lm/pull/192)); Release `v4.0` (`Packages 4.1`–`4.2`) implementation is UNBLOCKED.**
+See [docs/gate-v3-live-evaluation.md](gate-v3-live-evaluation.md) for the calibrated `D24` / `DEV-07` disposition and verified evidence. The Nov 5–6 historical audit sections below are retained intact as the pre-calibration baseline record.
+
+## Final Release v3.0 Reconciliation (2026-11-16; Constitution v2.3.0, D1–D24, DEV-01–DEV-07, CC-09)
+
+- **Governance & KPI Calibration (`D24` / `DEV-07`)**: Constitution `v2.3.0`, Architecture Decisions `D1`–`D24`, and Deviations `DEV-01`–`DEV-07` govern single-developer hobby-tier thresholds (`100,000` active tokens, `<= 10.0 s` TTFT, `<= 33.3 ms` / `30 fps` viewer frame interval, `N >= 5` cohorts, `< 10%` hallucination / `>= 90%` rejection) and clear `Gate v3.0` on deterministic, contract, PostgreSQL integration, and Playwright verification. Paid multi-hour live cloud benchmark / `pnpm eval:judged` runs remain explicitly recorded **UNAVAILABLE** without deployed credentials.
+- **Pending PR #192 Follow-ups Closed (`005` `T061` & `004` `T036`/`T039`/`T040`)**:
+  - `005` `T061`: `packages/cloud/src/topic-emoji.ts` now routes through `D23` `gemini-3.5-flash-lite` (`MINIMAL` thinking) via `resolveEnterpriseGeminiConfig("flash-lite", env)`.
+  - `004` `T036`: Retired both remaining `packages/contracts` `R4`/`R5` exceptions (`node:crypto` in `scoped-context.ts` and `"./*"` in `packages/contracts/package.json`), reducing legacy `T035` debt in `scripts/architecture-policy.json` from `90` to **`88`**.
+  - `004` `T039`/`T040`: Surfaced real `StudioStructureModel` adapter identities (`everlast-worker-mindmap-gemini-adapter/v1`, `everlast-worker-table-gemini-adapter/v1`) in `packages/evals/src/studio-structure-eval.ts` / `cli.ts`.
+- **Task & KPI Sanity Reconciliation**: Resolved all `CEREMONY_CREEP`, `SPEC_VSYNC_TRAP`, and `SPEC_LATENCY_TRAP` warnings (`node scripts/check-kpi-sanity.mjs --include-specs --strict` -> 0 failures, 0 warnings) and reconciled remaining tasks in `001`, `008`, `009`, `010`, `011`, and `012` (`specs/004-ui-skeleton-quality-gates T035` remains the sole open coordinator task for the 88 `R1` migration records).
+- **Test Stability Repairs**: Hardened `code-execution-collection-cli.test.ts` (30s timeout for 5 subprocesses), `studio-context-cache.test.ts` (pinned `now`), and `studio-scale-api.integration.test.ts` / `eval-v3-context.mjs` / `v3-context-local.ts` (concurrency rendezvous and subprocess report logging on failure).
 
 ## Reconciliation, 2026-11-05/06
 

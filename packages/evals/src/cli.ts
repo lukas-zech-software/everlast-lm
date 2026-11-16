@@ -214,7 +214,7 @@ try {
   if (mode === "deterministic") {
     const studioV3 = await runStudioStructureDeterministicEval();
     log(
-      `Gate v3.0 #3 Studio structure (Mindmap & Data Table): ${studioV3.passed ? "PASS" : "FAIL"} (precision=${studioV3.citation_precision.toFixed(3)}, leakage=${studioV3.leakage_count}, late_fact=${studioV3.late_fact_retained})`
+      `Gate v3.0 #3 Studio structure (Mindmap & Data Table): ${studioV3.passed ? "PASS" : "FAIL"} (models=${studioV3.models.mindmap}/${studioV3.models.data_table}, precision=${studioV3.citation_precision.toFixed(3)}, leakage=${studioV3.leakage_count}, late_fact=${studioV3.late_fact_retained})`
     );
     if (!studioV3.passed) exitCode = 1;
   }

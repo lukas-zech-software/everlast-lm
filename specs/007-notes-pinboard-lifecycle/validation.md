@@ -75,6 +75,6 @@
   provenance `(note_source_id, 1)`, zero retrieval of the decoy) pass.
 - **FR-019 / SC-003:** a 5,000-word note becomes a Ready, citable source through the full route with the v1 ingestion
   in < 2.0 s (lexical test embedder; Vertex embedding latency is not measured here).
-- **UNAVAILABLE until a deployed run exists:** live Note Assistant TTFT ≤ 2.5 s against Vertex AI `europe-west4`;
+- **UNAVAILABLE until a deployed run exists:** live Note Assistant TTFT ≤ 10.0 s (calibrated under D24/DEV-07; formerly ≤ 2.5 s) against Vertex AI `europe-west4`;
   LLM-judged gate evals (`NFR-EVAL-01`, `NFR-EVAL-03`, semantic citation support); the FR-GC-07 response-length
   metric.

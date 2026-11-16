@@ -204,3 +204,7 @@ Manual boundary review: PASS for this manifest/lockfile-only dependency delta. N
 Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524481454) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
 
 This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
+
+## D24 / DEV-07 Reconciliation — CC-09 (2026-11-16)
+
+Reconciled `T049`/`T050` with Constitution `v2.3.0` and `D24`/`DEV-07` (`< 10%` hallucination / `>= 90%` rejection, `<= 120.0 s` P95 ASR `N >= 5` cohort calibration, local deterministic FLAC preflight + Playwright `04:15` seek + PostgreSQL verification clearing `Gate v3.0 #1`; paid live Speech V2 / judged cloud campaign retained **UNAVAILABLE** without approved cloud credentials). Documentation-only reconciliation; no dependency graph or `T035` exception changes.

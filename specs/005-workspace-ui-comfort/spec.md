@@ -21,7 +21,7 @@ The normative scope below is transcribed from the SRS, Package 2.1 FR cards, and
 
 - **Within-Release Prerequisites (`spec/requirements/README.md`)**: FR-WM-02 depends on FR-WM-01 and FR-SI-01; FR-WM-03 depends on FR-WM-01 and FR-WM-02; FR-UI-02 depends on FR-UI-01. Package 2.1 language preferences precede language-sensitive generators. Packages 2.2 and 2.3 share a save-note contract; Package 2.4 defines C-03, and those packages are outside this feature.
 - **Role Phasing (`FR-WM-04/05`, `NFR-SEC-02`)**: Owner-only in v2.0 (v1.0–v5.0); Editor, Viewer Full, and Viewer Chat-Only permissions are not active until v6.0.
-- **Data Residency (`D3`)**: EU preferred, with `europe-west4` as the default; this package defines no region exception.
+- **Data Residency (`D3`)**: `europe-west4` is the default. Topic emoji inference uses the D23-approved enterprise Vertex AI EU multi-region `eu`.
 - **v2.0 Proof of Concept (`D16`, SRS §5.5 `DEV-04`)**: v2 data lives in API process memory until v3. "Persisted" in this specification means kept by the running API; "across sessions" and "after reload" in scenarios mean within one running API instance. View mode and sort order are kept only in the browser's `localStorage` and therefore survive reloads in the same browser. Access control, sources and chat stay in PostgreSQL.
 - **Upstream Flow-Back Status (`CC-01`)**: Plan/analyze refinement: list rows show both creation and modified dates; the supported output-language list and Flash-Lite topic-icon selection/failure behavior are fixed in the Package 2.1 card and this specification. Convergence (2026-10-20) flowed the revised Package 2.1 card (PR #127) into this specification: SC-002 is measured at 100 notebooks, view mode and sort order are browser-local, Title sort uses `Intl.Collator` with a `created_at` tie-break, theme is kept locally and on the server, the input language is the question language for typed input, and personal per-notebook language overrides start in v6.0.
 
@@ -131,4 +131,6 @@ The topic emoji enrichment adapter moves from the worker deployment app into the
 through an approved boundary (D21 R1). Behavior is unchanged except for specified hardening:
 untrusted titles are sanitized and bounded, provider calls time out, and every failure
 yields no suggestion without failing ingestion. No authorization, quota, transaction,
-dispatch or publication ownership changes. Flash-Lite MINIMAL-thinking routing follows 003's D23 interface.
+dispatch or publication ownership changes. The selector uses the D23-approved
+enterprise Vertex AI EU multi-region `eu`, with `gemini-3.5-flash-lite` and
+`MINIMAL` thinking from task 003's routing profile.

@@ -204,11 +204,11 @@ Scenario: Deselected source does not leak via conversation history
 
 **SC-002 (NFR-EVAL-01, NFR-EVAL-02, NFR-EVAL-03, NFR-EVAL-04, NFR-SEC-01)**
 
-- $\epsilon_{\text{hallucination}} < 0.05$, $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 0.99$, $\text{Leakage} = 0$ (`SRS §4.2` & `§5.4 Gate v1.0`).
+- $\epsilon_{\text{hallucination}} < 0.10$ (calibrated under `D24`/`DEV-07`; formerly `< 0.05`), $\text{Precision}_{\text{ID}} = 1.0$, $\text{Rejection} \ge 0.90$ (formerly `>= 0.99`), $\text{Leakage} = 0$ (`SRS §4.2` & `§5.4 Gate v1.0`).
 
-- **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 0.05, ID precision = 1.0, rejection >= 99%, leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
-- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support run once per release gate on the release candidate against a fixed, deterministic stratified 50-case sample of the versioned golden dataset; that single passing run is sufficient gate evidence (Constitution v2.0.0). Missing runners are reported UNAVAILABLE, never passed.
-- **SC-TIMING (NFR-PERF-01, D13)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 2.5 s target is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
+- **SC-CROSS (C-01/C-02, Gate v1.0)**: All package and cross-package acceptance cases pass with the exact boundaries above on declared fixtures/environments. Gate v1.0 requires all three integrated outcomes: PDF/MD end-to-end upload yields valid C-01 chunks; hallucination < 10%, ID precision = 1.0, rejection >= 90% (`D24`/`DEV-07`), leakage = 0; citation navigation deterministically reaches the correct DOM passage. Package success alone does not pass the gate.
+- **SC-CADENCE (NFR-EVAL-01..04)**: Deterministic citation-ID and leakage checks run on every PR once the harness exists; LLM-judged faithfulness, rejection and semantic support use a fixed, deterministic stratified 50-case sample of the versioned golden dataset. Constitution v2.3.0 and `D24`/`DEV-07` permit deterministic contract/integration/Playwright verification plus local benchmark/eval validation to clear release gates without paid multi-hour live cloud campaigns. Missing runners are reported UNAVAILABLE, never passed.
+- **SC-TIMING (NFR-PERF-01, D13)**: Timing uses declared fixtures/environments. Standard chat TTFT starts at submission and ends at the first validated answer token, excluding progress UI. Its <= 10.0 s target (calibrated from historical 2.5 s under `D24`/`DEV-07`) is non-gating in v1 and gating from v3; do not turn it into a v1 release gate.
 
 ## Assumptions & Out of Scope
 

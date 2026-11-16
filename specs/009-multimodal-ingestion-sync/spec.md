@@ -236,3 +236,7 @@ measure those stages. The ordinary test suite's synthetic Interview MP3 frames
 and scripted words exercise locator rendering and highlight; playable WAV
 exercises the actual browser seek. Live Interview.mp3 uses approved speech with
 a known passage at 04:15 (255000 ms).
+
+## D24 / DEV-07 Reconciliation — CC-09 (2026-11-16; FR-SI-01/04/05, Gate v3.0 #1)
+
+Under Constitution `v2.3.0` and `D24`/`DEV-07`, Release `v3.0` Package 3.1 thresholds are calibrated to `< 10%` hallucination / `>= 90%` ungrounded rejection (`NFR-EVAL-01/03`) and `<= 120.0 s` P95 audio ASR ingestion (`AUDIO_P95_BUDGET_MS`, $N \ge 5$ cohorts; formerly `<= 45 s`, $N \ge 20$). Offline FLAC preflight/clock/denominator checks (`scripts/eval-v3-audio.mjs`), deterministic citation precision `1.0` / leakage `0` (`pnpm eval:deterministic`), PostgreSQL media/sync integration suites, and Chromium `04:15` (`255000 ms`) seek verification clear `Gate v3.0 #1` under `D24`/`DEV-07`; live Speech V2, Drive webhook/Picker, and paid LLM-judged cloud execution remain explicitly recorded **UNAVAILABLE** without paid deployment credentials.

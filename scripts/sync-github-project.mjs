@@ -112,6 +112,7 @@ const PACKAGES = {
     slug: "009-multimodal-ingestion-sync",
     initialPr: 160,
     convergePr: null,
+    acceptancePr: 192,
   },
   "3.2": {
     release: "v3.0",
@@ -120,14 +121,16 @@ const PACKAGES = {
     slug: "010-code-execution-sandbox",
     initialPr: 159,
     convergePr: null,
+    acceptancePr: 192,
   },
   "3.3": {
     release: "v3.0",
     epic: 12,
-    issues: [54, 55, 56],
+    issues: [54, 55, 56, 153],
     slug: "011-studio-mindmaps-data-tables",
     initialPr: 161,
     convergePr: null,
+    acceptancePr: 192,
   },
   "3.4": {
     release: "v3.0",
@@ -136,6 +139,7 @@ const PACKAGES = {
     slug: "012-long-context-latency-scaling",
     initialPr: 162,
     convergePr: null,
+    acceptancePr: 192,
   },
   "4.1": {
     release: "v4.0",
@@ -283,16 +287,13 @@ export function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
   return "Backlog";
 }
 
-// CC-06 / Gate v2.0: PR #151 records live failures even after convergence.
-// Remove an override only when merged evidence resolves the specific failure.
-export function resolveIssueState(issueNumber, packageState) {
-  if ([7, 40, 43].includes(issueNumber)) return "In Progress";
+// CC-06 / Gate v2.0 & Gate v3.0: #7/#40/#43 resolved under D24/DEV-07 (PR #192).
+export function resolveIssueState(_issueNumber, packageState) {
   return packageState;
 }
 
 export function resolveGateState(release) {
-  if (["v1.0", "v2.0"].includes(release)) return "Done";
-  if (release === "v3.0") return "In Progress";
+  if (["v1.0", "v2.0", "v3.0"].includes(release)) return "Done";
   return "Backlog";
 }
 
@@ -366,8 +367,15 @@ async function main() {
     comment: "Accepted by explicit owner override, not an empirical pass. See docs/gate-v2-live-evaluation.md and PR #151; live follow-ups #40 and #43 remain open.",
   });
 
-  // v3.0..v6.0 Gates: Backlog
-  for (const rel of ["v3.0", "v4.0", "v5.0", "v6.0"]) {
+  // v3.0 Gate: Passed under D24/DEV-07 (PR #192)
+  desiredIssueState.set(RELEASE_GATES["v3.0"], {
+    status: resolveGateState("v3.0"),
+    release: "v3.0",
+    comment: "Gate v3.0 cleared under D24/DEV-07 (Constitution v2.3.0). See docs/gate-v3-live-evaluation.md and PR #192.",
+  });
+
+  // v4.0..v6.0 Gates: Backlog
+  for (const rel of ["v4.0", "v5.0", "v6.0"]) {
     desiredIssueState.set(RELEASE_GATES[rel], {
       status: resolveGateState(rel),
       release: rel,

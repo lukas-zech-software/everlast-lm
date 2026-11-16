@@ -74,3 +74,13 @@ No new framework, datastore, cloud service, scope deferral or constitution excep
 - **Retrieval (D1):** `gemini-embedding-001` on Vertex AI, 768 dimensions; FTS uses the `simple` configuration with an OR query of question terms; RRF k = 60; HNSW iterative scan per transaction; 12 chunks per answer.
 - **Region map (D3):** Vertex AI and Cloud SQL `europe-west4`; Document AI has no `europe-west4` location and uses the EU multi-region `eu`; Cloud Tasks uses `europe-west1`.
 - **Source titles:** file names over 100 code points are rejected per item, matching `SourceTitleSchema` (1–100).
+
+## Architecture Boundary Evidence — CC-09
+
+Package 1.2 preserves explicit API route/service/db/worker boundaries across ingestion, active source scoping (`C-02`), and singleton source inspection (`D21`/`D24`). Documentation reconciliation only (2026-11-16); no dependency graph, export, or exception changes.
+
+| SRS / contract | Actual module path and owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `FR-SI-01`, `C-01` | `apps/api/src/routes/sources.ts`, `apps/worker/src/ingestion/pipeline.ts`, `packages/db/src/ingestion.ts` | Upload admission, durable job execution, C-01 chunk/page persistence | HTTP upload/source routes; `IngestionPipeline` | API routes, `@everlast/db`, `@everlast/contracts`, `@everlast/cloud` | `apps/api/src/server.ts`, `apps/worker/src/server.ts` | `apps/api/test/sources.test.ts`, `apps/worker/test/ingestion.test.ts`, `apps/worker/test/ingestion.integration.test.ts` |
+| `FR-SI-03`, `C-02` | `packages/db/src/scoped-context.ts`, `apps/api/src/services/source-context.ts`, `apps/web/src/sources/selection.ts` | Explicit active-source selection and hybrid retrieval scoping | `ScopedContextProvider`, `getScopedContext` | Chat & Studio pipelines via `@everlast/db` | `apps/api/src/server.ts` | `packages/evals/test/package-v1-2.test.ts`, `apps/web/test/sources.spec.ts` |
+| `FR-SI-04`, `C-02` | `apps/api/src/routes/source-content.ts`, `packages/db/src/source-view.ts`, `apps/web/src/sources/inspector.ts` | Singleton source inspection and deterministic `[data-chunk-id]` navigation | Source content endpoint & inspector DOM module | Web panel & citation click navigation | `apps/api/src/server.ts` | `apps/web/test/sources.spec.ts`, `apps/worker/test/ingestion.boundaries.test.ts` |

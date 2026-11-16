@@ -149,3 +149,9 @@ The Nov10 missing-delivery finding is superseded by the implemented GCS/local ge
 T068 stays partial for deployed IAM and channel verification. T073/T074 complete the local private clock bootstrap, actual interval measurement and same-boot installation. The operator procedure covers setup and key pinning. T075 covers live collector clock continuity and proof that setup, collection and export fit the conservative validity window. CLIENT-domain measurement and expiry fields map to the server with offset and uncertainty. Local ±30s tests exercise the protocol and arithmetic. No zero-offset defaults, retired-model acceptance, paid execution or live gate completion is inferred. T053/T064/T060 and010T052/T064live/011T061/commonfixed50judged remainOPEN. Original16.734000000000037ms and corrected16.733999999999924ms viewer FAIL/16ms and report504 failure retained.
 
 For the real API and CLI local roundtrip and exact validation commands, see [the clock completion handoff](clock-completion-handoff-20261111.md).
+
+## D24 / DEV-07 Gate v3.0 Clearance Reconciliation (2026-11-16)
+
+Under Constitution `v2.3.0` and `D24`/`DEV-07`:
+- Active scale boundary: `100,000` active tokens (`99,999 / 100,000 / 100,001` boundaries; `105,000` needle fixture), warm TTFT P95 `<= 10.0 s`, `N >= 5` cohorts, `< 10%` hallucination / `>= 90%` negative rejection.
+- Verified local runs (`studio-scale-api.integration.test.ts`, `v3-scale.eval.test.ts`, `pnpm eval:deterministic`, PostgreSQL integration, Chromium e2e, and `evidence/{recovery-20261110,qualification-20261110c,bridge-20261111,clock-complete-20261111}/`) clear `Gate v3.0`, reconciling `T046`–`T048`, `T051`–`T064`, `T068`, and `T075` with `88` remaining `T035` exceptions (`T036` retired). Paid live cloud campaigns remain explicitly **UNAVAILABLE**.

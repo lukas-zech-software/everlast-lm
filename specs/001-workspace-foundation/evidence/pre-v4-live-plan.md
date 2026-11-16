@@ -8,7 +8,7 @@ No cloud call, policy apply or paid action occurred. Approval of a reviewed disp
 | Input | Value / env |
 | --- | --- |
 | Project | `WORKSPACE_IT_PROJECT` (non-production, disposable) |
-| User A / B | `WORKSPACE_IT_IDENTITY_UID[_B]`, `WORKSPACE_IT_EMAIL[_B]`, `WORKSPACE_IT_PASSWORD[_B]`; distinct uid and email; approval `<project>/identity/<uid>` |
+| User A / B | `WORKSPACE_IT_IDENTITY_UID[_B]`, `WORKSPACE_IT_EMAIL[_B]`, `WORKSPACE_IT_PASSWORD[_B]`; distinct uid and email; `WORKSPACE_IT_APPROVED_FIXTURE[_B]=<project>/identity/<uid>` |
 | API key | `WORKSPACE_IT_API_KEY` |
 | Bucket | `WORKSPACE_IT_BUCKET`; approval `WORKSPACE_IT_APPROVED_STORAGE=<project>/storage/<bucket>`; labelled `everlast-fixture=disposable`, europe-west4, versioning on, soft delete 0, no retention |
 | Database | local PostgreSQL only (`TEST_DATABASE_URL`) |
@@ -25,9 +25,9 @@ Objects (random notebook prefix per user, nothing else touched):
 ## Run order
 
 1. Verify target policy is readable; abort UNAVAILABLE otherwise.
-2. A signs in; token verifies; B signs in; token verifies.
+2. A signs in; token verifies.
 3. Signup probe with A's existing email must return `ADMIN_ONLY_OPERATION`.
-4. Revoke A (`validSince`): A's token rejected as revoked; B's token still valid.
+4. Revoke A (`validSince`): A's token rejected as revoked; B subsequently signs in and its token verifies. This does not assert survival of a B token issued before A's revocation.
 5. Cleanup: A's notebook delete → `retry:RetainedObject` (hold) → release hold → `deferred` (active PUT capability) → real PUT, wait for expiry, late PUT fails → `purged`; zero versions; status contains no title/object names; user B cannot read A's status; B's objects untouched.
 
 Commands (after approval):
@@ -49,3 +49,9 @@ Commands (after approval):
 | resumable-session-survives-notebook-delete | **UNAVAILABLE** – needs API-issued resumable session |
 
 Local proof so far: 4 testkit tests (incl. frozen plan Red→Green), 19 focused tests; the two live suites SKIP by opt-in guard.
+
+## Current disposition — 2026-11-16 (D24/DEV-07, NFR-SEC-01/02)
+
+Local verification of identity revocation, cleanup, and retry paths passes in deterministic/PostgreSQL integration suites; live cloud execution of `T046`/`T061` (`WORKSPACE_IDENTITY_IT=1`, `WORKSPACE_STORAGE_IT=1`) is explicitly recorded **UNAVAILABLE** in this environment because no approved disposable Identity Platform tenant, GCS test bucket, or signing ADC were supplied. Under `D24`/`DEV-07`, local contract/PostgreSQL/Playwright verification clears release gates without paid cloud campaigns, while live-only scenarios (`externally-created-resumable-session-cancel`, `resumable-session-survives-notebook-delete`) remain individually **UNAVAILABLE**.
+
+Identity invocation uses `WORKSPACE_IT_APPROVED_FIXTURE=<project>/identity/<uidA>`; the storage invocation instead uses `WORKSPACE_IT_APPROVED_FIXTURE=<project>/storage/<bucket>`. Both also retain `WORKSPACE_IT_APPROVED_STORAGE`; identity requires `WORKSPACE_IT_APPROVED_FIXTURE_B`. Supply approved disposable targets and signing ADC privately before any live run.

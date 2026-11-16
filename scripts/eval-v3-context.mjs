@@ -12,4 +12,4 @@ else{
  try{const {runLocalContextStress,runLocalScalePairs}=await import('../apps/api/test/v3-context-local.ts');const {runScaleBenchmark}=await import('../packages/evals/src/v3-scale.ts');report=await runLocalContextStress();report.paired_scale=await runLocalScalePairs(runScaleBenchmark);exitCode=report.result==='PASS'?0:1;}
  catch(error){report=error.report??{schema:'everlast.studio-context-v3-report/2',profile,result:'FAIL',error:error.message};exitCode=1;}
 }
-writeFileSync(join(out,'v3-context-benchmark.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));process.exitCode=exitCode;
+writeFileSync(join(out,'v3-context-benchmark.json'),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report));if(exitCode!==0)console.error(JSON.stringify(report));process.exitCode=exitCode;

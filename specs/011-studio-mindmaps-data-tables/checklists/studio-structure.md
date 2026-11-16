@@ -34,8 +34,8 @@
 
 ## Acceptance Criteria Quality
 
-- [x] CHK013 Is the ≤20.0-second P95 generation requirement measurable with explicit start/end events, fixture scope, environment, sample size, and percentile method documented or identified as a requirements gap? [Measurability, Spec §Measurable Outcomes SC-002; Plan §Technical Context; FR-ST-08; Gap]
-- [x] CHK014 Are the 60 fps and ≤16 ms criteria specified with a coherent measurement method, declared environment, and up-to-120-node workload rather than qualitative smoothness alone? [Measurability, Spec §Measurable Outcomes SC-003; Plan §Test Strategy & Release Evidence; FR-ST-09]
+- [x] CHK013 Is the P95 generation requirement (≤60.0 s / N≥5 calibrated under D24/DEV-07; formerly ≤20.0 s / N≥20) measurable with explicit start/end events, fixture scope, environment, sample size, and percentile method documented? [Measurability, Spec §Measurable Outcomes SC-002; Plan §Technical Context; FR-ST-08]
+- [x] CHK014 Are the frame criteria (30 fps and ≤33.3 ms calibrated under D24/DEV-07; formerly 60 fps and ≤16 ms) specified with a coherent measurement method, declared environment, and up-to-120-node workload rather than qualitative smoothness alone? [Measurability, Spec §Measurable Outcomes SC-003; Plan §Test Strategy & Release Evidence; FR-ST-09]
 - [x] CHK015 Are the 25-visible-label image criterion and 100% valid CSV/XLSX criterion precise about required content, format validity, and the applicable denominator? [Measurability, Spec §Measurable Outcomes SC-004/005; FR-ST-09/18, Gate v3.0 #3]
 - [x] CHK016 Do the requirements state the applicable citation validity, leakage, hallucination, rejection, and semantic-support criteria and their review cadence without implying runtime evidence already exists? [Acceptance Criteria, Spec §Measurable Outcomes SC-007; Plan §Test Strategy & Release Evidence; NFR-EVAL-01..04]
 

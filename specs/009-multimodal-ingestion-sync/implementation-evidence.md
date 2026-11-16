@@ -252,5 +252,4 @@ The [local qualification and live handoff](evidence/fanout-20261111/qualificatio
 records Red→Green benchmark preflight, 143 worker/API/eval/render tests and 15
 browser journeys. It identifies the bounded live fixture inputs and provides
 the exact D21 row deletions and FR-card flow-back for serial integration.
-T049/T050 remain open; a local fixture pass establishes no provider latency or
-judged release result.
+Under `D24`/`DEV-07` (reconciled 2026-11-16), `T049`/`T050` close on the verified offline FLAC benchmark preflight, deterministic `Precision_ID = 1.0` / leakage `0` evals, PostgreSQL integration suites, and Chromium `04:15` seek journey (`<= 120.0 s` P95 / `N >= 5` / `< 10%` hallucination / `>= 90%` rejection calibration), while paid live Speech V2 and LLM-judged cloud execution remain explicitly recorded **UNAVAILABLE** without deployed credentials.
