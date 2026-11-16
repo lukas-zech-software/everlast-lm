@@ -11,3 +11,11 @@ Traceability: `NFR-PERF-01`, `FR-SI-01/05`, `FR-GC-08`, `FR-ST-08/09/18`, `C-01/
 | Shared Quality & Architecture (`NFR-EVAL-01..04`, `CC-09`) | Deterministic citation precision `160/160` (`1.0`), leakage `0`, `60/60` adversarial refusals, `39/39` architecture tests, legacy exceptions reduced `167 -> 90` (PR #191) `-> 88` (`004` `T036` retired; only `T035` remains open), `005` `T061` `D23` Flash-Lite topic emoji routing completed, and `check-kpi-sanity --include-specs --strict` passes with `0` warnings. | **PASS** |
 
 Historical pre-calibration notes (`2026-11-10` checkpoint): prior to project-owner decision `D24` / `DEV-07`, `Gate v3.0` was held open only for multi-hour paid live cloud benchmark campaigns (requiring 60s cryptographic clock-bridge renewals across 40–80 sequential runs) and the 60 Hz headless Chromium vsync interval (`16.80 ms` vs `16.0 ms`). Under `Constitution v2.3.0` and `D24` / `DEV-07` (`Single-Developer Hobby Project Scope & KPI Calibration`), those thresholds are calibrated to realistic hobby-project targets and `Gate v3.0` is officially cleared. Live paid cloud benchmark and LLM-judged runs (`pnpm eval:judged`) remain explicitly recorded **UNAVAILABLE** without deployed credentials.
+
+## Dev Live-Cloud Smoke Suite (`pnpm test:cloud:dev`)
+
+To verify live GCP integration (Vertex AI Gemini/Embeddings/Context Caching, Agent Engine Sandbox, Speech-to-Text V2, GCS signed URLs/cleanup, and Identity Platform) without disposable cloud infrastructure or multi-hour benchmark cohorts:
+
+- Runs exclusively against the `dev` environment (`EVERLAST_ENV=dev`, never `staging` or `prod`).
+- Inspects `everlast-dev-pg` (and `everlast-dev-api` with `--warmup-api`) via `ensureDevEnvironmentForTests`; if scaled down to zero, prompts for permission before starting it, and automatically scales it back down afterward unless it was already running beforehand.
+- Isolates PostgreSQL test state via `createTestDatabase()` (`everlast_t_<uuid>` on the same SQL instance, dropped in `finally`) and GCS objects under `notebooks/<uuid>/` prefixes deleted in `afterAll`.

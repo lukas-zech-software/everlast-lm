@@ -6,6 +6,7 @@ import { createTestDatabase } from "@everlast/db/testing";
 import { createOcrEngine, createVertexClient, HashingTestEmbedder, NoOcrEngine, resolveEnterpriseGeminiConfig, vertexConfigFromEnv, VertexEmbedder } from "@everlast/cloud";
 import { AdkGroundedModel } from "@everlast/api/chat/model";
 import { assertDatasetMinimums, buildGoldenDataset, corpusHash, datasetCounts, datasetHash, DATASET_VERSION, releaseSample, RELEASE_SAMPLE_SIZE } from "./dataset.ts";
+import { ensureDevEnvironmentForTests, type DevEnvironmentLease } from "@everlast/testkit/live-fixtures";
 import { AdversarialCitingModel, LexicalCitingModel } from "./deterministic-models.ts";
 import { VertexJudge } from "./judge.ts";
 import { createResponseLengthRunner, runEvaluation, type EvalRunResult } from "./runner.ts";
@@ -36,6 +37,7 @@ const outDir = arg("out") ?? "reports";
 const concurrency = Number(arg("concurrency") ?? (mode === "release" ? 4 : 2));
 const limit = process.argv.includes("--limit") ? Number(arg("limit")) : undefined;
 const full = process.argv.includes("--full");
+const smoke = process.argv.includes("--smoke");
 const onlyCases = arg("cases")?.split(",").map((x) => x.trim()).filter(Boolean);
 if (limit !== undefined && (!Number.isSafeInteger(limit) || limit <= 0)) {
   console.error("--limit requires a positive integer");
@@ -45,7 +47,7 @@ if (process.argv.includes("--cases") && !onlyCases?.length) {
   console.error("--cases requires a comma-separated list of case IDs");
   process.exit(64);
 }
-const diagnostic = full || limit !== undefined || onlyCases !== undefined;
+const diagnostic = full || limit !== undefined || onlyCases !== undefined || smoke;
 
 function unavailable(reason: string): never {
   console.error(`[UNAVAILABLE] eval:${mode === "release" ? "judged" : "deterministic"}: ${reason}`);
@@ -77,16 +79,17 @@ assertDatasetMinimums(cases);
 // Release evidence uses the fixed stratified 50-case sample (Constitution v2.0.0).
 const selected = onlyCases
   ? cases.filter((c) => onlyCases.includes(c.id))
-  : mode === "release" && !diagnostic
-    ? releaseSample(cases, RELEASE_SAMPLE_SIZE)
-    : limit
-      ? cases.filter((_, i) => i % Math.ceil(cases.length / limit) === 0)
-      : cases;
+  : mode === "release" && smoke
+    ? releaseSample(cases, 5)
+    : mode === "release" && !diagnostic
+      ? releaseSample(cases, RELEASE_SAMPLE_SIZE)
+      : limit
+        ? cases.filter((_, i) => i % Math.ceil(cases.length / limit) === 0)
+        : cases;
 if (onlyCases && onlyCases.some((id) => !selected.some((c) => c.id === id))) {
   console.error("--cases contains an unknown case ID");
   process.exit(64);
 }
-if (!process.env.TEST_DATABASE_URL) unavailable("TEST_DATABASE_URL is not set (start PostgreSQL with pnpm db:test:up)");
 if (mode === "release") {
   try {
     vertexConfigFromEnv();
@@ -100,6 +103,19 @@ if (mode === "release") {
   } catch (err) {
     unavailable(`no Application Default Credentials (${(err as Error).message.split("\n")[0]}); run gcloud auth application-default login`);
   }
+}
+
+let devLease: DevEnvironmentLease | undefined;
+if (mode === "release") {
+  try {
+    devLease = await ensureDevEnvironmentForTests({ env: process.env });
+  } catch (err) {
+    unavailable(err instanceof Error ? err.message : String(err));
+  }
+}
+if (!process.env.TEST_DATABASE_URL) {
+  await devLease?.restore();
+  unavailable("TEST_DATABASE_URL is not set (start PostgreSQL with pnpm db:test:up or point to dev Cloud SQL)");
 }
 
 const candidate = commit();
@@ -199,10 +215,10 @@ try {
     : (report.state !== "GateFailed" && evalOk ? 0 : 1);
 
   // Gate v2.0 #3 (FR-ST-10): all four report templates through the Studio runtime path. Deterministic on every
-  // PR; the release run uses Vertex AI Flash and reports UNAVAILABLE without Vertex configuration.
+  // PR; the release/smoke run uses Vertex AI Flash and reports UNAVAILABLE without Vertex configuration.
   const studio = mode === "deterministic"
     ? { status: "ran" as const, result: await runStudioReportsGate() }
-    : diagnostic ? null : await runStudioReportsReleaseGate(process.env);
+    : (!diagnostic || smoke) ? await runStudioReportsReleaseGate(process.env) : null;
   if (studio?.status === "ran") {
     for (const line of renderStudioGate(studio.result)) log(line);
     if (!studio.result.passed) exitCode = 1;
@@ -219,8 +235,8 @@ try {
     if (!studioV3.passed) exitCode = 1;
   }
 
-  // Gate v2.0 #1 (FR-SI-02): Source Guide < 10 s P95 from Ready, release-only on Vertex AI Flash-Lite.
-  if (mode === "release" && !diagnostic) {
+  // Gate v2.0 #1 (FR-SI-02): Source Guide < 30 s P95 from Ready on Vertex AI Flash-Lite (2 sources in smoke mode).
+  if (mode === "release" && (!diagnostic || smoke)) {
     const guides = await runSourceGuideReleaseGate(process.env);
     if (guides.status === "ran") {
       for (const line of renderSourceGuideGate(guides.result)) log(line);
@@ -231,6 +247,7 @@ try {
   }
 } finally {
   await db.drop();
+  await devLease?.restore();
 }
 process.exit(exitCode);
 

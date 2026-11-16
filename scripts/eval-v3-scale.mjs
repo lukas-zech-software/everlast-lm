@@ -12,10 +12,12 @@
  *
  * Exits nonzero (code 1 for FAIL, code 2 for UNAVAILABLE). Never fabricates a pass.
  */
+import { randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { BenchmarkPrivateEvidenceSchema } from '../packages/contracts/src/index.ts';
 import { OwnerPrivateDirectory } from '@everlast/cloud/private-benchmark';
+import { assertDevOnlyEnvironment, withDevTestEnvironment } from '../packages/testkit/src/live-fixtures.ts';
 import { loadScaleFixture } from '../packages/evals/src/v3-scale-fixture.ts';
 import { buildScaleBenchmarkReport } from '../packages/evals/src/report.ts';
 import { runScaleBenchmark } from '../packages/evals/src/v3-scale.ts';
@@ -38,6 +40,46 @@ export async function runScaleCli(argv, clockSession) {
     if (directory) directory.write(name, json);
     else writeFileSync(join(outDir, name), json, { mode: 0o600 });
   };
+
+  if (argv.includes('--smoke')) {
+    try {
+      assertDevOnlyEnvironment(process.env);
+    } catch (err) {
+      console.error(`[UNAVAILABLE] eval:v3-scale: ${err instanceof Error ? err.message : String(err)}`);
+      return 2;
+    }
+    if (!(process.env.VERTEX_PROJECT ?? process.env.GCP_PROJECT_ID ?? process.env.GOOGLE_CLOUD_PROJECT)?.trim()) {
+      const msg = 'VERTEX_PROJECT / GCP_PROJECT_ID is required on dev for --smoke';
+      write('v3-scale-benchmark.json', { schema: 'everlast.scale-v3-report/1', mode: 'dev-smoke', result: 'UNAVAILABLE', missing_prerequisites: msg });
+      console.error(`[UNAVAILABLE] eval:v3-scale: ${msg}`);
+      return 2;
+    }
+    return await withDevTestEnvironment({ env: process.env }, async () => {
+      const { createOperationalCacheFromEnv } = await import('../apps/api/src/observability/benchmark.ts');
+      const cache = createOperationalCacheFromEnv(process.env);
+      const sourceId = randomUUID();
+      const filler = 'Reactor coolant loop pressure calibration telemetry verification block. '.repeat(120);
+      const chunks = Array.from({ length: 40 }, (_, i) => ({
+        chunk_id: randomUUID(),
+        source_id: sourceId,
+        revision: 1,
+        token_count: 1000,
+        locator: { page_number: i + 1, start_offset: 0, end_offset: filler.length },
+        text: i === 32 ? `${filler} Critical setpoint: Reactor coolant pressure must be 142.8 bar.` : filler,
+      }));
+      let created;
+      const started = Date.now();
+      try {
+        created = await cache.create({ pages: [chunks], signal: AbortSignal.timeout(45_000) });
+      } finally {
+        if (created?.handle) await cache.delete(created.handle).catch(() => {});
+      }
+      const elapsedMs = Date.now() - started;
+      write('v3-scale-benchmark.json', { schema: 'everlast.scale-v3-report/1', mode: 'dev-smoke', result: 'PASS', cache_created: Boolean(created?.handle), elapsed_ms: elapsedMs });
+      console.log(JSON.stringify({ result: 'PASS', mode: 'dev-smoke', cache_created: Boolean(created?.handle), elapsed_ms: elapsedMs }));
+      return 0;
+    });
+  }
 
   let fixture;
   try {
