@@ -34,6 +34,7 @@ import {
   finishOnDemandGuide,
   recoverOnDemandGuides,
   type GuideAdmissionLimits,
+  PostgresLearningProgressRepository,
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
   sweepOrphanedSourceGuides,
@@ -120,6 +121,7 @@ export interface V2RuntimeOptions {
   structureGenerator?: StructuredGenerator | undefined;
   mindmapModel?: MindmapModelClient | undefined;
   dataTableModel?: DataTableModelClient | undefined;
+  quizGraderGenerator?: StructuredGenerator | undefined;
   /**
    * Dynamic report suggestions (FR-ST-11). Default: Flash-Lite through `generation` (Package 2.2 client); without
    * it suggestions are unavailable (owner default 2026-10-20). Tests may inject a deterministic model.
@@ -511,12 +513,22 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       );
     },
   };
+  const quizGraderGenerator: StructuredGenerator | undefined =
+    options.quizGraderGenerator ??
+    (options.generation &&
+    "generateStructured" in options.generation &&
+    typeof options.generation.generateStructured === "function"
+      ? (options.generation as unknown as StructuredGenerator)
+      : undefined);
+
   const studioDeps: StudioServiceDeps = {
     repo,
     registry,
     access,
     dispatcher: new DurableStudioDispatcher(pool, runAndTouch, { onNotify: options.notifyJobs }),
     canceller: runner,
+    learningProgress: new PostgresLearningProgressRepository(pool),
+    quizGraderGenerator,
     drilldown: {
       readScope: (ownerId, notebookId, sourceIds) => assistantContext.read(ownerId, notebookId, sourceIds),
       ...(options.model ? { answer: new GroundedNoteAssistant(options.model) } : {}),

@@ -1,23 +1,36 @@
+import type { StructuredGenerator } from "@everlast/cloud";
 import {
   InvalidScopeError,
   SourceSnapshotInvalidError,
   EmptyScopeError,
   CreateStudioJobRequestSchema,
+  GradeQuizQuestionRequestSchema,
+  RecordLearningProgressRequestSchema,
+  ResetLearningProgressRequestSchema,
   RetryStudioJobRequestSchema,
+  StudioParamsError,
+  type QuizQuestion,
   type ReportCitation,
   type ReportSuggestionsResult,
   type SourceRevisionPair,
+  type StudioLearningOverviewPayload,
   type StudioPluginRegistry,
   type StudioPluginType,
+  type StudioQuizPayload,
 } from "@everlast/contracts";
 import {
+  extractArtifactLearningItemIds,
+  InMemoryLearningProgressRepository,
   StudioRetryNotAllowedError,
+  type LearningProgressRepository,
   type StudioArtifactRecord,
   type StudioArtifactRepository,
   type StudioArtifactSummary,
 } from "@everlast/db";
 import { executeMindmapDrilldown, StudioSupportingSourcesRequiredError, type StudioDrilldownPort } from "./drilldown.ts";
+import { executeStudioItemExplain } from "./explain.ts";
 import { buildMindmapExportScene } from "./map-export.ts";
+import { gradeQuizQuestion } from "./quiz-grader.ts";
 import { exportDataTableArtifact } from "./table-export.ts";
 
 /** Owner/scope authorization and snapshot verification (D12); worker and API share the same port. */
@@ -61,6 +74,9 @@ export interface StudioServiceDeps {
   dispatcher: StudioJobDispatcher;
   canceller?: StudioJobCanceller | undefined;
   drilldown?: StudioDrilldownPort | undefined;
+  explain?: StudioDrilldownPort | undefined;
+  learningProgress?: LearningProgressRepository | undefined;
+  quizGraderGenerator?: StructuredGenerator | undefined;
   convertToSource?: ConvertToSource;
   suggestions?: StudioSuggestionsPort;
   /** Effective output language (FR-UI-02: notebook > user > en-US) for requests that omit `output_language`. */
@@ -86,6 +102,9 @@ const publicView = <T extends { owner_id: string }>(row: T): Omit<T, "owner_id">
 function genericTitleForPlugin(pluginType: StudioPluginType): string {
   if (pluginType === "mindmap") return "Mindmap";
   if (pluginType === "data_table") return "Data Table";
+  if (pluginType === "flashcards") return "Flashcards";
+  if (pluginType === "quiz") return "Quiz";
+  if (pluginType === "learning_overview") return "Learning Overview";
   return "Report";
 }
 
@@ -95,6 +114,15 @@ function unavailableMessageForPlugin(pluginType: StudioPluginType): string {
   }
   if (pluginType === "data_table") {
     return "This data table is unavailable because its sources changed or are no longer accessible.";
+  }
+  if (pluginType === "flashcards") {
+    return "These flashcards are unavailable because their sources changed or are no longer accessible.";
+  }
+  if (pluginType === "quiz") {
+    return "This quiz is unavailable because its sources changed or are no longer accessible.";
+  }
+  if (pluginType === "learning_overview") {
+    return "This learning overview is unavailable because its sources changed or are no longer accessible.";
   }
   return "This report is unavailable because its sources changed or are no longer accessible.";
 }
@@ -107,8 +135,13 @@ function requireScope(ids: unknown): void {
 
 export class StudioService {
   private readonly deps: StudioServiceDeps;
+  private readonly fallbackProgress = new InMemoryLearningProgressRepository();
   constructor(deps: StudioServiceDeps) {
     this.deps = deps;
+  }
+
+  private get progressRepo(): LearningProgressRepository {
+    return this.deps.learningProgress ?? this.fallbackProgress;
   }
 
   private async language(ownerId: string, notebookId: string, requested: string | undefined): Promise<string | undefined> {
@@ -133,6 +166,10 @@ export class StudioService {
         custom_prompt: req.custom_prompt,
         focus_prompt: req.focus_prompt,
         schema_id: req.schema_id,
+        difficulty: req.difficulty,
+        card_count: req.card_count,
+        question_count: req.question_count,
+        section_count: req.section_count,
       },
       snapshot,
       output_language,
@@ -326,6 +363,115 @@ export class StudioService {
       payload: row.payload_json as unknown as import("@everlast/contracts").StudioDataTablePayload,
       body,
     });
+  }
+
+  private isActiveLearningPlugin(pluginType: StudioPluginType): boolean {
+    return pluginType === "flashcards" || pluginType === "quiz" || pluginType === "learning_overview";
+  }
+
+  private async completedActiveLearning(ownerId: string, notebookId: string, id: string): Promise<StudioArtifactRecord> {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (!this.isActiveLearningPlugin(row.plugin_type) || row.status !== "Completed" || !row.payload_json) {
+      throw new StudioConflictError("Only Completed flashcards, quiz, or learning_overview artifacts support this action.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    return row;
+  }
+
+  async getProgress(ownerId: string, notebookId: string, id: string) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (!this.isActiveLearningPlugin(row.plugin_type)) {
+      throw new StudioConflictError("Learning progress is only supported for flashcards, quiz, and learning_overview artifacts.");
+    }
+    const progress = (await this.progressRepo.get(ownerId, id)) ?? {
+      user_id: ownerId,
+      artifact_id: id,
+      notebook_id: notebookId,
+      item_states_json: {},
+      updated_at: row.updated_at,
+    };
+    return { progress };
+  }
+
+  async recordProgress(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.completedActiveLearning(ownerId, notebookId, id);
+    const req = RecordLearningProgressRequestSchema.parse(body);
+    const validIds = extractArtifactLearningItemIds(row.plugin_type, row.payload_json);
+    if (!validIds.has(req.item_id)) {
+      throw new StudioParamsError(`Item ${req.item_id} does not belong to artifact ${id}.`);
+    }
+    const progress = await this.progressRepo.recordAttempt({
+      userId: ownerId,
+      artifactId: id,
+      notebookId,
+      itemId: req.item_id,
+      outcome: req.outcome,
+    });
+    return this.modified(notebookId, { progress });
+  }
+
+  async resetProgress(ownerId: string, notebookId: string, id: string, body: unknown, skipConfirm = false) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (!this.isActiveLearningPlugin(row.plugin_type)) {
+      throw new StudioConflictError("Learning progress is only supported for flashcards, quiz, and learning_overview artifacts.");
+    }
+    if (!skipConfirm) {
+      ResetLearningProgressRequestSchema.parse(body);
+    }
+    const progress = await this.progressRepo.reset(ownerId, id);
+    return this.modified(notebookId, { progress });
+  }
+
+  async gradeQuiz(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.completedActiveLearning(ownerId, notebookId, id);
+    if (row.plugin_type !== "quiz" && row.plugin_type !== "learning_overview") {
+      throw new StudioConflictError("Only Completed quiz or learning_overview artifacts support quiz grading.");
+    }
+    const req = GradeQuizQuestionRequestSchema.parse(body);
+    let targetQuestion: QuizQuestion | undefined;
+    if (row.plugin_type === "quiz" && row.payload_json && "questions" in row.payload_json) {
+      targetQuestion = (row.payload_json as unknown as StudioQuizPayload).questions.find((q) => q.id === req.question_id);
+    } else if (row.plugin_type === "learning_overview" && row.payload_json && "modules" in row.payload_json) {
+      for (const mod of (row.payload_json as unknown as StudioLearningOverviewPayload).modules) {
+        const found = mod.checkpoint_quiz.find((q) => q.id === req.question_id);
+        if (found) {
+          targetQuestion = found;
+          break;
+        }
+      }
+    }
+    if (!targetQuestion) {
+      throw new StudioParamsError(`Question ${req.question_id} does not belong to artifact ${id}.`);
+    }
+    const graded = await gradeQuizQuestion({
+      question: targetQuestion,
+      answer: req.answer,
+      generator: this.deps.quizGraderGenerator,
+    });
+    const progress = await this.progressRepo.recordAttempt({
+      userId: ownerId,
+      artifactId: id,
+      notebookId,
+      itemId: targetQuestion.id,
+      outcome: graded.outcome,
+    });
+    return this.modified(notebookId, { ...graded, progress });
+  }
+
+  async explainItem(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.completedActiveLearning(ownerId, notebookId, id);
+    const port = this.deps.explain ?? this.deps.drilldown;
+    if (!port) {
+      throw new StudioNotImplementedError("Explain to chat is not configured.");
+    }
+    const res = await executeStudioItemExplain({
+      ownerId,
+      notebookId,
+      artifact: row,
+      rawRequest: body,
+      port,
+    });
+    return this.modified(notebookId, res);
   }
 
   async ownedArtifact(ownerId: string, notebookId: string, id: string): Promise<StudioArtifactRecord> {

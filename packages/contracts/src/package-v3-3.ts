@@ -11,7 +11,14 @@ import type { PromptValidationResult } from "./package-v2-4.ts";
 export const STUDIO_MINDMAP_PLUGIN_TYPE = "mindmap" as const;
 export const STUDIO_DATA_TABLE_PLUGIN_TYPE = "data_table" as const;
 
-export const StudioPluginTypeSchema = z.enum(["report", "mindmap", "data_table"]);
+export const StudioPluginTypeSchema = z.enum([
+  "report",
+  "mindmap",
+  "data_table",
+  "flashcards",
+  "quiz",
+  "learning_overview",
+]);
 export type StudioPluginType = z.infer<typeof StudioPluginTypeSchema>;
 
 export const MindmapSubtypeSchema = z.literal("default");
