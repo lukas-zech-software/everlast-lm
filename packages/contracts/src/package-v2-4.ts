@@ -43,6 +43,22 @@ import {
   type StudioLearningOverviewPayload,
   type StudioQuizPayload,
 } from "./package-v4-1.ts";
+import {
+  InfographicStyleSchema,
+  SLIDE_COUNT_MAX,
+  SLIDE_COUNT_MIN,
+  STUDIO_INFOGRAPHIC_PLUGIN_TYPE,
+  STUDIO_SLIDE_DECK_PLUGIN_TYPE,
+  StudioInfographicParamsSchema,
+  StudioInfographicPayloadSchema,
+  StudioSlideDeckParamsSchema,
+  StudioSlideDeckPayloadSchema,
+  validateInfographicFocusPrompt,
+  validateSlideFocusPrompt,
+  type InfographicStyle,
+  type StudioInfographicPayload,
+  type StudioSlideDeckPayload,
+} from "./package-v4-2.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).
@@ -218,6 +234,8 @@ export const StudioParamsJsonSchema = z.union([
   StudioFlashcardsParamsSchema,
   StudioQuizParamsSchema,
   StudioLearningOverviewParamsSchema,
+  StudioSlideDeckParamsSchema,
+  StudioInfographicParamsSchema,
 ]);
 export type StudioParamsJson = {
   custom_prompt?: string;
@@ -227,6 +245,8 @@ export type StudioParamsJson = {
   card_count?: FlashcardCountInput;
   question_count?: number;
   section_count?: number;
+  slide_count?: number;
+  style?: InfographicStyle;
   [key: string]: unknown;
 };
 
@@ -237,6 +257,8 @@ export const StudioPayloadJsonSchema = z.union([
   StudioFlashcardsPayloadSchema,
   StudioQuizPayloadSchema,
   StudioLearningOverviewPayloadSchema,
+  StudioSlideDeckPayloadSchema,
+  StudioInfographicPayloadSchema,
 ]);
 export type StudioPayloadJson =
   | StudioReportPayload
@@ -244,7 +266,9 @@ export type StudioPayloadJson =
   | StudioDataTablePayload
   | StudioFlashcardsPayload
   | StudioQuizPayload
-  | StudioLearningOverviewPayload;
+  | StudioLearningOverviewPayload
+  | StudioSlideDeckPayload
+  | StudioInfographicPayload;
 
 export const StudioArtifactSchema = z
   .object({
@@ -343,6 +367,20 @@ export const StudioArtifactSchema = z
             ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
           }
         }
+      } else if (artifact.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE) {
+        const parsed = StudioSlideDeckPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
+      } else if (artifact.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE) {
+        const parsed = StudioInfographicPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
       }
     }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
@@ -367,7 +405,9 @@ export type StudioCombinedPayload = StudioReportPayload &
   Partial<StudioDataTablePayload> &
   Partial<StudioFlashcardsPayload> &
   Partial<StudioQuizPayload> &
-  Partial<StudioLearningOverviewPayload>;
+  Partial<StudioLearningOverviewPayload> &
+  Partial<StudioSlideDeckPayload> &
+  Partial<StudioInfographicPayload>;
 
 export interface StudioArtifact {
   id: string;
@@ -406,6 +446,8 @@ export const CreateStudioJobRequestSchema = z
     card_count: FlashcardCountInputSchema.optional(),
     question_count: z.number().int().min(QUIZ_MIN_QUESTIONS).max(QUIZ_MAX_QUESTIONS).optional(),
     section_count: z.number().int().min(LEARNING_OVERVIEW_MIN_SECTIONS).max(LEARNING_OVERVIEW_MAX_SECTIONS).optional(),
+    slide_count: z.number().int().min(SLIDE_COUNT_MIN).max(SLIDE_COUNT_MAX).optional(),
+    style: InfographicStyleSchema.optional(),
     /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
     output_language: OutputLanguageSchema.optional(),
   })
@@ -416,6 +458,7 @@ export const CreateStudioJobRequestSchema = z
       req.card_count !== undefined ||
       req.question_count !== undefined ||
       req.section_count !== undefined;
+    const hasVisualFields = req.slide_count !== undefined || req.style !== undefined;
     if (req.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
       if (!ReportSubtypeSchema.safeParse(req.subtype).success) {
         ctx.addIssue({
@@ -431,11 +474,11 @@ export const CreateStudioJobRequestSchema = z
           message: `custom_prompt is required for subtype ${req.subtype}`,
         });
       }
-      if (req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields) {
+      if (req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields || hasVisualFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "focus_prompt, schema_id, and active-learning parameters are not valid for report requests",
+          message: "focus_prompt, schema_id, active-learning, and visual parameters are not valid for report requests",
         });
       }
     } else if (req.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
@@ -446,11 +489,11 @@ export const CreateStudioJobRequestSchema = z
           message: `Unknown mindmap subtype ${req.subtype}`,
         });
       }
-      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields) {
+      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields || hasVisualFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "mindmap/default accepts no custom_prompt, focus_prompt, schema_id, or active-learning parameters",
+          message: "mindmap/default accepts no custom_prompt, focus_prompt, schema_id, active-learning, or visual parameters",
         });
       }
     } else if (req.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
@@ -461,7 +504,7 @@ export const CreateStudioJobRequestSchema = z
           message: `Unknown data_table subtype ${req.subtype}`,
         });
       }
-      if (req.custom_prompt !== undefined || hasPedagogyFields) {
+      if (req.custom_prompt !== undefined || hasPedagogyFields || hasVisualFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["custom_prompt"],
@@ -484,7 +527,12 @@ export const CreateStudioJobRequestSchema = z
         });
       }
       if (req.focus_prompt !== undefined) {
-        const promptCheck = validatePedagogyFocusPrompt(req.focus_prompt);
+        const promptCheck =
+          req.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE
+            ? validateSlideFocusPrompt(req.focus_prompt)
+            : req.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE
+              ? validateInfographicFocusPrompt(req.focus_prompt)
+              : validatePedagogyFocusPrompt(req.focus_prompt);
         if (!promptCheck.valid) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
@@ -493,28 +541,42 @@ export const CreateStudioJobRequestSchema = z
           });
         }
       }
-      if (req.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE && (req.question_count !== undefined || req.section_count !== undefined)) {
+      if (req.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE && (req.question_count !== undefined || req.section_count !== undefined || hasVisualFields)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "flashcards/default does not accept question_count or section_count",
+          message: "flashcards/default does not accept question_count, section_count, or visual parameters",
         });
       }
-      if (req.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE && (req.card_count !== undefined || req.section_count !== undefined)) {
+      if (req.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE && (req.card_count !== undefined || req.section_count !== undefined || hasVisualFields)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "quiz/default does not accept card_count or section_count",
+          message: "quiz/default does not accept card_count, section_count, or visual parameters",
         });
       }
       if (
         req.plugin_type === STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE &&
-        (req.card_count !== undefined || req.question_count !== undefined || req.difficulty !== undefined)
+        (req.card_count !== undefined || req.question_count !== undefined || req.difficulty !== undefined || hasVisualFields)
       ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
           message: "learning_overview/default accepts section_count and focus_prompt only",
+        });
+      }
+      if (req.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE && (hasPedagogyFields || req.style !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "slide_deck/default accepts slide_count and focus_prompt only",
+        });
+      }
+      if (req.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE && (hasPedagogyFields || req.slide_count !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "infographic/default accepts style and focus_prompt only",
         });
       }
     }
@@ -630,6 +692,8 @@ export interface StudioJobRequest {
     card_count?: FlashcardCountInput | undefined;
     question_count?: number | undefined;
     section_count?: number | undefined;
+    slide_count?: number | undefined;
+    style?: InfographicStyle | undefined;
   };
   snapshot: SourceRevisionPair[];
   output_language?: string | undefined;

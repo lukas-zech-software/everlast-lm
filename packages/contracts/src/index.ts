@@ -17,3 +17,4 @@ export * from "./package-v3-2.ts";
 export * from "./package-v3-3.ts";
 export * from "./package-v3-4.ts";
 export * from "./package-v4-1.ts";
+export * from "./package-v4-2.ts";

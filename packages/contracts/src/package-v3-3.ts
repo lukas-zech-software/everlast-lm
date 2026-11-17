@@ -14,6 +14,8 @@ export const STUDIO_REPORT_PLUGIN_TYPE = "report" as const;
 export const STUDIO_FLASHCARDS_PLUGIN_TYPE = "flashcards" as const;
 export const STUDIO_QUIZ_PLUGIN_TYPE = "quiz" as const;
 export const STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE = "learning_overview" as const;
+export const STUDIO_SLIDE_DECK_PLUGIN_TYPE = "slide_deck" as const;
+export const STUDIO_INFOGRAPHIC_PLUGIN_TYPE = "infographic" as const;
 
 export const StudioPluginTypeSchema = z.enum([
   STUDIO_REPORT_PLUGIN_TYPE,
@@ -22,6 +24,8 @@ export const StudioPluginTypeSchema = z.enum([
   STUDIO_FLASHCARDS_PLUGIN_TYPE,
   STUDIO_QUIZ_PLUGIN_TYPE,
   STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
+  STUDIO_SLIDE_DECK_PLUGIN_TYPE,
+  STUDIO_INFOGRAPHIC_PLUGIN_TYPE,
 ]);
 export type StudioPluginType = z.infer<typeof StudioPluginTypeSchema>;
 

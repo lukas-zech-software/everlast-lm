@@ -13,10 +13,12 @@ import {
   type ReportCitation,
   type ReportSuggestionsResult,
   type SourceRevisionPair,
+  type StudioInfographicPayload,
   type StudioLearningOverviewPayload,
   type StudioPluginRegistry,
   type StudioPluginType,
   type StudioQuizPayload,
+  type StudioSlideDeckPayload,
 } from "@everlast/contracts";
 import {
   extractArtifactLearningItemIds,
@@ -29,8 +31,10 @@ import {
 } from "@everlast/db";
 import { executeMindmapDrilldown, StudioSupportingSourcesRequiredError, type StudioDrilldownPort } from "./drilldown.ts";
 import { executeStudioItemExplain } from "./explain.ts";
+import { buildInfographicExportScene } from "./infographic-export.ts";
 import { buildMindmapExportScene } from "./map-export.ts";
 import { gradeQuizQuestion } from "./quiz-grader.ts";
+import { exportSlideDeckArtifact } from "./slide-export.ts";
 import { exportDataTableArtifact } from "./table-export.ts";
 
 /** Owner/scope authorization and snapshot verification (D12); worker and API share the same port. */
@@ -105,6 +109,8 @@ function genericTitleForPlugin(pluginType: StudioPluginType): string {
   if (pluginType === "flashcards") return "Flashcards";
   if (pluginType === "quiz") return "Quiz";
   if (pluginType === "learning_overview") return "Learning Overview";
+  if (pluginType === "slide_deck") return "Slide Deck";
+  if (pluginType === "infographic") return "Infographic";
   return "Report";
 }
 
@@ -123,6 +129,12 @@ function unavailableMessageForPlugin(pluginType: StudioPluginType): string {
   }
   if (pluginType === "learning_overview") {
     return "This learning overview is unavailable because its sources changed or are no longer accessible.";
+  }
+  if (pluginType === "slide_deck") {
+    return "This slide deck is unavailable because its sources changed or are no longer accessible.";
+  }
+  if (pluginType === "infographic") {
+    return "This infographic is unavailable because its sources changed or are no longer accessible.";
   }
   return "This report is unavailable because its sources changed or are no longer accessible.";
 }
@@ -170,6 +182,8 @@ export class StudioService {
         card_count: req.card_count,
         question_count: req.question_count,
         section_count: req.section_count,
+        slide_count: req.slide_count,
+        style: req.style,
       },
       snapshot,
       output_language,
@@ -361,6 +375,34 @@ export class StudioService {
     return exportDataTableArtifact({
       artifactId: row.id,
       payload: row.payload_json as unknown as import("@everlast/contracts").StudioDataTablePayload,
+      body,
+    });
+  }
+
+  async exportSlideDeck(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (row.plugin_type !== "slide_deck" || row.status !== "Completed" || !row.payload_json || !("slides" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed slide_deck artifacts support presentation export.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    return exportSlideDeckArtifact({
+      artifactId: row.id,
+      title: row.title,
+      payload: row.payload_json as unknown as StudioSlideDeckPayload,
+      body,
+    });
+  }
+
+  async exportInfographic(ownerId: string, notebookId: string, id: string, body: unknown) {
+    const row = await this.owned(ownerId, notebookId, id);
+    if (row.plugin_type !== "infographic" || row.status !== "Completed" || !row.payload_json || !("rendered_svg" in row.payload_json)) {
+      throw new StudioConflictError("Only Completed infographic artifacts support visual export.");
+    }
+    await this.deps.access.verifySnapshot(ownerId, notebookId, row.source_revisions_snapshot);
+    return buildInfographicExportScene({
+      artifactId: row.id,
+      title: row.title,
+      payload: row.payload_json as unknown as StudioInfographicPayload,
       body,
     });
   }

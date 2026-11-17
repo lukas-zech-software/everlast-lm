@@ -39,10 +39,19 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   }, 5_000);
 }
 
+export interface SvgExportScene {
+  format: "svg" | "png";
+  svg: string;
+  width: number;
+  height: number;
+  scale?: 1 | 2;
+  filename: string;
+}
+
 /**
  * Rasterizes a validated self-contained SVG scene to a 2x resolution PNG Blob using the browser Canvas API.
  */
-export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene): Promise<Blob> {
+export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene | SvgExportScene): Promise<Blob> {
   const scale = scene.scale ?? 2;
   const targetWidth = Math.round(scene.width * scale);
   const targetHeight = Math.round(scene.height * scale);
@@ -87,7 +96,7 @@ export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene): P
   }
 }
 
-export async function downloadMindmapScene(scene: StudioMindmapExportScene): Promise<void> {
+export async function downloadMindmapScene(scene: StudioMindmapExportScene | SvgExportScene): Promise<void> {
   if (scene.format === "svg") {
     const blob = new Blob([scene.svg], { type: "image/svg+xml;charset=utf-8" });
     triggerBlobDownload(blob, scene.filename.endsWith(".svg") ? scene.filename : `${scene.filename}.svg`);

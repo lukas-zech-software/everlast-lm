@@ -25,6 +25,8 @@ import { validateDataTablePayload } from "./tables/validation.ts";
 import { validateFlashcardsPayload } from "./flashcards/validation.ts";
 import { validateQuizPayload } from "./quizzes/validation.ts";
 import { validateLearningOverviewPayload } from "./learning-overview/validation.ts";
+import { validateSlideDeckPayload } from "./slides/validation.ts";
+import { validateInfographicPayload } from "./infographics/validation.ts";
 
 /** Re-verifies owner access and source revisions (D12); throws InvalidScopeError / SourceSnapshotInvalidError. */
 export interface StudioAccessVerifier {
@@ -156,6 +158,8 @@ const DEFAULT_VALIDATORS: Record<StudioPluginType, StudioPayloadValidator> = {
   flashcards: (payload, chunks, snapshot) => validateFlashcardsPayload(payload, chunks, snapshot),
   quiz: (payload, chunks, snapshot) => validateQuizPayload(payload, chunks, snapshot),
   learning_overview: (payload, chunks, snapshot) => validateLearningOverviewPayload(payload, chunks, snapshot),
+  slide_deck: (payload, chunks, snapshot) => validateSlideDeckPayload(payload, chunks, snapshot),
+  infographic: (payload, chunks, snapshot) => validateInfographicPayload(payload, chunks, snapshot),
 };
 
 export class StudioJobRunner {

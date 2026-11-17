@@ -37,7 +37,7 @@ const RELEASE_OPTIONS = {
 };
 
 // Package Definitions and Mapping
-const PACKAGES = {
+export const PACKAGES = {
   "1.1": {
     release: "v1.0",
     epic: 2,
@@ -145,7 +145,7 @@ const PACKAGES = {
     release: "v4.0",
     epic: 14,
     issues: [58, 59, 60, 61],
-    slug: null,
+    slug: "014-studio-active-learning-suite",
     initialPr: null,
     convergePr: null,
   },
@@ -153,7 +153,7 @@ const PACKAGES = {
     release: "v4.0",
     epic: 15,
     issues: [62, 63],
-    slug: null,
+    slug: "015-studio-visuals-presentations",
     initialPr: null,
     convergePr: null,
   },
