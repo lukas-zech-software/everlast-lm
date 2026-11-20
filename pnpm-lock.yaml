@@ -156,8 +156,8 @@ importers:
         specifier: 2.4.0
         version: 2.4.0(@grpc/grpc-js@1.14.6)
       '@google/genai':
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.4.0
+        version: 3.4.0
       exceljs:
         specifier: 4.4.0
         version: 4.4.0
@@ -243,8 +243,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/notes
       '@google/genai':
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.4.0
+        version: 3.4.0
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
@@ -283,8 +283,8 @@ importers:
         specifier: ^8.4.0
         version: 8.4.0
       '@google/genai':
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.4.0
+        version: 3.4.0
       google-auth-library:
         specifier: ^11.3.4
         version: 11.3.4
@@ -352,8 +352,8 @@ importers:
         specifier: workspace:*
         version: link:../../apps/worker
       '@google/genai':
-        specifier: ^3.1.0
-        version: 3.1.0
+        specifier: ^3.4.0
+        version: 3.4.0
       google-auth-library:
         specifier: ^11.3.4
         version: 11.3.4
@@ -554,8 +554,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@google/genai@3.1.0':
-    resolution: {integrity: sha512-fKLeRkpULBDox+b5wmm4UN6PsUw1v5kP+8vJF1aq/wSpiI2sV4AuDtL0uZqu91AH4lc25fZ8sDa6cyCQOFyaXg==}
+  '@google/genai@3.4.0':
+    resolution: {integrity: sha512-qjsg+KMRSUmQSkg/BVwcbgE/ROVo91Lx933SOicDlS7viU+Z7sBwK/c8TMvW/9W0OvBy17rwa+/sXn0kdKrDZw==}
     engines: {node: '>=22.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -3154,7 +3154,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/genai@3.1.0':
+  '@google/genai@3.4.0':
     dependencies:
       google-auth-library: 10.9.1
       p-retry: 4.6.2
