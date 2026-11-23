@@ -146,7 +146,7 @@ export const PACKAGES = {
     epic: 14,
     issues: [58, 59, 60, 61],
     slug: "014-studio-active-learning-suite",
-    initialPr: null,
+    initialPr: 207,
     convergePr: null,
   },
   "4.2": {
@@ -154,7 +154,7 @@ export const PACKAGES = {
     epic: 15,
     issues: [62, 63],
     slug: "015-studio-visuals-presentations",
-    initialPr: null,
+    initialPr: 208,
     convergePr: null,
   },
   "5.1": {

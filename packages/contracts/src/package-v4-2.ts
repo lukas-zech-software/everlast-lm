@@ -22,8 +22,7 @@ import { countWords } from "./text-limits.ts";
  * Purity rule (`contracts-only`): imports ONLY `zod` and relative `./...` contract modules.
  */
 
-export const STUDIO_SLIDE_DECK_PLUGIN_TYPE = "slide_deck" as const;
-export const STUDIO_INFOGRAPHIC_PLUGIN_TYPE = "infographic" as const;
+export { STUDIO_INFOGRAPHIC_PLUGIN_TYPE, STUDIO_SLIDE_DECK_PLUGIN_TYPE } from "./package-v3-3.ts";
 
 export const SLIDE_COUNT_MIN = 5;
 export const SLIDE_COUNT_MAX = 20;
@@ -95,11 +94,48 @@ export function validateInfographicFocusPrompt(input: string): PromptValidationR
   return validateCodePointPrompt(input, INFOGRAPHIC_FOCUS_PROMPT_MAX, "Infographic focus prompt");
 }
 
+function isHtmlTagStartChar(ch: string | undefined): boolean {
+  if (!ch) return false;
+  return (ch >= "A" && ch <= "Z") || (ch >= "a" && ch <= "z") || ch === "!" || ch === "/";
+}
+
+/** Linear character scanner that removes `<[A-Za-z!/]...>` markup without regex sanitization pitfalls. */
+function stripAngleMarkup(text: string): string {
+  let current = text;
+  while (true) {
+    let changed = false;
+    const parts: string[] = [];
+    let lastCopied = 0;
+    let i = 0;
+    while (i < current.length) {
+      if (current[i] === "<" && isHtmlTagStartChar(current[i + 1])) {
+        if (i > lastCopied) {
+          parts.push(current.slice(lastCopied, i));
+        }
+        parts.push(" ");
+        const close = current.indexOf(">", i + 1);
+        i = close === -1 ? i + 1 : close + 1;
+        lastCopied = i;
+        changed = true;
+        continue;
+      }
+      i += 1;
+    }
+    if (!changed) {
+      return current.replace(/\s+/g, " ").trim();
+    }
+    if (lastCopied < current.length) {
+      parts.push(current.slice(lastCopied));
+    }
+    current = parts.join("");
+  }
+}
+
 export function enforceSlideBulletLimit(
   rawBullets: readonly string[],
   baseSpeakerNotes: string
 ): { bullets: string[]; speaker_notes: string } {
-  const cleaned = rawBullets.map((b) => b.replace(/<[A-Za-z!/][^>]*>/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
+  const cleaned = rawBullets.map((b) => stripAngleMarkup(b)).filter(Boolean);
   const kept: string[] = [];
   const overflow: string[] = [];
 
@@ -118,7 +154,7 @@ export function enforceSlideBulletLimit(
     }
   }
 
-  const base = baseSpeakerNotes.replace(/<[A-Za-z!/][^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const base = stripAngleMarkup(baseSpeakerNotes);
   const notesParts = [base, ...overflow].filter(Boolean);
   const finalBullets = kept.length > 0 ? kept : [base ? base.split(/\s+/).slice(0, SLIDE_MAX_BULLET_WORDS).join(" ") : "Key grounded takeaway"];
   const speaker_notes = notesParts.length > 0 ? notesParts.join(" ") : finalBullets.join(" ");

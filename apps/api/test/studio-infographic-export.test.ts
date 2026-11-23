@@ -90,4 +90,26 @@ describe("[015-studio-visuals-presentations] T016: Infographic export scene vali
       })
     ).toThrow();
   });
+
+  it("handles repeated-hyphen titles and width/height fallback SVG attributes linearly", () => {
+    const payload = makeInfographicPayload();
+    const repeatedHyphens = `${"-".repeat(10_000)}alpha${"-".repeat(10_000)}`;
+    const slugScene = buildInfographicExportScene({
+      artifactId: ART,
+      title: repeatedHyphens,
+      payload,
+      body: { format: "svg" },
+    });
+    expect(slugScene.filename).toBe("alpha.svg");
+
+    const fallbackSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500"><text x="10" y="20">AI-generated · Illustration</text></svg>`;
+    const vbScene = buildInfographicExportScene({
+      artifactId: ART,
+      title: "Architecture",
+      payload: { ...payload, rendered_svg: fallbackSvg },
+      body: { format: "png" },
+    });
+    expect(vbScene.width).toBe(800);
+    expect(vbScene.height).toBe(500);
+  });
 });

@@ -36,7 +36,9 @@ test("explicit acceptance requires its merged evidence PR", () => {
 
 test("v4.0 packages 4.1 and 4.2 track their spec slugs while Gate v4.0 stays Backlog until acceptance", () => {
   assert.equal(PACKAGES["4.1"].slug, "014-studio-active-learning-suite");
+  assert.equal(PACKAGES["4.1"].initialPr, 207);
   assert.equal(PACKAGES["4.2"].slug, "015-studio-visuals-presentations");
+  assert.equal(PACKAGES["4.2"].initialPr, 208);
   assert.equal(resolveGateState("v4.0"), "Backlog");
 
   if (existsSync("specs/014-studio-active-learning-suite")) {
@@ -47,7 +49,7 @@ test("v4.0 packages 4.1 and 4.2 track their spec slugs while Gate v4.0 stays Bac
   }
 
   assert.equal(
-    determinePackageState("4.1", { ...PACKAGES["4.1"], initialPr: 301 }, new Set([301]), []),
+    determinePackageState("4.1", PACKAGES["4.1"], new Set([207]), []),
     "In Progress"
   );
   assert.equal(

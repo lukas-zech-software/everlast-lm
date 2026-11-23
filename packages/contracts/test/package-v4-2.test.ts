@@ -194,6 +194,15 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
     expect(normalized.speaker_notes).toContain("Base speaker notes.");
     expect(normalized.speaker_notes).toContain("sixteen seventeen eighteen");
     expect(normalized.speaker_notes).toContain("Overflow sixth bullet pushed to speaker notes");
+
+    const sanitized = enforceSlideBulletLimit(
+      ["<scr<script>ipt>safe <<script>alert(1)</script>text"],
+      "<b<bold>>Notes</b>"
+    );
+    expect(sanitized.bullets[0]).not.toMatch(/<[A-Za-z!/]/);
+    expect(sanitized.speaker_notes).not.toMatch(/<[A-Za-z!/]/);
+    expect(sanitized.bullets[0]).toContain("safe");
+    expect(sanitized.speaker_notes).toContain("Notes");
   });
 
   it("validates StudioSlideDeckPayloadSchema, OOXML .pptx entries, and 16:9 multi-page .pdf bytes (FR-ST-16, Gate v4.0 #3)", () => {
