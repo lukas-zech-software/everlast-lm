@@ -206,8 +206,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cloud
       jsdom:
-        specifier: ^31.0.0
-        version: 31.0.0(@napi-rs/canvas@1.0.13)
+        specifier: ^31.0.1
+        version: 31.0.1(@napi-rs/canvas@1.0.13)
     devDependencies:
       '@everlast/testkit':
         specifier: workspace:*
@@ -277,8 +277,8 @@ importers:
         specifier: ^11.3.4
         version: 11.3.4
       jsdom:
-        specifier: ^31.0.0
-        version: 31.0.0(@napi-rs/canvas@1.0.13)
+        specifier: ^31.0.1
+        version: 31.0.1(@napi-rs/canvas@1.0.13)
       pdfjs-dist:
         specifier: ^6.5.438
         version: 6.5.438
@@ -1873,8 +1873,8 @@ packages:
       canvas:
         optional: true
 
-  jsdom@31.0.0:
-    resolution: {integrity: sha512-xAkhD9z1eyFC5+QUi9K24CaZJgdCQ2GOGLW1GdVDoQvkp/AxEH9TQ0pAplPOlIiV92hfcgnFOADZypbjgbBT6Q==}
+  jsdom@31.0.1:
+    resolution: {integrity: sha512-CbhJL8ZQg3eKswxSZth4QO9tW0jPIhmR0vtSXQSbKSfWbwIT6hoRc17wdHIVTQ43KI0mdV5iTJr3281IDgVZ5g==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@napi-rs/canvas': ^1.0.13
@@ -4596,7 +4596,7 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  jsdom@31.0.0(@napi-rs/canvas@1.0.13):
+  jsdom@31.0.1(@napi-rs/canvas@1.0.13):
     dependencies:
       '@exodus/bytes': 1.16.0
       bcp-47: 2.1.2
