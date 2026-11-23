@@ -35,6 +35,35 @@ describe("render request parsing (NFR-SEC-02)", () => {
       { RENDER_OPERATION_ID: "x; rm -rf /" },
     ];
     for (const patch of bad) expect(() => parseRenderRequest({ ...base, ...patch })).toThrow();
+
+    // [015-studio-visuals-presentations] T009 — studio artifact slide-deck PPTX -> PDF namespace isolation (FR-ST-16, NFR-SEC-02)
+    const ART = "6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3b99";
+    expect(
+      parseRenderRequest({
+        ...base,
+        RENDER_INPUT_OBJECT: `notebooks/${NB}/studio/${ART}/deck.pptx`,
+        RENDER_OUTPUT_OBJECT: `notebooks/${NB}/studio/${ART}/normalized/deck.pdf`,
+      })
+    ).toMatchObject({
+      command: "office-to-pdf",
+      inputObject: `notebooks/${NB}/studio/${ART}/deck.pptx`,
+      outputObject: `notebooks/${NB}/studio/${ART}/normalized/deck.pdf`,
+      inputFormat: "pptx",
+    });
+    expect(() =>
+      parseRenderRequest({
+        ...base,
+        RENDER_INPUT_OBJECT: `notebooks/${NB}/studio/${ART}/deck.pptx`,
+        RENDER_OUTPUT_OBJECT: `notebooks/${NB}/studio/${randomish()}/normalized/deck.pdf`,
+      })
+    ).toThrow();
+    expect(() =>
+      parseRenderRequest({
+        ...base,
+        RENDER_INPUT_OBJECT: `notebooks/${NB}/studio/${ART}/../escape.pptx`,
+        RENDER_OUTPUT_OBJECT: `notebooks/${NB}/studio/${ART}/normalized/deck.pdf`,
+      })
+    ).toThrow();
   });
 });
 

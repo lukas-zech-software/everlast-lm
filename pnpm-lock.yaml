@@ -6,6 +6,9 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 12.0.0
+        version: 12.0.0
       pnpm:
         specifier: 12.0.0
         version: 12.0.0
@@ -56,6 +59,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pnpm/exe@12.0.0':
+    resolution: {integrity: sha512-405vw2qYPPghNxoPRt2cvkGtGNU5gnInDcIe5TztQxe73yUZLqFJN/jCJFGs1xbVaIWDXEVuQ71P8npFZeatZQ==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
   pnpm@12.0.0:
     resolution: {integrity: sha512-ni49w5EZlYaNyUuBdcIXwn6VQI+gO0oidJd48rNPdzt3zdOznt6BcbIvzVO+ajU0Lp+smUimjvWN9kiM6Jp+Zw==}
     engines: {node: '>=18.*'}
@@ -86,6 +94,17 @@ snapshots:
 
   '@pnpm/exe.win32-x64@12.0.0':
     optional: true
+
+  '@pnpm/exe@12.0.0':
+    optionalDependencies:
+      '@pnpm/exe.darwin-arm64': 12.0.0
+      '@pnpm/exe.darwin-x64': 12.0.0
+      '@pnpm/exe.linux-arm64': 12.0.0
+      '@pnpm/exe.linux-arm64-musl': 12.0.0
+      '@pnpm/exe.linux-x64': 12.0.0
+      '@pnpm/exe.linux-x64-musl': 12.0.0
+      '@pnpm/exe.win32-arm64': 12.0.0
+      '@pnpm/exe.win32-x64': 12.0.0
 
   pnpm@12.0.0:
     optionalDependencies:
@@ -174,6 +193,9 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -224,6 +246,9 @@ importers:
       '@playwright/test':
         specifier: ^1.65.0
         version: 1.65.0
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -357,6 +382,9 @@ importers:
       google-auth-library:
         specifier: ^11.3.4
         version: 11.3.4
+      pdfjs-dist:
+        specifier: ^6.5.438
+        version: 6.5.438
       zod:
         specifier: ^4.6.7
         version: 4.6.7

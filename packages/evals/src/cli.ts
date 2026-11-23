@@ -16,6 +16,8 @@ import { buildGateReport, renderMarkdown, writeGateReport, type UiGateEvidence }
 import { renderStudioGate, runStudioReportsGate, runStudioReportsReleaseGate } from "./studio-gate.ts";
 import { renderSourceGuideGate, runSourceGuideReleaseGate } from "./source-guide-gate.ts";
 import { runStudioStructureDeterministicEval } from "./studio-structure-eval.ts";
+import { runStudioActiveLearningDeterministicEval } from "./studio-active-learning-eval.ts";
+import { runStudioVisualsDeterministicEval } from "./studio-v4-eval.ts";
 
 /**
  * `pnpm eval:deterministic` — every PR: Precision_ID and leakage with test doubles (no cloud), incl. an
@@ -233,6 +235,20 @@ try {
       `Gate v3.0 #3 Studio structure (Mindmap & Data Table): ${studioV3.passed ? "PASS" : "FAIL"} (models=${studioV3.models.mindmap}/${studioV3.models.data_table}, precision=${studioV3.citation_precision.toFixed(3)}, leakage=${studioV3.leakage_count}, late_fact=${studioV3.late_fact_retained})`
     );
     if (!studioV3.passed) exitCode = 1;
+
+    // Gate v4.0 #1 (FR-ST-12..15, NFR-EVAL-02/04, NFR-SEC-01): Studio Active Learning deterministic grounding, semantic grading & scoping gate.
+    const studioV4 = await runStudioActiveLearningDeterministicEval();
+    log(
+      `Gate v4.0 #1 Studio active learning (Flashcards, Quiz & Learning Overview): ${studioV4.passed ? "PASS" : "FAIL"} (precision=${studioV4.citation_precision.toFixed(3)}, leakage=${studioV4.leakage_count}, equiv=${studioV4.semantic_unit_equivalence_passed}, injection_blocked=${studioV4.injection_rejected}, explain_guard=${studioV4.explain_missing_scope_blocked})`
+    );
+    if (!studioV4.passed) exitCode = 1;
+
+    // Gate v4.0 #3 (FR-ST-16/17, NFR-EVAL-02/04, NFR-SEC-02): Slide Deck PPTX/PDF & Infographic D9 SVG gate.
+    const studioV4Visuals = await runStudioVisualsDeterministicEval();
+    log(
+      `Gate v4.0 #3 Studio visuals (Slide Deck PPTX/PDF & Infographic D9 SVG): ${studioV4Visuals.passed ? "PASS" : "FAIL"} (precision=${studioV4Visuals.citation_precision.toFixed(3)}, leakage=${studioV4Visuals.leakage_count}, slides=${studioV4Visuals.slide_count})`
+    );
+    if (!studioV4Visuals.passed) exitCode = 1;
   }
 
   // Gate v2.0 #1 (FR-SI-02): Source Guide < 30 s P95 from Ready on Vertex AI Flash-Lite (2 sources in smoke mode).

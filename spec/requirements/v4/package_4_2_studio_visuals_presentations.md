@@ -5,6 +5,7 @@
 - **FRs:** FR-ST-16, FR-ST-17
 - **Gate criteria (SRS §5.4):** Gate v4.0 #3 — slide deck export produces PPTX and PDF files that open without errors.
 - **Out of scope:** Narrated video rendering from slides (`v5.0` — `FR-ST-05` builds on this engine); Google Slides export (deferred: SRS §5.5 `DEV-02`, architecture decision D8).
+- **Stage 2 Clarifications (2026-11-16, `specs/015`):** `.pptx` exports emit sanitized OOXML PresentationML packages (16:9 slide geometry, editable `<p:sp>` text shapes, linked `notesSlide` speaker notes, zero macros/external links) alongside deterministic 16:9 multi-page `.pdf` output parseable by `pdfjs-dist` (with `everlast-render` private studio prefix `notebooks/{uuid}/studio/{uuid}/...` support); slide bullets cap at `<= 5` per slide (`<= 15` words) with overflow routed to `speaker_notes` and `visual_spec` structured IR preserved for `v5.0` `FR-ST-05`; `infographic` renders 5 deterministic `D9` SVG styles (`auto` resolving deterministically) with dynamic text wrapping and `2x` PNG export; `Failed`/`Cancelled` jobs offer `Retry` and expose zero partial exports.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 

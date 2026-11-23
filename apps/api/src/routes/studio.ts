@@ -37,7 +37,7 @@ export async function handleStudioRoute(
 ): Promise<boolean> {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
   const match = url.pathname.match(
-    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|cancel|convert-to-source|drilldown|export))?)?|report-suggestions)$/
+    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|cancel|convert-to-source|drilldown|export|progress|progress\/reset|grade|explain))?)?|report-suggestions)$/
   );
   if (!match) return false;
   const [, notebookId, target, artifactId, action] = match as unknown as [string, string, string, string | undefined, string | undefined];
@@ -73,14 +73,21 @@ export async function handleStudioRoute(
       sendJson(res, 201, await service.convert(userId, notebookId, artifactId));
     } else if (artifactId && action === "drilldown" && method === "POST") {
       sendJson(res, 200, await service.drilldown(userId, notebookId, artifactId, body));
+    } else if (artifactId && action === "progress" && method === "GET") {
+      sendJson(res, 200, await service.getProgress(userId, notebookId, artifactId));
+    } else if (artifactId && action === "progress" && method === "POST") {
+      sendJson(res, 200, await service.recordProgress(userId, notebookId, artifactId, body));
+    } else if (artifactId && action === "progress" && method === "DELETE") {
+      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, {}, true));
+    } else if (artifactId && action === "progress/reset" && method === "POST") {
+      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, body));
+    } else if (artifactId && action === "grade" && method === "POST") {
+      sendJson(res, 200, await service.gradeQuiz(userId, notebookId, artifactId, body));
+    } else if (artifactId && action === "explain" && method === "POST") {
+      sendJson(res, 200, await service.explainItem(userId, notebookId, artifactId, body));
     } else if (artifactId && action === "export" && method === "POST") {
       const row = await service.ownedArtifact(userId, notebookId, artifactId);
-      if (row.plugin_type === "mindmap") {
-        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
-        res.setHeader("Cache-Control", "private, no-store");
-        sendJson(res, 200, scene);
-      } else if (row.plugin_type === "data_table") {
-        const exported = await service.exportDataTable(userId, notebookId, artifactId, body);
+      const writeBinary = (exported: { contentType: string; filename: string; bytes: Uint8Array }) => {
         res.writeHead(200, {
           "Content-Type": exported.contentType,
           "Content-Disposition": `attachment; filename="${exported.filename}"`,
@@ -88,6 +95,19 @@ export async function handleStudioRoute(
           "Content-Length": String(exported.bytes.byteLength),
         });
         res.end(Buffer.from(exported.bytes));
+      };
+      if (row.plugin_type === "mindmap") {
+        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
+        res.setHeader("Cache-Control", "private, no-store");
+        sendJson(res, 200, scene);
+      } else if (row.plugin_type === "infographic") {
+        const scene = await service.exportInfographic(userId, notebookId, artifactId, body);
+        res.setHeader("Cache-Control", "private, no-store");
+        sendJson(res, 200, scene);
+      } else if (row.plugin_type === "data_table") {
+        writeBinary(await service.exportDataTable(userId, notebookId, artifactId, body));
+      } else if (row.plugin_type === "slide_deck") {
+        writeBinary(await service.exportSlideDeck(userId, notebookId, artifactId, body));
       } else {
         throw new StudioConflictError("Export is not supported for this artifact kind.");
       }

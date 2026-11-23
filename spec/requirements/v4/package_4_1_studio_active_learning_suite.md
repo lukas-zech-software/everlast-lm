@@ -5,6 +5,7 @@
 - **FRs:** FR-ST-12, FR-ST-13, FR-ST-14, FR-ST-15
 - **Gate criteria (SRS §5.4):** Gate v4.0 #1 — Lernkarten- und Quiz-Generatoren decken nur aktive Quellen $S_{\text{aktiv}}$ ab; Gate v4.0 #2 — Lernfortschritts-State (`FR-ST-15`) persistiert falsch beantwortete Fragen für gezielte Wiederholung.
 - **Out of scope:** Export to external LMS via SCORM/LTI (not scheduled in the SRS).
+- **Stage 1 Clarifications (2026-11-16, `specs/014`):** Flashcards and Quiz questions carry UUID `id`s (`FR-ST-15`), `"Explain"` enforces a server-side $S_{\text{aktiv}}$ scope guard returning `409 SupportingSourcesRequired` when supporting source revisions are missing (`FR-GC-01`, `NFR-EVAL-04`), and `FR-ST-12` uses shared deterministic SVG concept diagram rendering (`D9`) while Package 4.2 (`FR-ST-16`, `FR-ST-17`) adds standalone Slide Decks and full 5-style Infographics.
 
 **Cross-package rules:** [Binding scope, roles, lifecycle, quotas and validation](../README.md#binding-cross-package-rules).
 
@@ -209,7 +210,7 @@ Scenario: Missed quiz questions persist across sessions for targeted review (Gat
 | Release / Package | v4.0 / 4.1 |
 | Priority (within package) | P2 |
 | Actors | Owner/Editor (generate), Viewer (interact) |
-| Depends on | FR-ST-10, FR-ST-13, FR-ST-14, FR-ST-15, FR-ST-17 (package 4.2), C-02, C-03 |
+| Depends on | FR-ST-10, FR-ST-13, FR-ST-14, FR-ST-15, deterministic `D9` SVG diagrams (standalone `FR-ST-17` follows in Package 4.2), C-02, C-03 |
 | Reference provenance (unverified) | 2026-10-15, Enterprise SRS §3.5.4 |
 
 **Requirement (EARS)**
