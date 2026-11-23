@@ -16,6 +16,7 @@
     "@everlast/db": "workspace:*",
     "@everlast/worker": "workspace:*",
     "@playwright/test": "^1.65.0",
+    "pdfjs-dist": "^6.5.438",
     "typescript": "^7.0.2",
     "@everlast/testkit": "workspace:*"
   }
