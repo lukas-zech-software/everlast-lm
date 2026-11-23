@@ -20,6 +20,7 @@ import {
   validateSafeDeterministicSvg,
   validateShortAnswerInput,
   GradeQuizQuestionRequestSchema,
+  evaluateDeterministicSemantic,
 } from "../src/index.ts";
 
 /**
@@ -75,6 +76,17 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
     expect(QuizShortAnswerInputSchema.safeParse("  \n\t ").success).toBe(false);
     expect(QuizShortAnswerInputSchema.parse(` ${"💡".repeat(1000)} `)).toBe("💡".repeat(1000));
     expect(QuizShortAnswerInputSchema.safeParse("💡".repeat(1001)).success).toBe(false);
+  });
+
+  it("handles long repeated numeric input deterministically during quiz grading", () => {
+    const repeatedZeros = "0".repeat(10_000);
+    expect(
+      evaluateDeterministicSemantic(
+        `${repeatedZeros} megabytes`,
+        "200 megabytes",
+        "The answer is 200 megabytes.",
+      ),
+    ).toEqual({ matched: false, conclusive: true });
   });
 
   it("validates CreateStudioJobRequestSchema for flashcards, quiz, and learning_overview while rejecting cross-plugin mismatch", () => {

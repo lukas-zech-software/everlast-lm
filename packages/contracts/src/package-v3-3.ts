@@ -10,14 +10,18 @@ import type { PromptValidationResult } from "./package-v2-4.ts";
 
 export const STUDIO_MINDMAP_PLUGIN_TYPE = "mindmap" as const;
 export const STUDIO_DATA_TABLE_PLUGIN_TYPE = "data_table" as const;
+export const STUDIO_REPORT_PLUGIN_TYPE = "report" as const;
+export const STUDIO_FLASHCARDS_PLUGIN_TYPE = "flashcards" as const;
+export const STUDIO_QUIZ_PLUGIN_TYPE = "quiz" as const;
+export const STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE = "learning_overview" as const;
 
 export const StudioPluginTypeSchema = z.enum([
-  "report",
-  "mindmap",
-  "data_table",
-  "flashcards",
-  "quiz",
-  "learning_overview",
+  STUDIO_REPORT_PLUGIN_TYPE,
+  STUDIO_MINDMAP_PLUGIN_TYPE,
+  STUDIO_DATA_TABLE_PLUGIN_TYPE,
+  STUDIO_FLASHCARDS_PLUGIN_TYPE,
+  STUDIO_QUIZ_PLUGIN_TYPE,
+  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
 ]);
 export type StudioPluginType = z.infer<typeof StudioPluginTypeSchema>;
 

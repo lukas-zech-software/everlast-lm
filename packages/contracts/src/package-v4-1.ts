@@ -3,7 +3,10 @@ import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { OutputLanguageSchema } from "./package-v2-1.ts";
 import { StudioParamsError, type PromptValidationResult } from "./package-v2-4.ts";
 import {
+  STUDIO_FLASHCARDS_PLUGIN_TYPE,
+  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
   STUDIO_NODE_ID_PATTERN,
+  STUDIO_QUIZ_PLUGIN_TYPE,
   StudioCoverageManifestSchema,
   StudioEvidenceRefSchema,
   type StudioEvidenceRef,
@@ -17,9 +20,11 @@ import type { SourceRevisionPair } from "./scoped-context.ts";
  * Purity rule (`contracts-only`): imports ONLY `zod` and relative `./...` contract modules.
  */
 
-export const STUDIO_FLASHCARDS_PLUGIN_TYPE = "flashcards" as const;
-export const STUDIO_QUIZ_PLUGIN_TYPE = "quiz" as const;
-export const STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE = "learning_overview" as const;
+export {
+  STUDIO_FLASHCARDS_PLUGIN_TYPE,
+  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
+  STUDIO_QUIZ_PLUGIN_TYPE,
+} from "./package-v3-3.ts";
 
 export const PEDAGOGY_FOCUS_PROMPT_MAX = 1000;
 export const QUIZ_SHORT_ANSWER_MAX = 1000;
@@ -909,19 +914,50 @@ interface NormalizedQuantity {
 
 function extractQuantities(text: string): NormalizedQuantity[] {
   const out: NormalizedQuantity[] = [];
-  const unitRe =
-    /(\d+(?:[.,]\d+)?)\s*(terabytes?|tib|tb|gigabytes?|gib|gb|megabytes?|mib|mb|kilobytes?|kib|kb|bytes?|milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|min|hours?|hrs?|h|%)\b/gi;
-  for (const m of text.matchAll(unitRe)) {
-    const rawNum = Number(m[1]!.replaceAll(",", ""));
-    const unit = m[2]!.toLowerCase();
+  let index = 0;
+  while (index < text.length) {
+    if (text[index]! < "0" || text[index]! > "9") {
+      index++;
+      continue;
+    }
+
+    const numberStart = index;
+    while (index < text.length && text[index]! >= "0" && text[index]! <= "9") index++;
+    if (
+      index < text.length &&
+      (text[index] === "." || text[index] === ",") &&
+      index + 1 < text.length &&
+      text[index + 1]! >= "0" &&
+      text[index + 1]! <= "9"
+    ) {
+      index++;
+      while (index < text.length && text[index]! >= "0" && text[index]! <= "9") index++;
+    }
+
+    const rawNumber = text.slice(numberStart, index).replace(",", ".");
+    let unitStart = index;
+    while (unitStart < text.length && /\s/.test(text[unitStart]!)) unitStart++;
+
+    let unitEnd = unitStart;
+    if (text[unitStart] === "%") {
+      unitEnd++;
+    } else {
+      while (unitEnd < text.length && /[A-Za-z]/.test(text[unitEnd]!)) unitEnd++;
+    }
+
+    const unit = text.slice(unitStart, unitEnd).toLowerCase();
+    if (unitEnd === unitStart) continue;
+
+    const rawNum = Number(rawNumber);
     if (!Number.isFinite(rawNum)) continue;
-    if (unit in STORAGE_UNIT_FACTORS) {
+    if (Object.prototype.hasOwnProperty.call(STORAGE_UNIT_FACTORS, unit)) {
       out.push({ dimension: "storage", value: rawNum * STORAGE_UNIT_FACTORS[unit]! });
-    } else if (unit in TIME_UNIT_FACTORS) {
+    } else if (Object.prototype.hasOwnProperty.call(TIME_UNIT_FACTORS, unit)) {
       out.push({ dimension: "time", value: rawNum * TIME_UNIT_FACTORS[unit]! });
     } else if (unit === "%") {
       out.push({ dimension: "percent", value: rawNum });
     }
+    index = unitEnd;
   }
   return out;
 }

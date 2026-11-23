@@ -7,6 +7,7 @@ import {
   DataTableSchemaIdSchema,
   STUDIO_DATA_TABLE_PLUGIN_TYPE,
   STUDIO_MINDMAP_PLUGIN_TYPE,
+  STUDIO_REPORT_PLUGIN_TYPE,
   StudioDataTableParamsSchema,
   StudioDataTablePayloadSchema,
   StudioMindmapParamsSchema,
@@ -48,7 +49,7 @@ import {
  * Defines C-03 StudioGeneratorPlugin, the StudioPluginRegistry and report DTOs once (D2).
  */
 
-export const STUDIO_REPORT_PLUGIN_TYPE = "report" as const;
+export { STUDIO_REPORT_PLUGIN_TYPE } from "./package-v3-3.ts";
 export const CUSTOM_REPORT_PROMPT_MAX = 5000;
 
 export const ReportTemplateTypeSchema = z.enum(["briefing_doc", "study_guide", "faq", "timeline"]);
