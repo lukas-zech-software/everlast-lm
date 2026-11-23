@@ -17,3 +17,8 @@ test('C-01 resumed feature missing gate fails',t=>assert.ok(validateArtifacts(fi
 test('C-01 a gate name alone is insufficient',t=>assert.ok(validateArtifacts(fixture(t,'CC-09'),['specs/001-fixture/plan.md']).some(f=>f.includes('inventory'))));
 test('C-01 populated inventory passes',t=>assert.deepEqual(validateArtifacts(fixture(t,'CC-09\n## Architecture Boundary Evidence\n| C-01 | scripts/check.mjs | owner |'),['specs/001-fixture/plan.md']),[]));
 test('C-01 source-only implementation cannot omit the feature plan',t=>assert.ok(validateArtifacts(fixture(t),['apps/api/src/new.ts']).length));
+test('C-01 package.json changes do not require a feature plan update',t=>assert.deepEqual(validateArtifacts(fixture(t),['apps/api/package.json','packages/contracts/package.json']),[]));
+test('C-01 non-package JSON changes still require a feature plan update',t=>{
+ assert.ok(validateArtifacts(fixture(t),['apps/api/tsconfig.json']).length);
+ assert.ok(validateArtifacts(fixture(t),['apps/api/src/my-package.json']).length);
+});

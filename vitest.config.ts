@@ -49,6 +49,23 @@ const UNIT = [
   "apps/worker/test/studio-context-cache.test.ts",
   "apps/worker/test/studio-context-plan.test.ts",
   "apps/worker/test/studio-reduction.test.ts",
+  // Package 4.1 (specs/014 T002): pure active learning pipeline, semantic quiz grader, web viewer, and eval tests.
+  "apps/worker/test/flashcards.test.ts",
+  "apps/worker/test/quiz.test.ts",
+  "apps/worker/test/learning-overview.test.ts",
+  "apps/api/test/studio-quiz-grader.test.ts",
+  "apps/web/test/studio-flashcards.test.ts",
+  "apps/web/test/studio-quiz.test.ts",
+  "apps/web/test/studio-learning-overview.test.ts",
+  "packages/evals/test/studio-active-learning.eval.test.ts",
+  // Package 4.2 (specs/015 T002): pure slide deck/infographic pipeline, PPTX/PDF/SVG export, web viewer, and eval tests.
+  "apps/worker/test/slide-deck.test.ts",
+  "apps/worker/test/infographic.test.ts",
+  "apps/api/test/studio-slide-export.test.ts",
+  "apps/api/test/studio-infographic-export.test.ts",
+  "apps/web/test/studio-slide-deck.test.ts",
+  "apps/web/test/studio-infographic.test.ts",
+  "packages/evals/test/studio-v4.eval.test.ts",
 ];
 
 export default defineConfig({

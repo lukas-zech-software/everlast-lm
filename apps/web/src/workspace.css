@@ -339,3 +339,163 @@ input, textarea { font: inherit; color: inherit; }
 .studio-table-controls { display: flex; gap: 6px; align-items: center; }
 .table-sort-btn { border: 0; background: transparent; font-weight: 600; cursor: pointer; font-size: 13px; padding: 2px; color: var(--text); }
 .table-conflict-value { margin-top: 4px; font-size: 12px; }
+
+/* Package 4.1 (FR-ST-12/13/14/15, specs/014): Active Learning Suite */
+.active-learning-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.active-learning-mastery { font-weight: 600; }
+.active-learning-note { margin: 6px 0; font-size: 13px; }
+.flashcard-stage { perspective: 900px; min-height: 180px; border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--panel); cursor: pointer; transition: transform 0.25s ease, border-color 0.2s ease; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.flashcard-stage.flipped { border-color: var(--accent, #2563eb); transform: rotateY(2deg); }
+.flashcard-face { display: flex; flex-direction: column; gap: 8px; }
+.flashcard-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.quiz-question-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.quiz-options { display: flex; flex-direction: column; gap: 6px; }
+.quiz-option-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.quiz-feedback-correct { border-left: 3px solid #16a34a; padding: 8px 10px; background: rgba(22, 163, 74, 0.08); border-radius: 6px; }
+.quiz-feedback-incorrect { border-left: 3px solid #dc2626; padding: 8px 10px; background: rgba(220, 38, 38, 0.08); border-radius: 6px; }
+.quiz-summary-card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+.overview-module { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.overview-diagram svg { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+.overview-flashcards { display: grid; gap: 8px; }
+.overview-checkpoint-quiz { border-top: 1px solid var(--border); padding-top: 10px; }
+
+/* [015-studio-visuals-presentations] T014, T020 — Slide Deck & Visual Infographic viewers */
+.studio-slide-deck-viewer,
+.studio-infographic-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.studio-slide-stage {
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.75rem;
+  overflow: auto;
+}
+
+.studio-slide-layout-chip {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.studio-slide-stage-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.studio-slide-callout {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.studio-slide-callout-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.studio-slide-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.studio-slide-col {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #ffffff;
+}
+
+.studio-slide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.studio-slide-table th,
+.studio-slide-table td {
+  border: 1px solid #cbd5e1;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.studio-slide-diagram {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.studio-slide-diagram-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #e0f2fe;
+  font-size: 0.85rem;
+}
+
+.studio-slide-controls,
+.studio-slide-citations,
+.studio-infographic-citations {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.studio-slide-notes {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.studio-slide-thumbnails {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+}
+
+.studio-slide-thumb {
+  min-width: 120px;
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.studio-slide-thumb.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.studio-infographic-canvas {
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 0.75rem;
+  overflow: auto;
+  max-height: 520px;
+}
+
+.studio-infographic-stage-inner svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}

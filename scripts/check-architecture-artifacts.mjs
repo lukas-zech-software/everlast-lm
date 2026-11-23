@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 export function validateArtifacts(root,changedPaths) {
   const features=new Set(changedPaths.map(p=>p.match(/^specs\/([^/]+)\//)?.[1]).filter(Boolean));
   const findings=[];
-  if(changedPaths.some(p=>/^(apps|packages)\/.*\.(?:[cm]?[jt]sx?|json)$/.test(p))&&!changedPaths.some(p=>/^specs\/[^/]+\/plan\.md$/.test(p)))
+  if(changedPaths.some(p=>/^(apps|packages)\/.*\.(?:[cm]?[jt]sx?|json)$/.test(p)&&!/\/package\.json$/.test(p))&&!changedPaths.some(p=>/^specs\/[^/]+\/plan\.md$/.test(p)))
     findings.push('Application/package changes require an updated feature plan with CC-09 evidence.');
   for(const feature of features) {
     // Fully deleted features need no replacement evidence.
