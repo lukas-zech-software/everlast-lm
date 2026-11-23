@@ -7,6 +7,7 @@ import {
   DataTableSchemaIdSchema,
   STUDIO_DATA_TABLE_PLUGIN_TYPE,
   STUDIO_MINDMAP_PLUGIN_TYPE,
+  STUDIO_REPORT_PLUGIN_TYPE,
   StudioDataTableParamsSchema,
   StudioDataTablePayloadSchema,
   StudioMindmapParamsSchema,
@@ -19,13 +20,36 @@ import {
   type StudioMindmapPayload,
   type StudioPluginType,
 } from "./package-v3-3.ts";
+import {
+  FlashcardCountInputSchema,
+  LEARNING_OVERVIEW_MAX_SECTIONS,
+  LEARNING_OVERVIEW_MIN_SECTIONS,
+  PedagogyDifficultySchema,
+  QUIZ_MAX_QUESTIONS,
+  QUIZ_MIN_QUESTIONS,
+  STUDIO_FLASHCARDS_PLUGIN_TYPE,
+  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
+  STUDIO_QUIZ_PLUGIN_TYPE,
+  StudioFlashcardsParamsSchema,
+  StudioFlashcardsPayloadSchema,
+  StudioLearningOverviewParamsSchema,
+  StudioLearningOverviewPayloadSchema,
+  StudioQuizParamsSchema,
+  StudioQuizPayloadSchema,
+  validatePedagogyFocusPrompt,
+  type FlashcardCountInput,
+  type PedagogyDifficulty,
+  type StudioFlashcardsPayload,
+  type StudioLearningOverviewPayload,
+  type StudioQuizPayload,
+} from "./package-v4-1.ts";
 
 /**
  * Package 2.4 — Studio Text Synthesis & Reports (FR-ST-10, FR-ST-11, C-02, C-03).
  * Defines C-03 StudioGeneratorPlugin, the StudioPluginRegistry and report DTOs once (D2).
  */
 
-export const STUDIO_REPORT_PLUGIN_TYPE = "report" as const;
+export { STUDIO_REPORT_PLUGIN_TYPE } from "./package-v3-3.ts";
 export const CUSTOM_REPORT_PROMPT_MAX = 5000;
 
 export const ReportTemplateTypeSchema = z.enum(["briefing_doc", "study_guide", "faq", "timeline"]);
@@ -191,11 +215,18 @@ export const StudioParamsJsonSchema = z.union([
   StudioReportParamsSchema,
   StudioDataTableParamsSchema,
   StudioMindmapParamsSchema,
+  StudioFlashcardsParamsSchema,
+  StudioQuizParamsSchema,
+  StudioLearningOverviewParamsSchema,
 ]);
 export type StudioParamsJson = {
   custom_prompt?: string;
   schema_id?: DataTableSchemaId;
   focus_prompt?: string;
+  difficulty?: PedagogyDifficulty;
+  card_count?: FlashcardCountInput;
+  question_count?: number;
+  section_count?: number;
   [key: string]: unknown;
 };
 
@@ -203,8 +234,17 @@ export const StudioPayloadJsonSchema = z.union([
   StudioReportPayloadSchema,
   StudioMindmapPayloadSchema,
   StudioDataTablePayloadSchema,
+  StudioFlashcardsPayloadSchema,
+  StudioQuizPayloadSchema,
+  StudioLearningOverviewPayloadSchema,
 ]);
-export type StudioPayloadJson = StudioReportPayload | StudioMindmapPayload | StudioDataTablePayload;
+export type StudioPayloadJson =
+  | StudioReportPayload
+  | StudioMindmapPayload
+  | StudioDataTablePayload
+  | StudioFlashcardsPayload
+  | StudioQuizPayload
+  | StudioLearningOverviewPayload;
 
 export const StudioArtifactSchema = z
   .object({
@@ -282,6 +322,27 @@ export const StudioArtifactSchema = z
             ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
           }
         }
+      } else if (artifact.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE) {
+        const parsed = StudioFlashcardsPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
+      } else if (artifact.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE) {
+        const parsed = StudioQuizPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
+      } else if (artifact.plugin_type === STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE) {
+        const parsed = StudioLearningOverviewPayloadSchema.safeParse(artifact.payload_json);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
+          }
+        }
       }
     }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
@@ -303,7 +364,10 @@ export const StudioArtifactSchema = z
   });
 export type StudioCombinedPayload = StudioReportPayload &
   Partial<StudioMindmapPayload> &
-  Partial<StudioDataTablePayload>;
+  Partial<StudioDataTablePayload> &
+  Partial<StudioFlashcardsPayload> &
+  Partial<StudioQuizPayload> &
+  Partial<StudioLearningOverviewPayload>;
 
 export interface StudioArtifact {
   id: string;
@@ -338,11 +402,20 @@ export const CreateStudioJobRequestSchema = z
     custom_prompt: CustomReportPromptSchema.optional(),
     focus_prompt: DataTableFocusPromptSchema.optional(),
     schema_id: DataTableSchemaIdSchema.optional(),
+    difficulty: PedagogyDifficultySchema.optional(),
+    card_count: FlashcardCountInputSchema.optional(),
+    question_count: z.number().int().min(QUIZ_MIN_QUESTIONS).max(QUIZ_MAX_QUESTIONS).optional(),
+    section_count: z.number().int().min(LEARNING_OVERVIEW_MIN_SECTIONS).max(LEARNING_OVERVIEW_MAX_SECTIONS).optional(),
     /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
     output_language: OutputLanguageSchema.optional(),
   })
   .strict()
   .superRefine((req, ctx) => {
+    const hasPedagogyFields =
+      req.difficulty !== undefined ||
+      req.card_count !== undefined ||
+      req.question_count !== undefined ||
+      req.section_count !== undefined;
     if (req.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
       if (!ReportSubtypeSchema.safeParse(req.subtype).success) {
         ctx.addIssue({
@@ -358,11 +431,11 @@ export const CreateStudioJobRequestSchema = z
           message: `custom_prompt is required for subtype ${req.subtype}`,
         });
       }
-      if (req.focus_prompt !== undefined || req.schema_id !== undefined) {
+      if (req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "focus_prompt and schema_id are only valid for data_table requests",
+          message: "focus_prompt, schema_id, and active-learning parameters are not valid for report requests",
         });
       }
     } else if (req.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
@@ -373,11 +446,11 @@ export const CreateStudioJobRequestSchema = z
           message: `Unknown mindmap subtype ${req.subtype}`,
         });
       }
-      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined) {
+      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["plugin_type"],
-          message: "mindmap/default accepts no custom_prompt, focus_prompt or schema_id parameters",
+          message: "mindmap/default accepts no custom_prompt, focus_prompt, schema_id, or active-learning parameters",
         });
       }
     } else if (req.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
@@ -388,11 +461,60 @@ export const CreateStudioJobRequestSchema = z
           message: `Unknown data_table subtype ${req.subtype}`,
         });
       }
-      if (req.custom_prompt !== undefined) {
+      if (req.custom_prompt !== undefined || hasPedagogyFields) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["custom_prompt"],
-          message: "data_table/default uses focus_prompt rather than custom_prompt",
+          message: "data_table/default uses focus_prompt and schema_id only",
+        });
+      }
+    } else {
+      if (req.subtype !== "default") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["subtype"],
+          message: `Unknown ${req.plugin_type} subtype ${req.subtype}`,
+        });
+      }
+      if (req.custom_prompt !== undefined || req.schema_id !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: `${req.plugin_type}/default does not accept custom_prompt or schema_id`,
+        });
+      }
+      if (req.focus_prompt !== undefined) {
+        const promptCheck = validatePedagogyFocusPrompt(req.focus_prompt);
+        if (!promptCheck.valid) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["focus_prompt"],
+            message: promptCheck.error ?? "Invalid focus prompt",
+          });
+        }
+      }
+      if (req.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE && (req.question_count !== undefined || req.section_count !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "flashcards/default does not accept question_count or section_count",
+        });
+      }
+      if (req.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE && (req.card_count !== undefined || req.section_count !== undefined)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "quiz/default does not accept card_count or section_count",
+        });
+      }
+      if (
+        req.plugin_type === STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE &&
+        (req.card_count !== undefined || req.question_count !== undefined || req.difficulty !== undefined)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["plugin_type"],
+          message: "learning_overview/default accepts section_count and focus_prompt only",
         });
       }
     }
@@ -504,6 +626,10 @@ export interface StudioJobRequest {
     custom_prompt?: string | undefined;
     focus_prompt?: string | undefined;
     schema_id?: DataTableSchemaId | undefined;
+    difficulty?: PedagogyDifficulty | undefined;
+    card_count?: FlashcardCountInput | undefined;
+    question_count?: number | undefined;
+    section_count?: number | undefined;
   };
   snapshot: SourceRevisionPair[];
   output_language?: string | undefined;

@@ -339,3 +339,22 @@ input, textarea { font: inherit; color: inherit; }
 .studio-table-controls { display: flex; gap: 6px; align-items: center; }
 .table-sort-btn { border: 0; background: transparent; font-weight: 600; cursor: pointer; font-size: 13px; padding: 2px; color: var(--text); }
 .table-conflict-value { margin-top: 4px; font-size: 12px; }
+
+/* Package 4.1 (FR-ST-12/13/14/15, specs/014): Active Learning Suite */
+.active-learning-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.active-learning-mastery { font-weight: 600; }
+.active-learning-note { margin: 6px 0; font-size: 13px; }
+.flashcard-stage { perspective: 900px; min-height: 180px; border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--panel); cursor: pointer; transition: transform 0.25s ease, border-color 0.2s ease; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.flashcard-stage.flipped { border-color: var(--accent, #2563eb); transform: rotateY(2deg); }
+.flashcard-face { display: flex; flex-direction: column; gap: 8px; }
+.flashcard-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.quiz-question-card { border: 1px solid var(--border); border-radius: 10px; padding: 14px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.quiz-options { display: flex; flex-direction: column; gap: 6px; }
+.quiz-option-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.quiz-feedback-correct { border-left: 3px solid #16a34a; padding: 8px 10px; background: rgba(22, 163, 74, 0.08); border-radius: 6px; }
+.quiz-feedback-incorrect { border-left: 3px solid #dc2626; padding: 8px 10px; background: rgba(220, 38, 38, 0.08); border-radius: 6px; }
+.quiz-summary-card { border: 1px solid var(--border); border-radius: 10px; padding: 16px; background: var(--panel); display: flex; flex-direction: column; gap: 8px; }
+.overview-module { border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-top: 12px; background: var(--panel); display: flex; flex-direction: column; gap: 10px; }
+.overview-diagram svg { max-width: 100%; height: auto; display: block; border-radius: 6px; }
+.overview-flashcards { display: grid; gap: 8px; }
+.overview-checkpoint-quiz { border-top: 1px solid var(--border); padding-top: 10px; }

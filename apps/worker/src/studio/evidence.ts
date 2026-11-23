@@ -89,3 +89,6 @@ export function verifyEvidenceCoverage(coverage:StudioCoverageManifest|undefined
  for(const chunk of chunks)if(revisions.get(chunk.source_id)!==chunk.revision)return `Chunk ${chunk.chunk_id} has out-of-snapshot source or stale revision.`;
  return null;
 }
+
+/** Verifies every citation badge resolves to an in-snapshot chunk containing the exact snippet (NFR-EVAL-02 / D13). */
+export { verifyStudioCitations } from '@everlast/contracts';

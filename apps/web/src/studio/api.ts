@@ -1,10 +1,16 @@
 import type {
   DataTableExportFormat,
   DataTableSchemaId,
+  FlashcardCountInput,
+  GradeQuizQuestionResponse,
+  LearningItemOutcome,
+  LearningProgressDto,
   MindmapExportFormat,
+  PedagogyDifficulty,
   ReportSuggestionsResult,
   StudioArtifact,
   StudioDrilldownResponse,
+  StudioExplainResponse,
   StudioMindmapExportScene,
 } from "@everlast/contracts";
 
@@ -31,6 +37,32 @@ export type CreateBody =
       focus_prompt?: string;
       schema_id?: DataTableSchemaId;
       output_language?: string;
+    }
+  | {
+      plugin_type: "flashcards";
+      subtype: "default";
+      active_source_ids: string[];
+      difficulty?: PedagogyDifficulty;
+      card_count?: FlashcardCountInput;
+      focus_prompt?: string;
+      output_language?: string;
+    }
+  | {
+      plugin_type: "quiz";
+      subtype: "default";
+      active_source_ids: string[];
+      question_count?: number;
+      difficulty?: PedagogyDifficulty;
+      focus_prompt?: string;
+      output_language?: string;
+    }
+  | {
+      plugin_type: "learning_overview";
+      subtype: "default";
+      active_source_ids: string[];
+      section_count?: number;
+      focus_prompt?: string;
+      output_language?: string;
     };
 
 export interface StudioApi {
@@ -49,6 +81,14 @@ export interface StudioApi {
     contentType: string;
     filename: string;
   }>;
+  getProgress?(id: string): Promise<{ progress: LearningProgressDto }>;
+  recordProgress?(id: string, body: { item_id: string; outcome: LearningItemOutcome }): Promise<{ progress: LearningProgressDto }>;
+  resetProgress?(id: string): Promise<{ progress: LearningProgressDto }>;
+  gradeQuiz?(id: string, body: { question_id: string; answer: string | string[] }): Promise<GradeQuizQuestionResponse>;
+  explainItem?(
+    id: string,
+    body: { item_id: string; item_kind?: "flashcard" | "quiz_question"; active_source_ids: string[] }
+  ): Promise<StudioExplainResponse>;
 }
 
 export class StudioApiError extends Error {
@@ -100,6 +140,11 @@ export function createStudioApi(opts: { notebookId: string; token?: string; fetc
       call("/report-suggestions", "POST", { active_source_ids: ids, ...(lang ? { output_language: lang } : {}) }),
     exportMindmap: (id, body) => call(`/artifacts/${enc(id)}/export`, "POST", body),
     drilldownMindmap: (id, body) => call(`/artifacts/${enc(id)}/drilldown`, "POST", body),
+    getProgress: (id) => call(`/artifacts/${enc(id)}/progress`),
+    recordProgress: (id, body) => call(`/artifacts/${enc(id)}/progress`, "POST", body),
+    resetProgress: (id) => call(`/artifacts/${enc(id)}/progress/reset`, "POST", { confirm: true }),
+    gradeQuiz: (id, body) => call(`/artifacts/${enc(id)}/grade`, "POST", body),
+    explainItem: (id, body) => call(`/artifacts/${enc(id)}/explain`, "POST", body),
     exportDataTable: async (id, body) => {
       const res = await opts.fetch(root + `/artifacts/${enc(id)}/export`, {
         method: "POST",

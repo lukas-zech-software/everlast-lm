@@ -63,7 +63,13 @@ export class StudioArtifactListController {
       status: a.status,
       title: a.title,
       generating: isActive(a.status),
-      cancellable: isActive(a.status) && (a.plugin_type === "mindmap" || a.plugin_type === "data_table"),
+      cancellable:
+        isActive(a.status) &&
+        (a.plugin_type === "mindmap" ||
+          a.plugin_type === "data_table" ||
+          a.plugin_type === "flashcards" ||
+          a.plugin_type === "quiz" ||
+          a.plugin_type === "learning_overview"),
       failure: a.failure?.message ?? null,
       label: isActive(a.status) ? `Generating ${a.title}...` : a.failure ? `${a.title} — ${a.failure.message}` : a.title,
     }));
