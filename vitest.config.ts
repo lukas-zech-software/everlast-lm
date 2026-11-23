@@ -58,6 +58,14 @@ const UNIT = [
   "apps/web/test/studio-quiz.test.ts",
   "apps/web/test/studio-learning-overview.test.ts",
   "packages/evals/test/studio-active-learning.eval.test.ts",
+  // Package 4.2 (specs/015 T002): pure slide deck/infographic pipeline, PPTX/PDF/SVG export, web viewer, and eval tests.
+  "apps/worker/test/slide-deck.test.ts",
+  "apps/worker/test/infographic.test.ts",
+  "apps/api/test/studio-slide-export.test.ts",
+  "apps/api/test/studio-infographic-export.test.ts",
+  "apps/web/test/studio-slide-deck.test.ts",
+  "apps/web/test/studio-infographic.test.ts",
+  "packages/evals/test/studio-v4.eval.test.ts",
 ];
 
 export default defineConfig({

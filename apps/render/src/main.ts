@@ -21,7 +21,7 @@ import { createObjectStorage, type ObjectStorage } from "@everlast/cloud";
  */
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-const SOURCE_OBJECT = new RegExp(`^notebooks/(${UUID})/sources/(${UUID})/[A-Za-z0-9._/-]{1,200}$`);
+const SOURCE_OBJECT = new RegExp(`^notebooks/(${UUID})/(sources|studio)/(${UUID})/[A-Za-z0-9._/-]{1,200}$`);
 const OFFICE_FORMATS = ["docx", "pptx"] as const;
 export type OfficeFormat = (typeof OFFICE_FORMATS)[number];
 /** Allowed audio inputs and the ffmpeg demuxer forced for each. */
@@ -44,7 +44,7 @@ function sourceNamespace(object: string): string {
   if (object.includes("..") || object.includes("//")) throw new Error("Render object reference is not a private source object");
   const m = SOURCE_OBJECT.exec(object);
   if (!m) throw new Error("Render object reference is not a private source object");
-  return `${m[1]}/${m[2]}`;
+  return `${m[1]}/${m[2]}/${m[3]}`;
 }
 
 /** Validates the job's environment overrides; anything outside the allowlist aborts the execution. */

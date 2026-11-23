@@ -1,25 +1,30 @@
 import type {
   DataTableSchemaId,
   FlashcardCountInput,
+  InfographicStyle,
   PedagogyDifficulty,
   ReportCitation,
   StudioDataTablePayload,
   StudioFlashcardsPayload,
+  StudioInfographicPayload,
   StudioLearningOverviewPayload,
   StudioMindmapPayload,
   StudioQuizPayload,
+  StudioSlideDeckPayload,
 } from "@everlast/contracts";
 import type { ChatMessage } from "../lib/types.ts";
 import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
 import { createStudioApi, StudioApiError, type ArtifactDto } from "./api.ts";
 import { StudioArtifactListController, type ArtifactView, type StudioRow } from "./artifact-list.ts";
 import { createFlashcardsViewer } from "./flashcards-viewer.ts";
+import { createInfographicViewer } from "./infographic-viewer.ts";
 import { createLearningOverviewViewer } from "./learning-overview-viewer.ts";
 import { renderMarkdownNodes } from "./markdown.ts";
 import { downloadMindmapScene, revokePendingExportUrls, triggerBlobDownload } from "./mindmap-export.ts";
 import { createMindmapViewer } from "./mindmap-viewer.ts";
 import { createQuizViewer } from "./quiz-viewer.ts";
 import { CUSTOM_PROMPT_MAX, promptCodePoints, REPORT_TEMPLATES, ReportsModalController } from "./reports-modal.ts";
+import { createSlideDeckViewer } from "./slide-deck-viewer.ts";
 import { createDataTableViewer } from "./table-viewer.ts";
 
 /**
@@ -72,6 +77,17 @@ const QUIZ_QUESTION_MIN = 5;
 const QUIZ_QUESTION_MAX = 25;
 const OVERVIEW_SECTION_MIN = 3;
 const OVERVIEW_SECTION_MAX = 6;
+const SLIDE_COUNT_MIN = 5;
+const SLIDE_COUNT_MAX = 20;
+const SLIDE_COUNT_DEFAULT = 10;
+const SLIDE_FOCUS_PROMPT_MAX = 2000;
+const INFOGRAPHIC_STYLE_OPTIONS: readonly { value: InfographicStyle; text: string }[] = [
+  { value: "auto", text: "Auto" },
+  { value: "process_flow", text: "Process Flow" },
+  { value: "comparison", text: "Comparison" },
+  { value: "metrics_summary", text: "Metrics Summary" },
+  { value: "architecture_diagram", text: "Architecture Diagram" },
+];
 const SUGGESTIONS_LOADING = "Finding report formats for your sources…";
 const SUGGESTIONS_UNAVAILABLE = "Suggested formats are unavailable right now. You can still use a standard format or Create Your Own.";
 const SUGGESTIONS_NEED_SCOPE = "Suggested formats are unavailable until you select at least one source.";
@@ -190,6 +206,40 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   ) as HTMLButtonElement;
   learningOverviewTile.addEventListener("click", () => openLearningOverviewModal());
 
+  const slideDeckTile = h(
+    "button",
+    {
+      class: "studio-tile",
+      type: "button",
+      "data-testid": "studio-slide-deck-tile",
+      "aria-haspopup": "dialog",
+      disabled: !hasScope(),
+      title: hasScope()
+        ? "Generate a grounded Slide Deck from selected sources"
+        : "Select at least one source to generate a slide deck.",
+    },
+    h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📑" }),
+    h("span", { class: "studio-tile-label", text: "Slide Deck" })
+  ) as HTMLButtonElement;
+  slideDeckTile.addEventListener("click", () => openSlideDeckModal());
+
+  const infographicTile = h(
+    "button",
+    {
+      class: "studio-tile",
+      type: "button",
+      "data-testid": "studio-infographic-tile",
+      "aria-haspopup": "dialog",
+      disabled: !hasScope(),
+      title: hasScope()
+        ? "Generate a Visual Infographic from selected sources"
+        : "Select at least one source to generate an infographic.",
+    },
+    h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "🖼️" }),
+    h("span", { class: "studio-tile-label", text: "Infographic" })
+  ) as HTMLButtonElement;
+  infographicTile.addEventListener("click", () => openInfographicModal());
+
   const status = h("p", { class: "studio-status muted", "data-testid": "studio-status", role: "status", "aria-live": "polite" });
   const listEl = h("ul", { class: "studio-artifacts", "data-testid": "studio-artifacts" });
   const empty = h("p", { class: "studio-empty muted", "data-testid": "studio-empty", text: "Generated reports will appear here." });
@@ -206,7 +256,9 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       dataTableTile,
       flashcardsTile,
       quizTile,
-      learningOverviewTile
+      learningOverviewTile,
+      slideDeckTile,
+      infographicTile
     ),
     status,
     empty,
@@ -242,7 +294,11 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
               ? "❓"
               : row.plugin_type === "learning_overview"
                 ? "📘"
-                : "📄";
+                : row.plugin_type === "slide_deck"
+                  ? "📑"
+                  : row.plugin_type === "infographic"
+                    ? "🖼️"
+                    : "📄";
     const label = h("span", { class: "studio-artifact-label", "data-testid": "studio-artifact-label", text: row.generating ? `Generating ${row.title}...` : row.title });
     const item = h("li", {
       class: "studio-artifact-row",
@@ -439,7 +495,11 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
               ? "studio-quiz-viewer"
               : pluginType === "learning_overview"
                 ? "studio-learning-overview-viewer"
-                : "studio-report-viewer";
+                : pluginType === "slide_deck"
+                  ? "studio-slide-deck-viewer"
+                  : pluginType === "infographic"
+                    ? "studio-infographic-viewer"
+                    : "studio-report-viewer";
     const article = h(
       "article",
       { class: viewerTestId, "data-testid": viewerTestId, "data-artifact-id": id },
@@ -618,6 +678,59 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       });
       activeViewer = lov;
       viewerHost.append(lov.element);
+      return;
+    }
+
+    if (actualPlugin === "slide_deck" || ("slides" in (payload as object))) {
+      clear(viewerHost);
+      const sdv = createSlideDeckViewer({
+        artifactId: id,
+        title,
+        payload: payload as StudioSlideDeckPayload,
+        onClose: closeViewer,
+        actions: [deleteButton(id, title)],
+        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+        onExport: async (format) => {
+          try {
+            if (!api.exportSlideDeck) throw new Error("Slide deck export is not available.");
+            const exported = await api.exportSlideDeck(id, { format });
+            if (viewing !== id) return;
+            const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
+            triggerBlobDownload(blob, exported.filename);
+            status.textContent = `Exported ${format.toUpperCase()}`;
+          } catch (err) {
+            status.textContent = messageOf(err);
+          }
+        },
+      });
+      activeViewer = sdv;
+      viewerHost.append(sdv.element);
+      return;
+    }
+
+    if (actualPlugin === "infographic" || ("rendered_svg" in (payload as object))) {
+      clear(viewerHost);
+      const iv = createInfographicViewer({
+        artifactId: id,
+        title,
+        payload: payload as StudioInfographicPayload,
+        onClose: closeViewer,
+        actions: [deleteButton(id, title)],
+        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+        onExport: async (format) => {
+          try {
+            if (!api.exportInfographic) throw new Error("Infographic export is not available.");
+            const scene = await api.exportInfographic(id, { format });
+            if (viewing !== id) return;
+            await downloadMindmapScene(scene);
+            status.textContent = `Exported ${format.toUpperCase()}`;
+          } catch (err) {
+            status.textContent = messageOf(err);
+          }
+        },
+      });
+      activeViewer = iv;
+      viewerHost.append(iv.element);
       return;
     }
     if (!("content_md" in payload)) {
@@ -965,11 +1078,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   let flashcardsModal: { root: HTMLElement; close(): void } | null = null;
   let quizModal: { root: HTMLElement; close(): void } | null = null;
   let learningOverviewModal: { root: HTMLElement; close(): void } | null = null;
+  let slideDeckModal: { root: HTMLElement; close(): void } | null = null;
+  let infographicModal: { root: HTMLElement; close(): void } | null = null;
 
-  function validateModalFocusPrompt(rawValue: string): string | null {
+  function validateModalFocusPrompt(rawValue: string, maxChars = PEDAGOGY_FOCUS_PROMPT_MAX): string | null {
     const trimmed = rawValue.trim();
-    if (Array.from(trimmed).length > PEDAGOGY_FOCUS_PROMPT_MAX) {
-      return `Focus prompt must not exceed ${PEDAGOGY_FOCUS_PROMPT_MAX.toLocaleString("en-US")} characters.`;
+    if (Array.from(trimmed).length > maxChars) {
+      return `Focus prompt must not exceed ${maxChars.toLocaleString("en-US")} characters.`;
     }
     return null;
   }
@@ -985,6 +1100,8 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     focusTarget: HTMLButtonElement;
     bodyNodes: HTMLElement[];
     setRef: (handle: { root: HTMLElement; close(): void } | null) => void;
+    validate?: () => string | null;
+    watchInputs?: HTMLElement[];
     onGenerate: (activeSourceIds: string[]) => Promise<ArtifactDto>;
   }): void {
     let open = true;
@@ -992,6 +1109,19 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     const closeBtn = h("button", { class: "icon-btn", type: "button", "data-testid": config.closeTestId, "aria-label": "Close", text: "✕" });
     const errorEl = h("p", { class: "chat-error", "data-testid": config.errorTestId, role: "alert", hidden: true });
     const generateBtn = h("button", { class: "btn btn-primary", type: "button", "data-testid": config.generateTestId, text: "Generate" }) as HTMLButtonElement;
+
+    function syncValidation(): string | null {
+      const msg = config.validate?.() ?? null;
+      generateBtn.disabled = busy || Boolean(msg);
+      if (msg) {
+        errorEl.hidden = false;
+        errorEl.textContent = msg;
+      } else if (!busy) {
+        errorEl.hidden = true;
+        errorEl.textContent = "";
+      }
+      return msg;
+    }
 
     function close(): void {
       if (!open) return;
@@ -1002,8 +1132,14 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     }
 
     closeBtn.addEventListener("click", close);
+    for (const control of config.watchInputs ?? []) {
+      control.addEventListener("input", () => syncValidation());
+      control.addEventListener("change", () => syncValidation());
+    }
     generateBtn.addEventListener("click", async () => {
       if (busy) return;
+      const validationMsg = syncValidation();
+      if (validationMsg) return;
       const ids = options.selectedSourceIds();
       if (ids.length === 0) {
         errorEl.hidden = false;
@@ -1023,7 +1159,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         errorEl.textContent = messageOf(err);
       } finally {
         busy = false;
-        if (open) generateBtn.disabled = false;
+        if (open) generateBtn.disabled = Boolean(config.validate?.());
       }
     });
 
@@ -1047,6 +1183,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     root.addEventListener("keydown", (event: Event) => {
       if ((event as KeyboardEvent).key === "Escape") close();
     });
+    syncValidation();
     config.setRef({ root, close });
     document.body.append(root);
   }
@@ -1063,13 +1200,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     return select;
   }
 
-  function makeFocusPromptInput(testId: string): HTMLTextAreaElement {
+  function makeFocusPromptInput(testId: string, maxChars = PEDAGOGY_FOCUS_PROMPT_MAX): HTMLTextAreaElement {
     return h("textarea", {
       class: "report-prompt",
       "data-testid": testId,
       rows: 3,
       "aria-label": "Focus prompt (optional)",
-      placeholder: "Optional: focus topic or emphasis (up to 1,000 characters).",
+      placeholder: `Optional: focus topic or emphasis (up to ${maxChars.toLocaleString("en-US")} characters).`,
     }) as HTMLTextAreaElement;
   }
 
@@ -1228,6 +1365,111 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     });
   }
 
+  function openSlideDeckModal(): void {
+    if (slideDeckModal || !hasScope()) return;
+    const countInput = h("input", {
+      class: "form-select",
+      type: "number",
+      min: SLIDE_COUNT_MIN,
+      max: SLIDE_COUNT_MAX,
+      value: SLIDE_COUNT_DEFAULT,
+      "data-testid": "slide-deck-count-input",
+      "aria-label": "Slide count",
+    }) as HTMLInputElement;
+    countInput.value = String(SLIDE_COUNT_DEFAULT);
+    const focusPrompt = makeFocusPromptInput("slide-deck-focus-prompt", SLIDE_FOCUS_PROMPT_MAX);
+
+    const validateInputs = (): string | null => {
+      const slideCount = Number(countInput.value);
+      if (!Number.isInteger(slideCount) || slideCount < SLIDE_COUNT_MIN || slideCount > SLIDE_COUNT_MAX) {
+        return `Slide count must be an integer between ${SLIDE_COUNT_MIN} and ${SLIDE_COUNT_MAX}.`;
+      }
+      return validateModalFocusPrompt(focusPrompt.value, SLIDE_FOCUS_PROMPT_MAX);
+    };
+
+    mountPedagogyModal({
+      modalClass: "slide-deck-modal",
+      modalTestId: "slide-deck-modal",
+      ariaLabel: "Create slide deck",
+      heading: "Create Slide Deck",
+      closeTestId: "slide-deck-modal-close",
+      errorTestId: "slide-deck-modal-error",
+      generateTestId: "slide-deck-generate",
+      focusTarget: slideDeckTile,
+      bodyNodes: [
+        h("label", { text: `Slide Count (${SLIDE_COUNT_MIN}–${SLIDE_COUNT_MAX})` }),
+        countInput,
+        h("label", { text: "Focus Prompt (Optional)" }),
+        focusPrompt,
+      ],
+      watchInputs: [countInput, focusPrompt],
+      validate: validateInputs,
+      setRef: (handle) => {
+        slideDeckModal = handle;
+      },
+      onGenerate: async (ids) => {
+        const err = validateInputs();
+        if (err) throw new Error(err);
+        const slideCount = Number(countInput.value);
+        const trimmedPrompt = focusPrompt.value.trim();
+        return api.create({
+          plugin_type: "slide_deck",
+          subtype: "default",
+          active_source_ids: ids,
+          slide_count: slideCount,
+          ...(trimmedPrompt ? { focus_prompt: trimmedPrompt } : {}),
+        });
+      },
+    });
+  }
+
+  function openInfographicModal(): void {
+    if (infographicModal || !hasScope()) return;
+    const styleSelect = h(
+      "select",
+      { class: "form-select", "data-testid": "infographic-style-select", "aria-label": "Infographic style" },
+      ...INFOGRAPHIC_STYLE_OPTIONS.map((opt) => h("option", { value: opt.value, text: opt.text }))
+    ) as HTMLSelectElement;
+    styleSelect.value = "auto";
+    const focusPrompt = makeFocusPromptInput("infographic-focus-prompt", PEDAGOGY_FOCUS_PROMPT_MAX);
+
+    const validateInputs = (): string | null => validateModalFocusPrompt(focusPrompt.value, PEDAGOGY_FOCUS_PROMPT_MAX);
+
+    mountPedagogyModal({
+      modalClass: "infographic-modal",
+      modalTestId: "infographic-modal",
+      ariaLabel: "Create infographic",
+      heading: "Create Infographic",
+      closeTestId: "infographic-modal-close",
+      errorTestId: "infographic-modal-error",
+      generateTestId: "infographic-generate",
+      focusTarget: infographicTile,
+      bodyNodes: [
+        h("label", { text: "Style" }),
+        styleSelect,
+        h("label", { text: "Focus Prompt (Optional)" }),
+        focusPrompt,
+      ],
+      watchInputs: [styleSelect, focusPrompt],
+      validate: validateInputs,
+      setRef: (handle) => {
+        infographicModal = handle;
+      },
+      onGenerate: async (ids) => {
+        const err = validateInputs();
+        if (err) throw new Error(err);
+        const trimmedPrompt = focusPrompt.value.trim();
+        return api.create({
+          plugin_type: "infographic",
+          subtype: "default",
+          active_source_ids: ids,
+          style: styleSelect.value as InfographicStyle,
+          ...(trimmedPrompt ? { focus_prompt: trimmedPrompt } : {}),
+        });
+      },
+    });
+  }
+
   return {
     element,
     refresh,
@@ -1255,6 +1497,14 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       learningOverviewTile.title = hasScope()
         ? "Generate an Interactive Learning Overview from selected sources"
         : "Select at least one source to generate a learning overview.";
+      slideDeckTile.disabled = !hasScope();
+      slideDeckTile.title = hasScope()
+        ? "Generate a grounded Slide Deck from selected sources"
+        : "Select at least one source to generate a slide deck.";
+      infographicTile.disabled = !hasScope();
+      infographicTile.title = hasScope()
+        ? "Generate a Visual Infographic from selected sources"
+        : "Select at least one source to generate an infographic.";
       for (const button of listEl.querySelectorAll("[data-testid=studio-retry]")) {
         (button as HTMLButtonElement).disabled = !hasScope();
         (button as HTMLButtonElement).title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
@@ -1270,6 +1520,8 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       flashcardsModal?.close();
       quizModal?.close();
       learningOverviewModal?.close();
+      slideDeckModal?.close();
+      infographicModal?.close();
     },
   };
 }

@@ -87,12 +87,7 @@ export async function handleStudioRoute(
       sendJson(res, 200, await service.explainItem(userId, notebookId, artifactId, body));
     } else if (artifactId && action === "export" && method === "POST") {
       const row = await service.ownedArtifact(userId, notebookId, artifactId);
-      if (row.plugin_type === "mindmap") {
-        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
-        res.setHeader("Cache-Control", "private, no-store");
-        sendJson(res, 200, scene);
-      } else if (row.plugin_type === "data_table") {
-        const exported = await service.exportDataTable(userId, notebookId, artifactId, body);
+      const writeBinary = (exported: { contentType: string; filename: string; bytes: Uint8Array }) => {
         res.writeHead(200, {
           "Content-Type": exported.contentType,
           "Content-Disposition": `attachment; filename="${exported.filename}"`,
@@ -100,6 +95,19 @@ export async function handleStudioRoute(
           "Content-Length": String(exported.bytes.byteLength),
         });
         res.end(Buffer.from(exported.bytes));
+      };
+      if (row.plugin_type === "mindmap") {
+        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
+        res.setHeader("Cache-Control", "private, no-store");
+        sendJson(res, 200, scene);
+      } else if (row.plugin_type === "infographic") {
+        const scene = await service.exportInfographic(userId, notebookId, artifactId, body);
+        res.setHeader("Cache-Control", "private, no-store");
+        sendJson(res, 200, scene);
+      } else if (row.plugin_type === "data_table") {
+        writeBinary(await service.exportDataTable(userId, notebookId, artifactId, body));
+      } else if (row.plugin_type === "slide_deck") {
+        writeBinary(await service.exportSlideDeck(userId, notebookId, artifactId, body));
       } else {
         throw new StudioConflictError("Export is not supported for this artifact kind.");
       }

@@ -451,7 +451,7 @@ export const ConceptDiagramSpecSchema = z
   .strict();
 export type ConceptDiagramSpec = z.input<typeof ConceptDiagramSpecSchema>;
 
-function escapeXmlText(text: string): string {
+export function escapeXmlText(text: string): string {
   return text
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
@@ -460,7 +460,7 @@ function escapeXmlText(text: string): string {
     .replaceAll("'", "&#39;");
 }
 
-function wrapDiagramText(text: string, maxCharsPerLine: number): string[] {
+export function wrapDiagramText(text: string, maxCharsPerLine: number): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
   const lines: string[] = [];
