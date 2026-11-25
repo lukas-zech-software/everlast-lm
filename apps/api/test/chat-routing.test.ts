@@ -4,7 +4,7 @@ import type { AddressInfo } from "node:net";
 import { resolveEnterpriseGeminiConfig } from "@everlast/cloud";
 import { GoogleGenAI } from "@google/genai";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createGroundedModelFromEnv, ModelUnavailableError } from "../src/chat/model.ts";
+import { createGroundedModelFromEnv, AdkGroundedModel, ModelUnavailableError } from "../src/chat/model.ts";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -17,6 +17,18 @@ describe("D23 grounded chat transport (FR-GC-01/02/08, NFR-SEC-01)", () => {
       .toThrow("GEMINI_LOCATION must be eu");
     expect(() => resolveEnterpriseGeminiConfig("flash", { VERTEX_PROJECT: "  " }))
       .toThrow("required for enterprise Gemini");
+  });
+
+  it("rejects thinking levels unsupported by the ADK LlmAgent boundary", () => {
+    expect(
+      () =>
+        new AdkGroundedModel({
+          project: "approved-project",
+          location: "eu",
+          model: "gemini-3.8-flash",
+          thinkingConfig: { thinkingLevel: "XHIGH" as never },
+        }),
+    ).toThrow("Unsupported ADK thinking level: XHIGH");
   });
 
   it("sends chat, correction and private probes to the pinned EU Flash route using ADC", async () => {

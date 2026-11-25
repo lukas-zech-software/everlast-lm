@@ -12,7 +12,7 @@
     "@everlast/contracts": "workspace:*",
     "@everlast/db": "workspace:*",
     "@everlast/notes": "workspace:*",
-    "@google/genai": "^3.1.0",
+    "@google/genai": "^3.6.1",
     "@mozilla/readability": "^0.6.0",
     "google-auth-library": "^11.3.4",
     "jsdom": "^31.0.1",
