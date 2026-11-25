@@ -6,6 +6,9 @@ importers:
   .:
     configDependencies: {}
     packageManagerDependencies:
+      '@pnpm/exe':
+        specifier: 12.0.0
+        version: 12.0.0
       pnpm:
         specifier: 12.0.0
         version: 12.0.0
@@ -56,6 +59,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
+  '@pnpm/exe@12.0.0':
+    resolution: {integrity: sha512-405vw2qYPPghNxoPRt2cvkGtGNU5gnInDcIe5TztQxe73yUZLqFJN/jCJFGs1xbVaIWDXEVuQ71P8npFZeatZQ==}
+    engines: {node: '>=18.*'}
+    hasBin: true
+
   pnpm@12.0.0:
     resolution: {integrity: sha512-ni49w5EZlYaNyUuBdcIXwn6VQI+gO0oidJd48rNPdzt3zdOznt6BcbIvzVO+ajU0Lp+smUimjvWN9kiM6Jp+Zw==}
     engines: {node: '>=18.*'}
@@ -87,6 +95,17 @@ snapshots:
   '@pnpm/exe.win32-x64@12.0.0':
     optional: true
 
+  '@pnpm/exe@12.0.0':
+    optionalDependencies:
+      '@pnpm/exe.darwin-arm64': 12.0.0
+      '@pnpm/exe.darwin-x64': 12.0.0
+      '@pnpm/exe.linux-arm64': 12.0.0
+      '@pnpm/exe.linux-arm64-musl': 12.0.0
+      '@pnpm/exe.linux-x64': 12.0.0
+      '@pnpm/exe.linux-x64-musl': 12.0.0
+      '@pnpm/exe.win32-arm64': 12.0.0
+      '@pnpm/exe.win32-x64': 12.0.0
+
   pnpm@12.0.0:
     optionalDependencies:
       '@pnpm/exe.darwin-arm64': 12.0.0
@@ -114,8 +133,8 @@ importers:
         version: link:packages/cloud
     devDependencies:
       '@playwright/test':
-        specifier: ^1.65.0
-        version: 1.65.0
+        specifier: ^1.65.1
+        version: 1.65.1
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -153,8 +172,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       '@google/adk':
-        specifier: 2.4.0
-        version: 2.4.0(@grpc/grpc-js@1.14.6)
+        specifier: 2.5.0
+        version: 2.5.0(@google-cloud/aiplatform@6.11.0)(@grpc/grpc-js@1.14.6)
       '@google/genai':
         specifier: ^3.6.1
         version: 3.6.1
@@ -187,8 +206,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/cloud
       jsdom:
-        specifier: ^31.0.0
-        version: 31.0.0(@napi-rs/canvas@1.0.13)
+        specifier: ^31.0.1
+        version: 31.0.1(@napi-rs/canvas@1.0.13)
     devDependencies:
       '@everlast/testkit':
         specifier: workspace:*
@@ -225,8 +244,8 @@ importers:
         specifier: workspace:*
         version: link:../worker
       '@playwright/test':
-        specifier: ^1.65.0
-        version: 1.65.0
+        specifier: ^1.65.1
+        version: 1.65.1
       pdfjs-dist:
         specifier: ^6.5.438
         version: 6.5.438
@@ -258,8 +277,8 @@ importers:
         specifier: ^11.3.4
         version: 11.3.4
       jsdom:
-        specifier: ^31.0.0
-        version: 31.0.0(@napi-rs/canvas@1.0.13)
+        specifier: ^31.0.1
+        version: 31.0.1(@napi-rs/canvas@1.0.13)
       pdfjs-dist:
         specifier: ^6.5.438
         version: 6.5.438
@@ -271,8 +290,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/testkit
       '@google-cloud/storage':
-        specifier: ^8.4.0
-        version: 8.4.0
+        specifier: ^9.0.0
+        version: 9.0.0
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -286,8 +305,8 @@ importers:
         specifier: workspace:*
         version: link:../contracts
       '@google-cloud/storage':
-        specifier: ^8.4.0
-        version: 8.4.0
+        specifier: ^9.0.0
+        version: 9.0.0
       '@google/genai':
         specifier: ^3.6.1
         version: 3.6.1
@@ -491,27 +510,22 @@ packages:
     resolution: {integrity: sha512-l+x6YObHGTuqBCMvC0SXo3Cnyqg4FkWWKYRptf46PACHJ5GAUuhsd2b3wphgGrg1ybs/LAb+q5MnUTuG/3+v7w==}
     engines: {node: '>=22'}
 
-  '@google-cloud/projectify@6.2.1':
-    resolution: {integrity: sha512-PV9oy7VpQRXLuqKuU5RSOHFQyWgvw2sT9MoTGykja9j6c9pv5+ttKTJiFsccu500YYIGiz8JCOsb60PfKmiV/w==}
-    engines: {node: '>=22'}
-
   '@google-cloud/promisify@6.2.1':
     resolution: {integrity: sha512-/+RvLJ5u+WhGay6Z3aY6OApDQmNqq1427Mmt7Eov9kYp69gdUiGSwFnygeTxfz69XBtYZLAnWikGMIoFXtKt+A==}
     engines: {node: '>=22'}
 
-  '@google-cloud/storage@8.4.0':
-    resolution: {integrity: sha512-M3kA6UA2Tjp5aznCrgKcm9CzOjiQyRMnquqalqXAeS5wvkqqZxN8wpNjjHafOSYs6lQ82U7f2i8we4eTfIrpkA==}
+  '@google-cloud/storage@9.0.0':
+    resolution: {integrity: sha512-fjUzqzbxgkItIjEFjs/j/NrjQ9RZ3yWhMqmOdJB4AjdMu03vvpa88RvJEkZ5cjvSZAF+cBNCovw3fmERarOHFA==}
     engines: {node: '>=22'}
 
   '@google-cloud/vertexai@1.12.0':
     resolution: {integrity: sha512-XMJIk7GIeavFLP5A3YEUlowKa5Y5PZRrnnuTJcqR0k+lFKkv7+IWpdRp+Xbqb8xNDrvQaE2hP2RYPUylyD5EdA==}
     engines: {node: '>=18.0.0'}
 
-  '@google/adk@2.4.0':
-    resolution: {integrity: sha512-ywM6La97O4BAkIDXEWesMmMA/iIalh/a3JWq6wtDaW13tHaQv7pVL5egi2soUUaNgiTYbpP7TFgD2BGxqnq9eg==}
+  '@google/adk@2.5.0':
+    resolution: {integrity: sha512-BvU1bYnFy1vo18kXhN/IMetkWcBz450EZvz8GhtqkkFHU07gKLo+Yql2fGFG2Z8+az0bupzddeNywvt0aR3O2w==}
     peerDependencies:
-      '@google-cloud/opentelemetry-cloud-monitoring-exporter': ^0.22.0
-      '@google-cloud/opentelemetry-cloud-trace-exporter': ^3.0.0
+      '@google-cloud/aiplatform': ^6.10.0
       '@google-cloud/secret-manager': ^7.2.0
       '@google-cloud/storage': ^7.17.1
       '@mikro-orm/mariadb': ^7.2.5
@@ -522,9 +536,7 @@ packages:
       '@modelcontextprotocol/sdk': ^1.26.0
       express: ^4.22.1 || ^5.1.0
     peerDependenciesMeta:
-      '@google-cloud/opentelemetry-cloud-monitoring-exporter':
-        optional: true
-      '@google-cloud/opentelemetry-cloud-trace-exporter':
+      '@google-cloud/aiplatform':
         optional: true
       '@google-cloud/secret-manager':
         optional: true
@@ -811,8 +823,8 @@ packages:
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
 
-  '@playwright/test@1.65.0':
-    resolution: {integrity: sha512-iGURLGuKDLakSEl7Pgfv8h7f+XLT+V861Wfhz0zlEl5nyFuKUopdkFBPKqTllTUp06aOwPuH8iuUEb3yp3MpbQ==}
+  '@playwright/test@1.65.1':
+    resolution: {integrity: sha512-y+NCIRm2LvY4slUVWvGh1nujJ8RF/hEisIsq2mtUPgdQC4L701bq5hZGMhrpeXjACvwvO9tj5dJqhvM6TP9lbw==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -1120,10 +1132,6 @@ packages:
 
   '@vitest/spy@5.1.0':
     resolution: {integrity: sha512-2DPO5OMHWKrBngC+fCmTQqemNF0gidRhp3lxbBmRhW+M1XJrfgPpqNqWVevXtn2f2ufD5ZaR1B6B641aAlcX5A==}
-
-  abort-controller@3.0.0:
-    resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
-    engines: {node: '>=6.5'}
 
   adm-zip@0.6.1:
     resolution: {integrity: sha512-Xwrja8nx9e5o2N1my4DsKCeKpdrnACyr1wtbPxBDgGzKzKyE9kRtBFA8mWldI+RVlD7CBZNWY/wQ2+ydwOR6kQ==}
@@ -1471,10 +1479,6 @@ packages:
   estree-walker@3.0.3:
     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
 
-  event-target-shim@5.0.1:
-    resolution: {integrity: sha512-i/2XbnSz/uxRCU6+NdVJgKWDTM427+MqYbkQzD321DuCQJUqOuJKIA0IM2+W2xtYHdKOmZ4dR6fExsd4SXL+WQ==}
-    engines: {node: '>=6'}
-
   exceljs@4.4.0:
     resolution: {integrity: sha512-XctvKaEMaj1Ii9oDOqbW/6e1gXknSY4g/aLCDicOXqBE4M0nRWkUu0PTp++UPNzoFY12BNHMfs/VadKIS6llvg==}
     engines: {node: '>=8.3.0'}
@@ -1689,9 +1693,6 @@ packages:
     resolution: {integrity: sha512-UikN5yr7xsCDAq87Or5or0PAlD3HJJOKVzM05az588WnpDJ4Ux7a2A53Qi6gofGg2/EtvF/H4hCi/TXfCW4Y6w==}
     engines: {node: ^22.13.0 || >=24.0.0}
 
-  html-entities@2.6.0:
-    resolution: {integrity: sha512-kig+rMn/QOVRvr7c86gQ8lWXq+Hkv6CbAH1hLu+RG338StTpE8Z0b44SDVaqVu7HGKf27frdmUYEs9hTUX/cLQ==}
-
   http-proxy-agent@7.0.2:
     resolution: {integrity: sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig==}
     engines: {node: '>= 14'}
@@ -1857,8 +1858,8 @@ packages:
       canvas:
         optional: true
 
-  jsdom@31.0.0:
-    resolution: {integrity: sha512-xAkhD9z1eyFC5+QUi9K24CaZJgdCQ2GOGLW1GdVDoQvkp/AxEH9TQ0pAplPOlIiV92hfcgnFOADZypbjgbBT6Q==}
+  jsdom@31.0.1:
+    resolution: {integrity: sha512-CbhJL8ZQg3eKswxSZth4QO9tW0jPIhmR0vtSXQSbKSfWbwIT6hoRc17wdHIVTQ43KI0mdV5iTJr3281IDgVZ5g==}
     engines: {node: ^22.22.2 || ^24.15.0 || >=26.0.0}
     peerDependencies:
       '@napi-rs/canvas': ^1.0.13
@@ -2356,13 +2357,13 @@ packages:
     resolution: {integrity: sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==}
     engines: {node: '>=12'}
 
-  playwright-core@1.65.0:
-    resolution: {integrity: sha512-vNSKgH6YqtN7cdT/L334zo0a+YwkrpicyrHJlWWPIm/Q+Nn2SWInil01oT0mbu96U4GgoRtCYQD9CzJQgju+lA==}
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
     engines: {node: '>=20'}
     hasBin: true
 
-  playwright@1.65.0:
-    resolution: {integrity: sha512-F3AMWcR44qMBt4kq+6Kb6mX7bjGXshktKFOPULd7reED6ZJWevjbNRqysP7q+AATE9kdPEZBibex1BYsvpVoeA==}
+  playwright@1.65.1:
+    resolution: {integrity: sha512-vJ1FuoOrNwOKHUIVEvSt3jT1L+wjjDpwhwIstKtfvTh8XIG4FG4bIFuvNdMxi81LGfAhUgUZleVFaOLY4RIUUw==}
     engines: {node: '>=20'}
     hasBin: true
 
@@ -2433,10 +2434,6 @@ packages:
   retry-request@8.0.4:
     resolution: {integrity: sha512-pI6/7eabUYkZxamkOq0g0uMxKLLGnjzhefY+vL8bVXag5rto4OU2YBTPytWLuHH7aEKD6fn7kJycQfid0Mwnkw==}
     engines: {node: '>=18'}
-
-  retry-request@9.1.0:
-    resolution: {integrity: sha512-FILyVbis+DTo3KRbtKceqpj1595wIF+XQFW/+AVOBdCQmxwNDgcNXXr2FNM0Ej2qD7zVXbJGfH7lo4jB0wwhKA==}
-    engines: {node: '>=22'}
 
   retry@0.13.1:
     resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
@@ -2619,10 +2616,6 @@ packages:
   teeny-request@10.1.4:
     resolution: {integrity: sha512-R1Cg4Vu0UULeDfHL/kjABLaTW++9yD/B6n2g48y5dJ04hsEaxcfmAqbNDzNsbqAYJyIpZafjklLG9YxRu9uzOg==}
     engines: {node: '>=18'}
-
-  teeny-request@11.1.1:
-    resolution: {integrity: sha512-I5OLOkPN3QDN2l1H/eGueuKaq32CdAcXt91WOF/bOfadtZD1WQ8/Fk28WsqDcGjIyhAW/GQDagYhVEjhuZUFyQ==}
-    engines: {node: '>=22'}
 
   text-hex@1.0.0:
     resolution: {integrity: sha512-uuVGNWzgJ4yhRaNSiubPY7OjISw4sw4E5Uv0wbjp+OzcbmVU/rsT8ujgcXJhn9ypzsgr5vlzpPqP+MBBKcGvbg==}
@@ -3064,31 +3057,25 @@ snapshots:
       google-gax: 5.0.8
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   '@google-cloud/paginator@7.2.0':
     dependencies:
       extend: 3.0.2
 
-  '@google-cloud/projectify@6.2.1': {}
-
   '@google-cloud/promisify@6.2.1': {}
 
-  '@google-cloud/storage@8.4.0':
+  '@google-cloud/storage@9.0.0':
     dependencies:
       '@google-cloud/paginator': 7.2.0
-      '@google-cloud/projectify': 6.2.1
       '@google-cloud/promisify': 6.2.1
-      abort-controller: 3.0.0
       async-retry: 1.3.3
       duplexify: 4.1.3
       fast-xml-parser: 5.12.0
-      gaxios: 7.3.1
+      gaxios: 8.3.2
       google-auth-library: 11.3.4
-      html-entities: 2.6.0
       mime: 3.0.0
       p-limit: 3.1.0
-      retry-request: 9.1.0
-      teeny-request: 11.1.1
     transitivePeerDependencies:
       - supports-color
 
@@ -3103,10 +3090,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/adk@2.4.0(@grpc/grpc-js@1.14.6)':
+  '@google/adk@2.5.0(@google-cloud/aiplatform@6.11.0)(@grpc/grpc-js@1.14.6)':
     dependencies:
       '@a2a-js/sdk': 0.3.14(@grpc/grpc-js@1.14.6)
-      '@google-cloud/aiplatform': 6.11.0
       '@google-cloud/vertexai': 1.12.0
       '@google/genai': 2.32.0
       '@mikro-orm/core': 7.2.5
@@ -3131,6 +3117,7 @@ snapshots:
       zod: 4.6.7
       zod-to-json-schema: 3.25.2(zod@4.6.7)
     optionalDependencies:
+      '@google-cloud/aiplatform': 6.11.0
       dockerode: 5.0.1
     transitivePeerDependencies:
       - '@bufbuild/protobuf'
@@ -3178,6 +3165,7 @@ snapshots:
     dependencies:
       '@grpc/proto-loader': 0.8.1
       '@js-sdsl/ordered-map': 4.4.2
+    optional: true
 
   '@grpc/proto-loader@0.7.15':
     dependencies:
@@ -3193,6 +3181,7 @@ snapshots:
       long: 5.3.2
       protobufjs: 7.6.6
       yargs: 17.7.3
+    optional: true
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -3202,6 +3191,7 @@ snapshots:
       strip-ansi-cjs: strip-ansi@6.0.1
       wrap-ansi: 8.1.0
       wrap-ansi-cjs: wrap-ansi@7.0.0
+    optional: true
 
   '@jridgewell/resolve-uri@3.1.2': {}
 
@@ -3212,7 +3202,8 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@js-sdsl/ordered-map@4.4.2': {}
+  '@js-sdsl/ordered-map@4.4.2':
+    optional: true
 
   '@jsep-plugin/assignment@1.4.0(jsep@1.6.0)':
     dependencies:
@@ -3388,9 +3379,9 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@playwright/test@1.65.0':
+  '@playwright/test@1.65.1':
     dependencies:
-      playwright: 1.65.0
+      playwright: 1.65.1
 
   '@protobufjs/aspromise@1.1.2': {}
 
@@ -3588,23 +3579,23 @@ snapshots:
 
   '@vitest/spy@5.1.0': {}
 
-  abort-controller@3.0.0:
-    dependencies:
-      event-target-shim: 5.0.1
-
   adm-zip@0.6.1: {}
 
   agent-base@7.1.4: {}
 
-  ansi-regex@5.0.1: {}
+  ansi-regex@5.0.1:
+    optional: true
 
-  ansi-regex@6.5.0: {}
+  ansi-regex@6.5.0:
+    optional: true
 
   ansi-styles@4.3.0:
     dependencies:
       color-convert: 2.0.1
+    optional: true
 
-  ansi-styles@6.2.3: {}
+  ansi-styles@6.2.3:
+    optional: true
 
   anynum@1.0.1: {}
 
@@ -3770,16 +3761,19 @@ snapshots:
       string-width: 4.2.3
       strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
+    optional: true
 
   color-convert@2.0.1:
     dependencies:
       color-name: 1.1.4
+    optional: true
 
   color-convert@3.1.3:
     dependencies:
       color-name: 2.1.1
 
-  color-name@1.1.4: {}
+  color-name@1.1.4:
+    optional: true
 
   color-name@2.1.1: {}
 
@@ -3821,6 +3815,7 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+    optional: true
 
   cssstyle@4.6.0:
     dependencies:
@@ -3922,15 +3917,18 @@ snapshots:
       readable-stream: 3.6.2
       stream-shift: 1.0.3
 
-  eastasianwidth@0.2.0: {}
+  eastasianwidth@0.2.0:
+    optional: true
 
   ecdsa-sig-formatter@1.0.11:
     dependencies:
       safe-buffer: 5.2.1
 
-  emoji-regex@8.0.0: {}
+  emoji-regex@8.0.0:
+    optional: true
 
-  emoji-regex@9.2.2: {}
+  emoji-regex@9.2.2:
+    optional: true
 
   enabled@2.0.0: {}
 
@@ -4035,13 +4033,12 @@ snapshots:
       is-date-object: 1.1.0
       is-symbol: 1.1.1
 
-  escalade@3.2.0: {}
+  escalade@3.2.0:
+    optional: true
 
   estree-walker@3.0.3:
     dependencies:
       '@types/estree': 1.0.9
-
-  event-target-shim@5.0.1: {}
 
   exceljs@4.4.0:
     dependencies:
@@ -4099,6 +4096,7 @@ snapshots:
     dependencies:
       cross-spawn: 7.0.6
       signal-exit: 4.1.0
+    optional: true
 
   formdata-polyfill@4.0.10:
     dependencies:
@@ -4188,7 +4186,8 @@ snapshots:
 
   generator-function@2.0.1: {}
 
-  get-caller-file@2.0.5: {}
+  get-caller-file@2.0.5:
+    optional: true
 
   get-intrinsic@1.3.0:
     dependencies:
@@ -4222,6 +4221,7 @@ snapshots:
       minipass: 7.1.3
       package-json-from-dist: 1.0.1
       path-scurry: 1.11.1
+    optional: true
 
   glob@7.2.3:
     dependencies:
@@ -4248,6 +4248,7 @@ snapshots:
       jws: 4.0.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   google-auth-library@10.9.1:
     dependencies:
@@ -4298,6 +4299,7 @@ snapshots:
       rimraf: 5.0.10
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   google-logging-utils@0.0.2: {}
 
@@ -4323,6 +4325,7 @@ snapshots:
       jws: 4.0.1
     transitivePeerDependencies:
       - supports-color
+    optional: true
 
   has-bigints@1.1.0: {}
 
@@ -4354,8 +4357,6 @@ snapshots:
       '@exodus/bytes': 1.16.0
     transitivePeerDependencies:
       - '@noble/hashes'
-
-  html-entities@2.6.0: {}
 
   http-proxy-agent@7.0.2:
     dependencies:
@@ -4446,7 +4447,8 @@ snapshots:
     dependencies:
       call-bound: 1.0.4
 
-  is-fullwidth-code-point@3.0.0: {}
+  is-fullwidth-code-point@3.0.0:
+    optional: true
 
   is-generator-function@1.1.2:
     dependencies:
@@ -4514,13 +4516,15 @@ snapshots:
 
   isarray@2.0.5: {}
 
-  isexe@2.0.0: {}
+  isexe@2.0.0:
+    optional: true
 
   jackspeak@3.4.3:
     dependencies:
       '@isaacs/cliui': 8.0.2
     optionalDependencies:
       '@pkgjs/parseargs': 0.11.0
+    optional: true
 
   js-yaml@5.5.0:
     dependencies:
@@ -4554,7 +4558,7 @@ snapshots:
       - utf-8-validate
     optional: true
 
-  jsdom@31.0.0(@napi-rs/canvas@1.0.13):
+  jsdom@31.0.1(@napi-rs/canvas@1.0.13):
     dependencies:
       '@exodus/bytes': 1.16.0
       bcp-47: 2.1.2
@@ -4672,7 +4676,8 @@ snapshots:
 
   lodash-es@4.18.1: {}
 
-  lodash.camelcase@4.3.0: {}
+  lodash.camelcase@4.3.0:
+    optional: true
 
   lodash.defaults@4.2.0: {}
 
@@ -4711,7 +4716,8 @@ snapshots:
 
   long@5.3.2: {}
 
-  lru-cache@10.4.3: {}
+  lru-cache@10.4.3:
+    optional: true
 
   lru-cache@11.5.3: {}
 
@@ -4734,10 +4740,12 @@ snapshots:
   minimatch@9.0.9:
     dependencies:
       brace-expansion: 2.1.7
+    optional: true
 
   minimist@1.2.8: {}
 
-  minipass@7.1.3: {}
+  minipass@7.1.3:
+    optional: true
 
   mkdirp-classic@0.5.3:
     optional: true
@@ -4772,7 +4780,8 @@ snapshots:
   nwsapi@2.2.28:
     optional: true
 
-  object-hash@3.0.0: {}
+  object-hash@3.0.0:
+    optional: true
 
   object-inspect@1.13.4: {}
 
@@ -4813,7 +4822,8 @@ snapshots:
       '@types/retry': 0.12.0
       retry: 0.13.1
 
-  package-json-from-dist@1.0.1: {}
+  package-json-from-dist@1.0.1:
+    optional: true
 
   pako@1.0.11: {}
 
@@ -4838,12 +4848,14 @@ snapshots:
 
   path-is-absolute@1.0.1: {}
 
-  path-key@3.1.1: {}
+  path-key@3.1.1:
+    optional: true
 
   path-scurry@1.11.1:
     dependencies:
       lru-cache: 10.4.3
       minipass: 7.1.3
+    optional: true
 
   pdfjs-dist@6.5.438:
     optionalDependencies:
@@ -4888,11 +4900,11 @@ snapshots:
 
   picomatch@4.0.7: {}
 
-  playwright-core@1.65.0: {}
+  playwright-core@1.65.1: {}
 
-  playwright@1.65.0:
+  playwright@1.65.1:
     dependencies:
-      playwright-core: 1.65.0
+      playwright-core: 1.65.1
 
   possible-typed-array-names@1.1.0: {}
 
@@ -4917,6 +4929,7 @@ snapshots:
   proto3-json-serializer@3.0.4:
     dependencies:
       protobufjs: 7.6.6
+    optional: true
 
   protobufjs@7.6.6:
     dependencies:
@@ -4980,7 +4993,8 @@ snapshots:
       gopd: 1.2.0
       set-function-name: 2.0.2
 
-  require-directory@2.1.1: {}
+  require-directory@2.1.1:
+    optional: true
 
   retry-request@8.0.4:
     dependencies:
@@ -4988,10 +5002,7 @@ snapshots:
       teeny-request: 10.1.4
     transitivePeerDependencies:
       - supports-color
-
-  retry-request@9.1.0:
-    dependencies:
-      extend: 3.0.2
+    optional: true
 
   retry@0.13.1: {}
 
@@ -5002,6 +5013,7 @@ snapshots:
   rimraf@5.0.10:
     dependencies:
       glob: 10.5.0
+    optional: true
 
   rolldown@1.2.15:
     dependencies:
@@ -5090,8 +5102,10 @@ snapshots:
   shebang-command@2.0.0:
     dependencies:
       shebang-regex: 3.0.0
+    optional: true
 
-  shebang-regex@3.0.0: {}
+  shebang-regex@3.0.0:
+    optional: true
 
   side-channel-list@1.0.1:
     dependencies:
@@ -5121,7 +5135,8 @@ snapshots:
       side-channel-map: 1.0.1
       side-channel-weakmap: 1.0.2
 
-  signal-exit@4.1.0: {}
+  signal-exit@4.1.0:
+    optional: true
 
   source-map-js@1.2.2: {}
 
@@ -5159,12 +5174,14 @@ snapshots:
       emoji-regex: 8.0.0
       is-fullwidth-code-point: 3.0.0
       strip-ansi: 6.0.1
+    optional: true
 
   string-width@5.1.2:
     dependencies:
       eastasianwidth: 0.2.0
       emoji-regex: 9.2.2
       strip-ansi: 7.2.0
+    optional: true
 
   string.prototype.trim@1.2.11:
     dependencies:
@@ -5201,10 +5218,12 @@ snapshots:
   strip-ansi@6.0.1:
     dependencies:
       ansi-regex: 5.0.1
+    optional: true
 
   strip-ansi@7.2.0:
     dependencies:
       ansi-regex: 6.5.0
+    optional: true
 
   strnum@2.5.1:
     dependencies:
@@ -5239,15 +5258,7 @@ snapshots:
       stream-events: 1.0.5
     transitivePeerDependencies:
       - supports-color
-
-  teeny-request@11.1.1:
-    dependencies:
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
-      node-fetch: 3.3.2
-      stream-events: 1.0.5
-    transitivePeerDependencies:
-      - supports-color
+    optional: true
 
   text-hex@1.0.0: {}
 
@@ -5536,6 +5547,7 @@ snapshots:
   which@2.0.2:
     dependencies:
       isexe: 2.0.0
+    optional: true
 
   why-is-node-running@3.2.1: {}
 
@@ -5564,12 +5576,14 @@ snapshots:
       ansi-styles: 4.3.0
       string-width: 4.2.3
       strip-ansi: 6.0.1
+    optional: true
 
   wrap-ansi@8.1.0:
     dependencies:
       ansi-styles: 6.2.3
       string-width: 5.1.2
       strip-ansi: 7.2.0
+    optional: true
 
   wrappy@1.0.2: {}
 
@@ -5583,9 +5597,11 @@ snapshots:
 
   xtend@4.0.2: {}
 
-  y18n@5.0.8: {}
+  y18n@5.0.8:
+    optional: true
 
-  yargs-parser@21.1.1: {}
+  yargs-parser@21.1.1:
+    optional: true
 
   yargs@17.7.3:
     dependencies:
@@ -5596,6 +5612,7 @@ snapshots:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+    optional: true
 
   yocto-queue@0.1.0: {}
 
