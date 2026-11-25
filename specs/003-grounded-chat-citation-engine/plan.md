@@ -115,3 +115,11 @@ Manual boundary review: PASS for this manifest/lockfile-only dependency delta. N
 Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524501737) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
 
 This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
+
+## Dependency PR #202 review — 2026-11-25 (CC-09)
+
+Traceability: FR-GC-01/02/08, C-01..C-03, NFR-SEC-01/02, NFR-EVAL-02/04, D23.
+
+Upgrading direct workspace dependencies on `@google/genai` from `3.1.0` to `3.6.1` introduces `ThinkingLevel.XHIGH`, while `@google/adk@2.5.0` still resolves `@google/genai@2.32.0` internally. To keep the ADK boundary clean without exchanging cross-version SDK types, `apps/api/src/chat/model.ts` derives its `LlmAgent` generation config, HTTP options, and output schema types from `LlmAgent`'s public constructor and explicitly translates supported thinking levels (`THINKING_LEVEL_UNSPECIFIED`, `MINIMAL`, `LOW`, `MEDIUM`, `HIGH`), failing closed on unsupported values.
+
+Manual boundary review: PASS. `apps/api/src/chat/model.ts` remains the Package 003 ADK model adapter wired by `apps/api/src/server.ts`, with no changes to workspace dependency directions, public exports, `ChatService` workflow ownership, `C-02` scoping, authorization, transactions, cancellation, or publication fences. No D21 exceptions are added, widened, or closed. Regression coverage in `apps/api/test/chat-routing.test.ts` verifies both the pinned EU Flash ADC route (`LOW` thinking) and fail-closed rejection of unsupported thinking levels (`XHIGH`).

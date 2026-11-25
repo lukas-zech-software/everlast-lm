@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
 import { resolveEnterpriseGeminiConfig, type EnterpriseGeminiConfig } from "@everlast/cloud";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
-import type { GenerateContentConfig, HttpOptions, Schema } from "@google/genai";
 import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
 import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, preferenceLines, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
 
@@ -60,6 +59,30 @@ export class ModelUnavailableError extends Error {
   }
 }
 
+type AdkLlmAgentConfig = ConstructorParameters<typeof LlmAgent>[0];
+type AdkGenerateContentConfig = NonNullable<AdkLlmAgentConfig["generateContentConfig"]>;
+type AdkHttpOptions = NonNullable<AdkGenerateContentConfig["httpOptions"]>;
+type AdkSchema = NonNullable<AdkLlmAgentConfig["outputSchema"]>;
+type AdkThinkingLevel = NonNullable<NonNullable<AdkGenerateContentConfig["thinkingConfig"]>["thinkingLevel"]>;
+
+const ADK_THINKING_LEVELS: Readonly<Record<`${AdkThinkingLevel}`, AdkThinkingLevel>> = {
+  THINKING_LEVEL_UNSPECIFIED: "THINKING_LEVEL_UNSPECIFIED" as AdkThinkingLevel,
+  MINIMAL: "MINIMAL" as AdkThinkingLevel,
+  LOW: "LOW" as AdkThinkingLevel,
+  MEDIUM: "MEDIUM" as AdkThinkingLevel,
+  HIGH: "HIGH" as AdkThinkingLevel,
+};
+
+function toAdkThinkingConfig(
+  thinkingConfig: NonNullable<AdkModelConfig["thinkingConfig"]>,
+): NonNullable<AdkGenerateContentConfig["thinkingConfig"]> {
+  const levelKey: keyof typeof ADK_THINKING_LEVELS = thinkingConfig.thinkingLevel;
+  if (!Object.hasOwn(ADK_THINKING_LEVELS, levelKey)) {
+    throw new Error(`Unsupported ADK thinking level: ${String(thinkingConfig.thinkingLevel)}`);
+  }
+  return { thinkingLevel: ADK_THINKING_LEVELS[levelKey] };
+}
+
 export interface AdkModelConfig {
   project: string;
   location: string;
@@ -79,7 +102,7 @@ class SingleAttemptGemini extends Gemini {
 
   private readonly httpOptions: AdkModelConfig["httpOptions"];
 
-  protected override getHttpOptions(): HttpOptions {
+  protected override getHttpOptions(): AdkHttpOptions {
     return { ...super.getHttpOptions(), ...this.httpOptions, retryOptions: { attempts: 1 } };
   }
 }
@@ -94,10 +117,10 @@ export class AdkGroundedModel implements GroundedModel {
     this.id = `vertex:${config.location}:${config.model}`;
     this.timeoutMs = config.timeoutMs ?? 60_000;
     this.llm = new SingleAttemptGemini(config);
-    const generationConfig: GenerateContentConfig = {
+    const generationConfig: AdkGenerateContentConfig = {
       temperature: 0,
       candidateCount: 1,
-      ...(config.thinkingConfig && { thinkingConfig: config.thinkingConfig }),
+      ...(config.thinkingConfig && { thinkingConfig: toAdkThinkingConfig(config.thinkingConfig) }),
     };
     const agent = new LlmAgent({
       name: "grounded_chat",
@@ -118,7 +141,7 @@ export class AdkGroundedModel implements GroundedModel {
           ? `${base}\n${preferenceLines({ response_length: "shorter" }).join(" ")}`
           : base;
       },
-      outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as Schema,
+      outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as AdkSchema,
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
@@ -131,7 +154,7 @@ export class AdkGroundedModel implements GroundedModel {
       description: "Fixes a failed sandbox program without changing its inputs or task.",
       model: this.llm,
       instruction: CODE_CORRECTION_INSTRUCTION,
-      outputSchema: CODE_CORRECTION_RESPONSE_SCHEMA as unknown as Schema,
+      outputSchema: CODE_CORRECTION_RESPONSE_SCHEMA as unknown as AdkSchema,
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
