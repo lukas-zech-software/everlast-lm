@@ -170,7 +170,7 @@ export async function handleOAuthCallback(
   deps: AppDeps,
   req: IncomingMessage,
   url: URL,
-): Promise<{ location: string; clearCookie: string }> {
+): Promise<string> {
   if (!deps.delegationBroker || !deps.stateSigner) throw new AppError("NotFound", 404, "Not found");
   const invalid = () =>
     new AppError("ValidationFailed", 400, "Invalid or expired authorization state");
@@ -199,7 +199,7 @@ export async function handleOAuthCallback(
     scopes: stored.scopes,
     accountLabel: stored.accountLabel,
   });
-  return { location: pending.returnTo, clearCookie: nonceCookie(req, "", 0) };
+  return pending.returnTo;
 }
 
 /**

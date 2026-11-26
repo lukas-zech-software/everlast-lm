@@ -72,7 +72,9 @@ function parseIPv4(ip: string): IPv4Bytes | null {
 }
 
 function parseIPv6(ip: string): number[] | null {
-  let addr = ip.toLowerCase().replace(/%.*$/, "");
+  const lower = ip.toLowerCase();
+  const zoneIdx = lower.indexOf("%");
+  let addr = zoneIdx === -1 ? lower : lower.slice(0, zoneIdx);
   let tail: number[] = [];
   const lastColon = addr.lastIndexOf(":");
   if (addr.slice(lastColon + 1).includes(".")) {

@@ -20,6 +20,14 @@ import {
   handleE2eControl,
 } from "./e2e-v3-doubles.ts";
 
+function trimTrailingChars(value: string, chars: string): string {
+  let end = value.length;
+  while (end > 0 && chars.includes(value.charAt(end - 1))) {
+    end -= 1;
+  }
+  return value.slice(0, end);
+}
+
 /**
  * TEST-ONLY E2E server (FR-UI-01, FR-SI-01/03/04, FR-GC-01/02/03/06, Gate v1.0 #1/#3).
  * Real API, real PostgreSQL (fresh database), real ingestion worker and local versioned storage. Two clearly
@@ -95,7 +103,7 @@ class FixtureModel implements GroundedModel {
       }
     }
     const words = (question.toLowerCase().match(/[\p{L}\p{N}$.]{4,}/gu) ?? [])
-      .map((w) => w.replace(/[.?]+$/, ""))
+      .map((w) => trimTrailingChars(w, ".?"))
       .filter((w) => !STOP.has(w));
     const matchWord = (text: string, w: string) => {
       const lower = text.toLowerCase();
@@ -109,7 +117,7 @@ class FixtureModel implements GroundedModel {
     if (hits.length === 0) {
       return Promise.resolve({
         status: "not_in_sources",
-        missing_topic: question.replace(/[?.!]+$/, ""),
+        missing_topic: trimTrailingChars(question, "?.!"),
         sentences: [],
       });
     }

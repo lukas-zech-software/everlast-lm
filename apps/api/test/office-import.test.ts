@@ -338,7 +338,8 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     const startRes = await api.fetch("/api/connections/google/authorize", {
       method: "POST",
       as,
-      json: { return_to: "/" },
+      headers: { "x-forwarded-proto": "https" },
+      json: { return_to: "/notebook/office?drive=connected" },
     });
     const start = await readJson<{ authorization_url: string }>(startRes);
     const setCookie = startRes.headers.get("set-cookie") ?? "";
@@ -346,6 +347,7 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     expect(setCookie).toMatch(/HttpOnly/i);
     expect(setCookie).toMatch(/SameSite=Lax/i);
     expect(setCookie).toMatch(/Path=\/oauth\/google/);
+    expect(setCookie).toMatch(/; Secure$/);
     const cookie = setCookie.split(";")[0]!;
     const authUrl = new URL(start.authorization_url);
     const state = authUrl.searchParams.get("state")!;
@@ -378,9 +380,13 @@ describe("delegated Drive import (D11, FR-SI-01)", () => {
     ).searchParams.get("state")!;
     expect((await cb(attackerState, { cookie })).status).toBe(400);
 
-    const ok = await cb(state, { cookie });
+    const ok = await cb(state, { cookie, "x-forwarded-proto": "https" });
     expect(ok.status).toBe(302);
-    expect(ok.headers.get("set-cookie") ?? "").toMatch(/everlast_oauth_nonce=;.*Max-Age=0/i);
+    expect(ok.headers.get("location")).toBe("/notebook/office?drive=connected");
+    expect(ok.headers.get("cache-control")).toBe("no-store");
+    expect(ok.headers.get("set-cookie")).toBe(
+      "everlast_oauth_nonce=; HttpOnly; SameSite=Lax; Path=/oauth/google; Max-Age=0; Secure",
+    );
     expect(lastVerifier && createHash("sha256").update(lastVerifier).digest("base64url")).toBe(
       challenge,
     );

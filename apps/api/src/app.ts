@@ -17,6 +17,7 @@ import { registerChatChartRoutes } from "./routes/chat-charts.ts";
 import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
 import {
   handleOAuthCallback,
+  nonceCookie,
   registerConnectionRoutes,
   stateSigner,
   type DelegationBroker,
@@ -208,12 +209,12 @@ async function handleSpecialPublicRoute(
 
   // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
   if (url.pathname === "/oauth/google/callback" && method === "GET") {
-    const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
+    const location = await handleOAuthCallback(deps, req, url);
     res
       .writeHead(302, {
         Location: location,
         "Cache-Control": "no-store",
-        "Set-Cookie": clearCookie,
+        "Set-Cookie": nonceCookie(req, "", 0),
       })
       .end();
     return true;

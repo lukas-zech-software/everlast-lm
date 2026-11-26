@@ -55,7 +55,9 @@ const describe = (text: string) => `Image description: ${text.replace(/\s+/g, " 
 const clean = (text: string) =>
   text
     .replace(/[ \t\u00A0]+/g, " ")
-    .replace(/ *\n */g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .join("\n")
     .trim();
 
 function toZip(bytes: Buffer, limits?: ZipLimits): ZipArchive {

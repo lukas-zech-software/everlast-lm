@@ -106,7 +106,8 @@ function extractSectionBody(lines: string[], start: number): string[] {
 }
 
 function validateFactualLine(sectionKey: string, line: string): string | null {
-  const text = line.replace(/\s*\|$/, "").replace(LIST_PREFIX, "");
+  const withoutTrailingPipe = line.endsWith("|") ? line.slice(0, -1).trimEnd() : line;
+  const text = withoutTrailingPipe.replace(LIST_PREFIX, "");
   if (!TRAILING_MARKER.test(text)) {
     return `Section ${sectionKey} contains an uncited factual sentence`;
   }
