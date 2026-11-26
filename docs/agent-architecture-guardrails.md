@@ -139,6 +139,7 @@ rule is a configuration defect to resolve before feature implementation.
 - `node scripts/check-architecture-artifacts.mjs --base-ref BASE_SHA`: include all changes
   against the PR base, plus local tracked/untracked changes.
 - `pnpm lint`: existing spec/type checks plus all architecture checks and fixtures.
+- [Architecture Guardrail Rules Index](architecture-rules/README.md): individual documentation for each of the 14 architecture rules under `scripts/architecture/rules/` and ESLint plugin/custom-rule feasibility assessment.
 
 The parser is pinned as dev-only `typescript-compiler` (TypeScript 6.0.2); TypeScript 7 remains
 unchanged as the application compiler. Unsupported syntax/configuration fails closed. Keep parser
