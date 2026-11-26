@@ -15,7 +15,7 @@ import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
 import { registerChatChartRoutes } from "./routes/chat-charts.ts";
 import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
-import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
+import { handleOAuthCallback, nonceCookie, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
 import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
 import type { ChatService } from "./chat/service.ts";
 import type { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
@@ -162,8 +162,8 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
     }
     // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
     if (url.pathname === "/oauth/google/callback" && method === "GET") {
-      const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
-      res.writeHead(302, { Location: location, "Cache-Control": "no-store", "Set-Cookie": clearCookie }).end();
+      const location = await handleOAuthCallback(deps, req, url);
+      res.writeHead(302, { Location: location, "Cache-Control": "no-store", "Set-Cookie": nonceCookie(req, "", 0) }).end();
       return;
     }
     // Provider push notifications for linked-source re-sync (FR-SI-05): authenticated by the channel token.

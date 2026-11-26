@@ -113,7 +113,7 @@ function readCookie(req: IncomingMessage, name: string): string | null {
  * Provider redirect target (handled before /api auth). Requires: valid signed state, the same browser's nonce
  * cookie matching the state, and a single-use unexpired server row for the state's user (consumed atomically).
  */
-export async function handleOAuthCallback(deps: AppDeps, req: IncomingMessage, url: URL): Promise<{ location: string; clearCookie: string }> {
+export async function handleOAuthCallback(deps: AppDeps, req: IncomingMessage, url: URL): Promise<string> {
   if (!deps.delegationBroker || !deps.stateSigner) throw new AppError("NotFound", 404, "Not found");
   const invalid = () => new AppError("ValidationFailed", 400, "Invalid or expired authorization state");
   const claims = deps.stateSigner.verify(url.searchParams.get("state") ?? "");
@@ -132,7 +132,7 @@ export async function handleOAuthCallback(deps: AppDeps, req: IncomingMessage, u
     throw new AppError("ValidationFailed", 400, "Google Drive access could not be granted");
   }
   await createDelegatedConnection(deps.pool, { userId: claims.userId, secretRef: stored.secretRef, scopes: stored.scopes, accountLabel: stored.accountLabel });
-  return { location: pending.returnTo, clearCookie: nonceCookie(req, "", 0) };
+  return pending.returnTo;
 }
 
 /**
