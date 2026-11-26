@@ -1,4 +1,3 @@
-
 /**
  * Canonical text extraction (FR-SI-01). Every format becomes ordered pages of canonical text; chunk
  * locators and the Source Inspector both index this exact text by Unicode code point.
@@ -25,7 +24,7 @@ export interface CanonicalPage {
   physical_page?: number | undefined;
   text: string;
   /** Section boundaries as UTF-16 ranges [start, end) within `text`; chunks never cross them. */
-  sections: [number, number][];
+  sections: Array<[number, number]>;
   /** Article section selector (web, `dom_path` locators; specs/009). */
   dom_selector?: string | undefined;
   /** Transcript segment interval in integer ms (audio/video, `time_span` locators; specs/009). */
@@ -45,22 +44,29 @@ export { countWords } from "@everlast/contracts";
 export const TEXT_PAGE_TARGET = 20_000;
 
 /** Whole-page section, trimmed of surrounding whitespace (paragraphs are preferred cut points inside it). */
-export function pageSection(text: string): [number, number][] {
+export function pageSection(text: string): Array<[number, number]> {
   const start = text.length - text.trimStart().length;
   const end = text.trimEnd().length;
   return end > start ? [[start, end]] : [];
 }
 
 /** Markdown sections: each ATX heading starts a new section (UTF-16 ranges, trimmed). */
-export function markdownSections(text: string): [number, number][] {
-  const sections: [number, number][] = [];
-  const headings = [...text.matchAll(/^ {0,3}#{1,6}\s/gm)].map((m) => m.index!);
+export function markdownSections(text: string): Array<[number, number]> {
+  const sections: Array<[number, number]> = [];
+  const headings = [...text.matchAll(/^ {0,3}#{1,6}\s/gm)].map((m) => m.index);
   const cuts = [0, ...headings.filter((i) => i > 0), text.length];
   for (let i = 0; i < cuts.length - 1; i++) {
-    const segment = text.slice(cuts[i], cuts[i + 1]);
+    const startCut = cuts[i];
+    const endCut = cuts[i + 1];
+    if (startCut === undefined || endCut === undefined) {
+      continue;
+    }
+    const segment = text.slice(startCut, endCut);
     const lead = segment.length - segment.trimStart().length;
     const trimmedEnd = segment.trimEnd().length;
-    if (trimmedEnd > lead) sections.push([cuts[i]! + lead, cuts[i]! + trimmedEnd]);
+    if (trimmedEnd > lead) {
+      sections.push([startCut + lead, startCut + trimmedEnd]);
+    }
   }
   return sections;
 }
@@ -99,11 +105,14 @@ export function decodeUtf8Text(bytes: Buffer): string {
     throw new IngestionFailure("Unreadable", MSG_UNREADABLE);
   }
   if (text.includes("\u0000")) throw new IngestionFailure("Unreadable", MSG_UNREADABLE);
-  return text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
+  return text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
 }
 
 /** Text formats; `note_markdown` (notes converted to a source, FR-NM-03) is parsed exactly like uploaded Markdown. */
-export function extractPlainText(bytes: Buffer, mediaType: "text/plain" | "text/markdown" | "copied_text" | "note_markdown"): CanonicalDocument {
+export function extractPlainText(
+  bytes: Buffer,
+  mediaType: "text/plain" | "text/markdown" | "copied_text" | "note_markdown",
+): CanonicalDocument {
   if (bytes.length === 0) throw new IngestionFailure("EmptyFile", MSG_EMPTY);
   const text = decodeUtf8Text(bytes);
   if (!text.trim()) throw new IngestionFailure("EmptyFile", MSG_EMPTY);
@@ -111,7 +120,10 @@ export function extractPlainText(bytes: Buffer, mediaType: "text/plain" | "text/
     .map((pageText, i) => ({
       page_number: i + 1,
       text: pageText,
-      sections: mediaType === "text/markdown" || mediaType === "note_markdown" ? markdownSections(pageText) : pageSection(pageText),
+      sections:
+        mediaType === "text/markdown" || mediaType === "note_markdown"
+          ? markdownSections(pageText)
+          : pageSection(pageText),
     }))
     .filter((page) => page.sections.length > 0);
   return { pages, pageCount: pages.length, ocrPages: [] };

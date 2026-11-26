@@ -71,9 +71,9 @@ export interface AdapterContext {
   source: SourceRecord;
   deps: IngestionDeps;
   /** Reports a progress substate (Fetching/Transcribing/Parsing). */
-  progress(progress: SourceProgress): Promise<void>;
+  progress: (progress: SourceProgress) => Promise<void>;
   /** Raw upload bytes (uploads only; linked sources fetch their own content). */
-  readUpload(): Promise<Buffer>;
+  readUpload: () => Promise<Buffer>;
 }
 
 export type SourceAdapter = (ctx: AdapterContext) => Promise<NormalizedSource>;
@@ -105,7 +105,10 @@ export function sourceObjectPrefix(source: Pick<SourceRecord, "notebook_id" | "i
   return `notebooks/${source.notebook_id}/sources/${source.id}/`;
 }
 
-export async function purgeSourceObjects(storage: ObjectStorage, source: Pick<SourceRecord, "notebook_id" | "id">): Promise<void> {
+export async function purgeSourceObjects(
+  storage: ObjectStorage,
+  source: Pick<SourceRecord, "notebook_id" | "id">,
+): Promise<void> {
   for (const version of await storage.listVersions(sourceObjectPrefix(source))) {
     await storage.deleteVersion(version.name, version.generation).catch(() => undefined);
   }
@@ -118,7 +121,9 @@ export class AdapterUnavailableError extends Error {
   }
 }
 
-export function adapterKeyFor(source: Pick<SourceRecord, "media_type" | "link_kind">): AdapterKey | null {
+export function adapterKeyFor(
+  source: Pick<SourceRecord, "media_type" | "link_kind">,
+): AdapterKey | null {
   if (source.link_kind === "web") return "web";
   if (source.link_kind === "video") return "video";
   if (source.link_kind === "drive") return "drive";
@@ -130,16 +135,28 @@ export function adapterKeyFor(source: Pick<SourceRecord, "media_type" | "link_ki
 /** Deterministic hash of the normalized viewer content (unchanged-upstream detection on re-sync). */
 export function contentHashOf(doc: CanonicalDocument): string {
   const hash = createHash("sha256");
-  for (const page of doc.pages) hash.update(`${page.page_number}\u0000${page.dom_selector ?? ""}\u0000${page.start_ms ?? ""}-${page.end_ms ?? ""}\u0000${page.text}\u0001`);
+  for (const page of doc.pages)
+    hash.update(
+      `${page.page_number}\u0000${page.dom_selector ?? ""}\u0000${page.start_ms ?? ""}-${page.end_ms ?? ""}\u0000${page.text}\u0001`,
+    );
   return `sha256:${hash.digest("hex")}`;
 }
 
 /** Normalizes one source through v1 extraction or its v3 adapter. */
-export async function normalizeSource(deps: IngestionDeps, source: SourceRecord, progress: (p: SourceProgress) => Promise<void>): Promise<NormalizedSource> {
+export async function normalizeSource(
+  deps: IngestionDeps,
+  source: SourceRecord,
+  progress: (p: SourceProgress) => Promise<void>,
+): Promise<NormalizedSource> {
   const readUpload = async () => {
-    if (!source.object_name || !source.object_generation) throw new IngestionFailure("Unreadable", "Could not read file (password-protected or corrupted)");
+    if (!source.object_name || !source.object_generation)
+      throw new IngestionFailure(
+        "Unreadable",
+        "Could not read file (password-protected or corrupted)",
+      );
     const bytes = await deps.storage.read(source.object_name, source.object_generation);
-    if (bytes.length > MAX_SOURCE_BYTES) throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
+    if (bytes.length > MAX_SOURCE_BYTES)
+      throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
     return bytes;
   };
   const key = adapterKeyFor(source);
@@ -152,7 +169,10 @@ export async function normalizeSource(deps: IngestionDeps, source: SourceRecord,
   const doc =
     source.media_type === "application/pdf"
       ? await extractPdf(bytes, deps.ocr)
-      : extractPlainText(bytes, source.media_type as "text/plain" | "text/markdown" | "copied_text" | "note_markdown");
+      : extractPlainText(
+          bytes,
+          source.media_type as "text/plain" | "text/markdown" | "copied_text" | "note_markdown",
+        );
   return { doc, viewerKind: "pages", byteSize: bytes.length, screen: false };
 }
 
@@ -168,36 +188,63 @@ export interface PreparedRevision {
  * Validates, screens, chunks and embeds a normalized source for a given revision. Throws IngestionFailure for
  * every user-visible rejection; nothing is written.
  */
-export async function prepareRevision(deps: IngestionDeps, source: SourceRecord, normalized: NormalizedSource, revision: number): Promise<PreparedRevision> {
-  if (normalized.byteSize > MAX_SOURCE_BYTES) throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
+export async function prepareRevision(
+  deps: IngestionDeps,
+  source: SourceRecord,
+  normalized: NormalizedSource,
+  revision: number,
+): Promise<PreparedRevision> {
+  if (normalized.byteSize > MAX_SOURCE_BYTES)
+    throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
   const doc = normalized.doc;
   const words = doc.pages.reduce((sum, page) => sum + countWords(page.text), 0);
   if (words === 0) throw new IngestionFailure("NoExtractableText", MSG_NO_TEXT);
-  if (words > MAX_SOURCE_WORDS) throw new IngestionFailure("SourceOversizedWords", MSG_TOO_MANY_WORDS);
+  if (words > MAX_SOURCE_WORDS)
+    throw new IngestionFailure("SourceOversizedWords", MSG_TOO_MANY_WORDS);
 
   if (normalized.screen) {
-    if (!deps.screener) throw new IngestionFailure("ScreeningUnavailable", "Content safety screening is unavailable; the source was not indexed");
+    if (!deps.screener)
+      throw new IngestionFailure(
+        "ScreeningUnavailable",
+        "Content safety screening is unavailable; the source was not indexed",
+      );
     let verdict;
     try {
       verdict = await deps.screener.screen(doc.pages.map((p) => p.text));
     } catch {
-      throw new IngestionFailure("ScreeningUnavailable", "Content safety screening is unavailable; the source was not indexed");
+      throw new IngestionFailure(
+        "ScreeningUnavailable",
+        "Content safety screening is unavailable; the source was not indexed",
+      );
     }
-    if (verdict.verdict !== "clean") throw new IngestionFailure("ContentQuarantined", CONTENT_QUARANTINED_MESSAGE);
+    if (verdict.verdict !== "clean")
+      throw new IngestionFailure("ContentQuarantined", CONTENT_QUARANTINED_MESSAGE);
   }
 
-  const anchored = normalized.viewerKind === "transcript" ? chunkTranscript(doc, source.id, revision) : chunkDocumentAnchored(doc, source.id, revision, deps.chunker);
+  const anchored =
+    normalized.viewerKind === "transcript"
+      ? chunkTranscript(doc, source.id, revision)
+      : chunkDocumentAnchored(doc, source.id, revision, deps.chunker);
   if (anchored.length === 0) throw new IngestionFailure("NoExtractableText", MSG_NO_TEXT);
   const embeddings = await deps.embedder.embed(
     anchored.map((c) => c.chunk.text),
-    "RETRIEVAL_DOCUMENT"
+    "RETRIEVAL_DOCUMENT",
   );
+  const chunks: PublishChunk[] = anchored.map((c, i) => {
+    const embedding = embeddings[i];
+    if (!embedding) throw new IngestionFailure("ProcessingError", "Missing chunk embedding");
+    return {
+      chunk: c.chunk,
+      embedding,
+      anchorPage: c.anchorPage,
+    };
+  });
   const contentHash = contentHashOf(doc);
   return {
     normalized,
     words,
     contentHash,
-    chunks: anchored.map((c, i) => ({ chunk: c.chunk, embedding: embeddings[i]!, anchorPage: c.anchorPage })),
+    chunks,
     manifest: {
       contentHash,
       viewerKind: normalized.viewerKind,
@@ -211,7 +258,16 @@ export async function prepareRevision(deps: IngestionDeps, source: SourceRecord,
   };
 }
 
-export function toPublishPages(doc: CanonicalDocument) {
+export interface PublishPageRecord {
+  page_number: number;
+  physical_page?: number | undefined;
+  text: string;
+  dom_selector?: string | undefined;
+  start_ms?: number | undefined;
+  end_ms?: number | undefined;
+}
+
+export function toPublishPages(doc: CanonicalDocument): PublishPageRecord[] {
   return doc.pages.map((p) => ({
     page_number: p.page_number,
     physical_page: p.physical_page,
@@ -222,39 +278,131 @@ export function toPublishPages(doc: CanonicalDocument) {
   }));
 }
 
+interface ActiveOperation {
+  id: string;
+  fencingToken: number;
+}
+
+function validateIngestSource(
+  source: SourceRecord | null,
+  attemptId: string,
+): IngestOutcome | null {
+  if (!source) return { status: "stale", reason: "source_deleted" };
+  if (source.attempt_id !== attemptId) return { status: "stale", reason: "attempt_mismatch" };
+  if (source.status !== "Processing") return { status: "stale", reason: `status_${source.status}` };
+  return null;
+}
+
+function classifyIngestError(name: string): { errorCode: string; failureMessage: string } {
+  if (name === "OcrUnavailableError") {
+    return { errorCode: "OcrUnavailable", failureMessage: "Scanned pages could not be processed" };
+  }
+  if (name === "AdapterUnavailableError") {
+    return {
+      errorCode: "AdapterUnavailable",
+      failureMessage: "This source type is not available",
+    };
+  }
+  return { errorCode: "ProcessingError", failureMessage: "Processing failed" };
+}
+
+async function failIngestAttempt(
+  deps: IngestionDeps,
+  source: SourceRecord,
+  operation: ActiveOperation | undefined,
+  code: string,
+  message: string,
+): Promise<IngestOutcome> {
+  if (operation) {
+    await failSourceOperation(deps.pool, {
+      operationId: operation.id,
+      fencingToken: operation.fencingToken,
+      code,
+      message,
+    });
+  } else {
+    await failSource(deps.pool, {
+      sourceId: source.id,
+      attemptId: source.attempt_id,
+      code,
+      message,
+    });
+  }
+  await purgeSourceObjects(deps.storage, source);
+  return { status: "failed", code, message };
+}
+
+async function reportIngestProgress(
+  deps: IngestionDeps,
+  source: SourceRecord,
+  operation: ActiveOperation | undefined,
+  progress: SourceProgress,
+): Promise<void> {
+  if (operation) {
+    await setOperationProgress(deps.pool, {
+      operationId: operation.id,
+      fencingToken: operation.fencingToken,
+      progress,
+    });
+    await renewOperationLease(deps.pool, {
+      operationId: operation.id,
+      fencingToken: operation.fencingToken,
+      leaseSeconds: deps.leaseSeconds ?? 900,
+    });
+  } else {
+    await setSourceProgress(deps.pool, source.id, source.attempt_id, progress);
+  }
+}
+
+async function handleIngestFailure(
+  deps: IngestionDeps,
+  source: SourceRecord,
+  operation: ActiveOperation | undefined,
+  attempt: number,
+  err: unknown,
+): Promise<IngestOutcome> {
+  if (
+    err instanceof IngestionFailure ||
+    (err instanceof AppError && err.code === "DelegatedAccessDenied")
+  ) {
+    return failIngestAttempt(deps, source, operation, err.code, err.message);
+  }
+  const name = (err as Error).name;
+  const { errorCode, failureMessage } = classifyIngestError(name);
+  if (errorCode === "OcrUnavailable" || attempt >= MAX_JOB_ATTEMPTS) {
+    return failIngestAttempt(deps, source, operation, errorCode, failureMessage);
+  }
+  console.error(JSON.stringify({ severity: "WARNING", source_id: source.id, error: name }));
+  if (operation) {
+    await releaseOperationLease(deps.pool, {
+      operationId: operation.id,
+      fencingToken: operation.fencingToken,
+    });
+  }
+  return { status: "retry", errorCode };
+}
+
 export async function processIngestJob(
   deps: IngestionDeps,
   payload: { source_id: string; attempt_id: string; operation_id?: string | undefined },
-  attempt = 1
+  attempt = 1,
 ): Promise<IngestOutcome> {
   const source = await getSourceById(deps.pool, payload.source_id);
-  if (!source) return { status: "stale", reason: "source_deleted" };
-  if (source.attempt_id !== payload.attempt_id) return { status: "stale", reason: "attempt_mismatch" };
-  if (source.status !== "Processing") return { status: "stale", reason: `status_${source.status}` };
+  const invalid = validateIngestSource(source, payload.attempt_id);
+  if (invalid || !source) return invalid ?? { status: "stale", reason: "source_deleted" };
 
   // Linked imports run under their durable operation: a redelivered job resumes it, a live lease is not stolen.
-  let operation: { id: string; fencingToken: number } | undefined;
+  let operation: ActiveOperation | undefined;
   if (payload.operation_id) {
-    const claim = await claimSourceOperation(deps.pool, payload.operation_id, { leaseSeconds: deps.leaseSeconds ?? 900 });
+    const claim = await claimSourceOperation(deps.pool, payload.operation_id, {
+      leaseSeconds: deps.leaseSeconds ?? 900,
+    });
     if (claim.status === "busy") return { status: "busy" };
     if (claim.status !== "claimed") return { status: "stale", reason: `operation_${claim.status}` };
     operation = { id: payload.operation_id, fencingToken: claim.fencingToken };
   }
 
-  const fail = async (code: string, message: string): Promise<IngestOutcome> => {
-    if (operation) await failSourceOperation(deps.pool, { operationId: operation.id, fencingToken: operation.fencingToken, code, message });
-    else await failSource(deps.pool, { sourceId: source.id, attemptId: source.attempt_id, code, message });
-    await purgeSourceObjects(deps.storage, source);
-    return { status: "failed", code, message };
-  };
-  const progress = async (p: SourceProgress) => {
-    if (operation) {
-      await setOperationProgress(deps.pool, { operationId: operation.id, fencingToken: operation.fencingToken, progress: p });
-      await renewOperationLease(deps.pool, { operationId: operation.id, fencingToken: operation.fencingToken, leaseSeconds: deps.leaseSeconds ?? 900 });
-    } else {
-      await setSourceProgress(deps.pool, source.id, source.attempt_id, p);
-    }
-  };
+  const progress = (p: SourceProgress) => reportIngestProgress(deps, source, operation, p);
 
   try {
     const normalized = await normalizeSource(deps, source, progress);
@@ -284,18 +432,13 @@ export async function processIngestJob(
       if (outcome.reason === "fenced") await purgeSourceObjects(deps.storage, source);
       return { status: "stale", reason: outcome.reason };
     }
-    return { status: "ready", revision: outcome.revision, chunks: prepared.chunks.length, words: prepared.words };
+    return {
+      status: "ready",
+      revision: outcome.revision,
+      chunks: prepared.chunks.length,
+      words: prepared.words,
+    };
   } catch (err) {
-    if (err instanceof IngestionFailure || (err instanceof AppError && err.code === "DelegatedAccessDenied")) return fail(err.code, err.message);
-    const name = (err as Error).name;
-    const errorCode = name === "OcrUnavailableError" ? "OcrUnavailable" : name === "AdapterUnavailableError" ? "AdapterUnavailable" : "ProcessingError";
-    if (errorCode === "OcrUnavailable" || attempt >= MAX_JOB_ATTEMPTS) {
-      const message =
-        errorCode === "OcrUnavailable" ? "Scanned pages could not be processed" : errorCode === "AdapterUnavailable" ? "This source type is not available" : "Processing failed";
-      return fail(errorCode, message);
-    }
-    console.error(JSON.stringify({ severity: "WARNING", source_id: source.id, error: name }));
-    if (operation) await releaseOperationLease(deps.pool, { operationId: operation.id, fencingToken: operation.fencingToken });
-    return { status: "retry", errorCode };
+    return handleIngestFailure(deps, source, operation, attempt, err);
   }
 }

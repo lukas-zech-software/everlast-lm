@@ -9,24 +9,45 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-export type HtmlDocument = any;
-export type HtmlElement = any;
+export interface HtmlElement {
+  readonly tagName: string;
+  readonly textContent: string | null;
+  readonly children: Iterable<HtmlElement> & ArrayLike<HtmlElement>;
+  getAttribute: (name: string) => string | null;
+  closest: (selector: string) => HtmlElement | null;
+  querySelectorAll: (selector: string) => Iterable<HtmlElement> & ArrayLike<HtmlElement>;
+}
+
+export interface HtmlDocument {
+  readonly title?: string;
+  readonly body: HtmlElement;
+  querySelector: (selector: string) => HtmlElement | null;
+}
 
 interface JsdomModule {
-  JSDOM: new (html: string, options: { url?: string; contentType: string }) => { window: { document: HtmlDocument } };
+  JSDOM: new (
+    html: string,
+    options: { url?: string; contentType: string },
+  ) => { window: { document: HtmlDocument } };
 }
 interface ReadabilityModule {
-  Readability: new (doc: HtmlDocument, options?: { charThreshold?: number }) => { parse(): { title?: string | null; content?: string | null } | null };
+  Readability: new (
+    doc: HtmlDocument,
+    options?: { charThreshold?: number },
+  ) => { parse: () => { title?: string | null; content?: string | null } | null };
 }
 
 const jsdom = require("jsdom") as JsdomModule;
 const readability = require("@mozilla/readability") as ReadabilityModule;
 
 export function parseHtml(html: string, url?: string): HtmlDocument {
-  return new jsdom.JSDOM(html, { ...(url ? { url } : {}), contentType: "text/html" }).window.document;
+  return new jsdom.JSDOM(html, { ...(url ? { url } : {}), contentType: "text/html" }).window
+    .document;
 }
 
-export function readArticle(doc: HtmlDocument, charThreshold = 50): { title?: string | null; content?: string | null } | null {
+export function readArticle(
+  doc: HtmlDocument,
+  charThreshold = 50,
+): { title?: string | null; content?: string | null } | null {
   return new readability.Readability(doc, { charThreshold }).parse();
 }

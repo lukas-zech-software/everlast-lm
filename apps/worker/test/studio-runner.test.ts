@@ -31,7 +31,13 @@ function fixture(generate: (ctx: StudioGenerationContext) => Promise<StudioGener
   registry.register(plugin);
   const chunks = [...historyChunks(), ...techChunks(), ...unselectedChunks()];
   const scoped = new FakeScopedContext(chunks);
-  const access = new FakeAccess(new Map([[SRC_HISTORY, 1], [SRC_TECH, 1], [SRC_UNSELECTED, 1]]));
+  const access = new FakeAccess(
+    new Map([
+      [SRC_HISTORY, 1],
+      [SRC_TECH, 1],
+      [SRC_UNSELECTED, 1],
+    ]),
+  );
   const runner = new StudioJobRunner({ repo, registry, scopedContext: scoped, access });
   const queue = (ids = [SRC_HISTORY, SRC_TECH]) =>
     repo.createQueued({
@@ -51,8 +57,19 @@ const goodOutcome = (ctx: StudioGenerationContext) => {
   return {
     status: "completed" as const,
     payload: {
-      content_md: ["# Briefing", ...BRIEFING_KEYS.map((key) => `## ${key}\n\n- A supported point. [1]`)].join("\n\n"),
-      citations: [{ badge_number: 1, chunk_id: c.chunk_id, source_id: c.source_id, revision: c.revision, snippet: c.text.slice(0, 20) }],
+      content_md: [
+        "# Briefing",
+        ...BRIEFING_KEYS.map((key) => `## ${key}\n\n- A supported point. [1]`),
+      ].join("\n\n"),
+      citations: [
+        {
+          badge_number: 1,
+          chunk_id: c.chunk_id,
+          source_id: c.source_id,
+          revision: c.revision,
+          snippet: c.text.slice(0, 20),
+        },
+      ],
       sections: BRIEFING_KEYS.map((key) => ({ key, heading: key })),
     },
   };
@@ -61,7 +78,7 @@ const goodOutcome = (ctx: StudioGenerationContext) => {
 describe("C-03 StudioJobRunner lifecycle (FR-ST-10)", () => {
   let f: ReturnType<typeof fixture>;
   beforeEach(() => {
-    f = fixture(async (ctx) => goodOutcome(ctx));
+    f = fixture((ctx) => Promise.resolve(goodOutcome(ctx)));
   });
 
   it("runs Queued → Running → Completed reading only via C-02 with explicit IDs", async () => {
@@ -109,24 +126,26 @@ describe("C-03 StudioJobRunner lifecycle (FR-ST-10)", () => {
 
   it("fails if the scoped context returns a chunk at a different revision than the snapshot", async () => {
     const a = await f.queue();
-    f.scoped.chunks = f.scoped.chunks.map((c) => (c.source_id === SRC_TECH ? { ...c, revision: 2 } : c));
+    f.scoped.chunks = f.scoped.chunks.map((c) =>
+      c.source_id === SRC_TECH ? { ...c, revision: 2 } : c,
+    );
     const failed = await f.runner.run(a.id);
     expect(failed.failure?.code).toBe("SourceChanged");
   });
 
   it("fails if a chunk from an unselected source leaks into the context (NFR-EVAL-04)", async () => {
     const a = await f.queue();
-    f.scoped.getScopedContext = async () => f.chunks;
+    f.scoped.getScopedContext = () => Promise.resolve(f.chunks);
     const failed = await f.runner.run(a.id);
     expect(failed.status).toBe("Failed");
     expect(failed.failure?.code).toBe("CitationValidationFailed");
   });
 
   it("fails with a refusal when a citation does not resolve to a scoped chunk and publishes no draft", async () => {
-    const g = fixture(async (ctx) => {
+    const g = fixture((ctx) => {
       const out = goodOutcome(ctx);
-      if (out.status === "completed") out.payload.citations[0]!.chunk_id = "01890000-0000-7000-8000-999999999999";
-      return out;
+      out.payload.citations[0]!.chunk_id = "01890000-0000-7000-8000-999999999999";
+      return Promise.resolve(out);
     });
     const a = await g.queue();
     const failed = await g.runner.run(a.id);
@@ -136,39 +155,50 @@ describe("C-03 StudioJobRunner lifecycle (FR-ST-10)", () => {
   });
 
   it("rejects payloads whose citation belongs to an unselected source", async () => {
-    const g = fixture(async (ctx) => {
+    const g = fixture((ctx) => {
       const leaked = g.chunks.find((c) => c.source_id === SRC_UNSELECTED)!;
       const out = goodOutcome(ctx);
-      if (out.status === "completed") {
-        out.payload.citations[0] = { badge_number: 1, chunk_id: leaked.chunk_id, source_id: leaked.source_id, revision: 1, snippet: "The Zorblax" };
-      }
-      return out;
+      out.payload.citations[0] = {
+        badge_number: 1,
+        chunk_id: leaked.chunk_id,
+        source_id: leaked.source_id,
+        revision: 1,
+        snippet: "The Zorblax",
+      };
+      return Promise.resolve(out);
     });
     const a = await g.queue();
     expect((await g.runner.run(a.id)).failure?.code).toBe("CitationValidationFailed");
   });
 
   it("rejects markdown with dangling or missing citation markers", async () => {
-    const g = fixture(async (ctx) => {
+    const g = fixture((ctx) => {
       const out = goodOutcome(ctx);
-      if (out.status === "completed") out.payload.content_md = "# Briefing without markers";
-      return out;
+      out.payload.content_md = "# Briefing without markers";
+      return Promise.resolve(out);
     });
     const a = await g.queue();
     expect((await g.runner.run(a.id)).failure?.code).toBe("CitationValidationFailed");
   });
 
   it("maps plugin refusals to Failed with the plugin's code and no payload", async () => {
-    const g = fixture(async () => ({ status: "refused", code: "InsufficientEvidence", message: "No supported content." }));
+    const g = fixture(() =>
+      Promise.resolve({
+        status: "refused",
+        code: "InsufficientEvidence",
+        message: "No supported content.",
+      }),
+    );
     const a = await g.queue();
     const failed = await g.runner.run(a.id);
-    expect(failed.failure).toEqual({ code: "InsufficientEvidence", message: "No supported content." });
+    expect(failed.failure).toEqual({
+      code: "InsufficientEvidence",
+      message: "No supported content.",
+    });
   });
 
   it("maps plugin crashes to GenerationError without leaking internals", async () => {
-    const g = fixture(async () => {
-      throw new Error("secret stack detail");
-    });
+    const g = fixture(() => Promise.reject(new Error("secret stack detail")));
     const a = await g.queue();
     const failed = await g.runner.run(a.id);
     expect(failed.failure?.code).toBe("GenerationError");

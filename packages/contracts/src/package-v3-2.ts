@@ -6,13 +6,23 @@ import { z } from "zod";
  * C-01 is unchanged: manifests and results only reference existing chunk IDs.
  */
 
-const uuid = (label: string) => z.string().uuid(`${label} must be a valid UUID`);
-const iso = z.string().datetime();
+const uuid = (label: string) => z.uuid(`${label} must be a valid UUID`);
+const iso = z.iso.datetime();
 
 /** FR-007: CodeGenerating → SandboxRunning → Succeeded | TimedOut | Failed. */
-export const CodeExecutionStateSchema = z.enum(["CodeGenerating", "SandboxRunning", "Succeeded", "TimedOut", "Failed"]);
+export const CodeExecutionStateSchema = z.enum([
+  "CodeGenerating",
+  "SandboxRunning",
+  "Succeeded",
+  "TimedOut",
+  "Failed",
+]);
 export type CodeExecutionState = z.infer<typeof CodeExecutionStateSchema>;
-export const TERMINAL_EXECUTION_STATES: readonly CodeExecutionState[] = ["Succeeded", "TimedOut", "Failed"];
+export const TERMINAL_EXECUTION_STATES: readonly CodeExecutionState[] = [
+  "Succeeded",
+  "TimedOut",
+  "Failed",
+];
 
 /** Closed safe failure enum (contracts/interfaces.md terminal-code table); never free provider text. */
 export const CodeExecutionFailureCodeSchema = z.enum([
@@ -40,7 +50,10 @@ export function isRetryableFailure(code: CodeExecutionFailureCode, ordinal: numb
 export const CanonicalNumberSchema = z
   .string()
   .max(64)
-  .regex(/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/, "value must be a canonical finite number string");
+  .regex(
+    /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/,
+    "value must be a canonical finite number string",
+  );
 
 export const ComputedResultSchema = z
   .object({
@@ -54,7 +67,10 @@ export const ComputedResultSchema = z
 export type ComputedResult = z.infer<typeof ComputedResultSchema>;
 
 const UUID_RE = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
-const CHART_URL_RE = new RegExp(`^/api/notebooks/(${UUID_RE})/chat/messages/(${UUID_RE})/charts/(${UUID_RE})$`, "i");
+const CHART_URL_RE = new RegExp(
+  `^/api/notebooks/(${UUID_RE})/chat/messages/(${UUID_RE})/charts/(${UUID_RE})$`,
+  "i",
+);
 
 /** Authenticated application route of a published chart (never a storage bearer URL; NFR-SEC-02). */
 export function chartUrl(notebookId: string, messageId: string, artifactId: string): string {
@@ -65,7 +81,9 @@ export function chartArtifactIdOf(url: string): string | null {
   return CHART_URL_RE.exec(url)?.[3]?.toLowerCase() ?? null;
 }
 
-export const ChartUrlSchema = z.string().regex(CHART_URL_RE, "artifact must be an authenticated chart route");
+export const ChartUrlSchema = z
+  .string()
+  .regex(CHART_URL_RE, "artifact must be an authenticated chart route");
 
 export const CodeExecutionAttemptSchema = z
   .object({
@@ -84,20 +102,39 @@ export const CodeExecutionAttemptSchema = z
   .strict()
   .superRefine((a, ctx) => {
     // Killed, unknown or never-finished runs have no exit code; a fabricated 0 is rejected (FR-007).
-    const killed = ["ExecutionTimeout", "MemoryLimitExceeded", "ExecutionOutcomeUnknown", "GenerationCancelled", "ProviderUnavailable", "PythonException"];
+    const killed = [
+      "ExecutionTimeout",
+      "MemoryLimitExceeded",
+      "ExecutionOutcomeUnknown",
+      "GenerationCancelled",
+      "ProviderUnavailable",
+      "PythonException",
+    ];
     if (a.terminal_reason !== null && killed.includes(a.terminal_reason) && a.exit_code === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "exit_code 0 cannot accompany a killed/failed attempt", path: ["exit_code"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "exit_code 0 cannot accompany a killed/failed attempt",
+        path: ["exit_code"],
+      });
     }
     if (a.terminal_reason === "Succeeded" && a.exit_code !== 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "a succeeded attempt exits 0", path: ["exit_code"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "a succeeded attempt exits 0",
+        path: ["exit_code"],
+      });
     }
     if (a.terminal_reason === null && (a.ended_at !== null || a.exit_code !== null)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "running attempt has no end/exit", path: ["terminal_reason"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "running attempt has no end/exit",
+        path: ["terminal_reason"],
+      });
     }
   });
 export type CodeExecutionAttempt = z.infer<typeof CodeExecutionAttemptSchema>;
 
-export const CodeExecutionTraceSchema = z
+const CodeExecutionTraceBaseSchema = z
   .object({
     schema_version: z.literal(1),
     execution_id: uuid("execution_id"),
@@ -108,86 +145,187 @@ export const CodeExecutionTraceSchema = z
     failure_code: CodeExecutionFailureCodeSchema.nullable(),
     computed_results: z.array(ComputedResultSchema).max(50),
   })
-  .strict()
-  .superRefine((t, ctx) => {
-    const issue = (message: string, path: string[]) => ctx.addIssue({ code: z.ZodIssueCode.custom, message, path });
-    t.attempts.forEach((a, i) => {
-      if (a.ordinal !== i + 1) issue("attempts must be ordered 1..n", ["attempts", String(i), "ordinal"]);
-    });
-    const terminal = TERMINAL_EXECUTION_STATES.includes(t.state);
-    const last = t.attempts.at(-1);
-    if (!terminal || t.attempts.length === 0) {
-      if (t.final_attempt_id !== null) issue("no final attempt before terminal completion or without attempts", ["final_attempt_id"]);
-    } else if (t.final_attempt_id !== last!.attempt_id) {
-      issue("final_attempt_id must be the last actual attempt", ["final_attempt_id"]);
-    }
-    if (t.attempts.length === 2 && t.attempts[0]!.terminal_reason !== "PythonException") {
-      issue("a second attempt only follows a first-attempt Python exception", ["attempts"]);
-    }
-    if (t.state === "Succeeded") {
-      if (t.failure_code !== null) issue("success has no failure code", ["failure_code"]);
-      if (!last || last.terminal_reason !== "Succeeded") issue("success needs a succeeded final attempt", ["attempts"]);
-      const finalArtifacts = new Set((last?.artifacts ?? []).map((u) => chartArtifactIdOf(u)));
-      for (const id of t.published_artifact_ids) if (!finalArtifacts.has(id.toLowerCase())) issue("published artifacts come from the final attempt", ["published_artifact_ids"]);
-    } else {
-      if (t.published_artifact_ids.length > 0) issue("nothing is published unless Succeeded", ["published_artifact_ids"]);
-      if (t.computed_results.length > 0) issue("no computed result unless Succeeded", ["computed_results"]);
-      if (terminal && t.failure_code === null) issue("terminal failures carry a failure code", ["failure_code"]);
-      if (!terminal && t.failure_code !== null) issue("running traces carry no failure code", ["failure_code"]);
-      if (t.state === "TimedOut" && t.failure_code !== "ExecutionTimeout") issue("TimedOut uses ExecutionTimeout", ["failure_code"]);
+  .strict();
+
+type RawCodeExecutionTrace = z.infer<typeof CodeExecutionTraceBaseSchema>;
+type TraceIssueFn = (message: string, path: string[]) => void;
+
+function validateTraceAttemptSequence(
+  t: RawCodeExecutionTrace,
+  terminal: boolean,
+  last: CodeExecutionAttempt | undefined,
+  issue: TraceIssueFn,
+): void {
+  t.attempts.forEach((a, i) => {
+    if (a.ordinal !== i + 1) {
+      issue("attempts must be ordered 1..n", ["attempts", String(i), "ordinal"]);
     }
   });
+  if (!terminal || !last) {
+    if (t.final_attempt_id !== null) {
+      issue("no final attempt before terminal completion or without attempts", [
+        "final_attempt_id",
+      ]);
+    }
+  } else if (t.final_attempt_id !== last.attempt_id) {
+    issue("final_attempt_id must be the last actual attempt", ["final_attempt_id"]);
+  }
+  const firstAttempt = t.attempts[0];
+  if (t.attempts.length === 2 && firstAttempt?.terminal_reason !== "PythonException") {
+    issue("a second attempt only follows a first-attempt Python exception", ["attempts"]);
+  }
+}
+
+function validateSucceededTrace(
+  t: RawCodeExecutionTrace,
+  last: CodeExecutionAttempt | undefined,
+  issue: TraceIssueFn,
+): void {
+  if (t.failure_code !== null) {
+    issue("success has no failure code", ["failure_code"]);
+  }
+  if (last?.terminal_reason !== "Succeeded") {
+    issue("success needs a succeeded final attempt", ["attempts"]);
+  }
+  const finalArtifacts = new Set((last?.artifacts ?? []).map((u) => chartArtifactIdOf(u)));
+  for (const id of t.published_artifact_ids) {
+    if (!finalArtifacts.has(id.toLowerCase())) {
+      issue("published artifacts come from the final attempt", ["published_artifact_ids"]);
+    }
+  }
+}
+
+function validateNonSucceededTrace(
+  t: RawCodeExecutionTrace,
+  terminal: boolean,
+  issue: TraceIssueFn,
+): void {
+  if (t.published_artifact_ids.length > 0) {
+    issue("nothing is published unless Succeeded", ["published_artifact_ids"]);
+  }
+  if (t.computed_results.length > 0) {
+    issue("no computed result unless Succeeded", ["computed_results"]);
+  }
+  if (terminal && t.failure_code === null) {
+    issue("terminal failures carry a failure code", ["failure_code"]);
+  }
+  if (!terminal && t.failure_code !== null) {
+    issue("running traces carry no failure code", ["failure_code"]);
+  }
+  if (t.state === "TimedOut" && t.failure_code !== "ExecutionTimeout") {
+    issue("TimedOut uses ExecutionTimeout", ["failure_code"]);
+  }
+}
+
+export const CodeExecutionTraceSchema = CodeExecutionTraceBaseSchema.superRefine((t, ctx) => {
+  const issue: TraceIssueFn = (message, path) => ctx.addIssue({ code: "custom", message, path });
+  const terminal = TERMINAL_EXECUTION_STATES.includes(t.state);
+  const last = t.attempts.at(-1);
+  validateTraceAttemptSequence(t, terminal, last, issue);
+  if (t.state === "Succeeded") {
+    validateSucceededTrace(t, last, issue);
+  } else {
+    validateNonSucceededTrace(t, terminal, issue);
+  }
+});
 export type CodeExecutionTrace = z.infer<typeof CodeExecutionTraceSchema>;
 
 /** Canonical private runtime identity/profile input for SHA256(JSON.stringify(parse(value))). */
-export const CodeExecutionRuntimeConfigSchema = z.object({
-  reasoning_engine:z.string().regex(/^projects\/[a-z0-9-]+\/locations\/europe-west4\/reasoningEngines\/[0-9]+$/),
-  region:z.literal("europe-west4"),vcpu:z.literal(2),memory_gb:z.literal(1.5),
-  network:z.literal("none"),file_io_mb:z.literal(100),deadline_ms:z.literal(15000),
-}).strict();
+export const CodeExecutionRuntimeConfigSchema = z
+  .object({
+    reasoning_engine: z
+      .string()
+      .regex(/^projects\/[a-z0-9-]+\/locations\/europe-west4\/reasoningEngines\/[0-9]+$/),
+    region: z.literal("europe-west4"),
+    vcpu: z.literal(2),
+    memory_gb: z.literal(1.5),
+    network: z.literal("none"),
+    file_io_mb: z.literal(100),
+    deadline_ms: z.literal(15000),
+  })
+  .strict();
 export type CodeExecutionRuntimeConfig = z.infer<typeof CodeExecutionRuntimeConfigSchema>;
 
 /** FR-GC-08 / NFR-PERF-01: private producer port, never serialized by public routes.
  * Identifiers, hashes and measured timestamps only; no prompts, code, tokens or provider handles.
  * The producer must qualify its real serving/runtime dependencies; consumers never infer qualification.
  */
-export const CodeExecutionPrivateMeasurementSchema = z.object({
-  schema_version: z.literal(1),
-  request_id: uuid("request_id"), notebook_id: uuid("notebook_id"), owner_id: uuid("owner_id"),
-  execution_id: uuid("execution_id").nullable(),
-  fixture_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  source_snapshot: z.array(z.object({ source_id: uuid("source_id"), revision: z.number().int().positive() }).strict()).min(1).max(300),
-  instance_boot_id: uuid("instance_boot_id"), candidate_commit:z.string().regex(/^[0-9a-f]{40}$/), serving_revision: z.string().min(1).max(200),
-  classification_basis: z.enum(["application-serving-readiness", "managed-runtime-readiness"]),
-  qualification_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  runtime_config_sha256:z.string().regex(/^[0-9a-f]{64}$/),
-  clock_calibration_sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  execution_state: z.enum(["Succeeded", "Failed", "TimedOut"]),
-  failure_code: CodeExecutionFailureCodeSchema.nullable(),
-  attempts: z.array(z.object({attempt_id:uuid("attempt_id"),ordinal:z.union([z.literal(1),z.literal(2)]),started_at:iso,ended_at:iso.nullable(),terminal_reason:z.union([z.literal("Succeeded"),CodeExecutionFailureCodeSchema]).nullable()}).strict()).max(2),
-  qualified: z.literal(true), ready_at_ms: z.number().finite().nonnegative(), qualified_at_ms: z.number().finite().nonnegative(),
-  /** Historical field name: timestamp immediately BEFORE invoking runtime.create; includes RPC/boot/poll. */
-  sandbox_created_at: iso.nullable(), running_code_at: iso.nullable(),
-  /** Same server clock, immediately after runtime.execute settles, before cleanup/publication. */
-  execution_completed_at: iso.nullable(), answer_published_at: iso.nullable(),
-  trace_sha256: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
-}).strict();
+export const CodeExecutionPrivateMeasurementSchema = z
+  .object({
+    schema_version: z.literal(1),
+    request_id: uuid("request_id"),
+    notebook_id: uuid("notebook_id"),
+    owner_id: uuid("owner_id"),
+    execution_id: uuid("execution_id").nullable(),
+    fixture_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    source_snapshot: z
+      .array(
+        z.object({ source_id: uuid("source_id"), revision: z.number().int().positive() }).strict(),
+      )
+      .min(1)
+      .max(300),
+    instance_boot_id: uuid("instance_boot_id"),
+    candidate_commit: z.string().regex(/^[0-9a-f]{40}$/),
+    serving_revision: z.string().min(1).max(200),
+    classification_basis: z.enum(["application-serving-readiness", "managed-runtime-readiness"]),
+    qualification_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    runtime_config_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    clock_calibration_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    execution_state: z.enum(["Succeeded", "Failed", "TimedOut"]),
+    failure_code: CodeExecutionFailureCodeSchema.nullable(),
+    attempts: z
+      .array(
+        z
+          .object({
+            attempt_id: uuid("attempt_id"),
+            ordinal: z.union([z.literal(1), z.literal(2)]),
+            started_at: iso,
+            ended_at: iso.nullable(),
+            terminal_reason: z
+              .union([z.literal("Succeeded"), CodeExecutionFailureCodeSchema])
+              .nullable(),
+          })
+          .strict(),
+      )
+      .max(2),
+    qualified: z.literal(true),
+    ready_at_ms: z.number().nonnegative(),
+    qualified_at_ms: z.number().nonnegative(),
+    /** Historical field name: timestamp immediately BEFORE invoking runtime.create; includes RPC/boot/poll. */
+    sandbox_created_at: iso.nullable(),
+    running_code_at: iso.nullable(),
+    /** Same server clock, immediately after runtime.execute settles, before cleanup/publication. */
+    execution_completed_at: iso.nullable(),
+    answer_published_at: iso.nullable(),
+    trace_sha256: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .nullable(),
+  })
+  .strict();
 export type CodeExecutionPrivateMeasurement = z.infer<typeof CodeExecutionPrivateMeasurementSchema>;
 /** Private file adapter contract shared with the trusted producer; not an HTTP response. */
-export const CodeExecutionPrivateEvidenceFileSchema = z.object({
-  schema_version:z.literal(1),candidate_commit:z.string().regex(/^[0-9a-f]{40}$/),serving_revision:z.string().min(1).max(200),
-  fixture_sha256:z.string().regex(/^[0-9a-f]{64}$/),
-  classification_basis:CodeExecutionPrivateMeasurementSchema.shape.classification_basis,
-  qualification_sha256:z.string().regex(/^[0-9a-f]{64}$/),
-  runtime_config_sha256:z.string().regex(/^[0-9a-f]{64}$/),
-  clock_calibration_sha256:z.string().regex(/^[0-9a-f]{64}$/),
-  approved_notebook_ids:z.array(uuid("notebook_id")).min(2).max(100),
-  measurements:z.array(CodeExecutionPrivateMeasurementSchema).max(2000),
-}).strict();
-export type CodeExecutionPrivateEvidenceFile = z.infer<typeof CodeExecutionPrivateEvidenceFileSchema>;
+export const CodeExecutionPrivateEvidenceFileSchema = z
+  .object({
+    schema_version: z.literal(1),
+    candidate_commit: z.string().regex(/^[0-9a-f]{40}$/),
+    serving_revision: z.string().min(1).max(200),
+    fixture_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    classification_basis: CodeExecutionPrivateMeasurementSchema.shape.classification_basis,
+    qualification_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    runtime_config_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    clock_calibration_sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    approved_notebook_ids: z.array(uuid("notebook_id")).min(2).max(100),
+    measurements: z.array(CodeExecutionPrivateMeasurementSchema).max(2000),
+  })
+  .strict();
+export type CodeExecutionPrivateEvidenceFile = z.infer<
+  typeof CodeExecutionPrivateEvidenceFileSchema
+>;
 
-
-const SourceRevisionSchema = z.object({ source_id: uuid("source_id"), revision: z.number().int().positive() }).strict();
+const SourceRevisionSchema = z
+  .object({ source_id: uuid("source_id"), revision: z.number().int().positive() })
+  .strict();
 
 /** Private chart record (data-model.md Chart artifact); the object key/generation never leaves the server. */
 export const ChartArtifactRecordSchema = z
@@ -210,7 +348,9 @@ export const ChartArtifactRecordSchema = z
 export type ChartArtifactRecord = z.infer<typeof ChartArtifactRecordSchema>;
 
 /** Input file names are fixed internal names; no URLs, paths, traversal or hidden files (FR-009, NFR-SEC-02). */
-export const ManifestFilenameSchema = z.string().regex(/^[a-z][a-z0-9_]{0,62}\.json$/, "manifest filename must be an internal name");
+export const ManifestFilenameSchema = z
+  .string()
+  .regex(/^[a-z][a-z0-9_]{0,62}\.json$/, "manifest filename must be an internal name");
 
 export const ManifestValueSchema = z
   .object({

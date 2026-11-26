@@ -18,6 +18,28 @@ import type { EvidenceBatchLimits } from "../evidence.ts";
 import { DeterministicFlashcardsModel, type FlashcardsModelClient } from "./model.ts";
 import { generateFlashcards } from "./pipeline.ts";
 
+function parseDifficulty(raw: unknown): PedagogyDifficulty | undefined {
+  if (raw === undefined) return undefined;
+  const parsedDiff = PedagogyDifficultySchema.safeParse(raw);
+  if (!parsedDiff.success) throw new StudioParamsError("Invalid flashcards difficulty.");
+  return parsedDiff.data;
+}
+
+function parseCardCount(raw: unknown): FlashcardCountInput | undefined {
+  if (raw === undefined) return undefined;
+  const parsedCount = FlashcardCountInputSchema.safeParse(raw);
+  if (!parsedCount.success) throw new StudioParamsError("Invalid flashcards card_count.");
+  return parsedCount.data;
+}
+
+function parseFocusPrompt(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const check = validatePedagogyFocusPrompt(raw);
+  if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid focus prompt.");
+  if (!check.normalized) return undefined;
+  return check.normalized;
+}
+
 /**
  * [014-studio-active-learning-suite] T010, T011 — Flashcards Studio generator plugin (`flashcards/default`, FR-ST-13, C-03).
  */
@@ -31,7 +53,10 @@ export class FlashcardsGeneratorPlugin implements StudioGeneratorPlugin {
   private readonly model: FlashcardsModelClient;
   private readonly limits?: EvidenceBatchLimits | undefined;
 
-  constructor(model: FlashcardsModelClient = new DeterministicFlashcardsModel(), limits?: EvidenceBatchLimits) {
+  constructor(
+    model: FlashcardsModelClient = new DeterministicFlashcardsModel(),
+    limits?: EvidenceBatchLimits,
+  ) {
     this.model = model;
     this.limits = limits;
   }
@@ -41,30 +66,15 @@ export class FlashcardsGeneratorPlugin implements StudioGeneratorPlugin {
     if (!parsedSubtype.success) {
       throw new StudioParamsError(`Unknown flashcards subtype ${request.subtype}`);
     }
-    let difficulty: PedagogyDifficulty | undefined;
-    if (request.params.difficulty !== undefined) {
-      const parsedDiff = PedagogyDifficultySchema.safeParse(request.params.difficulty);
-      if (!parsedDiff.success) throw new StudioParamsError("Invalid flashcards difficulty.");
-      difficulty = parsedDiff.data;
-    }
-    let cardCount: FlashcardCountInput | undefined;
-    if (request.params.card_count !== undefined) {
-      const parsedCount = FlashcardCountInputSchema.safeParse(request.params.card_count);
-      if (!parsedCount.success) throw new StudioParamsError("Invalid flashcards card_count.");
-      cardCount = parsedCount.data;
-    }
-    let focusPrompt: string | undefined;
-    if (request.params.focus_prompt !== undefined) {
-      const check = validatePedagogyFocusPrompt(request.params.focus_prompt);
-      if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid focus prompt.");
-      if (check.normalized) focusPrompt = check.normalized;
-    }
+    const difficulty = parseDifficulty(request.params.difficulty);
+    const cardCount = parseCardCount(request.params.card_count);
+    const focusPrompt = parseFocusPrompt(request.params.focus_prompt);
     return {
       title: focusPrompt ? `Flashcards: ${focusPrompt.slice(0, 48)}` : "Flashcards",
       params_json: {
-        ...(difficulty !== undefined ? { difficulty } : {}),
-        ...(cardCount !== undefined ? { card_count: cardCount } : {}),
-        ...(focusPrompt !== undefined ? { focus_prompt: focusPrompt } : {}),
+        ...(difficulty === undefined ? {} : { difficulty }),
+        ...(cardCount === undefined ? {} : { card_count: cardCount }),
+        ...(focusPrompt === undefined ? {} : { focus_prompt: focusPrompt }),
       },
     };
   }

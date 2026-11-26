@@ -22,8 +22,28 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
+
+interface DataTableArtifactView {
+  id: string;
+  status: string;
+  params_json: {
+    focus_prompt?: string;
+    schema_id?: string;
+  };
+  payload_json: {
+    rows: unknown[];
+  } | null;
+  failure?: {
+    code: string;
+    message: string;
+  };
+}
+
+interface DataTableArtifactEnvelope {
+  artifact: DataTableArtifactView;
+}
 
 const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
 
@@ -37,9 +57,13 @@ async function seed(nb: string, title: string, pages: string[]) {
   });
 }
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+async function waitTerminal(nb: string, id: string): Promise<DataTableArtifactEnvelope> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<DataTableArtifactEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts/${id}`,
+    );
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -83,27 +107,37 @@ describe("[011-studio-mindmaps-data-tables] T039: Data Table API focus_prompt bo
 
     // 3. Exactly 2,000 Unicode code-point focus_prompt + schema_id -> 202 Accepted & Completed
     const prompt2000 = makeCodePointString(2000);
-    const exactRes = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "data_table",
-      subtype: "default",
-      active_source_ids: activeIds,
-      focus_prompt: `  ${prompt2000}  `,
-      schema_id: "vendor_comparison",
-    });
+    const exactRes = await n.call<DataTableArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "data_table",
+        subtype: "default",
+        active_source_ids: activeIds,
+        focus_prompt: `  ${prompt2000}  `,
+        schema_id: "vendor_comparison",
+      },
+    );
     expect(exactRes.status).toBe(202);
     const exactDone = await waitTerminal(nb, exactRes.json.artifact.id);
     expect(exactDone.artifact.status).toBe("Completed");
     expect(exactDone.artifact.params_json.focus_prompt).toBe(prompt2000);
     expect(exactDone.artifact.params_json.schema_id).toBe("vendor_comparison");
-    expect(exactDone.artifact.payload_json.rows).toHaveLength(3);
+    expect(exactDone.artifact.payload_json?.rows).toHaveLength(3);
 
     // 4. 0-length / omitted focus_prompt and omitted schema_id -> defaults to schema_id: "auto" and completes
-    const autoRes = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "data_table",
-      subtype: "default",
-      active_source_ids: activeIds,
-      focus_prompt: "   ",
-    });
+    const autoRes = await n.call<DataTableArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "data_table",
+        subtype: "default",
+        active_source_ids: activeIds,
+        focus_prompt: "   ",
+      },
+    );
     expect(autoRes.status).toBe(202);
     const autoDone = await waitTerminal(nb, autoRes.json.artifact.id);
     expect(autoDone.artifact.status).toBe("Completed");
@@ -114,10 +148,13 @@ describe("[011-studio-mindmaps-data-tables] T039: Data Table API focus_prompt bo
   it("transitions oversized table (>500 rows or >25 columns) to Failed with TableBoundsExceeded narrowing message and null payload_json", async () => {
     const nb = await n.notebook(OWNER);
     // Seed a source that has 26 distinct key-value attributes so the deterministic model extracts 26 columns (>25 limit)
-    const lines = Array.from({ length: 26 }, (_, i) => `Attribute${i + 1}: Value-${i + 1} for Vendor Alpha.`);
+    const lines = Array.from(
+      { length: 26 },
+      (_, i) => `Attribute${i + 1}: Value-${i + 1} for Vendor Alpha.`,
+    );
     const s1 = await seed(nb, "WideAttributes.txt", [lines.join(". ")]);
 
-    const res = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
+    const res = await n.call<DataTableArtifactEnvelope>(OWNER, "POST", `${studio(nb)}/artifacts`, {
       plugin_type: "data_table",
       subtype: "default",
       active_source_ids: [s1.sourceId],
@@ -126,7 +163,7 @@ describe("[011-studio-mindmaps-data-tables] T039: Data Table API focus_prompt bo
     const done = await waitTerminal(nb, res.json.artifact.id);
     expect(done.artifact.status).toBe("Failed");
     expect(done.artifact.payload_json).toBeNull();
-    expect(done.artifact.failure.code).toBe("TableBoundsExceeded");
-    expect(done.artifact.failure.message).toMatch(/exceeds|narrow/i);
+    expect(done.artifact.failure?.code).toBe("TableBoundsExceeded");
+    expect(done.artifact.failure?.message).toMatch(/exceeds|narrow/i);
   });
 });

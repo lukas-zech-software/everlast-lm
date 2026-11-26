@@ -33,7 +33,8 @@ const STUDIO_TEST_NOTEBOOK_ID = "33000000-0000-4000-8000-000000000001";
 const MISSING_CELL_MARKER = "N/A (Not in sources)";
 const makeStudioSourceId = (n: number) => `33000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const makeStudioChunkId = (n: number) => `0190f330-0000-7000-8000-${String(n).padStart(12, "0")}`;
-const makeStudioArtifactId = (n: number) => `33000000-aaaa-4000-8000-${String(n).padStart(12, "0")}`;
+const makeStudioArtifactId = (n: number) =>
+  `33000000-aaaa-4000-8000-${String(n).padStart(12, "0")}`;
 const makeCodePointString = (count: number, ch = "🧪") => ch.repeat(count);
 
 /**
@@ -42,11 +43,19 @@ const makeCodePointString = (count: number, ch = "🧪") => ch.repeat(count);
  * SC-001, SC-008, SC-009, SC-010, SC-011).
  */
 
-function makeCite(badge_number: number, source_id: string, chunk_id: string, snippet = "supported text") {
+function makeCite(
+  badge_number: number,
+  source_id: string,
+  chunk_id: string,
+  snippet = "supported text",
+) {
   return { badge_number, source_id, chunk_id, revision: 1, snippet };
 }
 
-function makeSampleTree(nodeCount = 15): { root: MindmapNode; citations: ReturnType<typeof makeCite>[] } {
+function makeSampleTree(nodeCount = 15): {
+  root: MindmapNode;
+  citations: Array<ReturnType<typeof makeCite>>;
+} {
   const src = makeStudioSourceId(1);
   const chunk = makeStudioChunkId(1);
   const cite = makeCite(1, src, chunk, "Architecture fact");
@@ -130,7 +139,7 @@ describe("[011-studio-mindmaps-data-tables] T004: C-03 plugin/subtype variants a
         plugin_type: "mindmap",
         subtype: "faq",
         active_source_ids: [src],
-      }).success
+      }).success,
     ).toBe(false);
 
     expect(
@@ -138,7 +147,7 @@ describe("[011-studio-mindmaps-data-tables] T004: C-03 plugin/subtype variants a
         plugin_type: "mindmap",
         subtype: "default",
         active_source_ids: [src],
-      }).success
+      }).success,
     ).toBe(true);
 
     expect(
@@ -148,7 +157,7 @@ describe("[011-studio-mindmaps-data-tables] T004: C-03 plugin/subtype variants a
         active_source_ids: [src],
         schema_id: "vendor_comparison",
         focus_prompt: "Compare pricing and SLA",
-      }).success
+      }).success,
     ).toBe(true);
   });
 });
@@ -196,7 +205,7 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
           initial_expanded_depth: 2,
           insufficient_evidence_note: null,
           citations: sample.citations,
-        }).success
+        }).success,
       ).toBe(true);
     }
 
@@ -210,7 +219,7 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
         initial_expanded_depth: 2,
         insufficient_evidence_note: null,
         citations: over.citations,
-      }).success
+      }).success,
     ).toBe(false);
 
     // Duplicate node ID fails
@@ -224,7 +233,7 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
         initial_expanded_depth: 2,
         insufficient_evidence_note: null,
         citations: dup.citations,
-      }).success
+      }).success,
     ).toBe(false);
 
     // Evidence-limited lower count (< 15 nodes) requires insufficient_evidence_note
@@ -237,7 +246,7 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
         initial_expanded_depth: 2,
         insufficient_evidence_note: null,
         citations: small.citations,
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       StudioMindmapPayloadSchema.safeParse({
@@ -247,7 +256,7 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
         initial_expanded_depth: 2,
         insufficient_evidence_note: "Selected sources only support 5 distinct concepts.",
         citations: small.citations,
-      }).success
+      }).success,
     ).toBe(true);
   });
 
@@ -266,14 +275,18 @@ describe("[011-studio-mindmaps-data-tables] T004: Mindmap payload schema invaria
       MindmapExportRequestSchema.safeParse({
         format: "svg",
         expanded_node_ids: ["root", cat1.id],
-      }).success
+      }).success,
     ).toBe(true);
 
     expect(
       MindmapDrilldownRequestSchema.safeParse({
         node_id: sub1.id,
-        active_source_ids: [makeStudioSourceId(101), makeStudioSourceId(102), makeStudioSourceId(103)],
-      }).success
+        active_source_ids: [
+          makeStudioSourceId(101),
+          makeStudioSourceId(102),
+          makeStudioSourceId(103),
+        ],
+      }).success,
     ).toBe(true);
   });
 });
@@ -361,24 +374,52 @@ describe("[011-studio-mindmaps-data-tables] T004: Data table payload schema inva
     expect(StudioDataTablePayloadSchema.safeParse(validTable).success).toBe(true);
 
     // Missing cell with citations or wrong marker fails
-    const badMissing = structuredClone(validTable);
-    (badMissing.rows[0]!.cells.uptime_sla as any).display_text = "Unknown";
+    const badMissing: unknown = {
+      ...validTable,
+      rows: validTable.rows.map((row, idx) =>
+        idx === 0
+          ? {
+              ...row,
+              cells: {
+                ...row.cells,
+                uptime_sla: { ...row.cells.uptime_sla, display_text: "Unknown" },
+              },
+            }
+          : row,
+      ),
+    };
     expect(StudioDataTablePayloadSchema.safeParse(badMissing).success).toBe(false);
 
     // Conflict cell with only 1 value or duplicate value fails
-    const badConflict = structuredClone(validTable);
-    (badConflict.rows[0]!.cells.price as any).values = [{ value: "$10/month", citations: [c1] }];
+    const badConflict: unknown = {
+      ...validTable,
+      rows: validTable.rows.map((row, idx) =>
+        idx === 0
+          ? {
+              ...row,
+              cells: {
+                ...row.cells,
+                price: { ...row.cells.price, values: [{ value: "$10/month", citations: [c1] }] },
+              },
+            }
+          : row,
+      ),
+    };
     expect(StudioDataTablePayloadSchema.safeParse(badConflict).success).toBe(false);
 
     // Full-permutation row sort validation
-    expect(validateOrderedRowIds(validTable.rows, ["vendor_beta", "vendor_alpha"]).valid).toBe(true);
+    expect(validateOrderedRowIds(validTable.rows, ["vendor_beta", "vendor_alpha"]).valid).toBe(
+      true,
+    );
     expect(validateOrderedRowIds(validTable.rows, ["vendor_beta"]).valid).toBe(false);
-    expect(validateOrderedRowIds(validTable.rows, ["vendor_beta", "vendor_beta"]).valid).toBe(false);
+    expect(validateOrderedRowIds(validTable.rows, ["vendor_beta", "vendor_beta"]).valid).toBe(
+      false,
+    );
     expect(
       DataTableExportRequestSchema.safeParse({
         format: "xlsx",
         ordered_row_ids: ["vendor_beta", "vendor_alpha"],
-      }).success
+      }).success,
     ).toBe(true);
   });
 });

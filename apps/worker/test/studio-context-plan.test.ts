@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
-import type { UnifiedDocumentChunk } from '@everlast/contracts';
-import { planStudioContext } from '../src/studio/context-plan.ts';
+import { randomUUID } from "node:crypto";
+import { describe, expect, it } from "vitest";
+import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import { planStudioContext } from "../src/studio/context-plan.ts";
 
-describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', () => {
-  const dummyChunk = (tokenCount: number, text = 'dummy text'): UnifiedDocumentChunk => ({
+describe("NFR-PERF-01 C-02/C-03 studio context planning and token boundaries", () => {
+  const dummyChunk = (tokenCount: number, text = "dummy text"): UnifiedDocumentChunk => ({
     chunk_id: randomUUID(),
     source_id: randomUUID(),
     revision: 1,
@@ -13,7 +13,7 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
     text,
   });
 
-  it('selects CachedFullContext when source tokens are <= 100,000 and within model envelope', () => {
+  it("selects CachedFullContext when source tokens are <= 100,000 and within model envelope", () => {
     const chunk = dummyChunk(500);
     const planUnder = planStudioContext({
       attemptId: randomUUID(),
@@ -23,7 +23,7 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
       instructionTokens: 1000,
       chunks: [chunk],
     });
-    expect(planUnder.mode).toBe('CachedFullContext');
+    expect(planUnder.mode).toBe("CachedFullContext");
 
     const planBoundary = planStudioContext({
       attemptId: randomUUID(),
@@ -33,10 +33,10 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
       instructionTokens: 1000,
       chunks: [chunk],
     });
-    expect(planBoundary.mode).toBe('CachedFullContext');
+    expect(planBoundary.mode).toBe("CachedFullContext");
   });
 
-  it('selects ChunkMapReduce when source tokens exceed 100,000', () => {
+  it("selects ChunkMapReduce when source tokens exceed 100,000", () => {
     const chunk = dummyChunk(500);
     const planOver = planStudioContext({
       attemptId: randomUUID(),
@@ -46,11 +46,11 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
       instructionTokens: 1000,
       chunks: [chunk],
     });
-    expect(planOver.mode).toBe('ChunkMapReduce');
+    expect(planOver.mode).toBe("ChunkMapReduce");
   });
 
-  it('segments oversized chunks without exceeding batch budgets and preserves parent linkage', () => {
-    const hugeText = 'Word '.repeat(3000);
+  it("segments oversized chunks without exceeding batch budgets and preserves parent linkage", () => {
+    const hugeText = "Word ".repeat(3000);
     const oversizedChunk = dummyChunk(6000, hugeText);
     const plan = planStudioContext({
       attemptId: randomUUID(),
@@ -69,7 +69,7 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
     }
   });
 
-  it('fails with explicit capacity error when model input limit cannot fit required instructions and reserve', () => {
+  it("fails with explicit capacity error when model input limit cannot fit required instructions and reserve", () => {
     const chunk = dummyChunk(100);
     expect(() =>
       planStudioContext({
@@ -79,7 +79,7 @@ describe('NFR-PERF-01 C-02/C-03 studio context planning and token boundaries', (
         outputReserve: 1000, // reserve alone exceeds limit
         instructionTokens: 500,
         chunks: [chunk],
-      })
+      }),
     ).toThrow(/capacity/i);
   });
 });

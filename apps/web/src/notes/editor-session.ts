@@ -10,13 +10,16 @@ export interface NoteDraft {
 
 /** Client-only recovery store (FR-NM-01); drafts never reach the service until a save succeeds. */
 export interface DraftStore {
-  save(noteId: string, draft: NoteDraft): void;
-  load(noteId: string): NoteDraft | null;
-  clear(noteId: string): void;
+  save: (noteId: string, draft: NoteDraft) => void;
+  load: (noteId: string) => NoteDraft | null;
+  clear: (noteId: string) => void;
 }
 
 export interface NoteEditorApi {
-  patchNote(noteId: string, patch: Pick<PatchNoteInput, "title" | "content_md" | "base_revision">): Promise<{ revision: number }>;
+  patchNote: (
+    noteId: string,
+    patch: Pick<PatchNoteInput, "title" | "content_md" | "base_revision">,
+  ) => Promise<{ revision: number }>;
 }
 
 export interface NoteEditorSessionOptions {
@@ -62,7 +65,10 @@ export class NoteEditorSession {
     this.opts.drafts.save(this.opts.noteId, this.draft);
     this.status = "pending";
     if (this.timer) clearTimeout(this.timer);
-    this.timer = setTimeout(() => void this.flush(), this.opts.debounceMs ?? NOTE_AUTOSAVE_DEBOUNCE_MS);
+    this.timer = setTimeout(
+      () => void this.flush(),
+      this.opts.debounceMs ?? NOTE_AUTOSAVE_DEBOUNCE_MS,
+    );
   }
 
   recoverDraft(): boolean {
@@ -83,7 +89,10 @@ export class NoteEditorSession {
     this.status = "saving";
     this.inflight = (async () => {
       try {
-        const r = await this.opts.api.patchNote(this.opts.noteId, { ...sending, base_revision: this.revision });
+        const r = await this.opts.api.patchNote(this.opts.noteId, {
+          ...sending,
+          base_revision: this.revision,
+        });
         this.revision = r.revision;
         if (Object.keys(this.draft).length === 0) {
           this.opts.drafts.clear(this.opts.noteId);

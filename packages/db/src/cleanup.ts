@@ -27,7 +27,8 @@ interface CleanupRow extends Omit<CleanupOperation, "quiescent_after" | "purged_
   purged_at: Date | null;
 }
 
-const COLUMNS = "id, notebook_id, owner_id, object_prefix, status, attempts, last_error_code, quiescent_after, purged_at";
+const COLUMNS =
+  "id, notebook_id, owner_id, object_prefix, status, attempts, last_error_code, quiescent_after, purged_at";
 
 function toOperation(row: CleanupRow): CleanupOperation {
   return {
@@ -48,13 +49,17 @@ export class DeletionNotFoundError extends AppError {
 export async function getCleanupStatus(
   db: Queryable,
   ownerId: string,
-  deletionId: string
+  deletionId: string,
 ): Promise<{ deletion_id: string; status: CleanupStatus; last_error_code?: string }> {
   if (!isUuid(deletionId)) throw new DeletionNotFoundError();
-  const result = await db.query<CleanupRow>(`SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`, [deletionId]);
+  const result = await db.query<CleanupRow>(
+    `SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`,
+    [deletionId],
+  );
   const row = result.rows[0];
   if (!row) throw new DeletionNotFoundError();
-  if (row.owner_id !== ownerId) throw new AppError("Forbidden", 403, "Deletion belongs to another owner");
+  if (row.owner_id !== ownerId)
+    throw new AppError("Forbidden", 403, "Deletion belongs to another owner");
   return {
     deletion_id: row.id,
     status: row.status,
@@ -62,16 +67,25 @@ export async function getCleanupStatus(
   };
 }
 
-export async function lockCleanupOperation(db: Queryable, deletionId: string): Promise<CleanupOperation | null> {
+export async function lockCleanupOperation(
+  db: Queryable,
+  deletionId: string,
+): Promise<CleanupOperation | null> {
   const result = await db.query<CleanupRow>(
     `SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1 FOR UPDATE SKIP LOCKED`,
-    [deletionId]
+    [deletionId],
   );
   return result.rows[0] ? toOperation(result.rows[0]) : null;
 }
 
-export async function getCleanupOperation(db: Queryable, deletionId: string): Promise<CleanupOperation | null> {
-  const result = await db.query<CleanupRow>(`SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`, [deletionId]);
+export async function getCleanupOperation(
+  db: Queryable,
+  deletionId: string,
+): Promise<CleanupOperation | null> {
+  const result = await db.query<CleanupRow>(
+    `SELECT ${COLUMNS} FROM cleanup_operations WHERE id = $1`,
+    [deletionId],
+  );
   return result.rows[0] ? toOperation(result.rows[0]) : null;
 }
 
@@ -79,15 +93,19 @@ export async function markCleanupRunning(db: Queryable, deletionId: string): Pro
   await db.query(
     `UPDATE cleanup_operations SET status = 'Running', attempts = attempts + 1, updated_at = now()
      WHERE id = $1 AND status <> 'Purged'`,
-    [deletionId]
+    [deletionId],
   );
 }
 
-export async function markCleanupRetry(db: Queryable, deletionId: string, errorCode: string): Promise<void> {
+export async function markCleanupRetry(
+  db: Queryable,
+  deletionId: string,
+  errorCode: string,
+): Promise<void> {
   await db.query(
     `UPDATE cleanup_operations SET status = 'Pending', last_error_code = $2, updated_at = now()
      WHERE id = $1 AND status <> 'Purged'`,
-    [deletionId, errorCode]
+    [deletionId, errorCode],
   );
 }
 
@@ -95,6 +113,6 @@ export async function markCleanupPurged(db: Queryable, deletionId: string): Prom
   await db.query(
     `UPDATE cleanup_operations SET status = 'Purged', last_error_code = NULL, purged_at = now(), updated_at = now()
      WHERE id = $1`,
-    [deletionId]
+    [deletionId],
   );
 }

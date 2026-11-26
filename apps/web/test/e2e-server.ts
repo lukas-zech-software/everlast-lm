@@ -12,7 +12,13 @@ import { createV2Runtime } from "@everlast/api/v2/runtime";
 import type { GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
 import { createWorkerHandler } from "@everlast/worker";
-import { e2eAdapters, e2eDelegationBroker, e2eSandbox, e2eScreener, handleE2eControl } from "./e2e-v3-doubles.ts";
+import {
+  e2eAdapters,
+  e2eDelegationBroker,
+  e2eSandbox,
+  e2eScreener,
+  handleE2eControl,
+} from "./e2e-v3-doubles.ts";
 
 /**
  * TEST-ONLY E2E server (FR-UI-01, FR-SI-01/03/04, FR-GC-01/02/03/06, Gate v1.0 #1/#3).
@@ -22,55 +28,120 @@ import { e2eAdapters, e2eDelegationBroker, e2eSandbox, e2eScreener, handleE2eCon
  * citation navigation are therefore real; answer quality is measured separately by the judged eval suite.
  */
 
-const STOP = new Set(["what", "which", "does", "with", "that", "this", "from", "about", "have", "there", "their", "where", "when", "summarize", "tell", "please", "repeat"]);
+const STOP = new Set([
+  "what",
+  "which",
+  "does",
+  "with",
+  "that",
+  "this",
+  "from",
+  "about",
+  "have",
+  "there",
+  "their",
+  "where",
+  "when",
+  "summarize",
+  "tell",
+  "please",
+  "repeat",
+]);
 
 class FixtureModel implements GroundedModel {
   readonly id = "e2e-fixture-model";
 
-  async generate({ question, chunks, history }: GroundedModelInput): Promise<GroundedDraft> {
+  generate({ question, chunks, history }: GroundedModelInput): Promise<GroundedDraft> {
     // FR-GC-08 (specs/010): statistics are delegated to the sandbox; ambiguous sample/population intent is clarified.
     const previous = history.at(-1)?.question ?? "";
-    const statistical = /standard deviation/i.test(question) || (/standard deviation/i.test(previous) && /population|sample/i.test(question));
+    const statistical =
+      /standard deviation/i.test(question) ||
+      (/standard deviation/i.test(previous) && /population|sample/i.test(question));
     if (statistical) {
-      const intent = /sample/i.test(question) ? "stdev" : /population/i.test(question) ? "pstdev" : null;
-      if (!intent) return { status: "clarify", sentences: [], clarification_question: "Should the 12 months be treated as the whole population or a sample?" };
+      let intent: "stdev" | "pstdev" | null = null;
+      if (/sample/i.test(question)) {
+        intent = "stdev";
+      } else if (/population/i.test(question)) {
+        intent = "pstdev";
+      }
+      if (!intent) {
+        return Promise.resolve({
+          status: "clarify",
+          sentences: [],
+          clarification_question:
+            "Should the 12 months be treated as the whole population or a sample?",
+        });
+      }
       const op = /retry/i.test(question) ? "raise" : intent;
-      const dataset = chunks.flatMap((c) => [...c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g)].map((m) => ({ label: `${m[1]} 2025`, value: m[2]!, unit: "ms", chunk_id: c.chunk_id })));
+      const dataset = chunks.flatMap((c) =>
+        [...c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g)].map((m) => ({
+          label: `${m[1]} 2025`,
+          value: m[2]!,
+          unit: "ms",
+          chunk_id: c.chunk_id,
+        })),
+      );
       if (dataset.length > 0) {
-        return {
+        return Promise.resolve({
           status: "compute",
           sentences: [],
           computation: {
-            intent: intent === "stdev" ? "sample standard deviation" : "population standard deviation",
+            intent:
+              intent === "stdev" ? "sample standard deviation" : "population standard deviation",
             dataset,
             code: `# FIXTURE:${op}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${intent === "stdev" ? "Sample" : "Population"} standard deviation', statistics.${intent}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`,
           },
-        };
+        });
       }
     }
-    const words = (question.toLowerCase().match(/[\p{L}\p{N}$.]{4,}/gu) ?? []).map((w) => w.replace(/[.?]+$/, "")).filter((w) => !STOP.has(w));
+    const words = (question.toLowerCase().match(/[\p{L}\p{N}$.]{4,}/gu) ?? [])
+      .map((w) => w.replace(/[.?]+$/, ""))
+      .filter((w) => !STOP.has(w));
     const matchWord = (text: string, w: string) => {
       const lower = text.toLowerCase();
-      return lower.includes(w) || (w.endsWith("s") && lower.includes(w.slice(0, -1))) || lower.includes(`${w}s`);
+      return (
+        lower.includes(w) ||
+        (w.endsWith("s") && lower.includes(w.slice(0, -1))) ||
+        lower.includes(`${w}s`)
+      );
     };
     const hits = chunks.filter((c) => words.some((w) => matchWord(c.text, w)));
-    if (hits.length === 0) return { status: "not_in_sources", missing_topic: question.replace(/[?.!]+$/, ""), sentences: [] };
-    return {
+    if (hits.length === 0) {
+      return Promise.resolve({
+        status: "not_in_sources",
+        missing_topic: question.replace(/[?.!]+$/, ""),
+        sentences: [],
+      });
+    }
+    return Promise.resolve({
       status: "answered",
       // First sentence matching keywords or first sentence of the chunk's body text; Markdown heading lines (e.g. a converted note's title) are skipped.
       sentences: hits.slice(0, 8).map((c) => {
-        const body = c.text.split("\n").filter((line) => !line.startsWith("#")).join("\n").trim() || c.text;
+        const body =
+          c.text
+            .split("\n")
+            .filter((line) => !line.startsWith("#"))
+            .join("\n")
+            .trim() || c.text;
         const candidateSentences = body.split(/(?<=[.!?])\s/);
-        const matchingSentence = candidateSentences.find((s) => words.some((w) => matchWord(s, w))) ?? candidateSentences[0]!;
-        return { text: matchingSentence.slice(0, 300), citations: [c.chunk_id], kind: "claim" as const };
+        const matchingSentence =
+          candidateSentences.find((s) => words.some((w) => matchWord(s, w))) ??
+          candidateSentences[0]!;
+        return {
+          text: matchingSentence.slice(0, 300),
+          citations: [c.chunk_id],
+          kind: "claim" as const,
+        };
       }),
-    };
+    });
   }
 
-  async correctCode(input: { intent: string }): Promise<string> {
+  correctCode(input: { intent: string }): Promise<string> {
     const fn = /sample/i.test(input.intent) ? "stdev" : "pstdev";
     const label = fn === "stdev" ? "Sample" : "Population";
-    return `# FIXTURE:${fn}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${label} standard deviation', statistics.${fn}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`;
+    return Promise.resolve(
+      `# FIXTURE:${fn}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('${label} standard deviation', statistics.${fn}(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals)\nplt.savefig('chart_1.png')\n`,
+    );
   }
 }
 
@@ -83,15 +154,29 @@ export async function startE2eServer(port: number) {
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   // Package 3.1 (specs/009): real Office normalization + labelled provider doubles (Drive, consent, screening).
   const worker = createWorkerHandler(
-    { pool: db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, adapters: e2eAdapters(storage), screener: e2eScreener },
-    { NODE_ENV: "test" }
+    {
+      pool: db.pool,
+      storage,
+      embedder,
+      ocr: { name: "none", recognize: () => Promise.resolve(new Map()) },
+      adapters: e2eAdapters(storage),
+      screener: e2eScreener,
+    },
+    { NODE_ENV: "test" },
   );
   let pending: Promise<unknown> = Promise.resolve();
   const notifyJobs = () => {
     pending = pending.then(() => worker.drain());
   };
   // Note-sources run the real v1 ingestion with the same storage and lexical embedder (FR-NM-03, Gate v2.0 #2).
-  const v2 = createV2Runtime({ pool: db.pool, sourceLimit: Number(process.env.MAX_SOURCES_PER_NOTEBOOK ?? 50), model: new FixtureModel(), storage, embedder, notifyJobs });
+  const v2 = createV2Runtime({
+    pool: db.pool,
+    sourceLimit: Number(process.env.MAX_SOURCES_PER_NOTEBOOK ?? 50),
+    model: new FixtureModel(),
+    storage,
+    embedder,
+    notifyJobs,
+  });
   const deps: AppDeps = {
     pool: db.pool,
     config: {
@@ -119,7 +204,11 @@ export async function startE2eServer(port: number) {
     notifyJobs,
     delegationBroker: e2eDelegationBroker,
     // T055: public test identifiers; Google's scripts are faked per test with network routes.
-    pickerConfig: { developerKey: "e2e-public-picker-key", appId: "000000000000", clientId: "e2e-client.apps.example.test" },
+    pickerConfig: {
+      developerKey: "e2e-public-picker-key",
+      appId: "000000000000",
+      clientId: "e2e-client.apps.example.test",
+    },
   };
   const app = createApp(deps);
   const server = http.createServer((req, res) => {
@@ -138,7 +227,9 @@ export async function startE2eServer(port: number) {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.E2E_PORT ?? 4317);
   const { close } = await startE2eServer(port);
-  console.log(`E2E server on http://127.0.0.1:${port} (TEST DOUBLES: lexical embedder + fixture model)`);
+  console.log(
+    `E2E server on http://127.0.0.1:${port} (TEST DOUBLES: lexical embedder + fixture model)`,
+  );
   const stop = () => void close().finally(() => process.exit(0));
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);

@@ -13,7 +13,10 @@ export function orderNotes<T extends { display_order: number }>(notes: T[]): T[]
 export type ConversionState = { enabled: true } | { enabled: false; tooltip: string };
 
 /** FR-NM-03: conversion is disabled for empty bodies or a full source quota. */
-export function conversionState(notes: PinboardNote[], slots: { used: number; limit: number }): ConversionState {
+export function conversionState(
+  notes: PinboardNote[],
+  slots: { used: number; limit: number },
+): ConversionState {
   if (slots.used >= slots.limit) return { enabled: false, tooltip: SOURCE_LIMIT_REACHED_MESSAGE };
   if (notes.length === 0 || notes.every((n) => n.content_md.trim() === "")) {
     return { enabled: false, tooltip: "Add note content to convert" };

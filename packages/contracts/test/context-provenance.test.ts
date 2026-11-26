@@ -1,13 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  isTurnProvenanceEligible,
   computeContextCacheKey,
-  type SourceRevisionPair,
-} from "../src/scoped-context.ts";
-import {
   filterConversationHistoryByProvenance,
   type ConversationTurn,
-  type TurnProvenanceRecord,
+  type SourceRevisionPair,
 } from "../src/scoped-context.ts";
 
 describe("T026 [US2] Consumer Provenance Contracts & History Hygiene (C-02, FR-GC-01, FR-GC-06, NFR-EVAL-04)", () => {
@@ -54,12 +50,18 @@ describe("T026 [US2] Consumer Provenance Contracts & History Hygiene (C-02, FR-G
       question: "Summarize everything",
       answer: "Summary of sources...",
       provenance: {
-        used_sources: [{ source_id: source1, revision: 1 }, { source_id: source3, revision: 1 }], // source 3 ineligible
+        used_sources: [
+          { source_id: source1, revision: 1 },
+          { source_id: source3, revision: 1 },
+        ], // source 3 ineligible
         cited_sources: [{ source_id: source1, revision: 1 }], // only source 1 cited
       },
     };
 
-    const filtered = filterConversationHistoryByProvenance([turnWithUncitedUsedSource], activeSnapshot);
+    const filtered = filterConversationHistoryByProvenance(
+      [turnWithUncitedUsedSource],
+      activeSnapshot,
+    );
     expect(filtered.length).toBe(0);
   });
 
@@ -69,7 +71,7 @@ describe("T026 [US2] Consumer Provenance Contracts & History Hygiene (C-02, FR-G
         turn_id: "turn-null-prov",
         question: "Q1",
         answer: "A1",
-        provenance: null as any,
+        provenance: null,
       },
       {
         turn_id: "turn-empty-sources",

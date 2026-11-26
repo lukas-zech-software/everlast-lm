@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
 import { Gemini, InMemoryRunner, LlmAgent, isFinalResponse } from "@google/adk";
 import { resolveEnterpriseGeminiConfig, type EnterpriseGeminiConfig } from "@everlast/cloud";
-import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import type { SourceGuide, UnifiedDocumentChunk } from "@everlast/contracts";
 import { groundedDraftResponseSchema, GroundedDraftSchema, type GroundedDraft } from "./draft.ts";
-import { buildCorrectionPayload, buildUserPayload, CODE_CORRECTION_INSTRUCTION, groundingInstruction, preferenceLines, type HistoryTurn, type ResponsePreferences } from "./prompt.ts";
+import {
+  buildCorrectionPayload,
+  buildUserPayload,
+  CODE_CORRECTION_INSTRUCTION,
+  groundingInstruction,
+  preferenceLines,
+  type HistoryTurn,
+  type ResponsePreferences,
+} from "./prompt.ts";
 
 /**
  * Grounded reasoning model boundary (FR-GC-01, FR-GC-02, NFR-SEC-01, D2).
@@ -19,14 +27,14 @@ export interface GroundedModelInput {
   history: HistoryTurn[];
   signal?: AbortSignal | undefined;
   preferences?: ResponsePreferences | undefined;
-  guides?: import("@everlast/contracts").SourceGuide[] | undefined;
+  guides?: SourceGuide[] | undefined;
 }
 
 /** Input of the single permitted correction after a first-attempt Python exception (FR-GC-08 FR-006). */
 export interface CodeCorrectionInput {
   question: string;
   intent: string;
-  values: { label: string; value: string; unit: string | null; chunk_id: string }[];
+  values: Array<{ label: string; value: string; unit: string | null; chunk_id: string }>;
   failedCode: string;
   stderr: string;
   signal?: AbortSignal | undefined;
@@ -34,15 +42,19 @@ export interface CodeCorrectionInput {
 
 export interface GroundedModel {
   readonly id: string;
-  generate(input: GroundedModelInput): Promise<GroundedDraft>;
+  generate: (input: GroundedModelInput) => Promise<GroundedDraft>;
   /**
    * FR-GC-08: corrected program for the one automatic retry. It cannot change inputs, limits or the retry count —
    * the deterministic controller owns those. Absent → no correction retry is possible.
    */
-  correctCode?(input: CodeCorrectionInput): Promise<string>;
+  correctCode?: (input: CodeCorrectionInput) => Promise<string>;
 }
 
-const CODE_CORRECTION_RESPONSE_SCHEMA = { type: "OBJECT", properties: { code: { type: "STRING" } }, required: ["code"] } as const;
+const CODE_CORRECTION_RESPONSE_SCHEMA = {
+  type: "OBJECT",
+  properties: { code: { type: "STRING" } },
+  required: ["code"],
+} as const;
 
 /** The model returned output that does not match the structured draft schema (treated as unverifiable). */
 export class UnverifiableDraftError extends Error {
@@ -63,24 +75,27 @@ type AdkLlmAgentConfig = ConstructorParameters<typeof LlmAgent>[0];
 type AdkGenerateContentConfig = NonNullable<AdkLlmAgentConfig["generateContentConfig"]>;
 type AdkHttpOptions = NonNullable<AdkGenerateContentConfig["httpOptions"]>;
 type AdkSchema = NonNullable<AdkLlmAgentConfig["outputSchema"]>;
-type AdkThinkingLevel = NonNullable<NonNullable<AdkGenerateContentConfig["thinkingConfig"]>["thinkingLevel"]>;
+type AdkThinkingLevel = NonNullable<
+  NonNullable<AdkGenerateContentConfig["thinkingConfig"]>["thinkingLevel"]
+>;
 
-const ADK_THINKING_LEVELS: Readonly<Record<`${AdkThinkingLevel}`, AdkThinkingLevel>> = {
-  THINKING_LEVEL_UNSPECIFIED: "THINKING_LEVEL_UNSPECIFIED" as AdkThinkingLevel,
-  MINIMAL: "MINIMAL" as AdkThinkingLevel,
-  LOW: "LOW" as AdkThinkingLevel,
-  MEDIUM: "MEDIUM" as AdkThinkingLevel,
-  HIGH: "HIGH" as AdkThinkingLevel,
-};
+const SUPPORTED_THINKING_LEVELS: ReadonlySet<`${AdkThinkingLevel}`> = new Set([
+  "THINKING_LEVEL_UNSPECIFIED",
+  "MINIMAL",
+  "LOW",
+  "MEDIUM",
+  "HIGH",
+]);
 
 function toAdkThinkingConfig(
   thinkingConfig: NonNullable<AdkModelConfig["thinkingConfig"]>,
 ): NonNullable<AdkGenerateContentConfig["thinkingConfig"]> {
-  const levelKey: keyof typeof ADK_THINKING_LEVELS = thinkingConfig.thinkingLevel;
-  if (!Object.hasOwn(ADK_THINKING_LEVELS, levelKey)) {
-    throw new Error(`Unsupported ADK thinking level: ${String(thinkingConfig.thinkingLevel)}`);
+  const level: `${AdkThinkingLevel}` = thinkingConfig.thinkingLevel;
+  if (!SUPPORTED_THINKING_LEVELS.has(level)) {
+    throw new Error(`Unsupported ADK thinking level: ${thinkingConfig.thinkingLevel}`);
   }
-  return { thinkingLevel: ADK_THINKING_LEVELS[levelKey] };
+  // @google/adk bundles its own @google/genai enum copy; runtime values are identical string literals.
+  return { thinkingLevel: level as unknown as AdkThinkingLevel };
 }
 
 export interface AdkModelConfig {
@@ -96,7 +111,12 @@ export interface AdkModelConfig {
 
 class SingleAttemptGemini extends Gemini {
   constructor(config: AdkModelConfig) {
-    super({ model: config.model, vertexai: true, project: config.project, location: config.location });
+    super({
+      model: config.model,
+      vertexai: true,
+      project: config.project,
+      location: config.location,
+    });
     this.httpOptions = config.httpOptions;
   }
 
@@ -124,12 +144,22 @@ export class AdkGroundedModel implements GroundedModel {
     };
     const agent = new LlmAgent({
       name: "grounded_chat",
-      beforeModelCallback:({context,request})=>{
-        if(context.state.get('operational_probe')!==true)return undefined;
-        const calls=Number(context.state.get('operational_model_calls')??0);if(calls>=1)throw new ModelUnavailableError('Operational model RPC budget exceeded');
-        context.state.set('operational_model_calls',calls+1);
-        if(Buffer.byteLength(JSON.stringify({contents:request.contents,config:request.config}))>100000)throw new ModelUnavailableError('Operational complete model byte budget exceeded');
-        request.config={...request.config,maxOutputTokens:512,httpOptions:{...request.config?.httpOptions,retryOptions:{attempts:1}}};
+      beforeModelCallback: ({ context, request }) => {
+        if (context.state.get("operational_probe") !== true) return undefined;
+        const calls = Number(context.state.get("operational_model_calls") ?? 0);
+        if (calls >= 1) throw new ModelUnavailableError("Operational model RPC budget exceeded");
+        context.state.set("operational_model_calls", calls + 1);
+        if (
+          Buffer.byteLength(
+            JSON.stringify({ contents: request.contents, config: request.config }),
+          ) > 100000
+        )
+          throw new ModelUnavailableError("Operational complete model byte budget exceeded");
+        request.config = {
+          ...request.config,
+          maxOutputTokens: 512,
+          httpOptions: { ...request.config?.httpOptions, retryOptions: { attempts: 1 } },
+        };
         return undefined;
       },
       description: "Answers strictly from scoped source chunks with chunk-level citations.",
@@ -141,7 +171,7 @@ export class AdkGroundedModel implements GroundedModel {
           ? `${base}\n${preferenceLines({ response_length: "shorter" }).join(" ")}`
           : base;
       },
-      outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }) as unknown as AdkSchema,
+      outputSchema: groundedDraftResponseSchema({ codeExecution: config.codeExecution ?? false }),
       includeContents: "none",
       disallowTransferToParent: true,
       disallowTransferToPeers: true,
@@ -160,38 +190,75 @@ export class AdkGroundedModel implements GroundedModel {
       disallowTransferToPeers: true,
       generateContentConfig: { ...generationConfig },
     });
-    this.correctionRunner = new InMemoryRunner({ agent: corrector, appName: "everlast-code-correction" });
+    this.correctionRunner = new InMemoryRunner({
+      agent: corrector,
+      appName: "everlast-code-correction",
+    });
   }
 
   async correctCode(input: CodeCorrectionInput): Promise<string> {
-    const text = await this.run(this.correctionRunner, "everlast-code-correction", buildCorrectionPayload(input), input.signal);
+    const text = await this.run(
+      this.correctionRunner,
+      "everlast-code-correction",
+      buildCorrectionPayload(input),
+      input.signal,
+    );
     try {
       const parsed = JSON.parse(text) as { code?: unknown };
-      if (typeof parsed.code !== "string" || parsed.code.length === 0 || parsed.code.length > 20_000) throw new UnverifiableDraftError("Correction did not return code");
+      if (
+        typeof parsed.code !== "string" ||
+        parsed.code.length === 0 ||
+        parsed.code.length > 20_000
+      )
+        throw new UnverifiableDraftError("Correction did not return code");
       return parsed.code;
     } catch (err) {
-      throw err instanceof UnverifiableDraftError ? err : new UnverifiableDraftError("Correction output was not JSON");
+      throw err instanceof UnverifiableDraftError
+        ? err
+        : new UnverifiableDraftError("Correction output was not JSON");
     }
   }
 
-  private async run(runner: InMemoryRunner, appName: string, payload: string, signal?: AbortSignal): Promise<string> {
+  private async run(
+    runner: InMemoryRunner,
+    appName: string,
+    payload: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new ModelUnavailableError("Model request timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new ModelUnavailableError("Model request timed out")),
+      this.timeoutMs,
+    );
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const userId = "chat";
-      const session = await runner.sessionService.createSession({ appName, userId, sessionId: randomUUID() });
+      const session = await runner.sessionService.createSession({
+        appName,
+        userId,
+        sessionId: randomUUID(),
+      });
       let text = "";
-      for await (const event of runner.runAsync({ userId, sessionId: session.id, newMessage: { role: "user", parts: [{ text: payload }] }, abortSignal: controller.signal })) {
+      for await (const event of runner.runAsync({
+        userId,
+        sessionId: session.id,
+        newMessage: { role: "user", parts: [{ text: payload }] },
+        abortSignal: controller.signal,
+      })) {
         if (event.errorCode) throw new ModelUnavailableError(`Model error ${event.errorCode}`);
-        if (isFinalResponse(event)) text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
+        if (isFinalResponse(event))
+          text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
       }
-      await runner.sessionService.deleteSession({ appName, userId, sessionId: session.id }).catch(() => undefined);
+      await runner.sessionService
+        .deleteSession({ appName, userId, sessionId: session.id })
+        .catch(() => undefined);
       return text;
     } catch (err) {
       if (signal?.aborted) throw signal.reason ?? err;
-      throw err instanceof ModelUnavailableError ? err : new ModelUnavailableError((err as Error).message);
+      throw err instanceof ModelUnavailableError
+        ? err
+        : new ModelUnavailableError((err as Error).message);
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -200,17 +267,42 @@ export class AdkGroundedModel implements GroundedModel {
 
   async generate(input: GroundedModelInput): Promise<GroundedDraft> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new ModelUnavailableError("Model request timed out")), this.timeoutMs);
+    const timer = setTimeout(
+      () => controller.abort(new ModelUnavailableError("Model request timed out")),
+      this.timeoutMs,
+    );
     const onAbort = () => controller.abort(input.signal?.reason);
     input.signal?.addEventListener("abort", onAbort, { once: true });
     try {
       const userId = "chat";
-      const session = await this.runner.sessionService.createSession({ appName: "everlast-chat", userId, sessionId: randomUUID(), state: { response_length: input.preferences?.response_length ?? "default", operational_probe:input.operationalProbe??false,operational_model_calls:0 } });
+      const session = await this.runner.sessionService.createSession({
+        appName: "everlast-chat",
+        userId,
+        sessionId: randomUUID(),
+        state: {
+          response_length: input.preferences?.response_length ?? "default",
+          operational_probe: input.operationalProbe ?? false,
+          operational_model_calls: 0,
+        },
+      });
       let text = "";
       for await (const event of this.runner.runAsync({
         userId,
         sessionId: session.id,
-        newMessage: { role: "user", parts: [{ text: buildUserPayload(input.question, input.chunks, input.history, input.preferences, input.guides) }] },
+        newMessage: {
+          role: "user",
+          parts: [
+            {
+              text: buildUserPayload(
+                input.question,
+                input.chunks,
+                input.history,
+                input.preferences,
+                input.guides,
+              ),
+            },
+          ],
+        },
         abortSignal: controller.signal,
       })) {
         if (event.errorCode) throw new ModelUnavailableError(`Model error ${event.errorCode}`);
@@ -218,12 +310,17 @@ export class AdkGroundedModel implements GroundedModel {
           text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
         }
       }
-      await this.runner.sessionService.deleteSession({ appName: "everlast-chat", userId, sessionId: session.id }).catch(() => undefined);
+      await this.runner.sessionService
+        .deleteSession({ appName: "everlast-chat", userId, sessionId: session.id })
+        .catch(() => undefined);
       return GroundedDraftSchema.parse(JSON.parse(text));
     } catch (err) {
       if (input.signal?.aborted) throw input.signal.reason ?? err;
-      if (err instanceof SyntaxError || (err as Error).name === "ZodError") throw new UnverifiableDraftError();
-      throw err instanceof ModelUnavailableError ? err : new ModelUnavailableError((err as Error).message);
+      if (err instanceof SyntaxError || (err as Error).name === "ZodError")
+        throw new UnverifiableDraftError();
+      throw err instanceof ModelUnavailableError
+        ? err
+        : new ModelUnavailableError((err as Error).message);
     } finally {
       clearTimeout(timer);
       input.signal?.removeEventListener("abort", onAbort);

@@ -29,7 +29,10 @@ export class DataTableGeneratorPlugin implements StudioGeneratorPlugin {
   private readonly model: DataTableModelClient;
   private readonly limits?: EvidenceBatchLimits | undefined;
 
-  constructor(model: DataTableModelClient = new DeterministicDataTableModel(), limits?: EvidenceBatchLimits) {
+  constructor(
+    model: DataTableModelClient = new DeterministicDataTableModel(),
+    limits?: EvidenceBatchLimits,
+  ) {
     this.model = model;
     this.limits = limits;
   }
@@ -55,7 +58,9 @@ export class DataTableGeneratorPlugin implements StudioGeneratorPlugin {
     if (request.params.schema_id !== undefined) {
       const parsedSchema = DataTableSchemaIdSchema.safeParse(request.params.schema_id);
       if (!parsedSchema.success) {
-        throw new StudioParamsError(`Unsupported data_table schema_id: ${String(request.params.schema_id)}`);
+        throw new StudioParamsError(
+          `Unsupported data_table schema_id: ${request.params.schema_id}`,
+        );
       }
       schemaId = parsedSchema.data;
     }
@@ -63,7 +68,7 @@ export class DataTableGeneratorPlugin implements StudioGeneratorPlugin {
     return {
       title: "Data Table",
       params_json: {
-        ...(normalizedFocus !== undefined ? { focus_prompt: normalizedFocus } : {}),
+        ...(normalizedFocus === undefined ? {} : { focus_prompt: normalizedFocus }),
         schema_id: schemaId,
       },
     };
@@ -76,10 +81,10 @@ export class DataTableGeneratorPlugin implements StudioGeneratorPlugin {
       : ("auto" as const);
     return generateDataTable({
       chunks: ctx.chunks,
-      original_chunks:ctx.original_chunks,
-      cached_context:ctx.cached_context,
-      before_model_call:ctx.before_model_call,
-      load_cited_chunks:ctx.load_cited_chunks,
+      original_chunks: ctx.original_chunks,
+      cached_context: ctx.cached_context,
+      before_model_call: ctx.before_model_call,
+      load_cited_chunks: ctx.load_cited_chunks,
       snapshot: ctx.snapshot,
       model: this.model,
       focus_prompt: ctx.params_json.focus_prompt,

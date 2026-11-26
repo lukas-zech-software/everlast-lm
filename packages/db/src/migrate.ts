@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Pool } from "pg";
 
@@ -32,8 +32,10 @@ export async function runMigrations(pool: Pool): Promise<string[]> {
         applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )`);
     for (const file of getAvailableMigrations()) {
-      const version = file.split("/").pop()!;
-      const done = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [version]);
+      const version = basename(file);
+      const done = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [
+        version,
+      ]);
       if ((done.rowCount ?? 0) > 0) continue;
       await client.query("BEGIN");
       try {
@@ -43,12 +45,15 @@ export async function runMigrations(pool: Pool): Promise<string[]> {
         applied.push(version);
       } catch (err) {
         await client.query("ROLLBACK");
-        throw new Error(`Migration ${version} failed: ${(err as Error).message}`);
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(`Migration ${version} failed: ${message}`, { cause: err });
       }
     }
     return applied;
   } finally {
-    await client.query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]).catch(() => undefined);
+    await client
+      .query("SELECT pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY])
+      .catch(() => undefined);
     client.release();
   }
 }

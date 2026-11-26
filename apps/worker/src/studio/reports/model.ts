@@ -23,7 +23,7 @@ export interface ReportItem {
 
 export interface ReportTable {
   columns: string[];
-  rows: { cells: string[]; chunk_id: string }[];
+  rows: Array<{ cells: string[]; chunk_id: string }>;
 }
 
 /** One composed section; `id` is the stable section key (C-03 payload `sections`), `heading` an optional localized one. */
@@ -60,13 +60,13 @@ export interface SuggestRequest {
 
 /** Report model boundary (map: extract per bounded batch, reduce: compose). Outputs are validated before use. */
 export interface ReportModelClient {
-  extract(request: ExtractRequest): Promise<Finding[]>;
-  compose(request: ComposeRequest): Promise<ReportBlock[]>;
+  extract: (request: ExtractRequest) => Promise<Finding[]>;
+  compose: (request: ComposeRequest) => Promise<ReportBlock[]>;
 }
 
 /** Dynamic report suggestions from Source Guide metadata (FR-ST-11, Flash-Lite). */
 export interface ReportSuggestionModel {
-  suggest(request: SuggestRequest): Promise<ReportSuggestion[]>;
+  suggest: (request: SuggestRequest) => Promise<ReportSuggestion[]>;
 }
 
 /** Invalid or failed model output; carries no upstream text (NFR-SEC-01). */

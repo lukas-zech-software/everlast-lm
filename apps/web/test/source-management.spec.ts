@@ -1,6 +1,13 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
-import { addTextSource, apiCall, createNotebook, signIn, uniqueEmail, waitReady } from "./helpers.ts";
+import {
+  addTextSource,
+  apiCall,
+  createNotebook,
+  signIn,
+  uniqueEmail,
+  waitReady,
+} from "./helpers.ts";
 
 /**
  * [009-multimodal-ingestion-sync] T033/T038 — source identity, re-sync and removal in the browser (FR-SI-05,
@@ -10,17 +17,28 @@ import { addTextSource, apiCall, createNotebook, signIn, uniqueEmail, waitReady 
 
 const ROADMAP = "https://intranet.example.test/roadmap";
 
-async function setPage(request: APIRequestContext, page: { month?: "May" | "June"; status?: number; delayMs?: number; url?: string }) {
-  const res = await request.post("/__e2e/web-page", { data: { url: page.url ?? ROADMAP, ...page } });
+async function setPage(
+  request: APIRequestContext,
+  page: { month?: "May" | "June"; status?: number; delayMs?: number; url?: string },
+) {
+  const res = await request.post("/__e2e/web-page", {
+    data: { url: page.url ?? ROADMAP, ...page },
+  });
   expect(res.status()).toBe(204);
 }
 
 async function importRoadmap(page: Page, email: string, id: string, url = ROADMAP) {
-  await apiCall(page.request, email, "POST", `/api/notebooks/${id}/sources/imports`, { attempt_id: randomUUID(), kind: "web", url });
+  await apiCall(page.request, email, "POST", `/api/notebooks/${id}/sources/imports`, {
+    attempt_id: randomUUID(),
+    kind: "web",
+    url,
+  });
   await waitReady(page.request, email, id, 1);
 }
 
-test("SM-E01: Rename source updates the sidebar, the Inspector and citation tooltips; invalid titles are refused", async ({ page }) => {
+test("SM-E01: Rename source updates the sidebar, the Inspector and citation tooltips; invalid titles are refused", async ({
+  page,
+}) => {
   const email = uniqueEmail("sm-e01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -46,7 +64,9 @@ test("SM-E01: Rename source updates the sidebar, the Inspector and citation tool
   await expect(page.getByTestId("inspector-title")).toHaveText("Depot opening plan");
 });
 
-test("SM-E02: Re-sync shows Syncing... while the old revision stays readable, then the new answer says June", async ({ page }) => {
+test("SM-E02: Re-sync shows Syncing... while the old revision stays readable, then the new answer says June", async ({
+  page,
+}) => {
   const email = uniqueEmail("sm-e02");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -55,7 +75,9 @@ test("SM-E02: Re-sync shows Syncing... while the old revision stays readable, th
   await page.goto(`/notebook/${id}`);
   await page.getByTestId("chat-input").fill("When is Release v1?");
   await page.getByTestId("send").click();
-  await expect(page.getByTestId("message-assistant").last()).toContainText("May", { timeout: 30_000 });
+  await expect(page.getByTestId("message-assistant").last()).toContainText("May", {
+    timeout: 30_000,
+  });
 
   await setPage(page.request, { month: "June", delayMs: 2500 });
   await page.getByTestId("source-title").click();
@@ -64,26 +86,35 @@ test("SM-E02: Re-sync shows Syncing... while the old revision stays readable, th
   // The committed May revision stays in the Inspector while the refresh runs.
   await expect(page.getByTestId("inspector-scroll")).toContainText("Release v1 in May");
   // A second request while active is rejected without a queued follow-up.
-  const overlap = await page.request.fetch(`/api/notebooks/${id}/sources/${await sourceId(page, email, id)}/sync`, {
-    method: "POST",
-    headers: { authorization: `Bearer ${await bearer(page, email)}` },
-    data: { attempt_id: randomUUID() },
-  });
+  const overlap = await page.request.fetch(
+    `/api/notebooks/${id}/sources/${await sourceId(page, email, id)}/sync`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${await bearer(page, email)}` },
+      data: { attempt_id: randomUUID() },
+    },
+  );
   expect(overlap.status()).toBe(409);
   expect(await overlap.json()).toMatchObject({ error: { message: "Sync already in progress" } });
-  await expect(page.getByTestId("inspector-scroll")).toContainText("Release v1 in June", { timeout: 30_000 });
+  await expect(page.getByTestId("inspector-scroll")).toContainText("Release v1 in June", {
+    timeout: 30_000,
+  });
   await expect(page.getByTestId("inspector-syncing")).toHaveCount(0);
 
   await page.getByTestId("chat-input").fill("When is Release v1?");
   await page.getByTestId("send").click();
-  await expect(page.getByTestId("message-assistant").last()).toContainText("June", { timeout: 30_000 });
+  await expect(page.getByTestId("message-assistant").last()).toContainText("June", {
+    timeout: 30_000,
+  });
   // The May answer's citation is now "Source updated" (historical snippet, no exact jump).
   await page.getByTestId("citation-badge").first().hover();
   await expect(page.getByTestId("citation-popover")).toContainText("Source updated");
   await expect(page.getByTestId("citation-popover")).toContainText("May");
 });
 
-test("SM-E03: a failing upstream (HTTP 503) shows a sync error toast and keeps the committed revision", async ({ page }) => {
+test("SM-E03: a failing upstream (HTTP 503) shows a sync error toast and keeps the committed revision", async ({
+  page,
+}) => {
   const email = uniqueEmail("sm-e03");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -99,7 +130,9 @@ test("SM-E03: a failing upstream (HTTP 503) shows a sync error toast and keeps t
   await expect(page.locator('[data-testid="source-row"][data-status="Ready"]')).toHaveCount(1);
 });
 
-test("SM-E04: Remove source asks for confirmation, decrements the counter and turns citations into 'Source deleted'", async ({ page }) => {
+test("SM-E04: Remove source asks for confirmation, decrements the counter and turns citations into 'Source deleted'", async ({
+  page,
+}) => {
   const email = uniqueEmail("sm-e04");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -116,7 +149,9 @@ test("SM-E04: Remove source asks for confirmation, decrements the counter and tu
   await expect(page.getByTestId("source-row")).toHaveCount(0);
   await expect(page.getByTestId("source-quota")).toHaveText("0 / 50 sources");
   // The dependent answer is hidden (no stale snippet or clickable citation remains readable).
-  await expect(page.getByTestId("message-assistant").last()).toContainText("unavailable because a cited source was deleted");
+  await expect(page.getByTestId("message-assistant").last()).toContainText(
+    "unavailable because a cited source was deleted",
+  );
   await expect(page.getByTestId("citation-badge")).toHaveCount(0);
 });
 
@@ -126,6 +161,11 @@ async function bearer(page: Page, email: string): Promise<string> {
 }
 
 async function sourceId(page: Page, email: string, id: string): Promise<string> {
-  const { sources } = await apiCall<{ sources: { id: string }[] }>(page.request, email, "GET", `/api/notebooks/${id}/sources`);
+  const { sources } = await apiCall<{ sources: Array<{ id: string }> }>(
+    page.request,
+    email,
+    "GET",
+    `/api/notebooks/${id}/sources`,
+  );
   return sources[0]!.id;
 }

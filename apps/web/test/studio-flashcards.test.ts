@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LearningProgressDto, StudioFlashcardsPayload } from "@everlast/contracts";
 import { createFlashcardsViewer } from "../src/studio/flashcards-viewer.ts";
 import { createStudioPanel } from "../src/studio/panel.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [014-studio-active-learning-suite] T009, T021 — Flashcards UI viewer, Spacebar/click 3D flip,
@@ -26,8 +26,20 @@ const cite = {
 
 const samplePayload: StudioFlashcardsPayload = {
   cards: [
-    { id: CARD_1, front_text: "Card 1 Front?", back_text: "Card 1 Back: 200 MB.", source_chunk_ids: [CHUNK_1], citations: [cite] },
-    { id: CARD_2, front_text: "Card 2 Front?", back_text: "Card 2 Back: 500k words.", source_chunk_ids: [CHUNK_1], citations: [cite] },
+    {
+      id: CARD_1,
+      front_text: "Card 1 Front?",
+      back_text: "Card 1 Back: 200 MB.",
+      source_chunk_ids: [CHUNK_1],
+      citations: [cite],
+    },
+    {
+      id: CARD_2,
+      front_text: "Card 2 Front?",
+      back_text: "Card 2 Back: 500k words.",
+      source_chunk_ids: [CHUNK_1],
+      citations: [cite],
+    },
   ],
   difficulty: "medium",
   target_count: 10,
@@ -42,7 +54,7 @@ describe("[014-studio-active-learning-suite] T009/T021: Flashcards viewer & Stud
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const tid = (id: string, root: MockElement = body()) => root.querySelector(`[data-testid=${id}]`);
 
   it("renders single-card 3D flip deck, handles Spacebar/click flip, records progress, filters Review missed, and resets progress", async () => {
@@ -52,11 +64,15 @@ describe("[014-studio-active-learning-suite] T009/T021: Flashcards viewer & Stud
       notebook_id: NB,
       item_states_json: {
         [CARD_1]: { status: "mastered", attempts: 1, last_reviewed_at: new Date().toISOString() },
-        [CARD_2]: { status: "needs_review", attempts: 1, last_reviewed_at: new Date().toISOString() },
+        [CARD_2]: {
+          status: "needs_review",
+          attempts: 1,
+          last_reviewed_at: new Date().toISOString(),
+        },
       },
       updated_at: new Date().toISOString(),
     };
-    const recorded: any[] = [];
+    const recorded: Array<{ itemId: string; outcome: string }> = [];
     const explained: string[] = [];
 
     const viewer = createFlashcardsViewer({
@@ -64,21 +80,22 @@ describe("[014-studio-active-learning-suite] T009/T021: Flashcards viewer & Stud
       title: "Flashcards",
       payload: samplePayload,
       progress,
-      onRecordProgress: async (itemId, outcome) => {
+      onRecordProgress: (itemId, outcome) => {
         recorded.push({ itemId, outcome });
-        return {
+        return Promise.resolve({
           ...progress,
           item_states_json: {
             ...progress.item_states_json,
             [itemId]: { status: outcome, attempts: 2, last_reviewed_at: new Date().toISOString() },
           },
-        };
+        });
       },
-      onResetProgress: async () => ({ ...progress, item_states_json: {} }),
-      onExplain: async (itemId) => {
+      onResetProgress: () => Promise.resolve({ ...progress, item_states_json: {} }),
+      onExplain: (itemId) => {
         explained.push(itemId);
+        return Promise.resolve();
       },
-      confirmReset: async () => true,
+      confirmReset: () => Promise.resolve(true),
     });
     body().append(viewer.element as unknown as MockElement);
 
@@ -107,55 +124,58 @@ describe("[014-studio-active-learning-suite] T009/T021: Flashcards viewer & Stud
     expect(tid("flashcard-front-text")!.textContent).toContain("Card 2 Front?");
 
     // Mark Card 2 mastered -> 2/2 mastered, Review missed disabled -> Practice all again available
-    await (tid("flashcard-got-it") as any).click();
+    tid("flashcard-got-it")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(recorded).toContainEqual({ itemId: CARD_2, outcome: "mastered" });
     expect(tid("flashcards-review-missed")!.disabled).toBe(true);
     expect(tid("flashcards-practice-all")).not.toBeNull();
 
     // Reset progress clears state
-    await (tid("flashcards-reset-progress") as any).click();
+    tid("flashcards-reset-progress")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(tid("flashcards-mastery")!.textContent).toContain("0/2 mastered");
   });
 
   it("renders Flashcards tile in Studio panel disabled on empty scope and submits difficulty/card_count/focus_prompt", async () => {
     let selection = [SRC_A];
-    const posts: any[] = [];
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const posts: Array<Record<string, unknown>> = [];
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(JSON.stringify({ artifacts: [] }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ artifacts: [] }), { status: 200 }));
       }
       if (url.pathname.endsWith("/artifacts") && method === "POST") {
-        const parsed = JSON.parse(String(init.body));
+        const parsed =
+          typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
         posts.push(parsed);
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              id: ART,
-              notebook_id: NB,
-              plugin_type: parsed.plugin_type,
-              subtype: "default",
-              status: "Queued",
-              title: "Flashcards",
-              params_json: parsed,
-              payload_json: null,
-              source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
-              output_language: "en-US",
-              progress: null,
-              failure: null,
-              attempt: 1,
-              retry_of: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          }),
-          { status: 202 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                id: ART,
+                notebook_id: NB,
+                plugin_type: parsed.plugin_type,
+                subtype: "default",
+                status: "Queued",
+                title: "Flashcards",
+                params_json: parsed,
+                payload_json: null,
+                source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
+                output_language: "en-US",
+                progress: null,
+                failure: null,
+                attempt: 1,
+                retry_of: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            }),
+            { status: 202 },
+          ),
         );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
     const panel = createStudioPanel({
@@ -180,9 +200,9 @@ describe("[014-studio-active-learning-suite] T009/T021: Flashcards viewer & Stud
     tile.click();
     const modal = tid("flashcards-modal")!;
     expect(modal).not.toBeNull();
-    (tid("flashcards-difficulty-select", modal) as any).value = "hard";
-    (tid("flashcards-count-select", modal) as any).value = "fewer";
-    (tid("flashcards-focus-prompt", modal) as any).value = "Quotas";
+    tid("flashcards-difficulty-select", modal)!.value = "hard";
+    tid("flashcards-count-select", modal)!.value = "fewer";
+    tid("flashcards-focus-prompt", modal)!.value = "Quotas";
     tid("flashcards-generate", modal)!.click();
     await new Promise((r) => setTimeout(r, 0));
 

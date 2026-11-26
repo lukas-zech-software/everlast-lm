@@ -65,7 +65,7 @@ describe("[014-studio-active-learning-suite] T016/T021: Quiz viewer runner, hint
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const tid = (id: string, root: MockElement = body()) => root.querySelector(`[data-testid=${id}]`);
 
   it("displays Hint, grades MC and Short Answer via callback, renders score summary, and filters Review missed", async () => {
@@ -82,30 +82,37 @@ describe("[014-studio-active-learning-suite] T016/T021: Quiz viewer runner, hint
       title: "Quiz",
       payload: sampleQuiz,
       progress: currentProgress,
-      onGrade: async (questionId, answer) => {
-        const correct = (questionId === Q1 && answer === "opt_1") || (questionId === Q2 && String(answer).includes("200"));
+      onGrade: (questionId, answer) => {
+        const answerText = typeof answer === "string" ? answer : answer.join(" ");
+        const correct =
+          (questionId === Q1 && answer === "opt_1") ||
+          (questionId === Q2 && answerText.includes("200"));
         const outcome = correct ? ("mastered" as const) : ("needs_review" as const);
         currentProgress = {
           ...currentProgress,
           item_states_json: {
             ...currentProgress.item_states_json,
-            [questionId]: { status: outcome, attempts: 1, last_reviewed_at: new Date().toISOString() },
+            [questionId]: {
+              status: outcome,
+              attempts: 1,
+              last_reviewed_at: new Date().toISOString(),
+            },
           },
         };
-        return {
+        return Promise.resolve({
           question_id: questionId,
           correct,
           outcome,
-          grading_mode: questionId === Q1 ? "deterministic" : "semantic",
+          grading_mode: questionId === Q1 ? ("deterministic" as const) : ("semantic" as const),
           elapsed_ms: 5,
           explanation: "Grounded explanation [1].",
           citations: [cite],
           progress: currentProgress,
-        };
+        });
       },
-      onResetProgress: async () => ({ ...currentProgress, item_states_json: {} }),
-      onExplain: async () => undefined,
-      confirmReset: async () => true,
+      onResetProgress: () => Promise.resolve({ ...currentProgress, item_states_json: {} }),
+      onExplain: () => Promise.resolve(undefined),
+      confirmReset: () => Promise.resolve(true),
     });
     body().append(viewer.element as unknown as MockElement);
 
@@ -114,19 +121,19 @@ describe("[014-studio-active-learning-suite] T016/T021: Quiz viewer runner, hint
     expect(tid("quiz-hint-text")!.textContent).toContain("European region");
 
     // Answer Q1 correctly
-    const opt1 = body().querySelector("[data-option-id=opt_1]") as any;
+    const opt1 = body().querySelector("[data-option-id=opt_1]")!;
     opt1.checked = true;
     opt1.dispatchEvent({ type: "change", target: opt1 });
-    await (tid("quiz-submit-btn") as any).click();
+    tid("quiz-submit-btn")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(tid("quiz-feedback")!.textContent).toContain("Right!");
 
     // Move to Q2 and answer incorrectly
     tid("quiz-next-btn")!.click();
-    const input = tid("quiz-text-answer") as any;
+    const input = tid("quiz-text-answer")!;
     input.value = "50 MB";
     input.dispatchEvent({ type: "input", target: input });
-    await (tid("quiz-submit-btn") as any).click();
+    tid("quiz-submit-btn")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(tid("quiz-feedback")!.textContent).toContain("Not quite");
 

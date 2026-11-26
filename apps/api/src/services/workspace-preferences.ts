@@ -36,7 +36,11 @@ export class WorkspacePreferencesService {
    * Adds icon, Ready count and the caller's pin/last-opened state to PostgreSQL notebook rows, then sorts.
    * Sort order has no server copy (it lives in the browser's localStorage, FR-WM-03): default `recent`.
    */
-  async overview(ownerId: string, notebooks: Notebook[], requestedSort: NotebookSortOrder = "recent"): Promise<NotebookOverviewItem[]> {
+  async overview(
+    ownerId: string,
+    notebooks: Notebook[],
+    requestedSort: NotebookSortOrder = "recent",
+  ): Promise<NotebookOverviewItem[]> {
     const items = await buildNotebookOverview(ownerId, notebooks);
     return sortNotebookOverview(items, requestedSort);
   }
@@ -66,7 +70,11 @@ export class WorkspacePreferencesService {
     return recordNotebookOpened(ownerId, notebookId);
   }
 
-  pinNotebook(ownerId: string, notebookId: string, isPinned: boolean): Promise<OwnerNotebookPreferences> {
+  pinNotebook(
+    ownerId: string,
+    notebookId: string,
+    isPinned: boolean,
+  ): Promise<OwnerNotebookPreferences> {
     return setNotebookPinned(ownerId, notebookId, isPinned);
   }
 
@@ -76,7 +84,7 @@ export class WorkspacePreferencesService {
 
   patchOwnerPreferences(
     ownerId: string,
-    patch: Partial<Omit<OwnerWorkspacePreferences, "owner_id">>
+    patch: Partial<Omit<OwnerWorkspacePreferences, "owner_id">>,
   ): Promise<OwnerWorkspacePreferences> {
     return patchOwnerWorkspacePreferences(ownerId, patch);
   }
@@ -88,7 +96,7 @@ export class WorkspacePreferencesService {
   patchNotebookPreferences(
     ownerId: string,
     notebookId: string,
-    patch: Partial<Omit<OwnerNotebookPreferences, "owner_id" | "notebook_id" | "last_opened_at">>
+    patch: Partial<Omit<OwnerNotebookPreferences, "owner_id" | "notebook_id" | "last_opened_at">>,
   ): Promise<OwnerNotebookPreferences> {
     return patchOwnerNotebookPreferences(ownerId, notebookId, patch);
   }
@@ -102,7 +110,7 @@ export class WorkspacePreferencesService {
     notebookId: string,
     browserLocale?: string,
     jobInputLanguage?: string,
-    jobOutputLanguage?: string
+    jobOutputLanguage?: string,
   ): Promise<{ input_language: string; output_language: string }> {
     const [user, notebook] = await Promise.all([
       getOwnerWorkspacePreferences(ownerId),
@@ -114,7 +122,8 @@ export class WorkspacePreferencesService {
       user.input_language,
       "auto",
     ];
-    const inputLanguage = inputCandidates.find((c) => c && InputLanguageSchema.safeParse(c).success) ?? "auto";
+    const inputLanguage =
+      inputCandidates.find((c) => c && InputLanguageSchema.safeParse(c).success) ?? "auto";
     return {
       input_language: inputLanguage,
       output_language: resolveOutputLanguage({

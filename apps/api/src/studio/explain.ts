@@ -28,37 +28,75 @@ import { StudioSupportingSourcesRequiredError, type StudioDrilldownPort } from "
  */
 
 type TargetItem =
-  | { kind: "flashcard"; item: FlashcardItem }
-  | { kind: "quiz_question"; item: QuizQuestion };
+  { kind: "flashcard"; item: FlashcardItem } | { kind: "quiz_question"; item: QuizQuestion };
 
-function findTargetItem(artifact: StudioArtifactRecord, itemId: string, expectedKind?: "flashcard" | "quiz_question"): TargetItem | null {
-  const payload = artifact.payload_json;
-  if (!payload || typeof payload !== "object") return null;
-
-  if (artifact.plugin_type === "flashcards" && "cards" in payload) {
-    if (expectedKind && expectedKind !== "flashcard") return null;
-    const card = (payload as unknown as StudioFlashcardsPayload).cards.find((c) => c.id === itemId);
-    return card ? { kind: "flashcard", item: card } : null;
-  }
-
-  if (artifact.plugin_type === "quiz" && "questions" in payload) {
-    if (expectedKind && expectedKind !== "quiz_question") return null;
-    const question = (payload as unknown as StudioQuizPayload).questions.find((q) => q.id === itemId);
-    return question ? { kind: "quiz_question", item: question } : null;
-  }
-
-  if (artifact.plugin_type === "learning_overview" && "modules" in payload) {
-    const overview = payload as unknown as StudioLearningOverviewPayload;
-    for (const mod of overview.modules) {
-      if (!expectedKind || expectedKind === "flashcard") {
-        const card = mod.flashcards.find((c) => c.id === itemId);
-        if (card) return { kind: "flashcard", item: card };
-      }
-      if (!expectedKind || expectedKind === "quiz_question") {
-        const question = mod.checkpoint_quiz.find((q) => q.id === itemId);
-        if (question) return { kind: "quiz_question", item: question };
+function findItemInOverview(
+  overview: StudioLearningOverviewPayload,
+  itemId: string,
+  expectedKind?: "flashcard" | "quiz_question",
+): TargetItem | null {
+  for (const mod of overview.modules) {
+    if (!expectedKind || expectedKind === "flashcard") {
+      const card = mod.flashcards.find((c) => c.id === itemId);
+      if (card) {
+        return { kind: "flashcard", item: card };
       }
     }
+    if (!expectedKind || expectedKind === "quiz_question") {
+      const question = mod.checkpoint_quiz.find((q) => q.id === itemId);
+      if (question) {
+        return { kind: "quiz_question", item: question };
+      }
+    }
+  }
+  return null;
+}
+
+function findFlashcardItem(
+  payload: object,
+  itemId: string,
+  expectedKind?: "flashcard" | "quiz_question",
+): TargetItem | null {
+  if (!("cards" in payload) || (expectedKind && expectedKind !== "flashcard")) {
+    return null;
+  }
+  const card = (payload as unknown as StudioFlashcardsPayload).cards.find((c) => c.id === itemId);
+  return card ? { kind: "flashcard", item: card } : null;
+}
+
+function findQuizQuestionItem(
+  payload: object,
+  itemId: string,
+  expectedKind?: "flashcard" | "quiz_question",
+): TargetItem | null {
+  if (!("questions" in payload) || (expectedKind && expectedKind !== "quiz_question")) {
+    return null;
+  }
+  const question = (payload as unknown as StudioQuizPayload).questions.find((q) => q.id === itemId);
+  return question ? { kind: "quiz_question", item: question } : null;
+}
+
+function findTargetItem(
+  artifact: StudioArtifactRecord,
+  itemId: string,
+  expectedKind?: "flashcard" | "quiz_question",
+): TargetItem | null {
+  const payload = artifact.payload_json;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  if (artifact.plugin_type === "flashcards") {
+    return findFlashcardItem(payload, itemId, expectedKind);
+  }
+  if (artifact.plugin_type === "quiz") {
+    return findQuizQuestionItem(payload, itemId, expectedKind);
+  }
+  if (artifact.plugin_type === "learning_overview" && "modules" in payload) {
+    return findItemInOverview(
+      payload as unknown as StudioLearningOverviewPayload,
+      itemId,
+      expectedKind,
+    );
   }
   return null;
 }
@@ -88,12 +126,16 @@ export async function executeStudioItemExplain(input: {
     throw new StudioParamsError(`Learning item ${req.item_id} does not exist in this artifact.`);
   }
 
-  const { snapshot, chunks } = await input.port.readScope(input.ownerId, input.notebookId, req.active_source_ids);
+  const { snapshot, chunks } = await input.port.readScope(
+    input.ownerId,
+    input.notebookId,
+    req.active_source_ids,
+  );
   const scopeCheck = verifyExplainSupportingSources(target.item.citations, snapshot);
   if (!scopeCheck.ok) {
     throw new StudioSupportingSourcesRequiredError(
       scopeCheck.missingSources,
-      "Select all supporting sources for this learning item before explaining in chat."
+      "Select all supporting sources for this learning item before explaining in chat.",
     );
   }
 

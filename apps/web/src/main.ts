@@ -9,7 +9,11 @@ import { initializeTheme } from "./workspace-preferences.ts";
 // Release v2 (FR-UI-02): saved light/dark/system theme before the first render.
 initializeTheme(document.documentElement);
 
-const root = document.getElementById("app")!;
+const rootEl = document.getElementById("app");
+if (!rootEl) {
+  throw new Error("Missing #app root element");
+}
+const root = rootEl;
 let session: Session;
 let teardown: () => void = () => undefined;
 
@@ -27,8 +31,8 @@ function notebookMissing(): void {
       "main",
       { class: "missing", "data-testid": "notebook-missing" },
       h("h1", { text: "Notebook no longer exists" }),
-      h("p", { class: "muted", text: "Returning to your notebooks…" })
-    )
+      h("p", { class: "muted", text: "Returning to your notebooks…" }),
+    ),
   );
   setTimeout(() => go("/"), 1500);
 }
@@ -39,12 +43,13 @@ async function route(): Promise<void> {
   clear(root);
   document.querySelectorAll(".modal-backdrop").forEach((el) => el.remove());
   const match = /^\/notebook\/([^/]+)\/?$/.exec(location.pathname);
-  if (match) {
+  const rawNotebookId = match?.[1];
+  if (rawNotebookId) {
     const addSources = Boolean((history.state as { addSources?: boolean } | null)?.addSources);
     if (addSources) history.replaceState({}, "", location.pathname);
     teardown = await renderWorkspace({
       root,
-      notebookId: decodeURIComponent(match[1]!),
+      notebookId: decodeURIComponent(rawNotebookId),
       session,
       openAddSources: addSources,
       goHome: () => go("/"),
@@ -61,8 +66,15 @@ window.addEventListener("popstate", () => void route());
 (async () => {
   session = await startSession(root);
   await route();
-})().catch((err) => {
+})().catch((err: unknown) => {
   console.error(err);
   clear(root);
-  root.append(h("main", { class: "missing" }, h("h1", { text: "Something went wrong" }), h("p", { text: "Please reload the page." })));
+  root.append(
+    h(
+      "main",
+      { class: "missing" },
+      h("h1", { text: "Something went wrong" }),
+      h("p", { text: "Please reload the page." }),
+    ),
+  );
 });

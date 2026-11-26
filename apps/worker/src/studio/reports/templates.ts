@@ -69,18 +69,26 @@ const NO_DATED_EVENTS: Record<Lang, string> = {
 };
 
 /** Known heading language of a BCP-47 tag, or null when the model supplies headings (FR-UI-02). */
-function lang(tag: string | undefined): Lang | null {
-  const base = (tag ?? "en").toLowerCase().split("-")[0];
-  return base === "de" ? "de" : base === "en" ? "en" : null;
+function lang(tag = "en"): Lang | null {
+  const base = tag.toLowerCase().split("-")[0];
+  if (base === "de") return "de";
+  if (base === "en") return "en";
+  return null;
 }
 
 const humanize = (key: string) => key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
 
 /** Section heading by stable key: fixed table for en/de, else the model's localized heading, else English. */
-export function sectionHeading(key: string, outputLanguage: string | undefined, modelHeading?: string): string {
+export function sectionHeading(
+  key: string,
+  outputLanguage: string | undefined,
+  modelHeading?: string,
+): string {
   const l = lang(outputLanguage);
   if (l) return HEADINGS[l][key] ?? modelHeading ?? humanize(key);
-  return modelHeading?.trim() || HEADINGS.en[key] || humanize(key);
+  const trimmed = modelHeading?.trim();
+  if (trimmed) return trimmed;
+  return HEADINGS.en[key] ?? humanize(key);
 }
 
 export function reportTitle(subtype: ReportSubtype, outputLanguage: string | undefined): string {

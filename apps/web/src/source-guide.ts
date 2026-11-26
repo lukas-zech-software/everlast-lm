@@ -23,7 +23,7 @@ export class SourceGuideController {
   private expanded = false;
   private pendingAttempts = 0;
   private loadGeneration = 0;
-  private pendingTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly pendingTimer: ReturnType<typeof setTimeout> | null = null;
   private container: HTMLElement | null = null;
   private readonly fetcher: typeof fetch;
 
@@ -39,36 +39,54 @@ export class SourceGuideController {
       this.loadGeneration += 1;
       if (this.pendingTimer) clearTimeout(this.pendingTimer);
     }
-    const generation = this.loadGeneration;
     this.sourceId = sourceId;
     this.revision = revision;
     this.guide = { status: "GuidePending" };
     try {
-      const response = await this.fetcher(`/api/notebooks/${this.options.notebookId}/sources/${sourceId}/guide?revision=${revision}`);
+      const response = await this.fetcher(
+        `/api/notebooks/${this.options.notebookId}/sources/${sourceId}/guide?revision=${revision}`,
+      );
       if (response.status === 202) return this.guide;
       if (!response.ok) throw new Error(`Guide unavailable (${response.status})`);
-      this.guide = await response.json() as SourceGuideView;
+      this.guide = (await response.json()) as SourceGuideView;
     } catch (error) {
-      this.guide = { status: "GuideFailed", error: error instanceof Error ? error.message : "Guide unavailable" };
+      this.guide = {
+        status: "GuideFailed",
+        error: error instanceof Error ? error.message : "Guide unavailable",
+      };
     }
     return this.getState();
   }
 
   getState(): SourceGuideView {
     if (!this.guide) return { status: "GuidePending" };
-    return { ...this.guide, ...(this.guide.key_topics ? { key_topics: [...this.guide.key_topics] } : {}) };
+    return {
+      ...this.guide,
+      ...(this.guide.key_topics ? { key_topics: [...this.guide.key_topics] } : {}),
+    };
   }
 
-  setExpanded(expanded: boolean): void { this.expanded = expanded; }
+  setExpanded(expanded: boolean): void {
+    this.expanded = expanded;
+  }
 
   render(container: HTMLElement): void {
     this.container = container;
     const guide = this.guide;
-    const summary = guide?.status === "GuideReady" && this.expanded ? `<p>${escapeHtml(guide.summary_md ?? "")}</p>` : "";
-    const topics = guide?.status === "GuideReady" && this.expanded
-      ? (guide.key_topics ?? []).map((topic) => `<button type="button" data-topic="${escapeHtml(topic)}">${escapeHtml(topic)}</button>`).join("")
-      : "";
-    const label = guide?.status === "GuideReady" ? "Source guide" : guide?.status === "GuideFailed" ? "Guide unavailable" : "Guide is being prepared";
+    const summary =
+      guide?.status === "GuideReady" && this.expanded
+        ? `<p>${escapeHtml(guide.summary_md ?? "")}</p>`
+        : "";
+    const topics =
+      guide?.status === "GuideReady" && this.expanded
+        ? (guide.key_topics ?? [])
+            .map(
+              (topic) =>
+                `<button type="button" data-topic="${escapeHtml(topic)}">${escapeHtml(topic)}</button>`,
+            )
+            .join("")
+        : "";
+    const label = guideToggleLabel(guide?.status);
     const selectPrompt = `<p class="source-guide-select-prompt" data-testid="source-guide-select-prompt" role="status" hidden>Select this source to ask about its topics.</p>`;
     container.innerHTML = `<section class="source-guide" data-status="${guide?.status ?? "GuidePending"}"><button type="button" class="source-guide-toggle" aria-expanded="${this.expanded}">${label}</button><div class="source-guide-content" ${this.expanded ? "" : "hidden"}>${summary}${topics}${selectPrompt}${guide?.status === "GuideFailed" ? `<p>${escapeHtml(guide.error ?? "")}</p>` : ""}</div></section>`;
     container.querySelector(".source-guide-toggle")?.addEventListener("click", () => {
@@ -76,16 +94,32 @@ export class SourceGuideController {
       this.render(container);
     });
     const prompt = container.querySelector<HTMLElement>("[data-testid=source-guide-select-prompt]");
-    container.querySelectorAll<HTMLButtonElement>("[data-topic]").forEach((button) => button.addEventListener("click", () => {
-      const sourceId = this.sourceId;
-      if (!sourceId) return;
-      const selected = this.options.isSelected?.(sourceId) ?? true;
-      if (prompt) prompt.hidden = selected;
-      if (selected) this.options.onTopic?.(button.dataset.topic ?? "", sourceId);
-    }));
+    container.querySelectorAll<HTMLButtonElement>("[data-topic]").forEach((button) =>
+      button.addEventListener("click", () => {
+        const sourceId = this.sourceId;
+        if (!sourceId) return;
+        const selected = this.options.isSelected?.(sourceId) ?? true;
+        if (prompt) prompt.hidden = selected;
+        if (selected) this.options.onTopic?.(button.dataset.topic ?? "", sourceId);
+      }),
+    );
   }
 }
 
+function guideToggleLabel(status: SourceGuideView["status"] | undefined): string {
+  if (status === "GuideReady") return "Source guide";
+  if (status === "GuideFailed") return "Guide unavailable";
+  return "Guide is being prepared";
+}
+
+const HTML_ESCAPES: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;",
+};
+
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
+  return value.replace(/[&<>"']/g, (char) => HTML_ESCAPES[char] ?? char);
 }

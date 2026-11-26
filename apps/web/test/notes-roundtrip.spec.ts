@@ -16,11 +16,19 @@ async function ask(page: Page, question: string) {
   return page.getByTestId("message-assistant").nth(before);
 }
 
-test("NM-E01: chat answer → Save to note → Convert to source → TITAN-77 cited from the converted note-source", async ({ page }) => {
+test("NM-E01: chat answer → Save to note → Convert to source → TITAN-77 cited from the converted note-source", async ({
+  page,
+}) => {
   const email = uniqueEmail("nm01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "Raw_Data.pdf", buildPdf([{ kind: "text", lines: wrapLines("Project codename is TITAN-77.") }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Raw_Data.pdf",
+    buildPdf([{ kind: "text", lines: wrapLines("Project codename is TITAN-77.") }]),
+  );
   await waitReady(page.request, email, id, 1);
   await page.goto(`/notebook/${id}`);
   await expect(page.getByTestId("notes-panel")).toBeVisible();
@@ -37,10 +45,14 @@ test("NM-E01: chat answer → Save to note → Convert to source → TITAN-77 ci
   await card.getByTestId("note-open").click();
   await expect(page.getByTestId("saved-response-viewer")).toBeVisible();
   await page.getByTestId("convert-note").click();
-  await expect(page.getByTestId("notes-status")).toHaveText("Source created: What is the project codename?");
+  await expect(page.getByTestId("notes-status")).toHaveText(
+    "Source created: What is the project codename?",
+  );
 
   // 3. The new source is Ready and checked in the Left Panel; select only it.
-  const converted = page.getByTestId("source-row").filter({ hasText: "What is the project codename?" });
+  const converted = page
+    .getByTestId("source-row")
+    .filter({ hasText: "What is the project codename?" });
   await expect(converted).toHaveAttribute("data-status", "Ready");
   await expect(converted.getByTestId("source-checkbox")).toBeChecked();
   await expect(converted.getByTestId("source-kind-note")).toHaveText("Note");

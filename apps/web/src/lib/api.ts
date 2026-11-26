@@ -16,8 +16,8 @@ export class ApiError extends Error {
 }
 
 export interface TokenProvider {
-  getIdToken(): Promise<string | null>;
-  onUnauthenticated(): void;
+  getIdToken: () => Promise<string | null>;
+  onUnauthenticated: () => void;
 }
 
 let tokens: TokenProvider | null = null;
@@ -34,20 +34,31 @@ async function authHeaders(): Promise<Record<string, string>> {
 async function toError(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as { error?: { code?: string; message?: string } };
-    return new ApiError(res.status, body.error?.code ?? "Error", body.error?.message ?? res.statusText);
+    return new ApiError(
+      res.status,
+      body.error?.code ?? "Error",
+      body.error?.message ?? res.statusText,
+    );
   } catch {
     return new ApiError(res.status, "Error", res.statusText);
   }
 }
 
-export async function api<T>(path: string, init: { method?: string; json?: unknown; headers?: Record<string, string> } = {}): Promise<T> {
+export async function api<T>(
+  path: string,
+  init: { method?: string; json?: unknown; headers?: Record<string, string> } = {},
+): Promise<T> {
   const headers: Record<string, string> = { ...(await authHeaders()), ...init.headers };
   let body: string | undefined;
   if (init.json !== undefined) {
     headers["content-type"] = "application/json";
     body = JSON.stringify(init.json);
   }
-  const res = await fetch(path, { method: init.method ?? "GET", headers, ...(body !== undefined ? { body } : {}) });
+  const res = await fetch(path, {
+    method: init.method ?? "GET",
+    headers,
+    ...(body === undefined ? {} : { body }),
+  });
   if (res.status === 401) {
     tokens?.onUnauthenticated();
     throw await toError(res);
@@ -72,7 +83,11 @@ export interface SseEvent {
 }
 
 /** POSTs JSON and yields Server-Sent Events (used for chat turns). */
-export async function* postEventStream(path: string, json: unknown, signal?: AbortSignal): AsyncGenerator<SseEvent> {
+export async function* postEventStream(
+  path: string,
+  json: unknown,
+  signal?: AbortSignal,
+): AsyncGenerator<SseEvent> {
   const res = await fetch(path, {
     method: "POST",
     headers: { ...(await authHeaders()), "content-type": "application/json" },

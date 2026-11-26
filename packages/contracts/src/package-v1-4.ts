@@ -19,8 +19,10 @@ export type ViewportBreakpoint = z.infer<typeof ViewportBreakpointSchema>;
  * - Tablet/Mobile: < 1024px (tabbed navigation Sources | Chat | Studio)
  */
 export function getViewportBreakpoint(width: number): ViewportBreakpoint {
-  if (typeof width !== "number" || isNaN(width) || width < 0 || !isFinite(width)) {
-    throw new Error(`Invalid viewport width: ${width}. Width must be a non-negative finite number.`);
+  if (typeof width !== "number" || Number.isNaN(width) || width < 0 || !Number.isFinite(width)) {
+    throw new Error(
+      `Invalid viewport width: ${width}. Width must be a non-negative finite number.`,
+    );
   }
   if (width >= 1280) {
     return "desktop_wide";
@@ -33,13 +35,13 @@ export function getViewportBreakpoint(width: number): ViewportBreakpoint {
 
 export const WorkspaceViewStateSchema = z
   .object({
-    active_notebook_id: z.string().uuid().nullable(),
+    active_notebook_id: z.uuid().nullable(),
     active_tab: z.enum(["sources", "chat", "studio"]).default("chat"),
     left_collapsed: z.boolean().default(false),
     right_collapsed: z.boolean().default(false),
     inspector_open: z.boolean().default(false),
-    inspector_source_id: z.string().uuid().nullable().optional().default(null),
-    highlight_chunk_id: z.string().uuid().nullable().optional().default(null),
+    inspector_source_id: z.uuid().nullable().optional().default(null),
+    highlight_chunk_id: z.uuid().nullable().optional().default(null),
   })
   .strict();
 export type WorkspaceViewState = z.infer<typeof WorkspaceViewStateSchema>;
@@ -48,8 +50,8 @@ export const GoldenCaseSchema = z
   .object({
     id: z.string().min(1),
     category: z.enum(["unanswerable", "deselected_source", "synthesis", "adversarial"]),
-    notebook_id: z.string().uuid(),
-    active_source_ids: z.array(z.string().uuid()).min(1, "active_source_ids must contain at least 1 source"),
+    notebook_id: z.uuid(),
+    active_source_ids: z.array(z.uuid()).min(1, "active_source_ids must contain at least 1 source"),
     question: z.string().min(1),
     expected_claims: z.array(z.string()).default([]),
     forbidden_strings: z.array(z.string()).default([]),
@@ -83,27 +85,27 @@ export interface GateEvaluationResult {
 export function evaluateGateMetrics(metrics: EvalMetrics): GateEvaluationResult {
   const failures: string[] = [];
 
-  if (metrics.hallucination_rate >= 0.10) {
+  if (metrics.hallucination_rate >= 0.1) {
     failures.push(
-      `hallucination_rate ${metrics.hallucination_rate} exceeds threshold < 0.10 (NFR-EVAL-01)`
+      `hallucination_rate ${metrics.hallucination_rate} exceeds threshold < 0.10 (NFR-EVAL-01)`,
     );
   }
 
   if (metrics.citation_precision !== 1.0) {
     failures.push(
-      `citation_precision ${metrics.citation_precision} does not meet required 1.00 (NFR-EVAL-02)`
+      `citation_precision ${metrics.citation_precision} does not meet required 1.00 (NFR-EVAL-02)`,
     );
   }
 
-  if (metrics.negative_rejection_rate < 0.90) {
+  if (metrics.negative_rejection_rate < 0.9) {
     failures.push(
-      `negative_rejection_rate ${metrics.negative_rejection_rate} does not meet required >= 0.90 (NFR-EVAL-03)`
+      `negative_rejection_rate ${metrics.negative_rejection_rate} does not meet required >= 0.90 (NFR-EVAL-03)`,
     );
   }
 
   if (metrics.scoping_leakage_count > 0) {
     failures.push(
-      `scoping_leakage_count ${metrics.scoping_leakage_count} exceeds required 0 chunks (NFR-EVAL-04)`
+      `scoping_leakage_count ${metrics.scoping_leakage_count} exceeds required 0 chunks (NFR-EVAL-04)`,
     );
   }
 
@@ -119,7 +121,7 @@ export type ReleaseGateStatus = z.infer<typeof ReleaseGateStatusSchema>;
 export const ReleaseGateReportSchema = z
   .object({
     commit_hash: z.string().min(1),
-    timestamp: z.string().datetime(),
+    timestamp: z.iso.datetime(),
     metrics: EvalMetricsSchema,
     status: ReleaseGateStatusSchema,
     failures: z.array(z.string()).default([]),
@@ -130,26 +132,24 @@ export const ReleaseGateReportSchema = z
       const evalResult = evaluateGateMetrics(data.metrics);
       if (!evalResult.passed) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `Cannot pass Gate v1.0 with failing metrics: ${evalResult.failures.join("; ")}`,
           path: ["metrics"],
         });
       }
       if (data.failures.length > 0) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           message: `GatePassed status requires empty failures list, but found ${data.failures.length} failure(s)`,
           path: ["failures"],
         });
       }
-    } else if (data.status === "GateFailed") {
-      if (data.failures.length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `GateFailed status requires at least one recorded failure reason`,
-          path: ["failures"],
-        });
-      }
+    } else if (data.status === "GateFailed" && data.failures.length === 0) {
+      ctx.addIssue({
+        code: "custom",
+        message: `GateFailed status requires at least one recorded failure reason`,
+        path: ["failures"],
+      });
     }
   });
 export type ReleaseGateReport = z.infer<typeof ReleaseGateReportSchema>;

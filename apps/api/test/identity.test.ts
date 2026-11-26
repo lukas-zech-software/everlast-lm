@@ -19,7 +19,10 @@ const other = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
 const now = () => Math.floor(Date.now() / 1000);
 
-function sign(payload: Record<string, unknown>, options: { key?: KeyObject; header?: Record<string, unknown> } = {}) {
+function sign(
+  payload: Record<string, unknown>,
+  options: { key?: KeyObject; header?: Record<string, unknown> } = {},
+) {
   const header = options.header ?? { alg: "RS256", kid: "k1" };
   const input = `${b64(header)}.${b64(payload)}`;
   const signer = createSign("RSA-SHA256");
@@ -38,12 +41,12 @@ const claims = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function verifier(revoked: Set<string> = new Set()) {
+function verifier(revoked = new Set<string>()) {
   return new TokenVerifier({
     audience: PROJECT,
     issuer: ISSUER,
     keys: new StaticKeys({ k1: publicKey }),
-    revocation: { isRevoked: async (sub) => revoked.has(sub) },
+    revocation: { isRevoked: (sub) => Promise.resolve(revoked.has(sub)) },
   });
 }
 
@@ -56,28 +59,45 @@ describe("FR-WM-04 / NFR-SEC-01: Identity Platform token verification", () => {
 
   it("AUTH-02: rejects malformed Authorization headers", async () => {
     for (const header of ["Basic abc", "Bearer", "Bearer a.b", "token", "Bearer a.b.c d"]) {
-      await expect(verifier().verifyAuthorizationHeader(header)).rejects.toBeInstanceOf(AuthenticationError);
+      await expect(verifier().verifyAuthorizationHeader(header)).rejects.toBeInstanceOf(
+        AuthenticationError,
+      );
     }
   });
 
   it("AUTH-03: rejects an expired token", async () => {
-    await expect(verifier().verifyAuthorizationHeader(bearer(sign(claims({ exp: now() - 120 }))))).rejects.toThrow(/expired/);
+    await expect(
+      verifier().verifyAuthorizationHeader(bearer(sign(claims({ exp: now() - 120 })))),
+    ).rejects.toThrow(/expired/);
   });
 
   it("AUTH-04: rejects a revoked token", async () => {
-    await expect(verifier(new Set(["uid-12345"])).verifyAuthorizationHeader(bearer(sign(claims())))).rejects.toThrow(/revoked/);
+    await expect(
+      verifier(new Set(["uid-12345"])).verifyAuthorizationHeader(bearer(sign(claims()))),
+    ).rejects.toThrow(/revoked/);
   });
 
   it("AUTH-05: rejects wrong project audience or issuer", async () => {
-    await expect(verifier().verifyAuthorizationHeader(bearer(sign(claims({ aud: "other" }))))).rejects.toThrow(/audience/);
     await expect(
-      verifier().verifyAuthorizationHeader(bearer(sign(claims({ iss: "https://securetoken.google.com/other" }))))
+      verifier().verifyAuthorizationHeader(bearer(sign(claims({ aud: "other" })))),
+    ).rejects.toThrow(/audience/);
+    await expect(
+      verifier().verifyAuthorizationHeader(
+        bearer(sign(claims({ iss: "https://securetoken.google.com/other" }))),
+      ),
     ).rejects.toThrow(/issuer/);
   });
 
   it("AUTH-06: identity is derived only from the verified token subject", async () => {
-    const identity = await verifier().verifyAuthorizationHeader(bearer(sign(claims({ owner_id: "forged-owner" }))));
-    expect(identity).toEqual({ issuer: ISSUER, subject: "uid-12345", email: "user@example.test", authTime: expect.any(Number) });
+    const identity = await verifier().verifyAuthorizationHeader(
+      bearer(sign(claims({ owner_id: "forged-owner" }))),
+    );
+    expect(identity).toMatchObject({
+      issuer: ISSUER,
+      subject: "uid-12345",
+      email: "user@example.test",
+    });
+    expect(typeof identity.authTime).toBe("number");
   });
 
   it("AUTH-07: subject, not email, is the stable identity", async () => {
@@ -93,39 +113,59 @@ describe("FR-WM-04 / NFR-SEC-01: Identity Platform token verification", () => {
     expect(() => new LocalIdentityIssuer({ NODE_ENV: "production" })).toThrow(/forbidden/);
     // A locally issued token is not accepted by the Identity Platform verifier (different issuer and key).
     const local = new LocalIdentityIssuer({ NODE_ENV: "test" });
-    return expect(verifier().verifyToken(local.issue("uid-12345"))).rejects.toBeInstanceOf(AuthenticationError);
+    return expect(verifier().verifyToken(local.issue("uid-12345"))).rejects.toBeInstanceOf(
+      AuthenticationError,
+    );
   });
 
   it("AUTH-09: rejects valid claims carrying a forged signature", async () => {
     const forged = `${b64({ alg: "RS256", kid: "k1" })}.${b64(claims({ sub: "attacker" }))}.forged`;
     await expect(verifier().verifyToken(forged)).rejects.toThrow(/signature/);
-    await expect(verifier().verifyToken(sign(claims({ sub: "attacker" }), { key: other.privateKey }))).rejects.toThrow(/signature/);
+    await expect(
+      verifier().verifyToken(sign(claims({ sub: "attacker" }), { key: other.privateKey })),
+    ).rejects.toThrow(/signature/);
     // Payload swapped after signing.
     const genuine = sign(claims());
     const [h, , s] = genuine.split(".");
-    await expect(verifier().verifyToken(`${h}.${b64(claims({ sub: "attacker" }))}.${s}`)).rejects.toThrow(/signature/);
+    await expect(
+      verifier().verifyToken(`${h}.${b64(claims({ sub: "attacker" }))}.${s}`),
+    ).rejects.toThrow(/signature/);
   });
 
   it("AUTH-10: rejects unsigned (alg=none), HS256 and unknown-key tokens", async () => {
-    await expect(verifier().verifyToken(`${b64({ alg: "none" })}.${b64(claims())}.`)).rejects.toThrow(/algorithm/);
-    await expect(verifier().verifyToken(sign(claims(), { header: { alg: "HS256", kid: "k1" } }))).rejects.toThrow(/algorithm/);
-    await expect(verifier().verifyToken(sign(claims(), { header: { alg: "RS256", kid: "k9" } }))).rejects.toThrow(/key/);
-    await expect(verifier().verifyToken(sign(claims(), { header: { alg: "RS256" } }))).rejects.toThrow(/key id/);
+    await expect(
+      verifier().verifyToken(`${b64({ alg: "none" })}.${b64(claims())}.`),
+    ).rejects.toThrow(/algorithm/);
+    await expect(
+      verifier().verifyToken(sign(claims(), { header: { alg: "HS256", kid: "k1" } })),
+    ).rejects.toThrow(/algorithm/);
+    await expect(
+      verifier().verifyToken(sign(claims(), { header: { alg: "RS256", kid: "k9" } })),
+    ).rejects.toThrow(/key/);
+    await expect(
+      verifier().verifyToken(sign(claims(), { header: { alg: "RS256" } })),
+    ).rejects.toThrow(/key id/);
   });
 
   it("AUTH-11: rejects tokens issued in the future or missing exp/iat", async () => {
-    await expect(verifier().verifyToken(sign(claims({ iat: now() + 3600 })))).rejects.toThrow(/future/);
+    await expect(verifier().verifyToken(sign(claims({ iat: now() + 3600 })))).rejects.toThrow(
+      /future/,
+    );
     await expect(verifier().verifyToken(sign(claims({ exp: undefined })))).rejects.toThrow(/exp/);
   });
 
   it("AUTH-12: Google secure-token keys are fetched, cached and used for verification", async () => {
     let fetches = 0;
-    const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
+    const pem = publicKey.export({ type: "spki", format: "pem" });
     const keys = new GoogleSecureTokenKeys({
-      fetchImpl: (async () => {
+      fetchImpl: () => {
         fetches++;
-        return new Response(JSON.stringify({ k1: pem }), { headers: { "cache-control": "public, max-age=600" } });
-      }) as typeof fetch,
+        return Promise.resolve(
+          new Response(JSON.stringify({ k1: pem }), {
+            headers: { "cache-control": "public, max-age=600" },
+          }),
+        );
+      },
     });
     const v = new TokenVerifier({ audience: PROJECT, issuer: ISSUER, keys });
     await v.verifyToken(sign(claims()));
@@ -135,16 +175,24 @@ describe("FR-WM-04 / NFR-SEC-01: Identity Platform token verification", () => {
 
   it("AUTH-14: unknown key ids cannot force repeated certificate fetches (one shared refresh per interval)", async () => {
     let fetches = 0;
-    const pem = publicKey.export({ type: "spki", format: "pem" }).toString();
+    const pem = publicKey.export({ type: "spki", format: "pem" });
     const keys = new GoogleSecureTokenKeys({
-      fetchImpl: (async () => {
+      fetchImpl: () => {
         fetches++;
-        return new Response(JSON.stringify({ k1: pem }), { headers: { "cache-control": "public, max-age=600" } });
-      }) as typeof fetch,
+        return Promise.resolve(
+          new Response(JSON.stringify({ k1: pem }), {
+            headers: { "cache-control": "public, max-age=600" },
+          }),
+        );
+      },
     });
     const v = new TokenVerifier({ audience: PROJECT, issuer: ISSUER, keys });
     await v.verifyToken(sign(claims()));
-    const attempts = Array.from({ length: 50 }, (_, i) => v.verifyToken(sign(claims(), { header: { alg: "RS256", kid: `bogus-${i}` } })).catch((e) => e));
+    const attempts = Array.from({ length: 50 }, (_, i) =>
+      v
+        .verifyToken(sign(claims(), { header: { alg: "RS256", kid: `bogus-${i}` } }))
+        .catch((e: unknown) => e),
+    );
     const results = await Promise.all(attempts);
     expect(results.every((r) => r instanceof AuthenticationError)).toBe(true);
     expect(fetches).toBe(1);

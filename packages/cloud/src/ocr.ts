@@ -9,7 +9,7 @@ import { GoogleAuth } from "google-auth-library";
 export interface OcrEngine {
   readonly name: string;
   /** Recognizes text for 1-based page numbers of a PDF; missing pages mean no text was found. */
-  recognize(pdf: Buffer, pages: number[]): Promise<Map<number, string>>;
+  recognize: (pdf: Buffer, pages: number[]) => Promise<Map<number, string>>;
 }
 
 export class OcrUnavailableError extends Error {
@@ -23,8 +23,8 @@ export class OcrUnavailableError extends Error {
 export class NoOcrEngine implements OcrEngine {
   readonly name = "none";
 
-  async recognize(): Promise<Map<number, string>> {
-    return new Map();
+  recognize(): Promise<Map<number, string>> {
+    return Promise.resolve(new Map<number, string>());
   }
 }
 
@@ -36,13 +36,19 @@ interface DocAiTextSegment {
 interface LayoutBlock {
   pageSpan?: { pageStart?: number; pageEnd?: number };
   textBlock?: { text?: string; blocks?: LayoutBlock[] };
-  tableBlock?: { headerRows?: { cells?: { blocks?: LayoutBlock[] }[] }[]; bodyRows?: { cells?: { blocks?: LayoutBlock[] }[] }[] };
-  listBlock?: { listEntries?: { blocks?: LayoutBlock[] }[] };
+  tableBlock?: {
+    headerRows?: Array<{ cells?: Array<{ blocks?: LayoutBlock[] }> }>;
+    bodyRows?: Array<{ cells?: Array<{ blocks?: LayoutBlock[] }> }>;
+  };
+  listBlock?: { listEntries?: Array<{ blocks?: LayoutBlock[] }> };
 }
 
 interface DocAiDocument {
   text?: string;
-  pages?: { pageNumber?: number; layout?: { textAnchor?: { textSegments?: DocAiTextSegment[] } } }[];
+  pages?: Array<{
+    pageNumber?: number;
+    layout?: { textAnchor?: { textSegments?: DocAiTextSegment[] } };
+  }>;
   documentLayout?: { blocks?: LayoutBlock[] };
 }
 
@@ -54,7 +60,10 @@ export function layoutParserPages(blocks: LayoutBlock[]): Map<number, string> {
     pages.set(page, [...(pages.get(page) ?? []), text.trim()]);
   };
   const textOf = (list: LayoutBlock[] | undefined): string =>
-    (list ?? []).map((b) => [b.textBlock?.text ?? "", textOf(b.textBlock?.blocks)].filter(Boolean).join("\n")).filter(Boolean).join(" ");
+    (list ?? [])
+      .map((b) => [b.textBlock?.text ?? "", textOf(b.textBlock?.blocks)].filter(Boolean).join("\n"))
+      .filter(Boolean)
+      .join(" ");
   const visit = (block: LayoutBlock) => {
     const page = block.pageSpan?.pageStart;
     if (block.textBlock) {
@@ -63,9 +72,15 @@ export function layoutParserPages(blocks: LayoutBlock[]): Map<number, string> {
     }
     if (block.tableBlock) {
       const rows = [...(block.tableBlock.headerRows ?? []), ...(block.tableBlock.bodyRows ?? [])];
-      add(page, rows.map((row) => (row.cells ?? []).map((cell) => textOf(cell.blocks)).join(" | ")).join("\n"));
+      add(
+        page,
+        rows
+          .map((row) => (row.cells ?? []).map((cell) => textOf(cell.blocks)).join(" | "))
+          .join("\n"),
+      );
     }
-    if (block.listBlock) (block.listBlock.listEntries ?? []).forEach((entry) => (entry.blocks ?? []).forEach(visit));
+    if (block.listBlock)
+      (block.listBlock.listEntries ?? []).forEach((entry) => (entry.blocks ?? []).forEach(visit));
   };
   blocks.forEach(visit);
   return new Map([...pages].map(([page, parts]) => [page, parts.join("\n\n")]));
@@ -76,7 +91,9 @@ const ONLINE_BYTE_LIMIT = 20 * 1024 * 1024;
 
 export class DocumentAiOcr implements OcrEngine {
   readonly name: string;
-  private readonly auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  private readonly auth = new GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
   private readonly endpoint: string;
 
   constructor(options: { project: string; location: string; processorId: string }) {
@@ -104,10 +121,14 @@ export class DocumentAiOcr implements OcrEngine {
       });
       const doc = response.data.document ?? {};
       if (doc.documentLayout?.blocks?.length) {
-        for (const [page, text] of layoutParserPages(doc.documentLayout.blocks)) if (selection.includes(page)) result.set(page, text);
+        for (const [page, text] of layoutParserPages(doc.documentLayout.blocks))
+          if (selection.includes(page)) result.set(page, text);
         continue;
       }
-      const text = Array.from(doc.text ?? "");
+      const text: string[] = [];
+      for (const char of doc.text ?? "") {
+        text.push(char);
+      }
       (doc.pages ?? []).forEach((page, index) => {
         const pageNumber = page.pageNumber ?? selection[index];
         if (!pageNumber) return;
@@ -124,8 +145,11 @@ export class DocumentAiOcr implements OcrEngine {
 
 export function createOcrEngine(env: NodeJS.ProcessEnv = process.env): OcrEngine {
   // Accepts the full resource name provisioned by OpenTofu or separate id/location variables.
-  const fromName = /^projects\/([^/]+)\/locations\/([^/]+)\/processors\/([^/]+)$/.exec(env.DOCUMENT_AI_PROCESSOR_NAME ?? "");
-  const project = fromName?.[1] ?? env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
+  const fromName = /^projects\/([^/]+)\/locations\/([^/]+)\/processors\/([^/]+)$/.exec(
+    env.DOCUMENT_AI_PROCESSOR_NAME ?? "",
+  );
+  const project =
+    fromName?.[1] ?? env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   const processorId = fromName?.[3] ?? env.DOCUMENT_AI_PROCESSOR_ID;
   const location = fromName?.[2] ?? env.DOCUMENT_AI_LOCATION ?? "eu";
   if (!processorId || !project) return new NoOcrEngine();

@@ -15,7 +15,7 @@ interface Harness {
   embedder: HashingTestEmbedder;
   ownerId: string;
   notebookId: string;
-  close(): Promise<void>;
+  close: () => Promise<void>;
 }
 async function createHarness(): Promise<Harness> {
   const db = await createTestDatabase();
@@ -40,7 +40,22 @@ async function createHarness(): Promise<Harness> {
  * Markdown ingestion at once (FR-SI-01, FR-NM-03, C-01, FR-WM-07). Real PostgreSQL and local storage.
  */
 
-let h: Harness;
+interface ChunkRow {
+  chunk_id: string;
+  source_id: string;
+  revision: number;
+  locator: unknown;
+  token_count: number;
+  text: string;
+}
+
+let h: Harness | undefined;
+function getHarness(): Harness {
+  if (!h) {
+    throw new Error("Harness not initialized");
+  }
+  return h;
+}
 beforeAll(async () => {
   h = await createHarness();
 });
@@ -49,36 +64,74 @@ afterAll(async () => {
 });
 
 async function reserve(markdown: string) {
-  const [admitted] = await reserveSources(h.db.pool, h.ownerId, h.notebookId, [
-    { attempt_id: randomUUID(), title: "Combined notes", media_type: "note_markdown", declared_bytes: Buffer.byteLength(markdown) },
+  const harness = getHarness();
+  const [admitted] = await reserveSources(harness.db.pool, harness.ownerId, harness.notebookId, [
+    {
+      attempt_id: randomUUID(),
+      title: "Combined notes",
+      media_type: "note_markdown",
+      declared_bytes: Buffer.byteLength(markdown),
+    },
   ]);
-  expect(admitted!.admitted).toBe(true);
-  return admitted!.source!;
+  expect(admitted?.admitted).toBe(true);
+  if (!admitted?.source) {
+    throw new Error("Expected admitted source");
+  }
+  return admitted.source;
 }
 
 describe("FR-SI-01, C-01, FR-NM-03: note-source ingestion over the v1 pipeline", () => {
   it("publishes Ready C-01 chunks with Markdown sections and embeddings", async () => {
-    const markdown = "# Raw data\n\nProject codename is TITAN-77.\n\n# Second note\n\nAnother finding.";
+    const harness = getHarness();
+    const markdown =
+      "# Raw data\n\nProject codename is TITAN-77.\n\n# Second note\n\nAnother finding.";
     const source = await reserve(markdown);
-    const outcome = await ingestNoteSource({ pool: h.db.pool, storage: h.storage, embedder: h.embedder }, { source, markdown });
+    const outcome = await ingestNoteSource(
+      { pool: harness.db.pool, storage: harness.storage, embedder: harness.embedder },
+      { source, markdown },
+    );
     expect(outcome.status).toBe("ready");
-    const ready = (await getSourceById(h.db.pool, source.id))!;
-    expect(ready).toMatchObject({ status: "Ready", media_type: "note_markdown", active_revision: 1, word_count: 12 });
-    const rows = (await h.db.pool.query("SELECT chunk_id, source_id, revision, locator, token_count, text FROM chunks WHERE source_id = $1 ORDER BY sequence", [source.id])).rows;
-    expect(rows.map((r) => r.text)).toEqual(["# Raw data\n\nProject codename is TITAN-77.", "# Second note\n\nAnother finding."]);
-    for (const r of rows) expect(UnifiedDocumentChunkSchema.safeParse(r).success).toBe(true);
+    const ready = await getSourceById(harness.db.pool, source.id);
+    expect(ready).toMatchObject({
+      status: "Ready",
+      media_type: "note_markdown",
+      active_revision: 1,
+      word_count: 12,
+    });
+    const rows = (
+      await harness.db.pool.query<ChunkRow>(
+        "SELECT chunk_id, source_id, revision, locator, token_count, text FROM chunks WHERE source_id = $1 ORDER BY sequence",
+        [source.id],
+      )
+    ).rows;
+    expect(rows.map((r) => r.text)).toEqual([
+      "# Raw data\n\nProject codename is TITAN-77.",
+      "# Second note\n\nAnother finding.",
+    ]);
+    for (const r of rows) {
+      expect(UnifiedDocumentChunkSchema.safeParse(r).success).toBe(true);
+    }
   });
 
   it("marks the source Failed and releases its slot when ingestion fails, without retrying later", async () => {
-    const failing: Embedder = { model: h.embedder.model, embed: async () => { throw new Error("upstream detail"); } };
-    const before = await countOccupiedSources(h.db.pool, h.notebookId);
+    const harness = getHarness();
+    const failing: Embedder = {
+      model: harness.embedder.model,
+      embed: () => Promise.reject(new Error("upstream detail")),
+    };
+    const before = await countOccupiedSources(harness.db.pool, harness.notebookId);
     const markdown = "# Note\n\nBody";
     const source = await reserve(markdown);
-    expect(await countOccupiedSources(h.db.pool, h.notebookId)).toBe(before + 1);
-    const outcome = await ingestNoteSource({ pool: h.db.pool, storage: h.storage, embedder: failing }, { source, markdown });
+    expect(await countOccupiedSources(harness.db.pool, harness.notebookId)).toBe(before + 1);
+    const outcome = await ingestNoteSource(
+      { pool: harness.db.pool, storage: harness.storage, embedder: failing },
+      { source, markdown },
+    );
     expect(outcome.status).toBe("failed");
-    expect((await getSourceById(h.db.pool, source.id))!.status).toBe("Failed");
-    expect(await countOccupiedSources(h.db.pool, h.notebookId)).toBe(before);
-    expect(await h.storage.listVersions(`notebooks/${h.notebookId}/sources/${source.id}/`)).toHaveLength(0);
+    expect((await getSourceById(harness.db.pool, source.id))?.status).toBe("Failed");
+    expect(await countOccupiedSources(harness.db.pool, harness.notebookId)).toBe(before);
+    expect(
+      await harness.storage.listVersions(`notebooks/${harness.notebookId}/sources/${source.id}/`),
+    ).toHaveLength(0);
   });
 });

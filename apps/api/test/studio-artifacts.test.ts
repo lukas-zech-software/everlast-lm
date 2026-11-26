@@ -1,9 +1,41 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { InvalidScopeError, SourceSnapshotInvalidError, StudioPluginRegistry, StudioParamsError, type ReportSuggestionsResult, type SourceRevisionPair, type StudioGeneratorPlugin } from "@everlast/contracts";
+import {
+  InvalidScopeError,
+  SourceSnapshotInvalidError,
+  StudioPluginRegistry,
+  StudioParamsError,
+  type ReportSuggestionsResult,
+  type SourceRevisionPair,
+  type StudioGeneratorPlugin,
+} from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
 import { handleStudioRoute, type StudioRouteDeps } from "../src/routes/studio.ts";
+import { readJson } from "./support.ts";
+
+interface ArtifactDto {
+  id: string;
+  status: string;
+  attempt?: number;
+  retry_of?: string;
+  output_language?: string;
+  source_revisions_snapshot: SourceRevisionPair[];
+  payload_json?: { content_md?: string } | null;
+}
+
+interface ArtifactEnvelope {
+  artifact: ArtifactDto;
+  unavailable?: { code: string };
+}
+
+interface ArtifactListEnvelope {
+  artifacts: ArtifactDto[];
+}
+
+interface StudioErrorEnvelope {
+  error: { code: string };
+}
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const S1 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
@@ -12,50 +44,98 @@ const OWNER = "owner-1";
 
 let server: Server;
 let base: string;
-let deps: StudioRouteDeps & { enqueued: string[]; revisions: Map<string, number>; converted: unknown[]; suggestionLanguages: (string | undefined)[] };
+let deps: StudioRouteDeps & {
+  enqueued: string[];
+  revisions: Map<string, number>;
+  converted: unknown[];
+  suggestionLanguages: Array<string | undefined>;
+};
 let currentUser = OWNER;
 
 beforeEach(async () => {
   const registry = new StudioPluginRegistry();
   const plugin: StudioGeneratorPlugin = {
-    manifest: { plugin_type: "report", display_name: "Reports", subtypes: ["briefing_doc", "custom"] },
-    triggerJob: (r) => {
-      if (r.subtype === "custom" && !r.params.custom_prompt) throw new StudioParamsError("prompt required");
-      return { title: "Briefing doc", params_json: r.params.custom_prompt ? { custom_prompt: r.params.custom_prompt } : {} };
+    manifest: {
+      plugin_type: "report",
+      display_name: "Reports",
+      subtypes: ["briefing_doc", "custom"],
     },
-    generate: async () => ({ status: "refused", code: "InsufficientEvidence", message: "n/a" }),
+    triggerJob: (r) => {
+      if (r.subtype === "custom" && !r.params.custom_prompt)
+        throw new StudioParamsError("prompt required");
+      return {
+        title: "Briefing doc",
+        params_json: r.params.custom_prompt ? { custom_prompt: r.params.custom_prompt } : {},
+      };
+    },
+    generate: () =>
+      Promise.resolve({ status: "refused", code: "InsufficientEvidence", message: "n/a" }),
   };
   registry.register(plugin);
-  const revisions = new Map([[S1, 1], [S2, 1]]);
+  const revisions = new Map([
+    [S1, 1],
+    [S2, 1],
+  ]);
   const enqueued: string[] = [];
   const converted: unknown[] = [];
-  const suggestionLanguages: (string | undefined)[] = [];
+  const suggestionLanguages: Array<string | undefined> = [];
   const access = {
-    async resolveSnapshot(owner: string, nb: string, ids: string[]): Promise<SourceRevisionPair[]> {
-      if (owner !== OWNER || nb !== NB) throw new InvalidScopeError("not yours");
-      return ids.map((source_id) => {
-        const revision = revisions.get(source_id);
-        if (revision === undefined) throw new InvalidScopeError("unknown source");
-        return { source_id, revision };
-      });
+    resolveSnapshot(owner: string, nb: string, ids: string[]): Promise<SourceRevisionPair[]> {
+      if (owner !== OWNER || nb !== NB) return Promise.reject(new InvalidScopeError("not yours"));
+      try {
+        return Promise.resolve(
+          ids.map((source_id) => {
+            const revision = revisions.get(source_id);
+            if (revision === undefined) throw new InvalidScopeError("unknown source");
+            return { source_id, revision };
+          }),
+        );
+      } catch (err) {
+        return Promise.reject(err instanceof Error ? err : new Error(String(err)));
+      }
     },
-    async verifySnapshot(_o: string, _n: string, snap: SourceRevisionPair[]) {
-      for (const p of snap) if (revisions.get(p.source_id) !== p.revision) throw new SourceSnapshotInvalidError("Source was replaced");
+    verifySnapshot(_o: string, _n: string, snap: SourceRevisionPair[]): Promise<void> {
+      for (const p of snap)
+        if (revisions.get(p.source_id) !== p.revision)
+          return Promise.reject(new SourceSnapshotInvalidError("Source was replaced"));
+      return Promise.resolve();
     },
   };
   deps = {
     repo: new InMemoryStudioArtifactRepository(),
     registry,
     access,
-    dispatcher: { enqueue: async (id) => void enqueued.push(id) },
-    convertToSource: async (i) => (converted.push(i), { source_id: "new-source" }),
-    suggestions: { getSuggestions: async (r): Promise<ReportSuggestionsResult> => (suggestionLanguages.push(r.output_language), { state: "SuggestionsLoading" }) },
+    dispatcher: {
+      enqueue: (id) => {
+        enqueued.push(id);
+        return Promise.resolve();
+      },
+    },
+    convertToSource: (i) => {
+      converted.push(i);
+      return Promise.resolve({ source_id: "new-source" });
+    },
+    suggestions: {
+      getSuggestions: (r): Promise<ReportSuggestionsResult> => {
+        suggestionLanguages.push(r.output_language);
+        return Promise.resolve({ state: "SuggestionsLoading" });
+      },
+    },
     // FR-UI-02: effective output language (notebook > user > en-US) when a request omits it.
-    resolveOutputLanguage: async (owner: string, nb: string) => (owner === OWNER && nb === NB ? "de-DE" : "en-US"),
-    enqueued, revisions, converted, suggestionLanguages,
+    resolveOutputLanguage: (owner: string, nb: string) =>
+      Promise.resolve(owner === OWNER && nb === NB ? "de-DE" : "en-US"),
+    enqueued,
+    revisions,
+    converted,
+    suggestionLanguages,
   };
-  server = createServer(async (req, res) => {
-    if (!(await handleStudioRoute(req, res, deps, currentUser))) { res.statusCode = 404; res.end(); }
+  server = createServer((req, res) => {
+    void handleStudioRoute(req, res, deps, currentUser).then((handled) => {
+      if (!handled) {
+        res.statusCode = 404;
+        res.end();
+      }
+    });
   });
   await new Promise<void>((r) => server.listen(0, r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api/notebooks/${NB}/studio`;
@@ -63,8 +143,19 @@ beforeEach(async () => {
   return () => void server.close();
 });
 
-const post = (path: string, body: unknown) => fetch(base + path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-const create = (extra: Record<string, unknown> = {}) => post("/artifacts", { plugin_type: "report", subtype: "briefing_doc", active_source_ids: [S1, S2], ...extra });
+const post = (path: string, body: unknown) =>
+  fetch(base + path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+const create = (extra: Record<string, unknown> = {}) =>
+  post("/artifacts", {
+    plugin_type: "report",
+    subtype: "briefing_doc",
+    active_source_ids: [S1, S2],
+    ...extra,
+  });
 
 describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("rejects empty or omitted scope with 400", async () => {
@@ -78,84 +169,143 @@ describe("Studio artifact API (FR-ST-10, NFR-SEC-02)", () => {
   it("returns 202 Queued with snapshot and enqueues without awaiting generation", async () => {
     const r = await create();
     expect(r.status).toBe(202);
-    const { artifact } = await r.json();
+    const { artifact } = await readJson<ArtifactEnvelope>(r);
     expect(artifact.status).toBe("Queued");
-    expect(artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }, { source_id: S2, revision: 1 }]);
+    expect(artifact.source_revisions_snapshot).toEqual([
+      { source_id: S1, revision: 1 },
+      { source_id: S2, revision: 1 },
+    ]);
     expect(deps.enqueued).toEqual([artifact.id]);
   });
   it("403 for a foreign source and for another owner's notebook; 404 for other owners' artifacts", async () => {
-    expect((await create({ active_source_ids: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"] })).status).toBe(403);
-    const { artifact } = await (await create()).json();
+    expect(
+      (await create({ active_source_ids: ["cccccccc-cccc-4ccc-8ccc-cccccccccccc"] })).status,
+    ).toBe(403);
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     currentUser = "intruder";
     expect((await fetch(`${base}/artifacts/${artifact.id}`)).status).toBe(404);
     expect((await create()).status).toBe(403);
-    expect(((await (await fetch(`${base}/artifacts`)).json()).artifacts)).toHaveLength(0);
+    const listRes = await readJson<ArtifactListEnvelope>(await fetch(`${base}/artifacts`));
+    expect(listRes.artifacts).toHaveLength(0);
   });
   it("lists without payload and gets a completed artifact with payload", async () => {
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
-    const list = await (await fetch(`${base}/artifacts`)).json();
+    await deps.repo.complete(artifact.id, {
+      content_md: "# x [1]",
+      citations: [
+        {
+          badge_number: 1,
+          chunk_id: "01890000-0000-7000-8000-000000000001",
+          source_id: S1,
+          revision: 1,
+          snippet: "x",
+        },
+      ],
+      sections: [{ key: "report", heading: "Report" }],
+    });
+    const list = await readJson<ArtifactListEnvelope>(await fetch(`${base}/artifacts`));
     expect(list.artifacts[0]).not.toHaveProperty("payload_json");
-    const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
-    expect(got.artifact.payload_json.content_md).toBe("# x [1]");
+    const got = await readJson<ArtifactEnvelope>(await fetch(`${base}/artifacts/${artifact.id}`));
+    expect(got.artifact.payload_json?.content_md).toBe("# x [1]");
   });
   it("returns an unavailable placeholder without payload after a source change", async () => {
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
+    await deps.repo.complete(artifact.id, {
+      content_md: "# x [1]",
+      citations: [
+        {
+          badge_number: 1,
+          chunk_id: "01890000-0000-7000-8000-000000000001",
+          source_id: S1,
+          revision: 1,
+          snippet: "x",
+        },
+      ],
+      sections: [{ key: "report", heading: "Report" }],
+    });
     deps.revisions.set(S1, 2);
-    const got = await (await fetch(`${base}/artifacts/${artifact.id}`)).json();
+    const got = await readJson<ArtifactEnvelope>(await fetch(`${base}/artifacts/${artifact.id}`));
     expect(got.artifact.payload_json).toBeNull();
-    expect(got.unavailable.code).toBe("SourceChanged");
+    expect(got.unavailable?.code).toBe("SourceChanged");
   });
   it("retry requires explicit scope and only from Failed", async () => {
-    const { artifact } = await (await create()).json();
-    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1] })).status).toBe(409);
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
+    expect(
+      (await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1] })).status,
+    ).toBe(409);
     await deps.repo.markRunning(artifact.id);
     await deps.repo.fail(artifact.id, { code: "SourceChanged", message: "Source was replaced." });
     expect((await post(`/artifacts/${artifact.id}/retry`, {})).status).toBe(400);
     const r = await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1] });
     expect(r.status).toBe(202);
-    const body = await r.json();
+    const body = await readJson<ArtifactEnvelope>(r);
     expect(body.artifact).toMatchObject({ attempt: 2, retry_of: artifact.id });
     expect(body.artifact.source_revisions_snapshot).toEqual([{ source_id: S1, revision: 1 }]);
     expect(deps.enqueued).toContain(body.artifact.id);
   });
   it("converts completed artifacts to a source; 409 otherwise; 501 without port", async () => {
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     expect((await post(`/artifacts/${artifact.id}/convert-to-source`, {})).status).toBe(409);
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.complete(artifact.id, { content_md: "# x [1]", citations: [{ badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: S1, revision: 1, snippet: "x" }], sections: [{ key: "report", heading: "Report" }] });
+    await deps.repo.complete(artifact.id, {
+      content_md: "# x [1]",
+      citations: [
+        {
+          badge_number: 1,
+          chunk_id: "01890000-0000-7000-8000-000000000001",
+          source_id: S1,
+          revision: 1,
+          snippet: "x",
+        },
+      ],
+      sections: [{ key: "report", heading: "Report" }],
+    });
     const r = await post(`/artifacts/${artifact.id}/convert-to-source`, {});
     expect(r.status).toBe(201);
-    expect(await r.json()).toEqual({ source_id: "new-source" });
+    expect(await readJson<{ source_id: string }>(r)).toEqual({ source_id: "new-source" });
     delete (deps as { convertToSource?: unknown }).convertToSource;
     expect((await post(`/artifacts/${artifact.id}/convert-to-source`, {})).status).toBe(501);
   });
   it("deletes an artifact (204) then 404", async () => {
-    const { artifact } = await (await create()).json();
-    expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(204);
-    expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(404);
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
+    expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(
+      204,
+    );
+    expect((await fetch(`${base}/artifacts/${artifact.id}`, { method: "DELETE" })).status).toBe(
+      404,
+    );
   });
 });
 
 /** [008-studio-text-reports] T045 — the effective output language is resolved server-side (FR-UI-02, FR-ST-10/11). */
 describe("Studio output language (FR-UI-02)", () => {
   it("create and retry without output_language store the resolved effective language; an explicit one wins", async () => {
-    const a = (await (await create()).json()).artifact;
+    const a = (await readJson<ArtifactEnvelope>(await create())).artifact;
     expect(a.output_language).toBe("de-DE");
-    const b = (await (await create({ output_language: "fr-FR" })).json()).artifact;
+    const b = (await readJson<ArtifactEnvelope>(await create({ output_language: "fr-FR" })))
+      .artifact;
     expect(b.output_language).toBe("fr-FR");
     await deps.repo.markRunning(a.id);
-    await deps.repo.fail(a.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
-    deps.resolveOutputLanguage = async () => "es-ES";
-    const retried = (await (await post(`/artifacts/${a.id}/retry`, { active_source_ids: [S1] })).json()).artifact;
+    await deps.repo.fail(a.id, {
+      code: "GenerationError",
+      message: "Report generation failed unexpectedly.",
+    });
+    deps.resolveOutputLanguage = () => Promise.resolve("es-ES");
+    const retried = (
+      await readJson<ArtifactEnvelope>(
+        await post(`/artifacts/${a.id}/retry`, { active_source_ids: [S1] }),
+      )
+    ).artifact;
     expect(retried.output_language).toBe("es-ES");
   });
   it("suggestions without output_language use the resolved language (cache key, guide lookup)", async () => {
     expect((await post("/report-suggestions", { active_source_ids: [S1] })).status).toBe(200);
-    expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: "fr-FR" })).status).toBe(200);
+    expect(
+      (await post("/report-suggestions", { active_source_ids: [S1], output_language: "fr-FR" }))
+        .status,
+    ).toBe(200);
     expect(deps.suggestionLanguages).toEqual(["de-DE", "fr-FR"]);
   });
 });
@@ -166,14 +316,28 @@ describe("unsupported output_language is rejected (FR-UI-02)", () => {
     for (const tag of ["xx-INVALID", "../../etc", "de", "en-GB"]) {
       const r = await create({ output_language: tag });
       expect(r.status, tag).toBe(400);
-      expect((await r.json()).error.code).toBe("UnsupportedOutputLanguage");
-      expect((await post("/report-suggestions", { active_source_ids: [S1], output_language: tag })).status, tag).toBe(400);
+      expect((await readJson<StudioErrorEnvelope>(r)).error.code).toBe("UnsupportedOutputLanguage");
+      expect(
+        (await post("/report-suggestions", { active_source_ids: [S1], output_language: tag }))
+          .status,
+        tag,
+      ).toBe(400);
     }
     expect(deps.suggestionLanguages).toEqual([]);
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     await deps.repo.markRunning(artifact.id);
-    await deps.repo.fail(artifact.id, { code: "GenerationError", message: "Report generation failed unexpectedly." });
-    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S1], output_language: "zz-ZZ" })).status).toBe(400);
+    await deps.repo.fail(artifact.id, {
+      code: "GenerationError",
+      message: "Report generation failed unexpectedly.",
+    });
+    expect(
+      (
+        await post(`/artifacts/${artifact.id}/retry`, {
+          active_source_ids: [S1],
+          output_language: "zz-ZZ",
+        })
+      ).status,
+    ).toBe(400);
     expect(deps.enqueued).toHaveLength(1);
   });
 });
@@ -181,14 +345,19 @@ describe("unsupported output_language is rejected (FR-UI-02)", () => {
 /** [008-studio-text-reports] T046 — v2 exposes no cancel action; Cancelled stays a C-03 state (FR-ST-10, C-03). */
 describe("no cancel action in v2 (FR-ST-10 card, C-03)", () => {
   it("POST …/cancel is not routed (404) and leaves the job untouched", async () => {
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     expect((await post(`/artifacts/${artifact.id}/cancel`, {})).status).toBe(404);
-    expect((await (await fetch(`${base}/artifacts/${artifact.id}`)).json()).artifact.status).toBe("Queued");
+    expect(
+      (await readJson<ArtifactEnvelope>(await fetch(`${base}/artifacts/${artifact.id}`))).artifact
+        .status,
+    ).toBe("Queued");
   });
   it("Cancelled remains a valid C-03 repository state, and retry from it still needs an explicit scope", async () => {
-    const { artifact } = await (await create()).json();
+    const { artifact } = await readJson<ArtifactEnvelope>(await create());
     expect((await deps.repo.cancel(artifact.id)).status).toBe("Cancelled");
     expect((await post(`/artifacts/${artifact.id}/retry`, {})).status).toBe(400);
-    expect((await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S2] })).status).toBe(202);
+    expect(
+      (await post(`/artifacts/${artifact.id}/retry`, { active_source_ids: [S2] })).status,
+    ).toBe(202);
   });
 });

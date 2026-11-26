@@ -6,7 +6,11 @@ import type {
   StudioSlideDeckPayload,
   UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import { processAllOriginalEvidenceBatches, verifyEvidenceCoverage, type EvidenceBatchLimits } from "../evidence.ts";
+import {
+  processAllOriginalEvidenceBatches,
+  verifyEvidenceCoverage,
+  type EvidenceBatchLimits,
+} from "../evidence.ts";
 import type { SlideDeckModelClient, SlideFactCandidate } from "./model.ts";
 import { validateSlideDeckPayload } from "./validation.ts";
 
@@ -28,10 +32,13 @@ export interface GenerateSlideDeckInput {
   output_language?: string | undefined;
   limits?: EvidenceBatchLimits | undefined;
   signal: AbortSignal;
-  reportProgress(stage: StudioProgress["stage"], percent: number): void;
+  reportProgress: (stage: StudioProgress["stage"], percent: number) => void;
 }
 
-const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome<StudioSlideDeckPayload> => ({
+const refuse = (
+  code: StudioFailureCode,
+  message: string,
+): StudioGenerationOutcome<StudioSlideDeckPayload> => ({
   status: "refused",
   code,
   message,
@@ -48,14 +55,17 @@ function dedupeCandidates(items: SlideFactCandidate[]): SlideFactCandidate[] {
 }
 
 export async function generateSlideDeck(
-  input: GenerateSlideDeckInput
+  input: GenerateSlideDeckInput,
 ): Promise<StudioGenerationOutcome<StudioSlideDeckPayload>> {
   let chunks = [...input.chunks];
   const { snapshot, model, signal, output_language, focus_prompt } = input;
   signal.throwIfAborted();
 
   if (chunks.length === 0 && !input.original_chunks) {
-    return refuse("InsufficientEvidence", "The selected sources contain no readable content to generate a slide deck.");
+    return refuse(
+      "InsufficientEvidence",
+      "The selected sources contain no readable content to generate a slide deck.",
+    );
   }
 
   input.reportProgress("reading", 5);
@@ -80,7 +90,9 @@ export async function generateSlideDeck(
     },
   });
 
-  const coverageError = input.original_chunks ? null : verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks
+    ? null
+    : verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -89,7 +101,7 @@ export async function generateSlideDeck(
   if (candidates.length === 0) {
     return refuse(
       "InsufficientEvidence",
-      "The selected sources do not contain enough grounded facts to generate a slide deck."
+      "The selected sources do not contain enough grounded facts to generate a slide deck.",
     );
   }
 

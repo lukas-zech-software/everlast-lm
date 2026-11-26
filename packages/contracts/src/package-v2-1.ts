@@ -50,7 +50,7 @@ export const SUPPORTED_OUTPUT_LANGUAGES = [
 
 export const SUPPORTED_OUTPUT_LANGUAGE_TAGS = SUPPORTED_OUTPUT_LANGUAGES.map(({ tag }) => tag) as [
   (typeof SUPPORTED_OUTPUT_LANGUAGES)[number]["tag"],
-  ...(typeof SUPPORTED_OUTPUT_LANGUAGES)[number]["tag"][],
+  ...Array<(typeof SUPPORTED_OUTPUT_LANGUAGES)[number]["tag"]>,
 ];
 
 const outputLanguageSet = new Set<string>(SUPPORTED_OUTPUT_LANGUAGE_TAGS);
@@ -59,13 +59,16 @@ const regionalFlag = /^\p{Regional_Indicator}{2}$/u;
 const keycap = /^[#*0-9]\uFE0F?\u20E3$/u;
 
 export function isSingleEmojiGrapheme(value: string): boolean {
-  if (!value || value.trim() !== value || value.endsWith("\u200d")) return false;
-  const segments = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value));
-  return segments.length === 1 && (emojiPresentation.test(value) || regionalFlag.test(value) || keycap.test(value));
+  if (value.length === 0 || value.trim() !== value || value.endsWith("\u200d")) return false;
+  const segments = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)];
+  return (
+    segments.length === 1 &&
+    (emojiPresentation.test(value) || regionalFlag.test(value) || keycap.test(value))
+  );
 }
 
 export const NotebookIconSchema = z.string().refine(isSingleEmojiGrapheme, {
-  message: "Icon must be exactly one valid Unicode emoji grapheme cluster",
+  error: "Icon must be exactly one valid Unicode emoji grapheme cluster",
 });
 export const NotebookIconSourceSchema = z.enum(["default", "topic", "custom"]);
 export const NotebookViewModeSchema = z.enum(["grid", "list"]);
@@ -73,7 +76,7 @@ export const NotebookSortOrderSchema = z.enum(["recent", "title_asc", "created_d
 export const NotebookThemeSchema = z.enum(["light", "dark", "system"]);
 
 function validBcp47(value: string): boolean {
-  if (!value || value.trim() !== value) return false;
+  if (value.length === 0 || value.trim() !== value) return false;
   try {
     return Intl.getCanonicalLocales(value).length === 1;
   } catch {
@@ -81,27 +84,31 @@ function validBcp47(value: string): boolean {
   }
 }
 
-export const InputLanguageSchema = z.string().refine((value) => value === "auto" || validBcp47(value), {
-  message: "Input language must be auto or a valid BCP-47 tag",
-});
+export const InputLanguageSchema = z
+  .string()
+  .refine((value) => value === "auto" || validBcp47(value), {
+    error: "Input language must be auto or a valid BCP-47 tag",
+  });
 export const OutputLanguageSchema = z.enum(SUPPORTED_OUTPUT_LANGUAGE_TAGS, {
-  message: "Output language is not in the supported locale set",
+  error: "Output language is not in the supported locale set",
 });
 export const NullableOutputLanguageSchema = OutputLanguageSchema.nullable();
 
-export const NotebookMetadataSchema = z.object({
-  icon_emoji: NotebookIconSchema.default(DEFAULT_NOTEBOOK_ICON),
-  icon_source: NotebookIconSourceSchema.default(DEFAULT_NOTEBOOK_ICON_SOURCE),
-  ready_source_count: z.number().int().nonnegative().default(0),
-  topic_selection_attempted: z.boolean().default(false),
-}).strict();
+export const NotebookMetadataSchema = z
+  .object({
+    icon_emoji: NotebookIconSchema.default(DEFAULT_NOTEBOOK_ICON),
+    icon_source: NotebookIconSourceSchema.default(DEFAULT_NOTEBOOK_ICON_SOURCE),
+    ready_source_count: z.number().int().nonnegative().default(0),
+    topic_selection_attempted: z.boolean().default(false),
+  })
+  .strict();
 
 export const NotebookOverviewItemSchema = NotebookSchema.extend({
   icon_emoji: NotebookIconSchema,
   icon_source: NotebookIconSourceSchema,
   ready_source_count: z.number().int().nonnegative(),
   is_pinned: z.boolean(),
-  last_opened_at: z.string().datetime().nullable(),
+  last_opened_at: z.iso.datetime().nullable(),
   owner_role: z.literal("Owner"),
 }).strict();
 
@@ -109,37 +116,51 @@ export const NotebookOverviewItemSchema = NotebookSchema.extend({
  * Server-side owner display preferences (FR-UI-02). View mode and sort order are not here: they live only in
  * the browser's localStorage (FR-WM-03). The theme is kept both here and in localStorage.
  */
-export const OwnerWorkspacePreferencesSchema = z.object({
-  owner_id: z.string().min(1),
-  theme: NotebookThemeSchema.default("system"),
-  input_language: InputLanguageSchema.default("auto"),
-  output_language: NullableOutputLanguageSchema.default(null),
-}).strict();
+export const OwnerWorkspacePreferencesSchema = z
+  .object({
+    owner_id: z.string().min(1),
+    theme: NotebookThemeSchema.default("system"),
+    input_language: InputLanguageSchema.default("auto"),
+    output_language: NullableOutputLanguageSchema.default(null),
+  })
+  .strict();
 
-export const OwnerWorkspacePreferencesPatchSchema = z.object({
-  theme: NotebookThemeSchema.optional(),
-  input_language: InputLanguageSchema.optional(),
-  output_language: NullableOutputLanguageSchema.optional(),
-}).strict().refine((patch) => Object.keys(patch).length > 0, { message: "At least one preference field is required" });
+export const OwnerWorkspacePreferencesPatchSchema = z
+  .object({
+    theme: NotebookThemeSchema.optional(),
+    input_language: InputLanguageSchema.optional(),
+    output_language: NullableOutputLanguageSchema.optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, {
+    error: "At least one preference field is required",
+  });
 
 /**
  * Owner's per-notebook state (FR-WM-03, FR-UI-02): pin, last opened, and the notebook language the Owner sets
  * in v1–v5. Personal per-notebook language overrides start in v6.0 and are rejected until then (FR-015).
  */
-export const OwnerNotebookPreferencesSchema = z.object({
-  owner_id: z.string().min(1),
-  notebook_id: z.string().min(1),
-  is_pinned: z.boolean().default(false),
-  last_opened_at: z.string().datetime().nullable().default(null),
-  notebook_input_language: InputLanguageSchema.nullable().default(null),
-  notebook_output_language: NullableOutputLanguageSchema.default(null),
-}).strict();
+export const OwnerNotebookPreferencesSchema = z
+  .object({
+    owner_id: z.string().min(1),
+    notebook_id: z.string().min(1),
+    is_pinned: z.boolean().default(false),
+    last_opened_at: z.iso.datetime().nullable().default(null),
+    notebook_input_language: InputLanguageSchema.nullable().default(null),
+    notebook_output_language: NullableOutputLanguageSchema.default(null),
+  })
+  .strict();
 
-export const OwnerNotebookPreferencesPatchSchema = z.object({
-  is_pinned: z.boolean().optional(),
-  notebook_input_language: InputLanguageSchema.nullable().optional(),
-  notebook_output_language: NullableOutputLanguageSchema.optional(),
-}).strict().refine((patch) => Object.keys(patch).length > 0, { message: "At least one preference field is required" });
+export const OwnerNotebookPreferencesPatchSchema = z
+  .object({
+    is_pinned: z.boolean().optional(),
+    notebook_input_language: InputLanguageSchema.nullable().optional(),
+    notebook_output_language: NullableOutputLanguageSchema.optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, {
+    error: "At least one preference field is required",
+  });
 
 export interface OutputLanguageResolutionInput {
   jobLanguage?: string | null;
@@ -150,7 +171,9 @@ export interface OutputLanguageResolutionInput {
   browserLocale?: string | null;
 }
 
-export function resolveOutputLanguage(input: OutputLanguageResolutionInput): (typeof SUPPORTED_OUTPUT_LANGUAGE_TAGS)[number] {
+export function resolveOutputLanguage(
+  input: OutputLanguageResolutionInput,
+): (typeof SUPPORTED_OUTPUT_LANGUAGE_TAGS)[number] {
   const candidates = [
     input.jobLanguage,
     input.personalOverride,

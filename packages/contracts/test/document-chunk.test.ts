@@ -97,29 +97,27 @@ describe("Contract C-01: UnifiedDocumentChunk", () => {
 
   it("C01-07: rejects non-positive revision", () => {
     expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: 0 })
+      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: 0 }),
     ).toThrow();
     expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: -1 })
+      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: -1 }),
     ).toThrow();
     expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: 1.5 })
+      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, revision: 1.5 }),
     ).toThrow();
   });
 
   it("C01-08: rejects negative token_count", () => {
     expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, token_count: -1 })
+      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, token_count: -1 }),
     ).toThrow();
     expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, token_count: 3.5 })
+      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, token_count: 3.5 }),
     ).toThrow();
   });
 
   it("C01-09: rejects empty or whitespace-only text", () => {
-    expect(() =>
-      UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, text: "" })
-    ).toThrow();
+    expect(() => UnifiedDocumentChunkSchema.parse({ ...validPageSpanChunk, text: "" })).toThrow();
   });
 
   it("C01-10: rejects extra unknown fields on C-01 chunk (strict 5-field projection)", () => {
@@ -159,28 +157,24 @@ describe("Contract C-01: UnifiedDocumentChunk", () => {
 
   it("C01-13: rejects page_span with negative start_offset or non-positive page_number", () => {
     expect(() =>
-      PageSpanLocatorSchema.parse({ page_number: 0, start_offset: 0, end_offset: 10 })
+      PageSpanLocatorSchema.parse({ page_number: 0, start_offset: 0, end_offset: 10 }),
     ).toThrow();
     expect(() =>
-      PageSpanLocatorSchema.parse({ page_number: 1, start_offset: -5, end_offset: 10 })
+      PageSpanLocatorSchema.parse({ page_number: 1, start_offset: -5, end_offset: 10 }),
     ).toThrow();
   });
 
   it("C01-14: rejects time_span where end_ms < start_ms or negative start_ms", () => {
-    expect(() =>
-      TimeSpanLocatorSchema.parse({ start_ms: 5000, end_ms: 1000 })
-    ).toThrow();
-    expect(() =>
-      TimeSpanLocatorSchema.parse({ start_ms: -10, end_ms: 1000 })
-    ).toThrow();
+    expect(() => TimeSpanLocatorSchema.parse({ start_ms: 5000, end_ms: 1000 })).toThrow();
+    expect(() => TimeSpanLocatorSchema.parse({ start_ms: -10, end_ms: 1000 })).toThrow();
   });
 
   it("C01-15: rejects dom_path where end_offset < start_offset or selector is empty", () => {
     expect(() =>
-      DomPathLocatorSchema.parse({ selector: "", start_offset: 0, end_offset: 100 })
+      DomPathLocatorSchema.parse({ selector: "", start_offset: 0, end_offset: 100 }),
     ).toThrow();
     expect(() =>
-      DomPathLocatorSchema.parse({ selector: "div", start_offset: 100, end_offset: 50 })
+      DomPathLocatorSchema.parse({ selector: "div", start_offset: 100, end_offset: 50 }),
     ).toThrow();
   });
 

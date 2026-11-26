@@ -26,44 +26,75 @@ export interface WorkspaceSettingsState {
 }
 
 export interface KeyValueStorage {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
 }
 
-
-export async function hydrateWorkspaceSettings(
-  initial: WorkspaceSettingsState,
-  options?: { apiBase?: string; headers?: HeadersInit; notebookId?: string; fetcher?: typeof fetch },
-): Promise<WorkspaceSettingsState> {
-  let settings = { ...initial };
-  const api = options?.apiBase ?? "";
-  const request = options?.fetcher ?? globalThis.fetch;
+async function fetchOwnerPreferences(
+  settings: WorkspaceSettingsState,
+  request: typeof fetch,
+  api: string,
+  headers: HeadersInit,
+): Promise<void> {
   try {
-    const response = await request(`${api}/api/preferences`, { headers: options?.headers ?? {} });
-    if (response.ok) {
-      const saved = await response.json() as Record<string, unknown>;
-      if (NotebookThemeSchema.safeParse(saved.theme).success) settings.theme = saved.theme as NotebookTheme;
-      if (InputLanguageSchema.safeParse(saved.input_language).success) settings.input_language = saved.input_language as string;
-      if (NullableOutputLanguageSchema.safeParse(saved.output_language).success) settings.output_language = saved.output_language as string | null;
+    const response = await request(`${api}/api/preferences`, { headers });
+    if (!response.ok) return;
+    const saved = (await response.json()) as Record<string, unknown>;
+    if (NotebookThemeSchema.safeParse(saved.theme).success) {
+      settings.theme = saved.theme as NotebookTheme;
+    }
+    if (InputLanguageSchema.safeParse(saved.input_language).success) {
+      settings.input_language = saved.input_language as string;
+    }
+    if (NullableOutputLanguageSchema.safeParse(saved.output_language).success) {
+      settings.output_language = saved.output_language as string | null;
     }
   } catch {
     // Browser-mirrored preferences remain available when the API is unreachable.
   }
-  if (options?.notebookId) {
-    try {
-      const response = await request(`${api}/api/notebooks/${encodeURIComponent(options.notebookId)}/preferences`, { headers: options.headers ?? {} });
-      if (response.ok) {
-        const saved = await response.json() as Record<string, unknown>;
-        if (InputLanguageSchema.nullable().safeParse(saved.notebook_input_language).success) {
-          settings.notebook_input_language = saved.notebook_input_language as string | null;
-        }
-        if (NullableOutputLanguageSchema.safeParse(saved.notebook_output_language).success) {
-          settings.notebook_output_language = saved.notebook_output_language as string | null;
-        }
-      }
-    } catch {
-      // Notebook settings remain at their owner-preference fallback.
+}
+
+async function fetchNotebookPreferences(
+  settings: WorkspaceSettingsState,
+  request: typeof fetch,
+  api: string,
+  notebookId: string,
+  headers: HeadersInit,
+): Promise<void> {
+  try {
+    const response = await request(
+      `${api}/api/notebooks/${encodeURIComponent(notebookId)}/preferences`,
+      { headers },
+    );
+    if (!response.ok) return;
+    const saved = (await response.json()) as Record<string, unknown>;
+    if (InputLanguageSchema.nullable().safeParse(saved.notebook_input_language).success) {
+      settings.notebook_input_language = saved.notebook_input_language as string | null;
     }
+    if (NullableOutputLanguageSchema.safeParse(saved.notebook_output_language).success) {
+      settings.notebook_output_language = saved.notebook_output_language as string | null;
+    }
+  } catch {
+    // Notebook settings remain at their owner-preference fallback.
+  }
+}
+
+export async function hydrateWorkspaceSettings(
+  initial: WorkspaceSettingsState,
+  options?: {
+    apiBase?: string;
+    headers?: HeadersInit;
+    notebookId?: string;
+    fetcher?: typeof fetch;
+  },
+): Promise<WorkspaceSettingsState> {
+  const settings = { ...initial };
+  const api = options?.apiBase ?? "";
+  const request = options?.fetcher ?? globalThis.fetch;
+  const headers = options?.headers ?? {};
+  await fetchOwnerPreferences(settings, request, api, headers);
+  if (options?.notebookId) {
+    await fetchNotebookPreferences(settings, request, api, options.notebookId, headers);
   }
   return settings;
 }
@@ -77,7 +108,9 @@ export const DEFAULT_LOCAL_WORKSPACE_PREFERENCES: LocalWorkspacePreferences = {
 
 function getStorage(storage?: KeyValueStorage): KeyValueStorage | undefined {
   if (storage) return storage;
-  if (typeof window !== "undefined" && window.localStorage) return window.localStorage;
+  if (typeof window !== "undefined") {
+    return (window as { localStorage?: KeyValueStorage }).localStorage;
+  }
   return undefined;
 }
 
@@ -107,13 +140,20 @@ export function saveThemePreference(theme: NotebookTheme, storage?: KeyValueStor
  * The server theme arrives after first paint: it replaces the local one and is written to localStorage, so the
  * next load's pre-paint script paints it (FR-UI-02, FR-010).
  */
-export function adoptServerTheme(theme: NotebookTheme, root: HTMLElement, storage?: KeyValueStorage, prefersDark?: boolean): void {
+export function adoptServerTheme(
+  theme: NotebookTheme,
+  root: HTMLElement,
+  storage?: KeyValueStorage,
+  prefersDark?: boolean,
+): void {
   applyTheme(theme, root, systemPrefersDark(prefersDark));
   saveThemePreference(theme, storage);
 }
 
 function browserLanguage(): string | undefined {
-  return typeof navigator !== "undefined" && typeof navigator.language === "string" ? navigator.language : undefined;
+  return typeof navigator !== "undefined" && typeof navigator.language === "string"
+    ? navigator.language
+    : undefined;
 }
 
 /** Effective output language in the browser: notebook language > user default > supported browser locale > en-US. */
@@ -128,7 +168,10 @@ export function effectiveOutputLanguage(
   });
 }
 
-export function saveWorkspacePreferences(preferences: LocalWorkspacePreferences, storage?: KeyValueStorage): void {
+export function saveWorkspacePreferences(
+  preferences: LocalWorkspacePreferences,
+  storage?: KeyValueStorage,
+): void {
   const target = getStorage(storage);
   if (!target) return;
   try {
@@ -150,42 +193,68 @@ function systemPrefersDark(fallback?: boolean): boolean {
     : false;
 }
 
-export function resolveTheme(theme: NotebookTheme, prefersDark = systemPrefersDark()): "light" | "dark" {
+export function resolveTheme(
+  theme: NotebookTheme,
+  prefersDark = systemPrefersDark(),
+): "light" | "dark" {
   if (theme === "system") return prefersDark ? "dark" : "light";
   return theme;
 }
 
-export function applyTheme(theme: NotebookTheme, root: HTMLElement, prefersDark = systemPrefersDark()): void {
+export function applyTheme(
+  theme: NotebookTheme,
+  root: HTMLElement,
+  prefersDark = systemPrefersDark(),
+): void {
   const resolved = resolveTheme(theme, prefersDark);
   root.setAttribute("data-theme", resolved);
   root.setAttribute("data-theme-mode", theme);
   root.style.colorScheme = resolved;
 }
 
-export function initializeTheme(root: HTMLElement, storage?: KeyValueStorage, prefersDark?: boolean): void {
+export function initializeTheme(
+  root: HTMLElement,
+  storage?: KeyValueStorage,
+  prefersDark?: boolean,
+): void {
   const preferences = loadWorkspacePreferences(storage);
   applyTheme(preferences.theme, root, systemPrefersDark(prefersDark));
   registerSystemThemeListener(root);
 }
 
-const systemThemeListeners = new WeakMap<HTMLElement, { media: MediaQueryList; listener: (event: MediaQueryListEvent) => void }>();
+const systemThemeListeners = new WeakMap<
+  HTMLElement,
+  { media: MediaQueryList; listener: (event: MediaQueryListEvent) => void }
+>();
+
+interface OptionalMediaQueryList {
+  addEventListener?: (type: "change", listener: (event: MediaQueryListEvent) => void) => void;
+  removeEventListener?: (type: "change", listener: (event: MediaQueryListEvent) => void) => void;
+}
 
 function registerSystemThemeListener(root: HTMLElement): void {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
   const media = window.matchMedia("(prefers-color-scheme: dark)");
   const prior = systemThemeListeners.get(root);
-  if (prior) prior.media.removeEventListener?.("change", prior.listener);
+  if (prior) {
+    (prior.media as OptionalMediaQueryList).removeEventListener?.("change", prior.listener);
+  }
   const listener = (event: MediaQueryListEvent) => {
-    if (root.getAttribute("data-theme-mode") === "system") applyTheme("system", root, event.matches);
+    if (root.getAttribute("data-theme-mode") === "system")
+      applyTheme("system", root, event.matches);
   };
-  media.addEventListener?.("change", listener);
+  (media as OptionalMediaQueryList).addEventListener?.("change", listener);
   systemThemeListeners.set(root, { media, listener });
 }
 
 /** UI locale for collation: the document language, else the browser language. */
 function uiLocale(): string | undefined {
-  const lang = typeof document !== "undefined" ? document.documentElement?.getAttribute?.("lang") : null;
-  return lang || browserLanguage();
+  const docEl =
+    typeof document === "undefined"
+      ? null
+      : (document.documentElement as { getAttribute?: (name: string) => string | null } | null);
+  const lang = docEl?.getAttribute?.("lang") ?? null;
+  return lang === null || lang === "" ? browserLanguage() : lang;
 }
 
 function titleCollator(locale: string | undefined): Intl.Collator {
@@ -200,13 +269,15 @@ function titleCollator(locale: string | undefined): Intl.Collator {
  * Pinned first, then the selected order (FR-WM-03). Title order is case-insensitive through `Intl.Collator` for
  * the UI locale; equal titles (and every other tie) fall back to `created_at` descending, then `id`.
  */
-export function sortNotebookRows<T extends {
-  id: string;
-  title: string;
-  created_at: string;
-  is_pinned: boolean;
-  last_opened_at: string | null;
-}>(items: T[], sort: NotebookSortOrder, locale: string | undefined = uiLocale()): T[] {
+export function sortNotebookRows<
+  T extends {
+    id: string;
+    title: string;
+    created_at: string;
+    is_pinned: boolean;
+    last_opened_at: string | null;
+  },
+>(items: T[], sort: NotebookSortOrder, locale: string | undefined = uiLocale()): T[] {
   const instant = (value: string) => Date.parse(value) || 0;
   const collator = titleCollator(locale);
   return [...items].sort((a, b) => {
@@ -235,7 +306,10 @@ export function renderWorkspaceSettings(
     root?: HTMLElement;
     storage?: KeyValueStorage;
     prefersDark?: boolean;
-    onUpdate?: (preferences: WorkspaceSettingsState, changedKey: keyof WorkspaceSettingsState) => void | Promise<void>;
+    onUpdate?: (
+      preferences: WorkspaceSettingsState,
+      changedKey: keyof WorkspaceSettingsState,
+    ) => void | Promise<void>;
     notebookId?: string;
     /** Browser locale for the default output language (defaults to `navigator.language`). */
     browserLocale?: string;
@@ -252,10 +326,18 @@ export function renderWorkspaceSettings(
   let current: WorkspaceSettingsState = { ...preferences };
   // With no saved user language the select shows the default the server would use: supported browser locale,
   // else en-US (FR-UI-02, FR-012).
-  const defaultOutput = resolveOutputLanguage({ browserLocale: options?.browserLocale ?? browserLanguage() ?? null });
+  const defaultOutput = resolveOutputLanguage({
+    browserLocale: options?.browserLocale ?? browserLanguage() ?? null,
+  });
   const root = options?.root ?? document.documentElement;
 
-  const createSelect = (id: string, labelText: string, value: string, key: keyof WorkspaceSettingsState, choices: { value: string; label: string }[]) => {
+  const createSelect = (
+    id: string,
+    labelText: string,
+    value: string,
+    key: keyof WorkspaceSettingsState,
+    choices: Array<{ value: string; label: string }>,
+  ) => {
     const label = document.createElement("label");
     label.htmlFor = id;
     label.textContent = labelText;
@@ -266,7 +348,7 @@ export function renderWorkspaceSettings(
     for (const choice of choices) addOption(select, choice.value, choice.label);
     select.value = value;
     select.addEventListener("change", () => {
-      const next = { ...current, [key]: select.value } as WorkspaceSettingsState;
+      const next = { ...current, [key]: select.value };
       current = next;
       if (key === "theme") {
         saveThemePreference(next.theme, options?.storage);
@@ -283,23 +365,45 @@ export function renderWorkspaceSettings(
     { value: "dark", label: "Dark" },
     { value: "system", label: "System" },
   ]);
-  createSelect("input-language-select", "Input language", current.input_language || "auto", "input_language", [
-    { value: "auto", label: "Detect automatically" },
-    ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
-  ]);
-  createSelect("output-language-select", "Output language", current.output_language ?? defaultOutput, "output_language", [
-    ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
-  ]);
-  if (options?.notebookId) {
-    createSelect("notebook-input-language-select", "Notebook input language", current.notebook_input_language ?? "", "notebook_input_language", [
-      { value: "", label: "Use owner preference" },
+  createSelect(
+    "input-language-select",
+    "Input language",
+    current.input_language || "auto",
+    "input_language",
+    [
       { value: "auto", label: "Detect automatically" },
       ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
-    ]);
-    createSelect("notebook-output-language-select", "Notebook output language", current.notebook_output_language ?? "", "notebook_output_language", [
-      { value: "", label: "Use owner preference" },
-      ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
-    ]);
+    ],
+  );
+  createSelect(
+    "output-language-select",
+    "Output language",
+    current.output_language ?? defaultOutput,
+    "output_language",
+    SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
+  );
+  if (options?.notebookId) {
+    createSelect(
+      "notebook-input-language-select",
+      "Notebook input language",
+      current.notebook_input_language ?? "",
+      "notebook_input_language",
+      [
+        { value: "", label: "Use owner preference" },
+        { value: "auto", label: "Detect automatically" },
+        ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
+      ],
+    );
+    createSelect(
+      "notebook-output-language-select",
+      "Notebook output language",
+      current.notebook_output_language ?? "",
+      "notebook_output_language",
+      [
+        { value: "", label: "Use owner preference" },
+        ...SUPPORTED_OUTPUT_LANGUAGES.map(({ tag, name }) => ({ value: tag, label: name })),
+      ],
+    );
   }
   container.appendChild(section);
 }

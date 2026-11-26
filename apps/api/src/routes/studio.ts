@@ -5,7 +5,7 @@ import {
   SourceSnapshotInvalidError,
   StudioParamsError,
 } from "@everlast/contracts";
-import { parseJsonBody, sendJson } from "../http.ts";
+import { parseJsonBody, parseRequestUrl, sendJson } from "../http.ts";
 import {
   StudioConflictError,
   StudioNotFoundError,
@@ -17,13 +17,151 @@ import { StudioSupportingSourcesRequiredError } from "../studio/drilldown.ts";
 
 export type StudioRouteDeps = StudioServiceDeps;
 
-const isZodError = (e: unknown): e is { issues: { message: string; path: (string | number)[] }[] } =>
+const isZodError = (
+  e: unknown,
+): e is { issues: Array<{ message: string; path: Array<string | number> }> } =>
   e instanceof Error && e.name === "ZodError" && Array.isArray((e as { issues?: unknown }).issues);
 
 const err = (res: ServerResponse, status: number, code: string, message: string): true => {
   sendJson(res, status, { error: { code, message } });
   return true;
 };
+
+function writeExportBinary(
+  res: ServerResponse,
+  exported: { contentType: string; filename: string; bytes: Uint8Array },
+): void {
+  res.writeHead(200, {
+    "Content-Type": exported.contentType,
+    "Content-Disposition": `attachment; filename="${exported.filename}"`,
+    "Cache-Control": "private, no-store",
+    "Content-Length": String(exported.bytes.byteLength),
+  });
+  res.end(Buffer.from(exported.bytes));
+}
+
+async function handleStudioExport(
+  res: ServerResponse,
+  service: StudioService,
+  params: { userId: string; notebookId: string; artifactId: string; body: unknown },
+): Promise<void> {
+  const { userId, notebookId, artifactId, body } = params;
+  const row = await service.ownedArtifact(userId, notebookId, artifactId);
+  if (row.plugin_type === "mindmap") {
+    const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
+    res.setHeader("Cache-Control", "private, no-store");
+    sendJson(res, 200, scene);
+  } else if (row.plugin_type === "infographic") {
+    const scene = await service.exportInfographic(userId, notebookId, artifactId, body);
+    res.setHeader("Cache-Control", "private, no-store");
+    sendJson(res, 200, scene);
+  } else if (row.plugin_type === "data_table") {
+    writeExportBinary(res, await service.exportDataTable(userId, notebookId, artifactId, body));
+  } else if (row.plugin_type === "slide_deck") {
+    writeExportBinary(res, await service.exportSlideDeck(userId, notebookId, artifactId, body));
+  } else {
+    throw new StudioConflictError("Export is not supported for this artifact kind.");
+  }
+}
+
+async function handleStudioArtifactAction(
+  res: ServerResponse,
+  service: StudioService,
+  params: {
+    userId: string;
+    notebookId: string;
+    artifactId: string;
+    action: string | undefined;
+    method: string | undefined;
+    body: unknown;
+  },
+): Promise<boolean> {
+  const { userId, notebookId, artifactId, action, method, body } = params;
+  if (!action) {
+    if (method === "GET") {
+      sendJson(res, 200, await service.get(userId, notebookId, artifactId));
+      return true;
+    }
+    if (method === "DELETE") {
+      await service.remove(userId, notebookId, artifactId);
+      res.writeHead(204).end();
+      return true;
+    }
+    return false;
+  }
+  if (action === "progress") {
+    if (method === "GET") {
+      sendJson(res, 200, await service.getProgress(userId, notebookId, artifactId));
+      return true;
+    }
+    if (method === "POST") {
+      sendJson(res, 200, await service.recordProgress(userId, notebookId, artifactId, body));
+      return true;
+    }
+    if (method === "DELETE") {
+      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, {}, true));
+      return true;
+    }
+    return false;
+  }
+  if (method !== "POST") return false;
+  switch (action) {
+    case "cancel":
+      sendJson(res, 200, { artifact: await service.cancel(userId, notebookId, artifactId) });
+      return true;
+    case "retry":
+      sendJson(res, 202, { artifact: await service.retry(userId, notebookId, artifactId, body) });
+      return true;
+    case "convert-to-source":
+      sendJson(res, 201, await service.convert(userId, notebookId, artifactId));
+      return true;
+    case "drilldown":
+      sendJson(res, 200, await service.drilldown(userId, notebookId, artifactId, body));
+      return true;
+    case "progress/reset":
+      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, body));
+      return true;
+    case "grade":
+      sendJson(res, 200, await service.gradeQuiz(userId, notebookId, artifactId, body));
+      return true;
+    case "explain":
+      sendJson(res, 200, await service.explainItem(userId, notebookId, artifactId, body));
+      return true;
+    case "export":
+      await handleStudioExport(res, service, { userId, notebookId, artifactId, body });
+      return true;
+    default:
+      return false;
+  }
+}
+
+function sendStudioError(res: ServerResponse, e: unknown): true {
+  if (e instanceof EmptyScopeError) return err(res, 400, "EmptyScopeError", e.message);
+  if (e instanceof StudioSupportingSourcesRequiredError) {
+    return err(res, 409, "SupportingSourcesRequired", e.message);
+  }
+  // FR-UI-02: an unsupported output language is a bad request (it would key caches and on-demand guide runs).
+  if (isZodError(e) && e.issues.some((x) => x.path[0] === "output_language")) {
+    return err(
+      res,
+      400,
+      "UnsupportedOutputLanguage",
+      "Output language is not in the supported locale set.",
+    );
+  }
+  if (isZodError(e)) {
+    return err(res, 422, "ValidationError", e.issues.map((x) => x.message).join("; "));
+  }
+  if (e instanceof StudioParamsError) return err(res, 422, "ValidationError", e.message);
+  if (e instanceof InvalidScopeError) return err(res, 403, "InvalidScope", e.message);
+  if (e instanceof SourceSnapshotInvalidError) {
+    return err(res, 409, "SourceSnapshotInvalid", e.message);
+  }
+  if (e instanceof StudioNotFoundError) return err(res, 404, "NotFound", e.message);
+  if (e instanceof StudioConflictError) return err(res, 409, "Conflict", e.message);
+  if (e instanceof StudioNotImplementedError) return err(res, 501, "NotImplemented", e.message);
+  return err(res, 500, "InternalError", "Unexpected error.");
+}
 
 /**
  * Studio HTTP routes (FR-ST-08/09/10/11/18, FR-NM-03); Owner-only, authorization happens server-side.
@@ -33,14 +171,21 @@ export async function handleStudioRoute(
   req: IncomingMessage,
   res: ServerResponse,
   deps: StudioRouteDeps,
-  userId: string
+  userId: string,
 ): Promise<boolean> {
-  const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
-  const match = url.pathname.match(
-    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|cancel|convert-to-source|drilldown|export|progress|progress\/reset|grade|explain))?)?|report-suggestions)$/
-  );
+  const url = parseRequestUrl(req);
+  const match =
+    /^\/api\/notebooks\/([^/]+)\/studio\/(artifacts(?:\/([^/]+)(?:\/(retry|cancel|convert-to-source|drilldown|export|progress|progress\/reset|grade|explain))?)?|report-suggestions)$/.exec(
+      url.pathname,
+    );
   if (!match) return false;
-  const [, notebookId, target, artifactId, action] = match as unknown as [string, string, string, string | undefined, string | undefined];
+  const [, notebookId, target, artifactId, action] = match as unknown as [
+    string,
+    string,
+    string,
+    string | undefined,
+    string | undefined,
+  ];
   const method = req.method?.toUpperCase();
   const service = new StudioService(deps);
 
@@ -56,81 +201,28 @@ export async function handleStudioRoute(
   try {
     if (target === "report-suggestions" && method === "POST") {
       sendJson(res, 200, await service.suggestions(userId, notebookId, body));
-    } else if (target === "artifacts" && method === "POST") {
+      return true;
+    }
+    if (target === "artifacts" && method === "POST") {
       sendJson(res, 202, { artifact: await service.create(userId, notebookId, body) });
-    } else if (target === "artifacts" && method === "GET") {
+      return true;
+    }
+    if (target === "artifacts" && method === "GET") {
       sendJson(res, 200, { artifacts: await service.list(userId, notebookId) });
-    } else if (artifactId && !action && method === "GET") {
-      sendJson(res, 200, await service.get(userId, notebookId, artifactId));
-    } else if (artifactId && !action && method === "DELETE") {
-      await service.remove(userId, notebookId, artifactId);
-      res.writeHead(204).end();
-    } else if (artifactId && action === "cancel" && method === "POST") {
-      sendJson(res, 200, { artifact: await service.cancel(userId, notebookId, artifactId) });
-    } else if (artifactId && action === "retry" && method === "POST") {
-      sendJson(res, 202, { artifact: await service.retry(userId, notebookId, artifactId, body) });
-    } else if (artifactId && action === "convert-to-source" && method === "POST") {
-      sendJson(res, 201, await service.convert(userId, notebookId, artifactId));
-    } else if (artifactId && action === "drilldown" && method === "POST") {
-      sendJson(res, 200, await service.drilldown(userId, notebookId, artifactId, body));
-    } else if (artifactId && action === "progress" && method === "GET") {
-      sendJson(res, 200, await service.getProgress(userId, notebookId, artifactId));
-    } else if (artifactId && action === "progress" && method === "POST") {
-      sendJson(res, 200, await service.recordProgress(userId, notebookId, artifactId, body));
-    } else if (artifactId && action === "progress" && method === "DELETE") {
-      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, {}, true));
-    } else if (artifactId && action === "progress/reset" && method === "POST") {
-      sendJson(res, 200, await service.resetProgress(userId, notebookId, artifactId, body));
-    } else if (artifactId && action === "grade" && method === "POST") {
-      sendJson(res, 200, await service.gradeQuiz(userId, notebookId, artifactId, body));
-    } else if (artifactId && action === "explain" && method === "POST") {
-      sendJson(res, 200, await service.explainItem(userId, notebookId, artifactId, body));
-    } else if (artifactId && action === "export" && method === "POST") {
-      const row = await service.ownedArtifact(userId, notebookId, artifactId);
-      const writeBinary = (exported: { contentType: string; filename: string; bytes: Uint8Array }) => {
-        res.writeHead(200, {
-          "Content-Type": exported.contentType,
-          "Content-Disposition": `attachment; filename="${exported.filename}"`,
-          "Cache-Control": "private, no-store",
-          "Content-Length": String(exported.bytes.byteLength),
-        });
-        res.end(Buffer.from(exported.bytes));
-      };
-      if (row.plugin_type === "mindmap") {
-        const scene = await service.exportMindmap(userId, notebookId, artifactId, body);
-        res.setHeader("Cache-Control", "private, no-store");
-        sendJson(res, 200, scene);
-      } else if (row.plugin_type === "infographic") {
-        const scene = await service.exportInfographic(userId, notebookId, artifactId, body);
-        res.setHeader("Cache-Control", "private, no-store");
-        sendJson(res, 200, scene);
-      } else if (row.plugin_type === "data_table") {
-        writeBinary(await service.exportDataTable(userId, notebookId, artifactId, body));
-      } else if (row.plugin_type === "slide_deck") {
-        writeBinary(await service.exportSlideDeck(userId, notebookId, artifactId, body));
-      } else {
-        throw new StudioConflictError("Export is not supported for this artifact kind.");
-      }
-    } else {
-      return false;
+      return true;
     }
+    if (artifactId) {
+      return await handleStudioArtifactAction(res, service, {
+        userId,
+        notebookId,
+        artifactId,
+        action,
+        method,
+        body,
+      });
+    }
+    return false;
   } catch (e) {
-    if (e instanceof EmptyScopeError) return err(res, 400, "EmptyScopeError", e.message);
-    if (e instanceof StudioSupportingSourcesRequiredError) {
-      return err(res, 409, "SupportingSourcesRequired", e.message);
-    }
-    // FR-UI-02: an unsupported output language is a bad request (it would key caches and on-demand guide runs).
-    if (isZodError(e) && e.issues.some((x) => x.path[0] === "output_language")) {
-      return err(res, 400, "UnsupportedOutputLanguage", "Output language is not in the supported locale set.");
-    }
-    if (isZodError(e)) return err(res, 422, "ValidationError", e.issues.map((x) => x.message).join("; "));
-    if (e instanceof StudioParamsError) return err(res, 422, "ValidationError", e.message);
-    if (e instanceof InvalidScopeError) return err(res, 403, "InvalidScope", e.message);
-    if (e instanceof SourceSnapshotInvalidError) return err(res, 409, "SourceSnapshotInvalid", e.message);
-    if (e instanceof StudioNotFoundError) return err(res, 404, "NotFound", e.message);
-    if (e instanceof StudioConflictError) return err(res, 409, "Conflict", e.message);
-    if (e instanceof StudioNotImplementedError) return err(res, 501, "NotImplemented", e.message);
-    return err(res, 500, "InternalError", "Unexpected error.");
+    return sendStudioError(res, e);
   }
-  return true;
 }

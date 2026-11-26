@@ -10,18 +10,23 @@ export const DEFAULT_JSON_LIMIT = 1_000_000;
 
 export async function readBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   const declared = Number(req.headers["content-length"] ?? "0");
-  if (declared > maxBytes) throw new AppError("PayloadTooLarge", 413, `Request body exceeds ${maxBytes} bytes`);
+  if (declared > maxBytes)
+    throw new AppError("PayloadTooLarge", 413, `Request body exceeds ${maxBytes} bytes`);
   const chunks: Buffer[] = [];
   let received = 0;
   for await (const chunk of req) {
     received += (chunk as Buffer).length;
-    if (received > maxBytes) throw new AppError("PayloadTooLarge", 413, `Request body exceeds ${maxBytes} bytes`);
+    if (received > maxBytes)
+      throw new AppError("PayloadTooLarge", 413, `Request body exceeds ${maxBytes} bytes`);
     chunks.push(chunk as Buffer);
   }
   return Buffer.concat(chunks);
 }
 
-export async function readJson(req: IncomingMessage, maxBytes = DEFAULT_JSON_LIMIT): Promise<unknown> {
+export async function readJson(
+  req: IncomingMessage,
+  maxBytes = DEFAULT_JSON_LIMIT,
+): Promise<unknown> {
   const contentType = req.headers["content-type"] ?? "";
   const body = await readBody(req, maxBytes);
   if (body.length === 0) return {};
@@ -56,23 +61,56 @@ export function sendError(res: ServerResponse, err: unknown, requestId: string):
     return;
   }
   if (err instanceof AppError) {
-    sendJson(res, err.status, { error: { code: err.code, message: err.message }, request_id: requestId });
+    sendJson(res, err.status, {
+      error: { code: err.code, message: err.message },
+      request_id: requestId,
+    });
     return;
   }
-  console.error(JSON.stringify({ severity: "ERROR", request_id: requestId, message: (err as Error)?.stack ?? String(err) }));
-  sendJson(res, 500, { error: { code: "InternalError", message: "Internal server error" }, request_id: requestId });
+  console.error(
+    JSON.stringify({
+      severity: "ERROR",
+      request_id: requestId,
+      message: err instanceof Error && err.stack ? err.stack : String(err),
+    }),
+  );
+  sendJson(res, 500, {
+    error: { code: "InternalError", message: "Internal server error" },
+    request_id: requestId,
+  });
 }
 
 export function validationError(message: string): AppError {
   return new AppError("ValidationFailed", 422, message);
 }
 
+/** Reads a required path parameter from a matched route, narrowing away undefined. */
+export function requireParam(params: Record<string, string>, key: string): string {
+  const value = params[key];
+  if (value === undefined) {
+    throw new AppError("NotFound", 404, "Resource not found");
+  }
+  return value;
+}
+
+/** Parses an incoming Node HTTP request target against a safe localhost base when Host is absent. */
+export function parseRequestUrl(req: IncomingMessage): URL {
+  const path = req.url && req.url.length > 0 ? req.url : "/";
+  const host = req.headers.host && req.headers.host.length > 0 ? req.headers.host : "localhost";
+  return new URL(path, `http://${host}`);
+}
+
 /**
  * Lenient JSON body parser used by the release v2 routes (D16): an empty body is `{}`, malformed JSON throws a
  * plain Error that the v2 handlers map to their own 400 responses. Size limits still apply.
  */
-export async function parseJsonBody<T>(req: IncomingMessage, options?: { maxBytes?: number }): Promise<T> {
-  const text = (await readBody(req, options?.maxBytes ?? DEFAULT_JSON_LIMIT)).toString("utf8").trim();
+export async function parseJsonBody<T>(
+  req: IncomingMessage,
+  options?: { maxBytes?: number },
+): Promise<T> {
+  const text = (await readBody(req, options?.maxBytes ?? DEFAULT_JSON_LIMIT))
+    .toString("utf8")
+    .trim();
   if (!text) return {} as T;
   try {
     return JSON.parse(text) as T;

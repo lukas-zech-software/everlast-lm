@@ -46,58 +46,129 @@ const RETENTION_STATEMENT =
 export interface PreflightInput {
   env: NodeJS.ProcessEnv;
   /** Vertex clients actually used by the run (inspected, not assumed). */
-  clients: { name: string; purpose: string; vertexai: boolean; apiKey?: string | undefined; location?: string | undefined; project?: string | undefined; route: "gemini" | "regional"; endpoint: string }[];
+  clients: Array<{
+    name: string;
+    purpose: string;
+    vertexai: boolean;
+    apiKey?: string | undefined;
+    location?: string | undefined;
+    project?: string | undefined;
+    route: "gemini" | "regional";
+    endpoint: string;
+  }>;
   ocr: { name: string };
   /** Performs a live authenticated call to verify ADC (release mode). */
   live: boolean;
 }
 
-export async function runSecurityPreflight(input: PreflightInput): Promise<PreflightReport> {
-  const checks: PreflightCheck[] = [];
-  const presentKeys = DEVELOPER_KEY_VARIABLES.filter((name) => input.env[name]);
-  checks.push({
-    id: "SEC-01",
-    description: "No consumer/developer API key in the runtime environment",
-    status: presentKeys.length ? "fail" : "pass",
-    detail: presentKeys.length ? `present: ${presentKeys.join(", ")}` : "none present",
-  });
-  for (const client of input.clients) {
-    const isGemini = client.route === "gemini";
-    const region = isGemini ? "eu" : APPROVED_REGION;
-    const requiredEndpoint = isGemini ? GEMINI_ENDPOINT : REGIONAL_ENDPOINT;
-    const endpoint = client.endpoint.replace(/\/$/, "");
-    const ok = client.vertexai && !client.apiKey && client.location === region && endpoint === requiredEndpoint;
-    checks.push({
-      id: `SEC-VERTEX-${client.name}`,
-      description: `${client.purpose} uses Vertex AI with ADC in ${region} at ${requiredEndpoint}`,
-      status: ok ? "pass" : "fail",
-      detail: `vertexai=${client.vertexai} apiKey=${client.apiKey ? "set" : "none"} location=${client.location ?? "unset"} project=${client.project ?? "unset"} endpoint=${endpoint}`,
-    });
+function buildVertexClientCheck(client: PreflightInput["clients"][number]): PreflightCheck {
+  const isGemini = client.route === "gemini";
+  const region = isGemini ? "eu" : APPROVED_REGION;
+  const requiredEndpoint = isGemini ? GEMINI_ENDPOINT : REGIONAL_ENDPOINT;
+  const endpoint = client.endpoint.replace(/\/$/, "");
+  const ok =
+    client.vertexai &&
+    !client.apiKey &&
+    client.location === region &&
+    endpoint === requiredEndpoint;
+  return {
+    id: `SEC-VERTEX-${client.name}`,
+    description: `${client.purpose} uses Vertex AI with ADC in ${region} at ${requiredEndpoint}`,
+    status: ok ? "pass" : "fail",
+    detail: `vertexai=${client.vertexai} apiKey=${client.apiKey ? "set" : "none"} location=${client.location ?? "unset"} project=${client.project ?? "unset"} endpoint=${endpoint}`,
+  };
+}
+
+function buildOcrDetail(location: string, allowed: boolean, exception: string | undefined): string {
+  if (allowed) {
+    return `location ${location} (EU region map, D3)`;
   }
-  const ocrMatch = /^documentai:([^:]+):/.exec(input.ocr.name);
-  if (ocrMatch) {
-    const exception = input.env.REGION_EXCEPTION_DOCUMENT_AI;
-    const location = ocrMatch[1]!;
-    // Region map (plan 002): Document AI has no europe-west4 location; its EU multi-region "eu" keeps processing
-    // inside the EU as allowed by D3 ("EU preferred"). Any other location needs a recorded decision.
-    const allowed = location === APPROVED_REGION || location === "eu";
-    checks.push({
+  if (exception) {
+    return `location ${location} under recorded decision ${exception}`;
+  }
+  return `location ${location} requires a recorded region-exception decision (Constitution VI)`;
+}
+
+function buildOcrCheckAndEndpoint(
+  ocrName: string,
+  env: NodeJS.ProcessEnv,
+): { check: PreflightCheck; endpoint: EndpointEvidence | null } {
+  const ocrLocation = /^documentai:([^:]+):/.exec(ocrName)?.[1];
+  if (!ocrLocation) {
+    return {
+      check: {
+        id: "SEC-OCR",
+        description: "OCR processor configured",
+        status: "unavailable",
+        detail: "no Document AI processor configured: scanned pages cannot be OCR'd",
+      },
+      endpoint: null,
+    };
+  }
+  const exception = env.REGION_EXCEPTION_DOCUMENT_AI;
+  // Region map (plan 002): Document AI has no europe-west4 location; its EU multi-region "eu" keeps processing
+  // inside the EU as allowed by D3 ("EU preferred"). Any other location needs a recorded decision.
+  const allowed = ocrLocation === APPROVED_REGION || ocrLocation === "eu";
+  return {
+    check: {
       id: "SEC-OCR",
-      description: "OCR runs on Document AI (enterprise) in the EU region map or under a recorded region exception",
+      description:
+        "OCR runs on Document AI (enterprise) in the EU region map or under a recorded region exception",
       status: allowed || exception ? "pass" : "fail",
-      detail: allowed ? `location ${location} (EU region map, D3)` : exception ? `location ${location} under recorded decision ${exception}` : `location ${location} requires a recorded region-exception decision (Constitution VI)`,
-    });
-  } else {
-    checks.push({ id: "SEC-OCR", description: "OCR processor configured", status: "unavailable", detail: "no Document AI processor configured: scanned pages cannot be OCR'd" });
+      detail: buildOcrDetail(ocrLocation, allowed, exception),
+    },
+    endpoint: {
+      service: "Document AI",
+      purpose: "OCR for scanned PDF pages",
+      endpoint: `${ocrLocation}-documentai.googleapis.com`,
+      region: ocrLocation,
+      authentication: "ADC / service account",
+      no_training: {
+        status: "contractual",
+        reference: "Google Cloud Service Specific Terms (Document AI)",
+      },
+      retention:
+        "Document AI online processing does not persist documents beyond processing; zero data retention is NOT claimed.",
+    },
+  };
+}
+
+async function checkLiveAdc(): Promise<PreflightCheck> {
+  try {
+    const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+    const token = await auth.getAccessToken();
+    return {
+      id: "SEC-ADC",
+      description: "Keyless Application Default Credentials available",
+      status: token ? "pass" : "fail",
+      detail: token ? "access token obtained" : "no token",
+    };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      id: "SEC-ADC",
+      description: "Keyless Application Default Credentials available",
+      status: "unavailable",
+      detail: message.split("\n")[0] ?? message,
+    };
   }
+}
+
+export async function runSecurityPreflight(input: PreflightInput): Promise<PreflightReport> {
+  const presentKeys = DEVELOPER_KEY_VARIABLES.filter((name) => input.env[name]);
+  const checks: PreflightCheck[] = [
+    {
+      id: "SEC-01",
+      description: "No consumer/developer API key in the runtime environment",
+      status: presentKeys.length ? "fail" : "pass",
+      detail: presentKeys.length ? `present: ${presentKeys.join(", ")}` : "none present",
+    },
+    ...input.clients.map(buildVertexClientCheck),
+  ];
+  const ocr = buildOcrCheckAndEndpoint(input.ocr.name, input.env);
+  checks.push(ocr.check);
   if (input.live) {
-    try {
-      const auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
-      const token = await auth.getAccessToken();
-      checks.push({ id: "SEC-ADC", description: "Keyless Application Default Credentials available", status: token ? "pass" : "fail", detail: token ? "access token obtained" : "no token" });
-    } catch (err) {
-      checks.push({ id: "SEC-ADC", description: "Keyless Application Default Credentials available", status: "unavailable", detail: (err as Error).message.split("\n")[0]! });
-    }
+    checks.push(await checkLiveAdc());
   }
   const endpoints: EndpointEvidence[] = input.clients.map((c) => ({
     service: c.route === "gemini" ? "Vertex AI (Gemini)" : "Vertex AI (regional)",
@@ -108,16 +179,13 @@ export async function runSecurityPreflight(input: PreflightInput): Promise<Prefl
     no_training: { status: "contractual", reference: NO_TRAINING_REFERENCE },
     retention: RETENTION_STATEMENT,
   }));
-  if (ocrMatch) {
-    endpoints.push({
-      service: "Document AI",
-      purpose: "OCR for scanned PDF pages",
-      endpoint: `${ocrMatch[1]}-documentai.googleapis.com`,
-      region: ocrMatch[1]!,
-      authentication: "ADC / service account",
-      no_training: { status: "contractual", reference: "Google Cloud Service Specific Terms (Document AI)" },
-      retention: "Document AI online processing does not persist documents beyond processing; zero data retention is NOT claimed.",
-    });
+  if (ocr.endpoint) {
+    endpoints.push(ocr.endpoint);
   }
-  return { passed: checks.every((c) => c.status === "pass"), checks, endpoints, verified_at: new Date().toISOString() };
+  return {
+    passed: checks.every((c) => c.status === "pass"),
+    checks,
+    endpoints,
+    verified_at: new Date().toISOString(),
+  };
 }

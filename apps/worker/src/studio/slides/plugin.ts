@@ -28,7 +28,10 @@ export class SlideDeckGeneratorPlugin implements StudioGeneratorPlugin {
   private readonly model: SlideDeckModelClient;
   private readonly limits?: EvidenceBatchLimits | undefined;
 
-  constructor(model: SlideDeckModelClient = new DeterministicSlideDeckModel(), limits?: EvidenceBatchLimits) {
+  constructor(
+    model: SlideDeckModelClient = new DeterministicSlideDeckModel(),
+    limits?: EvidenceBatchLimits,
+  ) {
     this.model = model;
     this.limits = limits;
   }
@@ -40,22 +43,30 @@ export class SlideDeckGeneratorPlugin implements StudioGeneratorPlugin {
     let slideCount: number | undefined;
     if (request.params.slide_count !== undefined) {
       const count = request.params.slide_count;
-      if (typeof count !== "number" || !Number.isInteger(count) || count < SLIDE_COUNT_MIN || count > SLIDE_COUNT_MAX) {
-        throw new StudioParamsError(`Slide count must be an integer between ${SLIDE_COUNT_MIN} and ${SLIDE_COUNT_MAX}.`);
+      if (
+        typeof count !== "number" ||
+        !Number.isInteger(count) ||
+        count < SLIDE_COUNT_MIN ||
+        count > SLIDE_COUNT_MAX
+      ) {
+        throw new StudioParamsError(
+          `Slide count must be an integer between ${SLIDE_COUNT_MIN} and ${SLIDE_COUNT_MAX}.`,
+        );
       }
       slideCount = count;
     }
     let focusPrompt: string | undefined;
     if (request.params.focus_prompt !== undefined) {
       const check = validateSlideFocusPrompt(request.params.focus_prompt);
-      if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid slide deck focus prompt.");
+      if (!check.valid)
+        throw new StudioParamsError(check.error ?? "Invalid slide deck focus prompt.");
       if (check.normalized) focusPrompt = check.normalized;
     }
     return {
       title: focusPrompt ? `Slide Deck: ${focusPrompt.slice(0, 48)}` : "Slide Deck",
       params_json: {
-        ...(slideCount !== undefined ? { slide_count: slideCount } : {}),
-        ...(focusPrompt !== undefined ? { focus_prompt: focusPrompt } : {}),
+        ...(slideCount === undefined ? {} : { slide_count: slideCount }),
+        ...(focusPrompt === undefined ? {} : { focus_prompt: focusPrompt }),
       },
     };
   }

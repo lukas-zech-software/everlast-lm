@@ -1,5 +1,5 @@
-import { ContextPlanSchema } from '@everlast/contracts';
-import type { z } from 'zod';
+import { ContextPlanSchema } from "@everlast/contracts";
+import type { z } from "zod";
 
 export type ContextPlan = z.infer<typeof ContextPlanSchema>;
 
@@ -13,12 +13,12 @@ const BROAD_PATTERNS = [
   /synthesize\s+(the\s+)?themes/i,
 ];
 
-export function classifyQuery(question: string): 'detailed' | 'broad' {
+export function classifyQuery(question: string): "detailed" | "broad" {
   const q = question.trim();
   for (const pattern of BROAD_PATTERNS) {
-    if (pattern.test(q)) return 'broad';
+    if (pattern.test(q)) return "broad";
   }
-  return 'detailed';
+  return "detailed";
 }
 
 export interface PlanChatContextInput {
@@ -36,7 +36,7 @@ export interface PlanChatContextInput {
   evidenceTokens: number;
   requiredGuideIds?: string[];
   detailChunkIds?: string[];
-  purpose?: 'inspection' | 'generation';
+  purpose?: "inspection" | "generation";
 }
 
 export function planChatContext(input: PlanChatContextInput): ContextPlan {
@@ -47,9 +47,9 @@ export function planChatContext(input: PlanChatContextInput): ContextPlan {
   return ContextPlanSchema.parse({
     request_id: input.requestId,
     scope_manifest_hash: input.scopeManifestHash,
-    purpose: input.purpose ?? 'generation',
+    purpose: input.purpose ?? "generation",
     query_class: queryClass,
-    mode: 'retrieval',
+    mode: "retrieval",
     model: input.model,
     model_version: input.modelVersion,
     input_limit: input.inputLimit,

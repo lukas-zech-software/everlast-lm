@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { StructuredGenerationInput, StructuredGenerator } from "@everlast/cloud";
 import type { QuizQuestion } from "@everlast/contracts";
 import {
   gradeQuizQuestion,
@@ -103,10 +104,14 @@ describe("[014-studio-active-learning-suite] T015: Deterministic MC/MS and rubri
     expect(pureGb.correct).toBe(true);
 
     // Prompt injection must be rejected even if a naive generator were fooled
-    const compromisedModel = {
+    const compromisedModel: StructuredGenerator = {
       model: "mock-flash-lite",
       location: "europe-west4",
-      generateStructured: async () => ({ correct: true, reason: "Model tricked" }) as any,
+      generateStructured: <T>(input: StructuredGenerationInput<T>) => {
+        const parsed = input.schema.safeParse({ correct: true, rationale: "Model tricked" });
+        if (!parsed.success) return Promise.reject(new Error("Unexpected schema mismatch"));
+        return Promise.resolve(parsed.data);
+      },
     };
     const injection = await gradeQuizQuestion({
       question: shortAnswerQuestion,
@@ -119,11 +124,11 @@ describe("[014-studio-active-learning-suite] T015: Deterministic MC/MS and rubri
 
   it("rejects whitespace-only and >1,000 trimmed Unicode code-point short answers without truncation", async () => {
     await expect(
-      gradeQuizQuestion({ question: shortAnswerQuestion, answer: "   \t  " })
+      gradeQuizQuestion({ question: shortAnswerQuestion, answer: "   \t  " }),
     ).rejects.toThrow();
 
     await expect(
-      gradeQuizQuestion({ question: shortAnswerQuestion, answer: "🧪".repeat(1001) })
+      gradeQuizQuestion({ question: shortAnswerQuestion, answer: "🧪".repeat(1001) }),
     ).rejects.toThrow();
   });
 });

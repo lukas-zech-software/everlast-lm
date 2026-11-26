@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   MAX_NOTEBOOKS_PER_USER,
-  DEFAULT_MAX_SOURCES_PER_NOTEBOOK,
-  MIN_CONFIGURABLE_SOURCES_PER_NOTEBOOK,
-  MAX_CONFIGURABLE_SOURCES_PER_NOTEBOOK,
-  MAX_SOURCE_BYTES,
-  MAX_SOURCE_WORDS,
-  SourceLimitsConfigSchema,
   SourceAdmissionAttemptSchema,
   parseSourceLimitsConfig,
   isAdmissionAllowedUnderConfig,
@@ -61,7 +55,7 @@ describe("T032 [US3] Quota DTO and Configuration Contract (FR-WM-07)", () => {
       SourceAdmissionAttemptSchema.parse({
         ...validAttempt,
         declared_byte_size: -1,
-      })
+      }),
     ).toThrow();
 
     // Invalid attempt_id (not UUID) rejected
@@ -69,7 +63,7 @@ describe("T032 [US3] Quota DTO and Configuration Contract (FR-WM-07)", () => {
       SourceAdmissionAttemptSchema.parse({
         ...validAttempt,
         attempt_id: "not-a-uuid",
-      })
+      }),
     ).toThrow();
   });
 
@@ -101,7 +95,7 @@ describe("T032 [US3] Quota DTO and Configuration Contract (FR-WM-07)", () => {
       QuotaSummarySchema.parse({
         ...validSummary,
         source_limit: 49,
-      })
+      }),
     ).toThrow();
   });
 });

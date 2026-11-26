@@ -7,7 +7,11 @@ import type {
   StudioQuizPayload,
   UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import { processAllOriginalEvidenceBatches, verifyEvidenceCoverage, type EvidenceBatchLimits } from "../evidence.ts";
+import {
+  processAllOriginalEvidenceBatches,
+  verifyEvidenceCoverage,
+  type EvidenceBatchLimits,
+} from "../evidence.ts";
 import type { QuizFactCandidate, QuizModelClient } from "./model.ts";
 import { validateQuizPayload } from "./validation.ts";
 
@@ -30,10 +34,13 @@ export interface GenerateQuizInput {
   output_language?: string | undefined;
   limits?: EvidenceBatchLimits | undefined;
   signal: AbortSignal;
-  reportProgress(stage: StudioProgress["stage"], percent: number): void;
+  reportProgress: (stage: StudioProgress["stage"], percent: number) => void;
 }
 
-const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome<StudioQuizPayload> => ({
+const refuse = (
+  code: StudioFailureCode,
+  message: string,
+): StudioGenerationOutcome<StudioQuizPayload> => ({
   status: "refused",
   code,
   message,
@@ -49,14 +56,19 @@ function dedupeCandidates(items: QuizFactCandidate[]): QuizFactCandidate[] {
   });
 }
 
-export async function generateQuiz(input: GenerateQuizInput): Promise<StudioGenerationOutcome<StudioQuizPayload>> {
+export async function generateQuiz(
+  input: GenerateQuizInput,
+): Promise<StudioGenerationOutcome<StudioQuizPayload>> {
   let chunks = [...input.chunks];
   const { snapshot, model, signal, output_language, focus_prompt } = input;
   const difficulty: PedagogyDifficulty = input.difficulty ?? "medium";
   signal.throwIfAborted();
 
   if (chunks.length === 0 && !input.original_chunks) {
-    return refuse("InsufficientEvidence", "The selected sources contain no readable content to generate a quiz.");
+    return refuse(
+      "InsufficientEvidence",
+      "The selected sources contain no readable content to generate a quiz.",
+    );
   }
 
   input.reportProgress("reading", 5);
@@ -82,7 +94,9 @@ export async function generateQuiz(input: GenerateQuizInput): Promise<StudioGene
     },
   });
 
-  const coverageError = input.original_chunks ? null : verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks
+    ? null
+    : verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -91,7 +105,7 @@ export async function generateQuiz(input: GenerateQuizInput): Promise<StudioGene
   if (candidates.length === 0) {
     return refuse(
       "InsufficientEvidence",
-      "The selected sources do not contain enough supported factual topics for a quiz."
+      "The selected sources do not contain enough supported factual topics for a quiz.",
     );
   }
 

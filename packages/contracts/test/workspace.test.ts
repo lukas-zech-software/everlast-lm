@@ -1,12 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { NotebookSchema, DEFAULT_NOTEBOOK_TITLE, type Notebook } from "../src/workspace.ts";
 import {
-  NotebookSchema,
-  CreateNotebookInputSchema,
-  UpdateNotebookInputSchema,
-  DEFAULT_NOTEBOOK_TITLE,
-  type Notebook,
-} from "../src/workspace.ts";
-import {
+  countCodePoints,
   normalizeNotebookTitle,
   validateNotebookTitle,
 } from "../src/text-limits.ts";
@@ -45,10 +40,10 @@ describe("FR-WM-01: Workspace and Notebook Contracts", () => {
 
   it("WS-03: rejects notebook with invalid UTC ISO timestamps", () => {
     expect(() =>
-      NotebookSchema.parse({ ...validNotebook, created_at: "2026-10-18 12:00:00" })
+      NotebookSchema.parse({ ...validNotebook, created_at: "2026-10-18 12:00:00" }),
     ).toThrow();
     expect(() =>
-      NotebookSchema.parse({ ...validNotebook, updated_at: "not-a-timestamp" })
+      NotebookSchema.parse({ ...validNotebook, updated_at: "not-a-timestamp" }),
     ).toThrow();
   });
 
@@ -85,7 +80,7 @@ describe("FR-WM-01: Workspace and Notebook Contracts", () => {
     it("WS-07: accepts exactly 100 code points including multi-byte characters and emoji", () => {
       // 90 ASCII chars + 10 emoji = 100 code points
       const title100 = "A".repeat(90) + "🔬".repeat(10);
-      expect(Array.from(title100).length).toBe(100);
+      expect(countCodePoints(title100)).toBe(100);
 
       const parsed = NotebookSchema.parse({ ...validNotebook, title: title100 });
       expect(parsed.title).toBe(title100);
@@ -98,7 +93,7 @@ describe("FR-WM-01: Workspace and Notebook Contracts", () => {
     it("WS-08: rejects 101 code points", () => {
       // 101 code points
       const title101 = "A".repeat(101);
-      expect(Array.from(title101).length).toBe(101);
+      expect(countCodePoints(title101)).toBe(101);
 
       expect(() => NotebookSchema.parse({ ...validNotebook, title: title101 })).toThrow();
 

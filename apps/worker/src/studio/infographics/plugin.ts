@@ -28,7 +28,10 @@ export class InfographicGeneratorPlugin implements StudioGeneratorPlugin {
   private readonly model: InfographicModelClient;
   private readonly limits?: EvidenceBatchLimits | undefined;
 
-  constructor(model: InfographicModelClient = new DeterministicInfographicModel(), limits?: EvidenceBatchLimits) {
+  constructor(
+    model: InfographicModelClient = new DeterministicInfographicModel(),
+    limits?: EvidenceBatchLimits,
+  ) {
     this.model = model;
     this.limits = limits;
   }
@@ -46,14 +49,15 @@ export class InfographicGeneratorPlugin implements StudioGeneratorPlugin {
     let focusPrompt: string | undefined;
     if (request.params.focus_prompt !== undefined) {
       const check = validateInfographicFocusPrompt(request.params.focus_prompt);
-      if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid infographic focus prompt.");
+      if (!check.valid)
+        throw new StudioParamsError(check.error ?? "Invalid infographic focus prompt.");
       if (check.normalized) focusPrompt = check.normalized;
     }
     return {
       title: focusPrompt ? `Infographic: ${focusPrompt.slice(0, 48)}` : "Infographic",
       params_json: {
-        ...(style !== undefined ? { style } : {}),
-        ...(focusPrompt !== undefined ? { focus_prompt: focusPrompt } : {}),
+        ...(style === undefined ? {} : { style }),
+        ...(focusPrompt === undefined ? {} : { focus_prompt: focusPrompt }),
       },
     };
   }

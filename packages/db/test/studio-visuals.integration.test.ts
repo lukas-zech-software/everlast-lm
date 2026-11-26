@@ -4,7 +4,12 @@ import {
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
 } from "../src/index.ts";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "../src/testing.ts";
 
 /**
  * [015-studio-visuals-presentations] T004 — PostgreSQL migration 0014 integration tests
@@ -12,15 +17,17 @@ import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase 
  */
 
 let db: TestDatabase;
+let dropDb: (() => Promise<void>) | undefined;
 let artifacts: PostgresStudioArtifactRepository;
 
 beforeAll(async () => {
   db = await createTestDatabase();
+  dropDb = () => db.drop();
   artifacts = new PostgresStudioArtifactRepository(db.pool);
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await dropDb?.();
 });
 
 describe("[015-studio-visuals-presentations] T004: Migration 0014 durable slide_deck & infographic constraints", () => {
@@ -31,7 +38,7 @@ describe("[015-studio-visuals-presentations] T004: Migration 0014 durable slide_
       title: "Runbook.txt",
       mediaType: "text/plain",
       pages: ["Incident response follows 4 stages: Detection, Triage, Containment, and Recovery."],
-      embed: async (texts) => texts.map(() => new Array(768).fill(0.01)),
+      embed: (texts) => Promise.resolve(texts.map(() => Array.from({ length: 768 }, () => 0.01))),
     });
     const snapshot = [{ source_id: seeded.sourceId, revision: 1 }];
 
@@ -63,14 +70,14 @@ describe("[015-studio-visuals-presentations] T004: Migration 0014 durable slide_
       db.pool.query(
         `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot)
          VALUES (gen_random_uuid(), $1, $2, 'slide_deck', 'briefing_doc', 'Queued', 'Bad', '{}'::jsonb, $3::jsonb)`,
-        [nb, owner, JSON.stringify(snapshot)]
-      )
+        [nb, owner, JSON.stringify(snapshot)],
+      ),
     ).rejects.toThrow();
 
     // Excluded from legacy report restart sweep
     await db.pool.query(
       "UPDATE studio_artifacts SET updated_at = now() - interval '2 minutes' WHERE id = ANY($1::uuid[])",
-      [[deck.id, info.id]]
+      [[deck.id, info.id]],
     );
     await sweepInterruptedStudioArtifacts(db.pool);
 
@@ -83,7 +90,7 @@ describe("[015-studio-visuals-presentations] T004: Migration 0014 durable slide_
     const failed = await artifacts.failWithFence(
       deck.id,
       { code: "GenerationError", message: "Simulated failure" },
-      claim!.leaseToken
+      claim!.leaseToken,
     );
     expect(failed?.status).toBe("Failed");
 

@@ -15,7 +15,12 @@ import { registerSourceRoutes } from "./routes/sources.ts";
 import { registerChatRoutes } from "./routes/chat.ts";
 import { registerChatChartRoutes } from "./routes/chat-charts.ts";
 import { registerSourceSyncRoutes, handleDriveWebhook } from "./routes/source-sync.ts";
-import { handleOAuthCallback, registerConnectionRoutes, stateSigner, type DelegationBroker } from "./routes/connections.ts";
+import {
+  handleOAuthCallback,
+  registerConnectionRoutes,
+  stateSigner,
+  type DelegationBroker,
+} from "./routes/connections.ts";
 import { handleMediaRequest, registerMediaRoutes } from "./routes/media.ts";
 import type { ChatService } from "./chat/service.ts";
 import type { PrivateBenchmarkRecorder } from "./observability/benchmark.ts";
@@ -42,7 +47,7 @@ export interface AppDeps {
   /** NFR-PERF-01 private benchmark recorder for approved synthetic observations. */
   benchmark?: PrivateBenchmarkRecorder | undefined;
   /** Feature route registrations added by later packages (sources, chat). */
-  extraRoutes?: ((router: Router, deps: AppDeps) => void)[];
+  extraRoutes?: Array<(router: Router, deps: AppDeps) => void>;
   /** Release v2 features (D16, PostgreSQL since specs/013); their handlers run after notebook ownership is checked. */
   v2?: V2Runtime | undefined;
   /** Delegated per-user Google access (D11, specs/009); absent → Drive import cannot be connected (503). */
@@ -80,7 +85,11 @@ async function serveStatic(deps: AppDeps, url: URL, res: ServerResponse): Promis
   if (!root) return false;
   const pathname = decodeURIComponent(url.pathname);
   const isAppRoute = pathname === "/" || /^\/notebook\/[^/]+\/?$/.test(pathname);
-  const relative = isAppRoute ? "index.html" : normalize(pathname).replace(/^(\.\.[/\\])+/, "").replace(/^[/\\]+/, "");
+  const relative = isAppRoute
+    ? "index.html"
+    : normalize(pathname)
+        .replace(/^(\.\.[/\\])+/, "")
+        .replace(/^[/\\]+/, "");
   const file = join(root, relative);
   if (!file.startsWith(normalize(root))) return false;
   try {
@@ -98,6 +107,156 @@ async function serveStatic(deps: AppDeps, url: URL, res: ServerResponse): Promis
   } catch {
     return false;
   }
+}
+
+async function handleLocalLogin(
+  deps: AppDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
+  if (!deps.localIssuer) {
+    throw new AppError("NotFound", 404, "Not found");
+  }
+  const body = (await readJson(req)) as { email?: unknown };
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  if (!/^[^@\s]+@[^@\s]+$/.test(email)) {
+    throw validationError("A valid email is required");
+  }
+  sendJson(res, 200, {
+    id_token: deps.localIssuer.issue(`local:${email}`, { email }),
+    expires_in: 3600,
+  });
+}
+
+async function handleDevStorageUpload(
+  storage: LocalObjectStorage,
+  req: IncomingMessage,
+  res: ServerResponse,
+  token: string,
+): Promise<void> {
+  const claims = storage.verifyUploadToken(token);
+  if (!claims) {
+    throw new AppError("Forbidden", 403, "Invalid or expired upload capability");
+  }
+  const contentType = ((req.headers["content-type"] ?? "").split(";")[0] ?? "").trim();
+  if (contentType !== claims.contentType) {
+    throw new AppError("ValidationFailed", 400, "Content-Type does not match the capability");
+  }
+  const body = await readBody(req, claims.maxBytes);
+  await storage.write(claims.name, body, claims.contentType);
+  sendNoContent(res);
+}
+
+async function handleHealthOrAuthRoute(
+  deps: AppDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  method: string,
+): Promise<boolean> {
+  if (url.pathname === "/healthz") {
+    sendJson(res, 200, { status: "ok" });
+    return true;
+  }
+  if (url.pathname === "/readyz") {
+    await deps.pool.query("SELECT 1");
+    sendJson(res, 200, { status: "ready" });
+    return true;
+  }
+  if (url.pathname === "/auth/config" && method === "GET") {
+    sendJson(res, 200, {
+      mode: deps.config.authMode,
+      ...(deps.config.identityPlatform ? { identity_platform: deps.config.identityPlatform } : {}),
+    });
+    return true;
+  }
+  if (url.pathname === "/auth/local/login" && method === "POST") {
+    await handleLocalLogin(deps, req, res);
+    return true;
+  }
+  return false;
+}
+
+async function handleSpecialPublicRoute(
+  deps: AppDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+  method: string,
+): Promise<boolean> {
+  // Local development storage only: the signed capability token authorizes exactly one object write,
+  // mirroring a Cloud Storage V4 signed URL. Absent when real Cloud Storage is configured.
+  if (
+    url.pathname.startsWith("/dev-storage/upload/") &&
+    method === "PUT" &&
+    deps.storage instanceof LocalObjectStorage
+  ) {
+    await handleDevStorageUpload(
+      deps.storage,
+      req,
+      res,
+      url.pathname.slice("/dev-storage/upload/".length),
+    );
+    return true;
+  }
+
+  // Source media (specs/009 T030): revision-bound capability, re-authorized on every request.
+  if (url.pathname.startsWith("/media/") && method === "GET") {
+    await handleMediaRequest(deps, req, res, url.pathname.slice("/media/".length));
+    return true;
+  }
+
+  // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
+  if (url.pathname === "/oauth/google/callback" && method === "GET") {
+    const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
+    res
+      .writeHead(302, {
+        Location: location,
+        "Cache-Control": "no-store",
+        "Set-Cookie": clearCookie,
+      })
+      .end();
+    return true;
+  }
+
+  // Provider push notifications for linked-source re-sync (FR-SI-05): authenticated by the channel token.
+  if (url.pathname === "/webhooks/google-drive" && method === "POST") {
+    const result = await handleDriveWebhook(deps, req.headers);
+    if (result.body) {
+      sendJson(res, result.status, result.body);
+      return true;
+    }
+    res.writeHead(result.status, { "Cache-Control": "no-store" }).end();
+    return true;
+  }
+
+  return false;
+}
+
+async function handleV2Fallback(
+  deps: AppDeps,
+  req: IncomingMessage,
+  res: ServerResponse,
+  pathname: string,
+  userId: string,
+): Promise<boolean> {
+  if (!deps.v2) {
+    return false;
+  }
+  // v2 never decides access: the notebook must exist and belong to the caller in PostgreSQL first.
+  const notebookId = /^\/api\/notebooks\/([^/]+)\//.exec(pathname)?.[1];
+  if (notebookId) {
+    deps.v2.syncNotebook(
+      userId,
+      await getNotebook(deps.pool, userId, decodeURIComponent(notebookId)),
+    );
+  }
+  for (const handler of deps.v2.handlers) {
+    if (await handler(req, res, userId)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResponse) => void {
@@ -119,89 +278,65 @@ export function createApp(deps: AppDeps): (req: IncomingMessage, res: ServerResp
     return { userId: user.id, issuer: identity.issuer, subject: identity.subject };
   }
 
-  async function handle(req: IncomingMessage, res: ServerResponse, requestId: string): Promise<void> {
+  async function handleApiRoute(
+    req: IncomingMessage,
+    res: ServerResponse,
+    url: URL,
+    method: string,
+    requestId: string,
+  ): Promise<void> {
+    const user = await authenticate(req);
+    const match = router.match(method, url.pathname);
+    if (match === null && (await handleV2Fallback(deps, req, res, url.pathname, user.userId))) {
+      return;
+    }
+    if (match === null) {
+      throw new AppError("NotFound", 404, "API endpoint not found");
+    }
+    if (match === "method") {
+      throw new AppError("MethodNotAllowed", 405, "Method not allowed");
+    }
+    const ctx: RequestContext = { req, res, url, params: match.params, requestId, user };
+    await match.handler(ctx);
+  }
+
+  async function handle(
+    req: IncomingMessage,
+    res: ServerResponse,
+    requestId: string,
+  ): Promise<void> {
     const url = new URL(req.url ?? "/", "http://localhost");
     const method = (req.method ?? "GET").toUpperCase();
 
-    if (url.pathname === "/healthz") return sendJson(res, 200, { status: "ok" });
-    if (url.pathname === "/readyz") {
-      await deps.pool.query("SELECT 1");
-      return sendJson(res, 200, { status: "ready" });
-    }
-
-    if (url.pathname === "/auth/config" && method === "GET") {
-      return sendJson(res, 200, {
-        mode: deps.config.authMode,
-        ...(deps.config.identityPlatform ? { identity_platform: deps.config.identityPlatform } : {}),
-      });
-    }
-
-    if (url.pathname === "/auth/local/login" && method === "POST") {
-      if (!deps.localIssuer) throw new AppError("NotFound", 404, "Not found");
-      const body = (await readJson(req)) as { email?: unknown };
-      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-      if (!/^[^@\s]+@[^@\s]+$/.test(email)) throw validationError("A valid email is required");
-      return sendJson(res, 200, { id_token: deps.localIssuer.issue(`local:${email}`, { email }), expires_in: 3600 });
-    }
-
-    // Local development storage only: the signed capability token authorizes exactly one object write,
-    // mirroring a Cloud Storage V4 signed URL. Absent when real Cloud Storage is configured.
-    if (url.pathname.startsWith("/dev-storage/upload/") && method === "PUT" && deps.storage instanceof LocalObjectStorage) {
-      const claims = deps.storage.verifyUploadToken(url.pathname.slice("/dev-storage/upload/".length));
-      if (!claims) throw new AppError("Forbidden", 403, "Invalid or expired upload capability");
-      const contentType = (req.headers["content-type"] ?? "").split(";")[0]!.trim();
-      if (contentType !== claims.contentType) throw new AppError("ValidationFailed", 400, "Content-Type does not match the capability");
-      const body = await readBody(req, claims.maxBytes);
-      await deps.storage.write(claims.name, body, claims.contentType);
-      return sendNoContent(res);
-    }
-
-    // Source media (specs/009 T030): revision-bound capability, re-authorized on every request.
-    if (url.pathname.startsWith("/media/") && method === "GET") {
-      return handleMediaRequest(deps, req, res, url.pathname.slice("/media/".length));
-    }
-    // Delegated OAuth redirect (D11): authenticated by the signed state, not a bearer token.
-    if (url.pathname === "/oauth/google/callback" && method === "GET") {
-      const { location, clearCookie } = await handleOAuthCallback(deps, req, url);
-      res.writeHead(302, { Location: location, "Cache-Control": "no-store", "Set-Cookie": clearCookie }).end();
+    if (await handleHealthOrAuthRoute(deps, req, res, url, method)) {
       return;
     }
-    // Provider push notifications for linked-source re-sync (FR-SI-05): authenticated by the channel token.
-    if (url.pathname === "/webhooks/google-drive" && method === "POST") {
-      const result = await handleDriveWebhook(deps, req.headers);
-      if (result.body) return sendJson(res, result.status, result.body);
-      res.writeHead(result.status, { "Cache-Control": "no-store" }).end();
+    if (await handleSpecialPublicRoute(deps, req, res, url, method)) {
       return;
     }
-
     if (url.pathname.startsWith("/api/")) {
-      const user = await authenticate(req);
-      const match = router.match(method, url.pathname);
-      if (match === null && deps.v2) {
-        // v2 never decides access: the notebook must exist and belong to the caller in PostgreSQL first.
-        const notebookId = /^\/api\/notebooks\/([^/]+)\//.exec(url.pathname)?.[1];
-        if (notebookId) deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, decodeURIComponent(notebookId)));
-        for (const handler of deps.v2.handlers) if (await handler(req, res, user.userId)) return;
-      }
-      if (match === null) throw new AppError("NotFound", 404, "API endpoint not found");
-      if (match === "method") throw new AppError("MethodNotAllowed", 405, "Method not allowed");
-      const ctx: RequestContext = { req, res, url, params: match.params, requestId, user };
-      await match.handler(ctx);
+      await handleApiRoute(req, res, url, method, requestId);
       return;
     }
-
-    if (method === "GET" && (await serveStatic(deps, url, res))) return;
+    if (method === "GET" && (await serveStatic(deps, url, res))) {
+      return;
+    }
     throw new AppError("NotFound", 404, "Not found");
   }
 
   return (req, res) => {
     const header = req.headers["x-request-id"];
-    const requestId = typeof header === "string" && /^[\w-]{8,64}$/.test(header) ? header : randomUUID();
+    const requestId =
+      typeof header === "string" && /^[\w-]{8,64}$/.test(header) ? header : randomUUID();
     res.setHeader("X-Request-Id", requestId);
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
-    const run = () => handle(req, res, requestId).catch((err) => sendError(res, err, requestId));
+    const run = (): Promise<void> =>
+      handle(req, res, requestId).catch((err: unknown) => sendError(res, err, requestId));
     // DEV-04 / specs/013: v2 stores read and write this app's PostgreSQL database for the whole request.
-    if (deps.v2) runWithV2Persistence(deps.pool, run);
-    else void run();
+    if (deps.v2) {
+      void runWithV2Persistence(deps.pool, run);
+    } else {
+      void run();
+    }
   };
 }

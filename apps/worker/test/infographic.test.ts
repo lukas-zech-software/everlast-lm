@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { STUDIO_INFOGRAPHIC_PLUGIN_TYPE, validateSafeDeterministicSvg } from "@everlast/contracts";
+import {
+  STUDIO_INFOGRAPHIC_PLUGIN_TYPE,
+  StudioInfographicPayloadSchema,
+  validateSafeDeterministicSvg,
+} from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   makeStudioChunk,
@@ -23,12 +27,12 @@ describe("[015-studio-visuals-presentations] T015: Infographic worker pipeline, 
       makeStudioChunk(
         91,
         src,
-        "Stage 1 Detection: Automated telemetry monitors Cloud Run endpoints continuously. Stage 2 Triage: On-call engineers classify severity within 5 minutes."
+        "Stage 1 Detection: Automated telemetry monitors Cloud Run endpoints continuously. Stage 2 Triage: On-call engineers classify severity within 5 minutes.",
       ),
       makeStudioChunk(
         92,
         src,
-        "Stage 3 Containment: Affected revisions are fenced immediately with zero data leakage. Stage 4 Recovery: Post-incident verification restores normal service traffic."
+        "Stage 3 Containment: Affected revisions are fenced immediately with zero data leakage. Stage 4 Recovery: Post-incident verification restores normal service traffic.",
       ),
     ];
     const snapshot = [{ source_id: src, revision: 1 }];
@@ -59,7 +63,7 @@ describe("[015-studio-visuals-presentations] T015: Infographic worker pipeline, 
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const payload = outcome.payload as any;
+    const payload = StudioInfographicPayloadSchema.parse(outcome.payload);
     expect(payload.style).toBe("process_flow");
     expect(payload.structured_blocks.length).toBeGreaterThanOrEqual(4);
     expect(validateSafeDeterministicSvg(payload.rendered_svg).valid).toBe(true);
@@ -73,7 +77,12 @@ describe("[015-studio-visuals-presentations] T015: Infographic worker pipeline, 
     const fixture = buildThreeSourceStudioFixture();
     const model = new DeterministicInfographicModel();
 
-    for (const style of ["auto", "comparison", "metrics_summary", "architecture_diagram"] as const) {
+    for (const style of [
+      "auto",
+      "comparison",
+      "metrics_summary",
+      "architecture_diagram",
+    ] as const) {
       const outcome = await generateInfographic({
         chunks: fixture.chunks,
         snapshot: fixture.snapshot,
@@ -84,8 +93,10 @@ describe("[015-studio-visuals-presentations] T015: Infographic worker pipeline, 
       });
       expect(outcome.status).toBe("completed");
       if (outcome.status !== "completed") continue;
-      const p = outcome.payload as any;
-      expect(["process_flow", "comparison", "metrics_summary", "architecture_diagram"]).toContain(p.style);
+      const p = StudioInfographicPayloadSchema.parse(outcome.payload);
+      expect(["process_flow", "comparison", "metrics_summary", "architecture_diagram"]).toContain(
+        p.style,
+      );
       expect(validateInfographicPayload(p, fixture.chunks, fixture.snapshot)).toBeNull();
       expect(JSON.stringify(p)).not.toContain(STUDIO_LEAK_PROBE);
     }
@@ -114,11 +125,11 @@ describe("[015-studio-visuals-presentations] T015: Infographic worker pipeline, 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
 
-    const badSvg = structuredClone(outcome.payload) as any;
+    const badSvg = StudioInfographicPayloadSchema.parse(structuredClone(outcome.payload));
     badSvg.rendered_svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><script>alert(1)</script></svg>`;
     expect(validateInfographicPayload(badSvg, fixture.chunks, fixture.snapshot)).not.toBeNull();
 
-    const badCite = structuredClone(outcome.payload) as any;
+    const badCite = StudioInfographicPayloadSchema.parse(structuredClone(outcome.payload));
     const out = fixture.unselectedChunks[0]!;
     badCite.citations.push({
       badge_number: 99,

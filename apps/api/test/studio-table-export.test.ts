@@ -24,8 +24,20 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
+
+interface TableExportArtifact {
+  id: string;
+  status: string;
+  payload_json: {
+    rows: Array<{ item_id: string; item_label: string }>;
+  };
+}
+
+interface TableExportArtifactResponse {
+  artifact: TableExportArtifact;
+}
 
 const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
 
@@ -39,9 +51,13 @@ async function seed(nb: string, title: string, pages: string[]) {
   });
 }
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+async function waitTerminal(nb: string, id: string): Promise<TableExportArtifactResponse> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<TableExportArtifactResponse>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts/${id}`,
+    );
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -70,21 +86,19 @@ function parseRfc4180Csv(rawWithBom: string): { hasBom: boolean; records: string
       } else {
         currentField += ch;
       }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ",") {
+      currentRecord.push(currentField);
+      currentField = "";
+    } else if (ch === "\r" && text[i + 1] === "\n") {
+      currentRecord.push(currentField);
+      records.push(currentRecord);
+      currentRecord = [];
+      currentField = "";
+      i++;
     } else {
-      if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === ",") {
-        currentRecord.push(currentField);
-        currentField = "";
-      } else if (ch === "\r" && text[i + 1] === "\n") {
-        currentRecord.push(currentField);
-        records.push(currentRecord);
-        currentRecord = [];
-        currentField = "";
-        i++;
-      } else {
-        currentField += ch;
-      }
+      currentField += ch;
     }
   }
   if (currentField.length > 0 || currentRecord.length > 0) {
@@ -104,17 +118,22 @@ describe("[011-studio-mindmaps-data-tables] T040: Data Table CSV/XLSX export, fo
       `2026 Pricing Addendum: Vendor Alpha Enterprise Plan costs $12/month per seat effective immediately.`,
     ]);
 
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "data_table",
-      subtype: "default",
-      active_source_ids: [s1.sourceId],
-      schema_id: "vendor_comparison",
-    });
+    const created = await n.call<TableExportArtifactResponse>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "data_table",
+        subtype: "default",
+        active_source_ids: [s1.sourceId],
+        schema_id: "vendor_comparison",
+      },
+    );
     expect(created.status).toBe(202);
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
     const artifactId = done.artifact.id;
-    const rows = done.artifact.payload_json.rows as { item_id: string; item_label: string }[];
+    const rows = done.artifact.payload_json.rows;
     expect(rows.length).toBeGreaterThanOrEqual(3);
 
     // 1. Filtering / incomplete ordered_row_ids -> 422 ValidationError
@@ -126,7 +145,7 @@ describe("[011-studio-mindmaps-data-tables] T040: Data Table CSV/XLSX export, fo
     expect(filteredRes.status).toBe(422);
 
     // 2. Reversed full permutation ordered_row_ids -> 200 RFC 4180 CSV with UTF-8 BOM
-    const reversedIds = [...rows.map((r) => r.item_id)].reverse();
+    const reversedIds = rows.map((r) => r.item_id).reverse();
     const csvRes = await n.api.fetch(`${studio(nb)}/artifacts/${artifactId}/export`, {
       method: "POST",
       as: OWNER,
@@ -139,7 +158,7 @@ describe("[011-studio-mindmaps-data-tables] T040: Data Table CSV/XLSX export, fo
 
     const csvBytes = new Uint8Array(await csvRes.arrayBuffer());
     // UTF-8 BOM bytes: EF BB BF
-    expect(Array.from(csvBytes.subarray(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
+    expect([...csvBytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const csvText = new TextDecoder("utf-8", { ignoreBOM: true }).decode(csvBytes);
     const parsedCsv = parseRfc4180Csv(csvText);
     expect(parsedCsv.hasBom).toBe(true);
@@ -169,15 +188,15 @@ describe("[011-studio-mindmaps-data-tables] T040: Data Table CSV/XLSX export, fo
     });
     expect(xlsxRes.status).toBe(200);
     expect(xlsxRes.headers.get("content-type")).toContain(
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     const xlsxBytes = new Uint8Array(await xlsxRes.arrayBuffer());
     // ZIP magic bytes: PK\x03\x04 (0x50, 0x4b, 0x03, 0x04)
-    expect(Array.from(xlsxBytes.subarray(0, 4))).toEqual([0x50, 0x4b, 0x03, 0x04]);
+    expect([...xlsxBytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
 
     // Independently open and inspect the OOXML workbook with ExcelJS
     const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(xlsxBytes.buffer as ArrayBuffer);
+    await wb.xlsx.load(xlsxBytes.buffer);
     const sheet = wb.getWorksheet("Data Table");
     expect(sheet).toBeDefined();
     let formulaCellCount = 0;
@@ -185,7 +204,7 @@ describe("[011-studio-mindmaps-data-tables] T040: Data Table CSV/XLSX export, fo
     sheet!.eachRow((row) => {
       row.eachCell((cell) => {
         if (cell.formula) formulaCellCount += 1;
-        allCellTexts.push(String(cell.value ?? ""));
+        allCellTexts.push(cell.text);
       });
     });
     expect(formulaCellCount).toBe(0);

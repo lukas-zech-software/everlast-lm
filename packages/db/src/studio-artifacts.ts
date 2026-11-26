@@ -65,120 +65,149 @@ export interface StudioClaimResult {
 }
 
 export interface StudioArtifactRepository {
-  createQueued(input: CreateQueuedStudioArtifactInput): Promise<StudioArtifactRecord>;
-  createRetry(input: CreateStudioRetryInput): Promise<StudioArtifactRecord>;
-  getById(id: string): Promise<StudioArtifactRecord | null>;
-  get(notebookId: string, ownerId: string, id: string): Promise<StudioArtifactRecord | null>;
-  list(notebookId: string, ownerId: string): Promise<StudioArtifactSummary[]>;
-  markRunning(id: string): Promise<StudioArtifactRecord>;
-  claimExecution?(id: string, leaseDurationSeconds?: number): Promise<StudioClaimResult | null>;
-  updateProgress(id: string, progress: StudioProgress): Promise<StudioArtifactRecord>;
-  complete(id: string, payload: StudioPayloadJson): Promise<StudioArtifactRecord>;
-  completeWithFence?(
+  createQueued: (input: CreateQueuedStudioArtifactInput) => Promise<StudioArtifactRecord>;
+  createRetry: (input: CreateStudioRetryInput) => Promise<StudioArtifactRecord>;
+  getById: (id: string) => Promise<StudioArtifactRecord | null>;
+  get: (notebookId: string, ownerId: string, id: string) => Promise<StudioArtifactRecord | null>;
+  list: (notebookId: string, ownerId: string) => Promise<StudioArtifactSummary[]>;
+  markRunning: (id: string) => Promise<StudioArtifactRecord>;
+  claimExecution?: (id: string, leaseDurationSeconds?: number) => Promise<StudioClaimResult | null>;
+  updateProgress: (id: string, progress: StudioProgress) => Promise<StudioArtifactRecord>;
+  complete: (id: string, payload: StudioPayloadJson) => Promise<StudioArtifactRecord>;
+  completeWithFence?: (
     id: string,
     payload: StudioPayloadJson,
-    options?: { leaseToken?: string | undefined }
-  ): Promise<StudioArtifactRecord>;
-  fail(id: string, failure: StudioFailure): Promise<StudioArtifactRecord>;
+    options?: { leaseToken?: string | undefined },
+  ) => Promise<StudioArtifactRecord>;
+  fail: (id: string, failure: StudioFailure) => Promise<StudioArtifactRecord>;
   /** Extends an active lease; false when the lease was lost (cancelled, reclaimed or terminal) (FR-017). */
-  renewLease?(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean>;
+  renewLease?: (id: string, leaseToken: string, leaseDurationSeconds: number) => Promise<boolean>;
   /** Fails the attempt only while `leaseToken` still owns it; null when another owner or a terminal state won. */
-  failWithFence?(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null>;
-  cancel(id: string, message?: string): Promise<StudioArtifactRecord>;
-  delete(notebookId: string, ownerId: string, id: string): Promise<boolean>;
-  deleteForNotebook(notebookId: string): Promise<void>;
+  failWithFence?: (
+    id: string,
+    failure: StudioFailure,
+    leaseToken: string,
+  ) => Promise<StudioArtifactRecord | null>;
+  cancel: (id: string, message?: string) => Promise<StudioArtifactRecord>;
+  delete: (notebookId: string, ownerId: string, id: string) => Promise<boolean>;
+  deleteForNotebook: (notebookId: string) => Promise<void>;
+}
+
+function requireFirstRow<T>(rows: T[], context: string): T {
+  const row = rows[0];
+  if (!row) throw new Error(`Expected row for ${context}`);
+  return row;
+}
+
+function toArtifactPayload(payload: StudioPayloadJson | null): StudioArtifact["payload_json"] {
+  return payload as unknown as StudioArtifact["payload_json"];
 }
 
 export class InMemoryStudioArtifactRepository implements StudioArtifactRepository {
   private readonly rows = new Map<string, StudioArtifactRecord>();
-  private readonly leases = new Map<string, { token: string; expiresAt: number; version: number }>();
+  private readonly leases = new Map<
+    string,
+    { token: string; expiresAt: number; version: number }
+  >();
   private readonly order: string[] = [];
 
-  async createQueued(input: CreateQueuedStudioArtifactInput): Promise<StudioArtifactRecord> {
-    return this.insert(input, 1, null);
+  createQueued(input: CreateQueuedStudioArtifactInput): Promise<StudioArtifactRecord> {
+    return Promise.resolve(this.insert(input, 1, null));
   }
 
-  async createRetry(input: CreateStudioRetryInput): Promise<StudioArtifactRecord> {
+  createRetry(input: CreateStudioRetryInput): Promise<StudioArtifactRecord> {
     const prev = this.rows.get(input.previous_id);
-    if (!prev || prev.owner_id !== input.owner_id) {
-      throw new StudioRetryNotAllowedError("Artifact not found");
+    if (prev?.owner_id !== input.owner_id) {
+      return Promise.reject(new StudioRetryNotAllowedError("Artifact not found"));
     }
     if (prev.status !== "Failed" && prev.status !== "Cancelled") {
-      throw new StudioRetryNotAllowedError();
+      return Promise.reject(new StudioRetryNotAllowedError());
     }
-    return this.insert(
-      {
-        notebook_id: prev.notebook_id,
-        owner_id: prev.owner_id,
-        plugin_type: prev.plugin_type,
-        subtype: prev.subtype,
-        title: prev.title,
-        params_json: prev.params_json,
-        snapshot: input.snapshot,
-        output_language: input.output_language ?? prev.output_language ?? undefined,
-      },
-      prev.attempt + 1,
-      prev.id
+    return Promise.resolve(
+      this.insert(
+        {
+          notebook_id: prev.notebook_id,
+          owner_id: prev.owner_id,
+          plugin_type: prev.plugin_type,
+          subtype: prev.subtype,
+          title: prev.title,
+          params_json: prev.params_json,
+          snapshot: input.snapshot,
+          output_language: input.output_language ?? prev.output_language ?? undefined,
+        },
+        prev.attempt + 1,
+        prev.id,
+      ),
     );
   }
 
-  async getById(id: string): Promise<StudioArtifactRecord | null> {
+  getById(id: string): Promise<StudioArtifactRecord | null> {
     const row = this.rows.get(id);
-    return row ? structuredClone(row) : null;
+    return Promise.resolve(row ? structuredClone(row) : null);
   }
 
-  async get(notebookId: string, ownerId: string, id: string): Promise<StudioArtifactRecord | null> {
+  get(notebookId: string, ownerId: string, id: string): Promise<StudioArtifactRecord | null> {
     const row = this.rows.get(id);
-    if (!row || row.notebook_id !== notebookId || row.owner_id !== ownerId) return null;
-    return structuredClone(row);
+    if (row?.notebook_id !== notebookId || row.owner_id !== ownerId) return Promise.resolve(null);
+    return Promise.resolve(structuredClone(row));
   }
 
-  async list(notebookId: string, ownerId: string): Promise<StudioArtifactSummary[]> {
-    return this.order
-      .map((id) => this.rows.get(id)!)
-      .filter((r) => r.notebook_id === notebookId && r.owner_id === ownerId)
+  list(notebookId: string, ownerId: string): Promise<StudioArtifactSummary[]> {
+    const summaries = this.order
+      .map((id) => this.rows.get(id))
+      .filter(
+        (r): r is StudioArtifactRecord => r?.notebook_id === notebookId && r.owner_id === ownerId,
+      )
       .map(({ payload_json: _payload, ...summary }) => structuredClone(summary));
+    return Promise.resolve(summaries);
   }
 
   markRunning(id: string): Promise<StudioArtifactRecord> {
     return this.transition(id, "Running", () => ({ progress: { stage: "reading", percent: 0 } }));
   }
 
-  async claimExecution(id: string, leaseDurationSeconds = 120): Promise<StudioClaimResult | null> {
+  claimExecution(id: string, leaseDurationSeconds = 120): Promise<StudioClaimResult | null> {
     const row = this.rows.get(id);
-    if (!row) return null;
+    if (!row) return Promise.resolve(null);
     const now = Date.now();
     const currentLease = this.leases.get(id);
-    if (row.status === "Queued" || (row.status === "Running" && (!currentLease || currentLease.expiresAt <= now))) {
+    if (
+      row.status === "Queued" ||
+      (row.status === "Running" && (!currentLease || currentLease.expiresAt <= now))
+    ) {
       row.status = "Running";
       row.progress ??= { stage: "reading", percent: 0 };
       row.updated_at = new Date(now).toISOString();
       const token = randomUUID();
       const version = (currentLease?.version ?? 1) + 1;
       this.leases.set(id, { token, expiresAt: now + leaseDurationSeconds * 1000, version });
-      return { artifact: structuredClone(row), leaseToken: token, version };
+      return Promise.resolve({ artifact: structuredClone(row), leaseToken: token, version });
     }
-    return null;
+    return Promise.resolve(null);
   }
 
-  async updateProgress(id: string, progress: StudioProgress): Promise<StudioArtifactRecord> {
-    const row = this.require(id);
+  updateProgress(id: string, progress: StudioProgress): Promise<StudioArtifactRecord> {
+    const row = this.rows.get(id);
+    if (!row) return Promise.reject(new Error(`Studio artifact ${id} not found`));
     if (row.status !== "Running") {
-      throw new InvalidStudioTransitionError(row.status, "Running");
+      return Promise.reject(new InvalidStudioTransitionError(row.status, "Running"));
     }
     row.progress = progress;
     row.updated_at = new Date().toISOString();
-    return structuredClone(row);
+    return Promise.resolve(structuredClone(row));
   }
 
   complete(id: string, payload: StudioPayloadJson): Promise<StudioArtifactRecord> {
-    return this.transition(id, "Completed", () => ({ payload_json: payload as any, progress: null }));
+    return this.transition(id, "Completed", () => ({
+      payload_json: toArtifactPayload(payload),
+      progress: null,
+    }));
   }
 
   async completeWithFence(
     id: string,
     payload: StudioPayloadJson,
-    options?: { leaseToken?: string | undefined }
+    options?: { leaseToken?: string | undefined },
   ): Promise<StudioArtifactRecord> {
     const lease = this.leases.get(id);
     if (options?.leaseToken && lease && lease.token !== options.leaseToken) {
@@ -193,16 +222,24 @@ export class InMemoryStudioArtifactRepository implements StudioArtifactRepositor
     return this.transition(id, "Failed", () => ({ failure, progress: null }));
   }
 
-  async renewLease(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean> {
+  renewLease(id: string, leaseToken: string, leaseDurationSeconds: number): Promise<boolean> {
     const lease = this.leases.get(id);
-    if (!lease || lease.token !== leaseToken || this.rows.get(id)?.status !== "Running") return false;
+    if (lease?.token !== leaseToken || this.rows.get(id)?.status !== "Running") {
+      return Promise.resolve(false);
+    }
     lease.expiresAt = Date.now() + leaseDurationSeconds * 1000;
-    return true;
+    return Promise.resolve(true);
   }
 
-  async failWithFence(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null> {
+  async failWithFence(
+    id: string,
+    failure: StudioFailure,
+    leaseToken: string,
+  ): Promise<StudioArtifactRecord | null> {
     const lease = this.leases.get(id);
-    if (!lease || lease.token !== leaseToken || this.rows.get(id)?.status !== "Running") return null;
+    if (lease?.token !== leaseToken || this.rows.get(id)?.status !== "Running") {
+      return null;
+    }
     return this.fail(id, failure);
   }
 
@@ -214,29 +251,30 @@ export class InMemoryStudioArtifactRepository implements StudioArtifactRepositor
     }));
   }
 
-  async delete(notebookId: string, ownerId: string, id: string): Promise<boolean> {
+  delete(notebookId: string, ownerId: string, id: string): Promise<boolean> {
     const row = this.rows.get(id);
-    if (!row || row.notebook_id !== notebookId || row.owner_id !== ownerId) return false;
+    if (row?.notebook_id !== notebookId || row.owner_id !== ownerId) return Promise.resolve(false);
     this.rows.delete(id);
     this.leases.delete(id);
     this.order.splice(this.order.indexOf(id), 1);
-    return true;
+    return Promise.resolve(true);
   }
 
-  async deleteForNotebook(notebookId: string): Promise<void> {
-    for (const [id, row] of [...this.rows]) {
+  deleteForNotebook(notebookId: string): Promise<void> {
+    for (const [id, row] of this.rows) {
       if (row.notebook_id === notebookId) {
         this.rows.delete(id);
         this.leases.delete(id);
         this.order.splice(this.order.indexOf(id), 1);
       }
     }
+    return Promise.resolve();
   }
 
   private insert(
     input: CreateQueuedStudioArtifactInput,
     attempt: number,
-    retryOf: string | null
+    retryOf: string | null,
   ): StudioArtifactRecord {
     const now = new Date().toISOString();
     const row: StudioArtifactRecord = {
@@ -263,23 +301,18 @@ export class InMemoryStudioArtifactRepository implements StudioArtifactRepositor
     return structuredClone(row);
   }
 
-  private require(id: string): StudioArtifactRecord {
-    const row = this.rows.get(id);
-    if (!row) throw new Error(`Studio artifact ${id} not found`);
-    return row;
-  }
-
-  private async transition(
+  private transition(
     id: string,
     to: StudioJobStatus,
-    patch: () => Partial<StudioArtifactRecord>
+    patch: () => Partial<StudioArtifactRecord>,
   ): Promise<StudioArtifactRecord> {
-    const row = this.require(id);
+    const row = this.rows.get(id);
+    if (!row) return Promise.reject(new Error(`Studio artifact ${id} not found`));
     if (!canTransitionStudioStatus(row.status, to)) {
-      throw new InvalidStudioTransitionError(row.status, to);
+      return Promise.reject(new InvalidStudioTransitionError(row.status, to));
     }
     Object.assign(row, patch(), { status: to, updated_at: new Date().toISOString() });
-    return structuredClone(row);
+    return Promise.resolve(structuredClone(row));
   }
 }
 
@@ -321,7 +354,7 @@ function toRecord(r: StudioRow): StudioArtifactRecord {
     status: r.status,
     title: r.title,
     params_json: r.params_json,
-    payload_json: r.payload_json as any,
+    payload_json: toArtifactPayload(r.payload_json),
     source_revisions_snapshot: r.source_revisions_snapshot,
     output_language: r.output_language,
     progress: r.progress_json,
@@ -356,7 +389,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         });
         return record;
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
@@ -365,8 +398,10 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
       this.pool,
       async (client) => {
         const prev = await this.locked(client, input.previous_id);
-        if (!prev || prev.owner_id !== input.owner_id) throw new StudioRetryNotAllowedError("Artifact not found");
-        if (prev.status !== "Failed" && prev.status !== "Cancelled") throw new StudioRetryNotAllowedError();
+        if (prev?.owner_id !== input.owner_id)
+          throw new StudioRetryNotAllowedError("Artifact not found");
+        if (prev.status !== "Failed" && prev.status !== "Cancelled")
+          throw new StudioRetryNotAllowedError();
         const record = await this.insert(
           client,
           {
@@ -380,7 +415,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
             output_language: input.output_language ?? prev.output_language ?? undefined,
           },
           prev.attempt + 1,
-          prev.id
+          prev.id,
         );
         const shouldEnqueueOutbox = input.enqueueOutbox ?? prev.plugin_type !== "report";
         if (shouldEnqueueOutbox) {
@@ -391,19 +426,22 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         }
         return record;
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
   async getById(id: string): Promise<StudioArtifactRecord | null> {
-    const { rows } = await this.pool.query<StudioRow>(`SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE id = $1`, [id]);
+    const { rows } = await this.pool.query<StudioRow>(
+      `SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE id = $1`,
+      [id],
+    );
     return rows[0] ? toRecord(rows[0]) : null;
   }
 
   async get(notebookId: string, ownerId: string, id: string): Promise<StudioArtifactRecord | null> {
     const { rows } = await this.pool.query<StudioRow>(
       `SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE id = $1 AND notebook_id = $2 AND owner_id = $3`,
-      [id, notebookId, ownerId]
+      [id, notebookId, ownerId],
     );
     return rows[0] ? toRecord(rows[0]) : null;
   }
@@ -411,7 +449,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
   async list(notebookId: string, ownerId: string): Promise<StudioArtifactSummary[]> {
     const { rows } = await this.pool.query<StudioRow>(
       `SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE notebook_id = $1 AND owner_id = $2 ORDER BY seq`,
-      [notebookId, ownerId]
+      [notebookId, ownerId],
     );
     return rows.map((r) => {
       const { payload_json: _payload, ...summary } = toRecord(r);
@@ -437,7 +475,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         if (row.status === "Running" && row.lease_token !== null && row.lease_expires_at !== null) {
           const { rows: check } = await client.query<{ expired: boolean }>(
             "SELECT ($1::timestamptz <= now()) AS expired",
-            [row.lease_expires_at]
+            [row.lease_expires_at],
           );
           if (!check[0]?.expired) return null;
         }
@@ -452,12 +490,12 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
                   updated_at = now()
             WHERE id = $1
             RETURNING ${STUDIO_COLUMNS}`,
-          [id, token, leaseDurationSeconds]
+          [id, token, leaseDurationSeconds],
         );
-        const updated = rows[0]!;
+        const updated = requireFirstRow(rows, "claimExecution");
         return { artifact: toRecord(updated), leaseToken: token, version: updated.version };
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
@@ -469,11 +507,11 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         if (row.status !== "Running") throw new InvalidStudioTransitionError(row.status, "Running");
         const { rows } = await client.query<StudioRow>(
           `UPDATE studio_artifacts SET progress_json = $2, updated_at = now() WHERE id = $1 RETURNING ${STUDIO_COLUMNS}`,
-          [id, JSON.stringify(progress)]
+          [id, JSON.stringify(progress)],
         );
-        return toRecord(rows[0]!);
+        return toRecord(requireFirstRow(rows, "updateProgress"));
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
@@ -489,7 +527,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
   async completeWithFence(
     id: string,
     payload: StudioPayloadJson,
-    options?: { leaseToken?: string | undefined }
+    options?: { leaseToken?: string | undefined },
   ): Promise<StudioArtifactRecord> {
     return withTransaction(
       this.pool,
@@ -498,14 +536,20 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         if (row.status !== "Running") {
           throw new InvalidStudioTransitionError(row.status, "Completed");
         }
-        if (options?.leaseToken && row.lease_token !== null && row.lease_token !== options.leaseToken) {
-          throw new StudioLeaseFenceError("Studio job lease token does not match the active worker lease.");
+        if (
+          options?.leaseToken &&
+          row.lease_token !== null &&
+          row.lease_token !== options.leaseToken
+        ) {
+          throw new StudioLeaseFenceError(
+            "Studio job lease token does not match the active worker lease.",
+          );
         }
 
         // Verify notebook ownership under FOR SHARE
         const nbRes = await client.query<{ owner_id: string }>(
           "SELECT owner_id FROM notebooks WHERE id = $1 FOR SHARE",
-          [row.notebook_id]
+          [row.notebook_id],
         );
         if (nbRes.rows[0]?.owner_id !== row.owner_id) {
           const { rows: failedRows } = await client.query<StudioRow>(
@@ -520,25 +564,35 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
                     updated_at = now()
               WHERE id = $1
               RETURNING ${STUDIO_COLUMNS}`,
-            [id, JSON.stringify({ code: "Unauthorized", message: "Access to the selected sources was revoked." })]
+            [
+              id,
+              JSON.stringify({
+                code: "Unauthorized",
+                message: "Access to the selected sources was revoked.",
+              }),
+            ],
           );
-          return toRecord(failedRows[0]!);
+          return toRecord(requireFirstRow(failedRows, "completeWithFence unauthorized"));
         }
 
         // Lock captured sources FOR SHARE in deterministic order to prevent deadlocks with re-sync/delete
         const sourceIds = row.source_revisions_snapshot.map((s) => s.source_id).sort();
-        const srcRes = await client.query<{ id: string; status: string; active_revision: number | null }>(
+        const srcRes = await client.query<{
+          id: string;
+          status: string;
+          active_revision: number | null;
+        }>(
           `SELECT id, status, active_revision
              FROM sources
             WHERE notebook_id = $1 AND id = ANY($2::uuid[])
             ORDER BY id
             FOR SHARE`,
-          [row.notebook_id, sourceIds]
+          [row.notebook_id, sourceIds],
         );
         const bySourceId = new Map(srcRes.rows.map((s) => [s.id, s]));
         for (const pair of row.source_revisions_snapshot) {
           const live = bySourceId.get(pair.source_id);
-          if (!live || live.status !== "Ready" || live.active_revision !== pair.revision) {
+          if (live?.status !== "Ready" || live.active_revision !== pair.revision) {
             const { rows: failedRows } = await client.query<StudioRow>(
               `UPDATE studio_artifacts
                   SET status = 'Failed',
@@ -557,9 +611,9 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
                   code: "SourceChanged",
                   message: `Source ${pair.source_id} changed or is no longer Ready before publication.`,
                 }),
-              ]
+              ],
             );
-            return toRecord(failedRows[0]!);
+            return toRecord(requireFirstRow(failedRows, "completeWithFence sourceChanged"));
           }
         }
 
@@ -574,11 +628,11 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
                   updated_at = now()
             WHERE id = $1
             RETURNING ${STUDIO_COLUMNS}`,
-          [id, JSON.stringify(payload)]
+          [id, JSON.stringify(payload)],
         );
-        return toRecord(rows[0]!);
+        return toRecord(requireFirstRow(rows, "completeWithFence completed"));
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
@@ -590,31 +644,38 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
     const { rowCount } = await this.pool.query(
       `UPDATE studio_artifacts SET lease_expires_at = now() + make_interval(secs => $3)
         WHERE id = $1 AND lease_token = $2 AND status = 'Running'`,
-      [id, leaseToken, leaseDurationSeconds]
+      [id, leaseToken, leaseDurationSeconds],
     );
     return (rowCount ?? 0) > 0;
   }
 
-  async failWithFence(id: string, failure: StudioFailure, leaseToken: string): Promise<StudioArtifactRecord | null> {
+  async failWithFence(
+    id: string,
+    failure: StudioFailure,
+    leaseToken: string,
+  ): Promise<StudioArtifactRecord | null> {
     const { rows } = await this.pool.query<StudioRow>(
       `UPDATE studio_artifacts
           SET status = 'Failed', failure_json = $3, progress_json = NULL, lease_token = NULL, lease_expires_at = NULL,
               version = version + 1, updated_at = now()
         WHERE id = $1 AND lease_token = $2 AND status = 'Running'
         RETURNING ${STUDIO_COLUMNS}`,
-      [id, leaseToken, JSON.stringify(failure)]
+      [id, leaseToken, JSON.stringify(failure)],
     );
     return rows[0] ? toRecord(rows[0]) : null;
   }
 
   cancel(id: string, message = "Cancelled by the owner."): Promise<StudioArtifactRecord> {
-    return this.transition(id, "Cancelled", { failure_json: { code: "Cancelled", message }, progress_json: null });
+    return this.transition(id, "Cancelled", {
+      failure_json: { code: "Cancelled", message },
+      progress_json: null,
+    });
   }
 
   async delete(notebookId: string, ownerId: string, id: string): Promise<boolean> {
     const { rowCount } = await this.pool.query(
       "DELETE FROM studio_artifacts WHERE id = $1 AND notebook_id = $2 AND owner_id = $3",
-      [id, notebookId, ownerId]
+      [id, notebookId, ownerId],
     );
     return (rowCount ?? 0) > 0;
   }
@@ -627,7 +688,7 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
     db: Pool | PoolClient,
     input: CreateQueuedStudioArtifactInput,
     attempt: number,
-    retryOf: string | null
+    retryOf: string | null,
   ): Promise<StudioArtifactRecord> {
     const { rows } = await db.query<StudioRow>(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot, output_language, attempt, retry_of)
@@ -645,13 +706,18 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
         input.output_language ?? null,
         attempt,
         retryOf,
-      ]
+      ],
     );
-    return toRecord(rows[0]!);
+    return toRecord(requireFirstRow(rows, "insert studio artifact"));
   }
 
   private async locked(client: PoolClient, id: string): Promise<StudioRow | undefined> {
-    return (await client.query<StudioRow>(`SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE id = $1 FOR UPDATE`, [id])).rows[0];
+    return (
+      await client.query<StudioRow>(
+        `SELECT ${STUDIO_COLUMNS} FROM studio_artifacts WHERE id = $1 FOR UPDATE`,
+        [id],
+      )
+    ).rows[0];
   }
 
   private async require(client: PoolClient, id: string): Promise<StudioRow> {
@@ -663,13 +729,18 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
   private transition(
     id: string,
     to: StudioJobStatus,
-    patch: { payload_json?: StudioPayloadJson; progress_json?: StudioProgress | null; failure_json?: StudioFailure }
+    patch: {
+      payload_json?: StudioPayloadJson;
+      progress_json?: StudioProgress | null;
+      failure_json?: StudioFailure;
+    },
   ): Promise<StudioArtifactRecord> {
     return withTransaction(
       this.pool,
       async (client) => {
         const row = await this.require(client, id);
-        if (!canTransitionStudioStatus(row.status, to)) throw new InvalidStudioTransitionError(row.status, to);
+        if (!canTransitionStudioStatus(row.status, to))
+          throw new InvalidStudioTransitionError(row.status, to);
         const { rows } = await client.query<StudioRow>(
           `UPDATE studio_artifacts SET status = $2,
              payload_json = CASE WHEN $3::boolean THEN $4::jsonb ELSE payload_json END,
@@ -686,19 +757,22 @@ export class PostgresStudioArtifactRepository implements StudioArtifactRepositor
             "payload_json" in patch,
             JSON.stringify(patch.payload_json ?? null),
             "progress_json" in patch,
-            patch.progress_json === null || patch.progress_json === undefined ? null : JSON.stringify(patch.progress_json),
+            patch.progress_json === null || patch.progress_json === undefined
+              ? null
+              : JSON.stringify(patch.progress_json),
             "failure_json" in patch,
             JSON.stringify(patch.failure_json ?? null),
-          ]
+          ],
         );
-        return toRecord(rows[0]!);
+        return toRecord(requireFirstRow(rows, "insert studio artifact"));
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 }
 
-export const INTERRUPTED_REPORT_MESSAGE = "Report generation was interrupted by a service restart. Retry to generate it again.";
+export const INTERRUPTED_REPORT_MESSAGE =
+  "Report generation was interrupted by a service restart. Retry to generate it again.";
 
 /**
  * R5 restart sweep (FR-010, C-03; specs/013 + specs/011 FR-017): with one API instance, legacy `report` rows
@@ -718,7 +792,7 @@ export async function sweepInterruptedStudioArtifacts(pool: Pool): Promise<numbe
       WHERE plugin_type = 'report'
         AND status IN ('Queued', 'Running')
         AND updated_at < now()`,
-    [JSON.stringify({ code: "GenerationError", message: INTERRUPTED_REPORT_MESSAGE })]
+    [JSON.stringify({ code: "GenerationError", message: INTERRUPTED_REPORT_MESSAGE })],
   );
   return rowCount ?? 0;
 }

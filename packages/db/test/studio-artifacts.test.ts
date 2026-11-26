@@ -4,7 +4,10 @@ import {
   StudioArtifactSchema,
   type StudioReportPayload,
 } from "@everlast/contracts";
-import { InMemoryStudioArtifactRepository, StudioRetryNotAllowedError } from "../src/studio-artifacts.ts";
+import {
+  InMemoryStudioArtifactRepository,
+  StudioRetryNotAllowedError,
+} from "../src/studio-artifacts.ts";
 
 const NB = "11111111-1111-4111-8111-111111111111";
 const NB2 = "22222222-2222-4222-8222-222222222222";
@@ -13,7 +16,13 @@ const OWNER = "owner-1";
 const payload: StudioReportPayload = {
   content_md: "# R [1]",
   citations: [
-    { badge_number: 1, chunk_id: "01890000-0000-7000-8000-000000000001", source_id: SRC, revision: 1, snippet: "s" },
+    {
+      badge_number: 1,
+      chunk_id: "01890000-0000-7000-8000-000000000001",
+      source_id: SRC,
+      revision: 1,
+      snippet: "s",
+    },
   ],
   sections: [{ key: "report", heading: "Report" }],
 };
@@ -51,7 +60,7 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
     expect(done.payload_json).toEqual(payload);
     expect(done.progress).toBeNull();
     await expect(repo.fail(a.id, { code: "GenerationError", message: "x" })).rejects.toBeInstanceOf(
-      InvalidStudioTransitionError
+      InvalidStudioTransitionError,
     );
     await expect(repo.cancel(a.id)).rejects.toBeInstanceOf(InvalidStudioTransitionError);
   });
@@ -84,9 +93,9 @@ describe("C-03 StudioArtifactRepository (in-memory)", () => {
 
   it("creates retries as new attempts only from Failed/Cancelled with a fresh snapshot", async () => {
     const a = await repo.createQueued(input);
-    await expect(repo.createRetry({ previous_id: a.id, owner_id: OWNER, snapshot: input.snapshot })).rejects.toBeInstanceOf(
-      StudioRetryNotAllowedError
-    );
+    await expect(
+      repo.createRetry({ previous_id: a.id, owner_id: OWNER, snapshot: input.snapshot }),
+    ).rejects.toBeInstanceOf(StudioRetryNotAllowedError);
     await repo.markRunning(a.id);
     await repo.fail(a.id, { code: "SourceChanged", message: "changed" });
     const next = await repo.createRetry({

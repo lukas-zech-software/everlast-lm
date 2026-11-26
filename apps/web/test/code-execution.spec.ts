@@ -27,9 +27,14 @@ async function setup(page: Page, prefix: string) {
   return { email, id };
 }
 
-test("CE-E01: Running code… appears ≤2.5 s, then Computed value, inline chart with download and a keyboard-accessible code drawer", async ({ page }) => {
+test("CE-E01: Running code… appears ≤2.5 s, then Computed value, inline chart with download and a keyboard-accessible code drawer", async ({
+  page,
+}) => {
   await setup(page, "ce-e01");
-  const { before, started } = await ask(page, "What is the exact population standard deviation of the monthly latency? Plot the trend.");
+  const { before, started } = await ask(
+    page,
+    "What is the exact population standard deviation of the monthly latency? Plot the trend.",
+  );
   const status = page.getByTestId("chat-status");
   await expect(status).toHaveText("Running code…", { timeout: 2_500 });
   expect(Date.now() - started).toBeLessThanOrEqual(2_500);
@@ -54,32 +59,47 @@ test("CE-E01: Running code… appears ≤2.5 s, then Computed value, inline char
   await expect(answer.getByTestId("code-stdout").first()).toBeVisible();
 });
 
-test("CE-E02: an ambiguous statistical request gets a clarification without Running code…; the answer computes with the current selection", async ({ page }) => {
+test("CE-E02: an ambiguous statistical request gets a clarification without Running code…; the answer computes with the current selection", async ({
+  page,
+}) => {
   await setup(page, "ce-e02");
   const seen: string[] = [];
   page.on("response", async (res) => {
     if (res.url().includes("/chat/turns")) seen.push(await res.text().catch(() => ""));
   });
-  const first = await ask(page, "What is the exact standard deviation of the monthly latency and plot the trend?");
-  await expect(page.getByTestId("message-assistant")).toHaveCount(first.before + 1, { timeout: 20_000 });
+  const first = await ask(
+    page,
+    "What is the exact standard deviation of the monthly latency and plot the trend?",
+  );
+  await expect(page.getByTestId("message-assistant")).toHaveCount(first.before + 1, {
+    timeout: 20_000,
+  });
   const clarification = page.getByTestId("message-assistant").nth(first.before);
   await expect(clarification).toHaveClass(/kind-clarification/);
   await expect(clarification).toContainText(/population or a sample/i);
   await expect(clarification.getByTestId("code-drawer-toggle")).toHaveCount(0);
   expect(seen.join("")).not.toContain("running_code");
   const second = await ask(page, "Population, please.");
-  await expect(page.getByTestId("message-assistant")).toHaveCount(second.before + 1, { timeout: 20_000 });
-  await expect(page.getByTestId("message-assistant").nth(second.before).locator(".computed-label")).toHaveCount(1);
+  await expect(page.getByTestId("message-assistant")).toHaveCount(second.before + 1, {
+    timeout: 20_000,
+  });
+  await expect(
+    page.getByTestId("message-assistant").nth(second.before).locator(".computed-label"),
+  ).toHaveCount(1);
 });
 
-test("CE-E03: Send stays disabled until sources and history are loaded (readiness gate kept)", async ({ page }) => {
+test("CE-E03: Send stays disabled until sources and history are loaded (readiness gate kept)", async ({
+  page,
+}) => {
   const { id } = await setup(page, "ce-e03");
   await page.route(`**/api/notebooks/${id}/chat`, async (route) => {
     await new Promise((r) => setTimeout(r, 800));
     await route.continue();
   });
   await page.goto(`/notebook/${id}`);
-  await page.getByTestId("chat-input").fill("What is the exact population standard deviation of the monthly latency?");
+  await page
+    .getByTestId("chat-input")
+    .fill("What is the exact population standard deviation of the monthly latency?");
   await expect(page.getByTestId("send")).toBeDisabled();
   await expect(page.getByTestId("send")).toBeEnabled({ timeout: 10_000 });
 });

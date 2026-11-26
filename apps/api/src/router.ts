@@ -46,7 +46,10 @@ export class Router {
   }
 
   /** Returns the handler for the path, `"method"` when only the method mismatches, or null. */
-  match(method: string, path: string): { handler: Handler; params: Record<string, string> } | "method" | null {
+  match(
+    method: string,
+    path: string,
+  ): { handler: Handler; params: Record<string, string> } | "method" | null {
     let pathMatched = false;
     for (const route of this.routes) {
       const m = route.regex.exec(path);
@@ -54,7 +57,12 @@ export class Router {
       pathMatched = true;
       if (route.method !== method) continue;
       const params: Record<string, string> = {};
-      route.keys.forEach((key, i) => (params[key] = decodeURIComponent(m[i + 1]!)));
+      route.keys.forEach((key, i) => {
+        const value = m[i + 1];
+        if (value !== undefined) {
+          params[key] = decodeURIComponent(value);
+        }
+      });
       return { handler: route.handler, params };
     }
     return pathMatched ? "method" : null;

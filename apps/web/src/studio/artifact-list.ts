@@ -18,7 +18,7 @@ export interface StudioRow {
 
 export interface StudioArtifactListOptions {
   api: StudioApi;
-  clipboard: { writeText(text: string): Promise<void> };
+  clipboard: { writeText: (text: string) => Promise<void> };
 }
 
 export interface ArtifactView {
@@ -26,7 +26,14 @@ export interface ArtifactView {
   unavailable?: { code: string; message: string } | undefined;
 }
 
-const isActive = (status: ArtifactDto["status"]): boolean => status === "Queued" || status === "Running";
+const isActive = (status: ArtifactDto["status"]): boolean =>
+  status === "Queued" || status === "Running";
+
+function formatArtifactLabel(artifact: ArtifactDto): string {
+  if (isActive(artifact.status)) return `Generating ${artifact.title}...`;
+  if (artifact.failure) return `${artifact.title} — ${artifact.failure.message}`;
+  return artifact.title;
+}
 
 /** Studio artifact list and actions (FR-ST-08/10/18, FR-008, FR-017). */
 export class StudioArtifactListController {
@@ -58,7 +65,7 @@ export class StudioArtifactListController {
   rows(): StudioRow[] {
     return this.artifacts.map((a) => ({
       id: a.id,
-      plugin_type: a.plugin_type ?? "report",
+      plugin_type: a.plugin_type,
       subtype: a.subtype,
       status: a.status,
       title: a.title,
@@ -73,7 +80,7 @@ export class StudioArtifactListController {
           a.plugin_type === "slide_deck" ||
           a.plugin_type === "infographic"),
       failure: a.failure?.message ?? null,
-      label: isActive(a.status) ? `Generating ${a.title}...` : a.failure ? `${a.title} — ${a.failure.message}` : a.title,
+      label: formatArtifactLabel(a),
     }));
   }
 

@@ -99,28 +99,28 @@ function sha256Hex(input: string): string {
  */
 
 export class EmptyScopeError extends AppError {
-  constructor(message: string = "active_source_ids must contain at least one Ready source ID") {
+  constructor(message = "active_source_ids must contain at least one Ready source ID") {
     super("EmptyScope", 400, message);
     this.name = "EmptyScopeError";
   }
 }
 
 export class InvalidScopeError extends AppError {
-  constructor(message: string = "Invalid scope: cross-notebook or unauthorized source ID") {
+  constructor(message = "Invalid scope: cross-notebook or unauthorized source ID") {
     super("InvalidScope", 403, message);
     this.name = "InvalidScopeError";
   }
 }
 
 export class SourceNotReadyError extends AppError {
-  constructor(message: string = "Selected source is not Ready") {
+  constructor(message = "Selected source is not Ready") {
     super("SourceNotReady", 409, message);
     this.name = "SourceNotReadyError";
   }
 }
 
 export class SourceSnapshotInvalidError extends AppError {
-  constructor(message: string = "Source snapshot invalid: source revision has changed or was deleted") {
+  constructor(message = "Source snapshot invalid: source revision has changed or was deleted") {
     super("SourceSnapshotInvalid", 409, message);
     this.name = "SourceSnapshotInvalidError";
   }
@@ -128,7 +128,7 @@ export class SourceSnapshotInvalidError extends AppError {
 
 export const SourceRevisionPairSchema = z
   .object({
-    source_id: z.string().uuid("source_id must be a valid UUID"),
+    source_id: z.uuid("source_id must be a valid UUID"),
     revision: z.number().int().positive("revision must be a positive integer"),
   })
   .strict();
@@ -137,9 +137,9 @@ export type SourceRevisionPair = z.infer<typeof SourceRevisionPairSchema>;
 
 export const ScopedContextRequestSchema = z
   .object({
-    notebook_id: z.string().uuid("notebook_id must be a valid UUID"),
+    notebook_id: z.uuid("notebook_id must be a valid UUID"),
     active_source_ids: z
-      .array(z.string().uuid("source ID must be a valid UUID"))
+      .array(z.uuid("source ID must be a valid UUID"))
       .min(1, "active_source_ids must contain at least 1 source ID"),
     source_revisions: z.array(SourceRevisionPairSchema).optional(),
     query: z.string().optional(),
@@ -155,10 +155,10 @@ export interface ScopedContextEnvelope extends ScopedContextRequestOutput {
 }
 
 export interface ScopedContextProvider {
-  getScopedContext(
+  getScopedContext: (
     notebook_id: string,
-    active_source_ids: string[]
-  ): Promise<UnifiedDocumentChunk[]>;
+    active_source_ids: string[],
+  ) => Promise<UnifiedDocumentChunk[]>;
 }
 
 export interface CreateEnvelopeInput {
@@ -175,19 +175,19 @@ export interface CreateEnvelopeInput {
  * Enforces non-empty active sources (no "all Ready" server fallback) and normalizes source IDs to a sorted unique set.
  */
 export function createScopedContextEnvelope(input: CreateEnvelopeInput): ScopedContextEnvelope {
-  if (!input.active_source_ids || input.active_source_ids.length === 0) {
+  if (!Array.isArray(input.active_source_ids) || input.active_source_ids.length === 0) {
     throw new EmptyScopeError();
   }
 
   // Normalize duplicate source IDs into a unique sorted set
-  const normalizedSourceIds = Array.from(new Set(input.active_source_ids)).sort();
+  const normalizedSourceIds = [...new Set(input.active_source_ids)].sort();
 
   const validated = ScopedContextRequestSchema.parse({
     notebook_id: input.notebook_id,
     active_source_ids: normalizedSourceIds,
     source_revisions: input.source_revisions,
     query: input.query,
-    purpose: input.purpose || "generation",
+    purpose: input.purpose ?? "generation",
   });
 
   return {
@@ -209,15 +209,15 @@ export interface CacheKeyParams {
  */
 export function computeContextCacheKey(params: CacheKeyParams): string {
   const sortedRevisions = [...params.source_revisions].sort((a, b) =>
-    a.source_id.localeCompare(b.source_id)
+    a.source_id.localeCompare(b.source_id),
   );
 
   const payload = {
     notebook_id: params.notebook_id,
     source_revisions: sortedRevisions,
     subject: params.subject,
-    language: params.language || "default",
-    generation_parameters: params.generation_parameters || {},
+    language: params.language ?? "default",
+    generation_parameters: params.generation_parameters ?? {},
   };
 
   return sha256Hex(JSON.stringify(payload));
@@ -230,7 +230,7 @@ export function computeContextCacheKey(params: CacheKeyParams): string {
  */
 export function isTurnProvenanceEligible(
   turnProvenance: SourceRevisionPair[] | undefined | null,
-  activeSnapshot: SourceRevisionPair[]
+  activeSnapshot: SourceRevisionPair[],
 ): boolean {
   if (!turnProvenance || turnProvenance.length === 0) {
     return false;
@@ -276,12 +276,12 @@ export interface HistoryFilterOptions {
 export function filterConversationHistoryByProvenance(
   history: ConversationTurn[],
   activeSnapshot: SourceRevisionPair[],
-  options?: HistoryFilterOptions
+  options?: HistoryFilterOptions,
 ): ConversationTurn[] {
   const results: ConversationTurn[] = [];
 
   for (const turn of history) {
-    if (!turn.provenance || !turn.provenance.used_sources || turn.provenance.used_sources.length === 0) {
+    if (!turn.provenance?.used_sources || turn.provenance.used_sources.length === 0) {
       continue;
     }
 
@@ -290,8 +290,8 @@ export function filterConversationHistoryByProvenance(
     if (isEligible) {
       results.push(turn);
     } else if (options?.includePlaceholders) {
-      const usedIds = turn.provenance.used_sources.map((s) => s.source_id);
-      const isDeleted = options.deletedSourceIds?.some((d) => usedIds.includes(d));
+      const usedIds = new Set(turn.provenance.used_sources.map((s) => s.source_id));
+      const isDeleted = options.deletedSourceIds?.some((d) => usedIds.has(d));
       results.push({
         ...turn,
         is_placeholder: true,
@@ -309,7 +309,7 @@ export function filterConversationHistoryByProvenance(
 export function validateScopeSourceOwnership(
   notebookId: string,
   activeSourceIds: string[],
-  sourceNotebookMap: Record<string, string>
+  sourceNotebookMap: Record<string, string>,
 ): void {
   for (const sourceId of activeSourceIds) {
     const mappedNb = sourceNotebookMap[sourceId];
@@ -318,7 +318,7 @@ export function validateScopeSourceOwnership(
     }
     if (mappedNb !== notebookId) {
       throw new InvalidScopeError(
-        `Cross-notebook source violation: source ${sourceId} belongs to ${mappedNb}, expected ${notebookId}`
+        `Cross-notebook source violation: source ${sourceId} belongs to ${mappedNb}, expected ${notebookId}`,
       );
     }
   }
@@ -329,13 +329,13 @@ export function validateScopeSourceOwnership(
  */
 export function validateSourceStatusReady(
   activeSourceIds: string[],
-  sourceStatusMap: Record<string, string>
+  sourceStatusMap: Record<string, string>,
 ): void {
   for (const sourceId of activeSourceIds) {
     const status = sourceStatusMap[sourceId];
     if (status !== "Ready") {
       throw new InvalidScopeError(
-        `Non-Ready source status violation: source ${sourceId} is currently ${status || "unknown"}`
+        `Non-Ready source status violation: source ${sourceId} is currently ${status ?? "unknown"}`,
       );
     }
   }
@@ -347,7 +347,7 @@ export function validateSourceStatusReady(
  */
 export function filterScopedChunks(
   snapshot: SourceRevisionPair[],
-  chunks: UnifiedDocumentChunk[]
+  chunks: UnifiedDocumentChunk[],
 ): UnifiedDocumentChunk[] {
   if (snapshot.length === 0) {
     throw new EmptyScopeError();
@@ -356,7 +356,7 @@ export function filterScopedChunks(
   for (const chunk of chunks) {
     if (allowed.get(chunk.source_id) !== chunk.revision) {
       throw new InvalidScopeError(
-        `Scoped result contained chunk ${chunk.chunk_id} outside the captured snapshot`
+        `Scoped result contained chunk ${chunk.chunk_id} outside the captured snapshot`,
       );
     }
   }
@@ -369,7 +369,7 @@ export function filterScopedChunks(
  */
 export function assertInspectionIsolation(
   activeGenerationSet: ReadonlySet<string>,
-  inspectedSourceId: string
+  inspectedSourceId: string,
 ): ReadonlySet<string> {
   const snapshot = new Set(activeGenerationSet);
   if (!inspectedSourceId) {

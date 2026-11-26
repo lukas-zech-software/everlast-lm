@@ -1,11 +1,15 @@
-import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createNotebook,
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
 } from "../src/index.ts";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "../src/testing.ts";
 
 /**
  * [011-studio-mindmaps-data-tables] T005 — PostgreSQL migration 0011 and durable lifecycle tests
@@ -13,15 +17,17 @@ import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase 
  */
 
 let db: TestDatabase;
+let dropDb: (() => Promise<void>) | undefined;
 let repo: PostgresStudioArtifactRepository;
 
 beforeAll(async () => {
   db = await createTestDatabase();
+  dropDb = () => db.drop();
   repo = new PostgresStudioArtifactRepository(db.pool);
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await dropDb?.();
 });
 
 async function setupNotebookWithReadySource() {
@@ -31,7 +37,7 @@ async function setupNotebookWithReadySource() {
     title: "Architecture Spec.pdf",
     mediaType: "application/pdf",
     pages: ["Cloud Run and Cloud SQL PostgreSQL 16 power the regional architecture."],
-    embed: async (texts) => texts.map(() => new Array(768).fill(0.01)),
+    embed: (texts) => Promise.resolve(texts.map(() => Array.from({ length: 768 }, () => 0.01))),
   });
   return {
     owner,
@@ -102,7 +108,7 @@ describe("[011-studio-mindmaps-data-tables] T005: Migration 0011 additive schema
 
     const outbox = await db.pool.query<{ kind: string; payload: Record<string, unknown> }>(
       "SELECT kind, payload FROM jobs WHERE kind = 'studio' AND payload ->> 'artifact_id' = $1",
-      [mindmap.id]
+      [mindmap.id],
     );
     expect(outbox.rows).toHaveLength(1);
     expect(outbox.rows[0]!.payload).toEqual({
@@ -148,7 +154,7 @@ describe("[011-studio-mindmaps-data-tables] T005: Migration 0011 additive schema
 
     await db.pool.query(
       "UPDATE studio_artifacts SET updated_at = now() - interval '2 minutes' WHERE id = ANY($1::uuid[])",
-      [[report.id, mindmap.id]]
+      [[report.id, mindmap.id]],
     );
 
     const sweptCount = await sweepInterruptedStudioArtifacts(db.pool);
@@ -186,7 +192,7 @@ describe("[011-studio-mindmaps-data-tables] T005: Migration 0011 additive schema
     // Expire the lease in DB to simulate worker crash
     await db.pool.query(
       "UPDATE studio_artifacts SET lease_expires_at = now() - interval '5 seconds' WHERE id = $1",
-      [map.id]
+      [map.id],
     );
 
     const claim2 = await repo.claimExecution(map.id, 60);
@@ -197,11 +203,13 @@ describe("[011-studio-mindmaps-data-tables] T005: Migration 0011 additive schema
     // Stale worker (claim1) cannot publish
     const payload = sampleMindmapPayload(sourceId, chunkId);
     await expect(
-      repo.completeWithFence(map.id, payload, { leaseToken: claim1!.leaseToken })
+      repo.completeWithFence(map.id, payload, { leaseToken: claim1!.leaseToken }),
     ).rejects.toThrow(/lease|stale|transition/i);
 
     // Active worker (claim2) publishes cleanly
-    const completed = await repo.completeWithFence(map.id, payload, { leaseToken: claim2!.leaseToken });
+    const completed = await repo.completeWithFence(map.id, payload, {
+      leaseToken: claim2!.leaseToken,
+    });
     expect(completed.status).toBe("Completed");
     expect(completed.payload_json).toEqual(payload);
   });

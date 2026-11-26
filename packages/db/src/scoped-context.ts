@@ -42,12 +42,18 @@ const STOPWORDS = new Set(
     "the a an and or of to in on for with is are was were be been by at as it its this that these those what which who whom " +
     "how why when where does do did from about into than then there their they them can could should would will shall may " +
     "der die das und oder ist sind war waren ein eine einer eines zu im in auf für mit von wie was wer wann wo warum nicht den dem des"
-  ).split(" ")
+  ).split(" "),
 );
 
 /** Builds an OR tsquery from the question's lexemes (only letters/digits, so injection-safe). */
 export function buildOrTsQuery(text: string): string | null {
-  const terms = Array.from(new Set((text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((t) => t.length > 1 && !STOPWORDS.has(t))));
+  const terms = [
+    ...new Set(
+      (text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+        (t) => t.length > 1 && !STOPWORDS.has(t),
+      ),
+    ),
+  ];
   return terms.length ? terms.slice(0, 32).join(" | ") : null;
 }
 
@@ -79,7 +85,7 @@ function toChunk(row: ChunkRow): UnifiedDocumentChunk {
 export async function retrieveScopedChunks(
   pool: Pool,
   snapshot: ScopeSnapshot,
-  options: RetrievalOptions
+  options: RetrievalOptions,
 ): Promise<RetrievedChunk[]> {
   const limit = options.limit ?? 12;
   const candidates = options.candidates ?? 40;
@@ -120,21 +126,31 @@ export async function retrieveScopedChunks(
        WHERE c.notebook_id = $1
        ORDER BY f.score DESC, c.chunk_id
        LIMIT $8`,
-      [snapshot.notebook_id, sourceIds, revisions, toVectorLiteral(options.queryEmbedding), candidates, tsquery, RRF_K, limit]
+      [
+        snapshot.notebook_id,
+        sourceIds,
+        revisions,
+        toVectorLiteral(options.queryEmbedding),
+        candidates,
+        tsquery,
+        RRF_K,
+        limit,
+      ],
     );
     return result.rows;
   });
 
   const chunks = rows.map(toChunk);
   filterScopedChunks(snapshot.sources, chunks);
-  return chunks.map((chunk, i) => ({ ...chunk, score: rows[i]!.score }));
+  const scoreByChunkId = new Map(rows.map((r) => [r.chunk_id, r.score]));
+  return chunks.map((chunk) => ({ ...chunk, score: scoreByChunkId.get(chunk.chunk_id) ?? 0 }));
 }
 
 /** Loads specific chunks of a snapshot by ID (citation hydration); foreign IDs are simply not returned. */
 export async function getSnapshotChunksByIds(
   db: Queryable,
   snapshot: ScopeSnapshot,
-  chunkIds: string[]
+  chunkIds: string[],
 ): Promise<UnifiedDocumentChunk[]> {
   const ids = chunkIds.filter(isUuid);
   if (ids.length === 0) return [];
@@ -143,7 +159,12 @@ export async function getSnapshotChunksByIds(
      FROM chunks c JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
        ON s.source_id = c.source_id AND s.revision = c.revision
      WHERE c.notebook_id = $1 AND c.chunk_id = ANY($4::uuid[])`,
-    [snapshot.notebook_id, snapshot.sources.map((p) => p.source_id), snapshot.sources.map((p) => p.revision), ids]
+    [
+      snapshot.notebook_id,
+      snapshot.sources.map((p) => p.source_id),
+      snapshot.sources.map((p) => p.revision),
+      ids,
+    ],
   );
   return filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
 }
@@ -152,7 +173,11 @@ export async function getSnapshotChunksByIds(
  * Loads every chunk of a captured snapshot in reading order (whole-source generation such as Source Guides and
  * Studio reports, D12). Hard-filtered on notebook and (source_id, revision) like retrieval; `limit` bounds work.
  */
-export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, limit = 2000): Promise<UnifiedDocumentChunk[]> {
+export async function listSnapshotChunks(
+  db: Queryable,
+  snapshot: ScopeSnapshot,
+  limit = 2000,
+): Promise<UnifiedDocumentChunk[]> {
   if (snapshot.sources.length === 0) return [];
   const result = await db.query<ChunkRow>(
     `SELECT c.chunk_id, c.source_id, c.revision, c.locator, c.token_count, c.text, 0::float8 AS score
@@ -161,7 +186,12 @@ export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot,
      WHERE c.notebook_id = $1
      ORDER BY c.source_id, c.sequence
      LIMIT $4`,
-    [snapshot.notebook_id, snapshot.sources.map((p) => p.source_id), snapshot.sources.map((p) => p.revision), limit]
+    [
+      snapshot.notebook_id,
+      snapshot.sources.map((p) => p.source_id),
+      snapshot.sources.map((p) => p.revision),
+      limit,
+    ],
   );
   return filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
 }
@@ -172,16 +202,23 @@ export async function listSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot,
  * model work with batches). Each page is hard-filtered on notebook and (source_id, revision) and passes the shared
  * membership check. Chat, Source Guide and Note Assistant keep their bounded `listSnapshotChunks` reads.
  */
-export async function* streamSnapshotChunks(db: Queryable, captured: ScopeSnapshot, pageSize = 500): AsyncGenerator<UnifiedDocumentChunk[], void, unknown> {
+export async function* streamSnapshotChunks(
+  db: Queryable,
+  captured: ScopeSnapshot,
+  pageSize = 500,
+): AsyncGenerator<UnifiedDocumentChunk[], void, unknown> {
   // Freeze caller-owned arrays before the first read; never prefetch ahead of the consumer.
-  const snapshot: ScopeSnapshot = { ...captured, sources: captured.sources.map(p => ({ ...p })) };
-  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 500) throw new RangeError("pageSize must be 1..500");
+  const snapshot: ScopeSnapshot = { ...captured, sources: captured.sources.map((p) => ({ ...p })) };
+  if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 500)
+    throw new RangeError("pageSize must be 1..500");
   await verifyScopeSnapshot(db, snapshot);
   const size = Math.max(1, Math.floor(pageSize));
   let cursor: { source_id: string; sequence: number } | null = null;
   for (;;) {
     await verifyScopeSnapshot(db, snapshot);
-    const result: { rows: (ChunkRow & { sequence: number })[] } = await db.query<ChunkRow & { sequence: number }>(
+    const result: { rows: Array<ChunkRow & { sequence: number }> } = await db.query<
+      ChunkRow & { sequence: number }
+    >(
       `SELECT c.chunk_id, c.source_id, c.revision, c.locator, c.token_count, c.text, c.sequence, 0::float8 AS score
        FROM chunks c JOIN unnest($2::uuid[], $3::int[]) AS s(source_id, revision)
          ON s.source_id = c.source_id AND s.revision = c.revision
@@ -195,7 +232,7 @@ export async function* streamSnapshotChunks(db: Queryable, captured: ScopeSnapsh
         cursor?.source_id ?? null,
         cursor?.sequence ?? 0,
         size,
-      ]
+      ],
     );
     await verifyScopeSnapshot(db, snapshot);
     const page = filterScopedChunks(snapshot.sources, result.rows.map(toChunk));
@@ -208,7 +245,11 @@ export async function* streamSnapshotChunks(db: Queryable, captured: ScopeSnapsh
 }
 
 /** C-02 compatibility adapter. Consumers requiring bounded memory use streamSnapshotChunks. */
-export async function listAllSnapshotChunks(db: Queryable, snapshot: ScopeSnapshot, pageSize = 500): Promise<UnifiedDocumentChunk[]> {
+export async function listAllSnapshotChunks(
+  db: Queryable,
+  snapshot: ScopeSnapshot,
+  pageSize = 500,
+): Promise<UnifiedDocumentChunk[]> {
   const chunks: UnifiedDocumentChunk[] = [];
   for await (const page of streamSnapshotChunks(db, snapshot, pageSize)) chunks.push(...page);
   return chunks;
@@ -262,6 +303,155 @@ export interface InspectorContent {
   player?: { type: string; [key: string]: unknown } | null;
 }
 
+interface InspectionMetaRow {
+  title: string;
+  media_type: string;
+  page_count: number | null;
+  viewer_kind: string | null;
+  media_duration_ms: number | null;
+  player: { type: string } | null;
+  link_kind: string | null;
+  external_url: string | null;
+  canonical_url: string | null;
+  last_synced_at: Date | null;
+}
+
+interface InspectionPageRow {
+  page_number: number;
+  physical_page: number | null;
+  text: string;
+  dom_selector: string | null;
+  start_ms: number | null;
+  end_ms: number | null;
+}
+
+interface HighlightRow {
+  chunk_id: string;
+  anchor_page: number | null;
+  locator: Record<string, number | string>;
+}
+
+function parseInspectionCursor(cursor: string | undefined, revision: number): number {
+  if (!cursor) return 1;
+  const match = /^r(\d+)p(\d+)$/.exec(cursor);
+  if (!match || Number(match[1]) !== revision) {
+    throw new SourceSnapshotInvalidError("Source revision changed; reopen the source");
+  }
+  return Number(match[2]);
+}
+
+function buildHighlight(row: HighlightRow): InspectorHighlight {
+  const loc = row.locator;
+  const page = row.anchor_page ?? Number(loc.page_number);
+  if ("start_ms" in loc) {
+    const start = Number(loc.start_ms);
+    return {
+      chunk_id: row.chunk_id,
+      page_number: page,
+      start_ms: start,
+      end_ms: Number(loc.end_ms),
+      display_time: formatDisplayTime(start),
+    };
+  }
+  if ("selector" in loc) {
+    return {
+      chunk_id: row.chunk_id,
+      page_number: page,
+      selector: String(loc.selector),
+      start_offset: Number(loc.start_offset),
+      end_offset: Number(loc.end_offset),
+    };
+  }
+  return {
+    chunk_id: row.chunk_id,
+    page_number: page,
+    start_offset: Number(loc.start_offset),
+    end_offset: Number(loc.end_offset),
+  };
+}
+
+async function loadInspectionHighlight(
+  tx: Queryable,
+  input: { notebookId: string; sourceId: string; revision: number; highlightChunkId?: string },
+): Promise<InspectorHighlight | null> {
+  if (!input.highlightChunkId || !isUuid(input.highlightChunkId)) return null;
+  const h = await tx.query<HighlightRow>(
+    "SELECT chunk_id, anchor_page, locator FROM chunks WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND chunk_id = $4",
+    [input.notebookId, input.sourceId, input.revision, input.highlightChunkId],
+  );
+  return h.rows[0] ? buildHighlight(h.rows[0]) : null;
+}
+
+function toInspectorPage(row: InspectionPageRow): InspectorPage {
+  return {
+    page_number: row.page_number,
+    ...(row.physical_page ? { physical_page: row.physical_page } : {}),
+    text: row.text,
+    ...(row.dom_selector ? { dom_selector: row.dom_selector } : {}),
+    ...(row.start_ms === null || row.end_ms === null
+      ? {}
+      : { start_ms: row.start_ms, end_ms: row.end_ms }),
+  };
+}
+
+function paginateInspectionPages(
+  rows: InspectionPageRow[],
+  revision: number,
+  maxChars: number,
+  highlight: InspectorHighlight | null,
+): { pages: InspectorPage[]; nextCursor: string | null } {
+  const pages: InspectorPage[] = [];
+  let chars = 0;
+  let nextCursor: string | null = null;
+  for (const row of rows) {
+    const mustInclude = highlight !== null && row.page_number <= highlight.page_number;
+    if (pages.length > 0 && chars + row.text.length > maxChars && !mustInclude) {
+      nextCursor = `r${revision}p${row.page_number}`;
+      break;
+    }
+    pages.push(toInspectorPage(row));
+    chars += row.text.length;
+  }
+  return { pages, nextCursor };
+}
+
+function buildTranscriptSegments(pages: InspectorPage[]): TranscriptSegmentView[] {
+  return pages
+    .filter(
+      (p): p is InspectorPage & { start_ms: number; end_ms: number } =>
+        p.start_ms !== undefined && p.end_ms !== undefined,
+    )
+    .map((p) => ({
+      page_number: p.page_number,
+      start_ms: p.start_ms,
+      end_ms: p.end_ms,
+      display_time: formatDisplayTime(p.start_ms),
+      text: p.text,
+    }));
+}
+
+function buildInspectorSourceMeta(
+  sourceId: string,
+  revision: number,
+  pageCount: number,
+  meta: InspectionMetaRow | undefined,
+): InspectorContent["source"] {
+  const viewerKind = (meta?.viewer_kind ?? "pages") as InspectorContent["source"]["viewer_kind"];
+  return {
+    id: sourceId,
+    title: meta?.title ?? "",
+    media_type: meta?.media_type ?? "",
+    revision,
+    page_count: meta?.page_count ?? pageCount,
+    viewer_kind: viewerKind,
+    link_kind: meta?.link_kind ?? null,
+    external_url: meta?.external_url ?? null,
+    canonical_url: meta?.canonical_url ?? null,
+    last_synced_at: meta?.last_synced_at ? meta.last_synced_at.toISOString() : null,
+    media_duration_ms: meta?.media_duration_ms ?? null,
+  };
+}
+
 /**
  * Authorized singleton inspection read (FR-SI-04, C-02). Pages are returned in bounded batches; the cursor
  * binds the immutable revision so pagination never mixes revisions. A highlight chunk that does not belong
@@ -272,119 +462,70 @@ export async function readSourceForInspection(
   ownerId: string,
   notebookId: string,
   sourceId: string,
-  options: { highlightChunkId?: string | undefined; cursor?: string | undefined; maxChars?: number } = {}
+  options: {
+    highlightChunkId?: string | undefined;
+    cursor?: string | undefined;
+    maxChars?: number;
+  } = {},
 ): Promise<InspectorContent> {
   const maxChars = options.maxChars ?? 1_500_000;
   return withTransaction(pool, async (tx) => {
     const snapshot = await captureInspectionScope(tx, ownerId, notebookId, sourceId);
-    const revision = snapshot.sources[0]!.revision;
-
-    let fromPage = 1;
-    if (options.cursor) {
-      const m = /^r(\d+)p(\d+)$/.exec(options.cursor);
-      if (!m || Number(m[1]) !== revision) throw new SourceSnapshotInvalidError("Source revision changed; reopen the source");
-      fromPage = Number(m[2]);
+    const capturedSource = snapshot.sources[0];
+    if (!capturedSource) {
+      throw new SourceSnapshotInvalidError("Inspection scope is empty");
     }
+    const revision = capturedSource.revision;
+    const fromPage = parseInspectionCursor(options.cursor, revision);
 
-    const meta = await tx.query<{
-      title: string;
-      media_type: string;
-      page_count: number | null;
-      viewer_kind: string | null;
-      media_duration_ms: number | null;
-      player: { type: string } | null;
-      link_kind: string | null;
-      external_url: string | null;
-      canonical_url: string | null;
-      last_synced_at: Date | null;
-    }>(
+    const meta = await tx.query<InspectionMetaRow>(
       `SELECT s.title, s.media_type, r.page_count, r.viewer_kind, r.media_duration_ms, r.player, s.link_kind, s.external_url,
               s.canonical_url, s.last_synced_at FROM sources s
        JOIN source_revisions r ON r.notebook_id = s.notebook_id AND r.source_id = s.id AND r.revision = $3
        WHERE s.notebook_id = $1 AND s.id = $2`,
-      [notebookId, sourceId, revision]
+      [notebookId, sourceId, revision],
     );
 
-    let highlight: InspectorContent["highlight"] = null;
-    if (options.highlightChunkId && isUuid(options.highlightChunkId)) {
-      const h = await tx.query<{ chunk_id: string; anchor_page: number | null; locator: Record<string, number | string> }>(
-        "SELECT chunk_id, anchor_page, locator FROM chunks WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND chunk_id = $4",
-        [notebookId, sourceId, revision, options.highlightChunkId]
-      );
-      if (h.rows[0]) {
-        const loc = h.rows[0].locator;
-        const page = h.rows[0].anchor_page ?? Number(loc.page_number);
-        if ("start_ms" in loc) {
-          const start = Number(loc.start_ms);
-          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, start_ms: start, end_ms: Number(loc.end_ms), display_time: formatDisplayTime(start) };
-        } else if ("selector" in loc) {
-          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, selector: String(loc.selector), start_offset: Number(loc.start_offset), end_offset: Number(loc.end_offset) };
-        } else {
-          highlight = { chunk_id: h.rows[0].chunk_id, page_number: page, start_offset: Number(loc.start_offset), end_offset: Number(loc.end_offset) };
-        }
-        if (!options.cursor) fromPage = 1;
-      }
-    }
+    const highlight = await loadInspectionHighlight(tx, {
+      notebookId,
+      sourceId,
+      revision,
+      ...(options.highlightChunkId === undefined
+        ? {}
+        : { highlightChunkId: options.highlightChunkId }),
+    });
 
-    const pageRows = await tx.query<{ page_number: number; physical_page: number | null; text: string; dom_selector: string | null; start_ms: number | null; end_ms: number | null }>(
+    const pageRows = await tx.query<InspectionPageRow>(
       `SELECT page_number, physical_page, text, dom_selector, start_ms, end_ms FROM source_pages
        WHERE notebook_id = $1 AND source_id = $2 AND revision = $3 AND page_number >= $4
        ORDER BY page_number`,
-      [notebookId, sourceId, revision, fromPage]
+      [notebookId, sourceId, revision, fromPage],
     );
-    const pages: InspectorPage[] = [];
-    let chars = 0;
-    let nextCursor: string | null = null;
-    for (const row of pageRows.rows) {
-      const mustInclude = highlight && row.page_number <= highlight.page_number;
-      if (pages.length > 0 && chars + row.text.length > maxChars && !mustInclude) {
-        nextCursor = `r${revision}p${row.page_number}`;
-        break;
-      }
-      pages.push({
-        page_number: row.page_number,
-        ...(row.physical_page ? { physical_page: row.physical_page } : {}),
-        text: row.text,
-        ...(row.dom_selector ? { dom_selector: row.dom_selector } : {}),
-        ...(row.start_ms !== null && row.end_ms !== null ? { start_ms: row.start_ms, end_ms: row.end_ms } : {}),
-      });
-      chars += row.text.length;
-    }
+    const { pages, nextCursor } = paginateInspectionPages(
+      pageRows.rows,
+      revision,
+      maxChars,
+      highlight,
+    );
     const lastPage = pages.at(-1)?.page_number ?? fromPage;
     const chunkRows = await tx.query<ChunkRow>(
       `SELECT chunk_id, source_id, revision, locator, token_count, text, 0::float8 AS score FROM chunks
        WHERE notebook_id = $1 AND source_id = $2 AND revision = $3
          AND coalesce(anchor_page, (locator->>'page_number')::int) BETWEEN $4 AND $5
        ORDER BY sequence`,
-      [notebookId, sourceId, revision, fromPage, lastPage]
+      [notebookId, sourceId, revision, fromPage, lastPage],
     );
     const chunks = filterScopedChunks(snapshot.sources, chunkRows.rows.map(toChunk));
     const m = meta.rows[0];
-    const viewerKind = (m?.viewer_kind ?? "pages") as InspectorContent["source"]["viewer_kind"];
+    const source = buildInspectorSourceMeta(sourceId, revision, pages.length, m);
     return {
-      source: {
-        id: sourceId,
-        title: m?.title ?? "",
-        media_type: m?.media_type ?? "",
-        revision,
-        page_count: m?.page_count ?? pages.length,
-        viewer_kind: viewerKind,
-        link_kind: m?.link_kind ?? null,
-        external_url: m?.external_url ?? null,
-        canonical_url: m?.canonical_url ?? null,
-        last_synced_at: m?.last_synced_at ? m.last_synced_at.toISOString() : null,
-        media_duration_ms: m?.media_duration_ms ?? null,
-      },
+      source,
       pages,
       chunks,
       highlight,
       next_cursor: nextCursor,
-      ...(viewerKind === "transcript"
-        ? {
-            transcript: pages
-              .filter((p) => p.start_ms !== undefined && p.end_ms !== undefined)
-              .map((p) => ({ page_number: p.page_number, start_ms: p.start_ms!, end_ms: p.end_ms!, display_time: formatDisplayTime(p.start_ms!), text: p.text })),
-          }
+      ...(source.viewer_kind === "transcript"
+        ? { transcript: buildTranscriptSegments(pages) }
         : {}),
       player: m?.player ?? null,
     };

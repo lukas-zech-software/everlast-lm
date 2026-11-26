@@ -18,8 +18,31 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
+
+interface StructureArtifactView {
+  id: string;
+  plugin_type: string;
+  status: string;
+  title: string;
+  attempt?: number;
+  retry_of?: string;
+  payload_json: unknown;
+}
+
+interface StructureArtifactEnvelope {
+  artifact: StructureArtifactView;
+  unavailable?: unknown;
+}
+
+interface StructureArtifactListEnvelope {
+  artifacts: StructureArtifactView[];
+}
+
+interface StructureErrorEnvelope {
+  error: { code: string };
+}
 
 const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
 
@@ -33,9 +56,13 @@ async function seed(nb: string, title: string, pages: string[]) {
   });
 }
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+async function waitTerminal(nb: string, id: string): Promise<StructureArtifactEnvelope> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts/${id}`,
+    );
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -50,16 +77,21 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     ]);
 
     // Empty active_source_ids -> 400 EmptyScopeError
-    const emptyRes = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "mindmap",
-      subtype: "default",
-      active_source_ids: [],
-    });
+    const emptyRes = await n.call<StructureErrorEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "mindmap",
+        subtype: "default",
+        active_source_ids: [],
+      },
+    );
     expect(emptyRes.status).toBe(400);
     expect(emptyRes.json.error.code).toBe("EmptyScopeError");
 
     // Unsupported output_language -> 400 UnsupportedOutputLanguage
-    const badLang = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
+    const badLang = await n.call<StructureErrorEnvelope>(OWNER, "POST", `${studio(nb)}/artifacts`, {
       plugin_type: "mindmap",
       subtype: "default",
       active_source_ids: [src.sourceId],
@@ -78,18 +110,27 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     expect(badPrompt.status).toBe(422);
 
     // Valid mindmap creation -> 202
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "mindmap",
-      subtype: "default",
-      active_source_ids: [src.sourceId],
-    });
+    const created = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "mindmap",
+        subtype: "default",
+        active_source_ids: [src.sourceId],
+      },
+    );
     expect(created.status).toBe(202);
     expect(created.json.artifact.plugin_type).toBe("mindmap");
 
     // Non-owner cannot list, read, cancel, or delete (rejected with 403/404)
     expect([403, 404]).toContain((await n.call(OTHER, "GET", `${studio(nb)}/artifacts`)).status);
-    expect([403, 404]).toContain((await n.call(OTHER, "GET", `${studio(nb)}/artifacts/${created.json.artifact.id}`)).status);
-    expect([403, 404]).toContain((await n.call(OTHER, "DELETE", `${studio(nb)}/artifacts/${created.json.artifact.id}`)).status);
+    expect([403, 404]).toContain(
+      (await n.call(OTHER, "GET", `${studio(nb)}/artifacts/${created.json.artifact.id}`)).status,
+    );
+    expect([403, 404]).toContain(
+      (await n.call(OTHER, "DELETE", `${studio(nb)}/artifacts/${created.json.artifact.id}`)).status,
+    );
   });
 
   it("supports cancelling a Queued/Running mindmap or data_table and retrying as attempt 2, while keeping report cancel unavailable (404)", async () => {
@@ -104,18 +145,28 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot)
        VALUES ($1, $2, $3, 'mindmap', 'default', 'Queued', 'Mindmap: Secret Title', '{}'::jsonb, $4)`,
-      [mapId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])]
+      [mapId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])],
     );
 
-    const cancelled = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${mapId}/cancel`, {});
+    const cancelled = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${mapId}/cancel`,
+      {},
+    );
     expect(cancelled.status).toBe(200);
     expect(cancelled.json.artifact.status).toBe("Cancelled");
     expect(cancelled.json.artifact.payload_json).toBeNull();
 
     // Retry creates a new attempt with fresh selection
-    const retried = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${mapId}/retry`, {
-      active_source_ids: [src.sourceId],
-    });
+    const retried = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${mapId}/retry`,
+      {
+        active_source_ids: [src.sourceId],
+      },
+    );
     expect(retried.status).toBe(202);
     expect(retried.json.artifact.attempt).toBe(2);
     expect(retried.json.artifact.retry_of).toBe(mapId);
@@ -125,7 +176,7 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot)
        VALUES ($1, $2, $3, 'report', 'faq', 'Queued', 'FAQ', '{}'::jsonb, $4)`,
-      [repId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])]
+      [repId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])],
     );
     const repCancel = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${repId}/cancel`, {});
     expect(repCancel.status).toBe(404);
@@ -137,11 +188,16 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
       "Project Helios uses regional Cloud Run services and Cloud SQL PostgreSQL 16 in europe-west4.",
     ]);
 
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "mindmap",
-      subtype: "default",
-      active_source_ids: [src.sourceId],
-    });
+    const created = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "mindmap",
+        subtype: "default",
+        active_source_ids: [src.sourceId],
+      },
+    );
     expect(created.status).toBe(202);
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
@@ -149,14 +205,22 @@ describe("[011-studio-mindmaps-data-tables] T007: Studio API admission, status c
     // Delete the source in PostgreSQL
     await n.api.db.pool.query("DELETE FROM sources WHERE id = $1", [src.sourceId]);
 
-    const listed = await n.call(OWNER, "GET", `${studio(nb)}/artifacts`);
+    const listed = await n.call<StructureArtifactListEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts`,
+    );
     expect(listed.status).toBe(200);
-    const row = listed.json.artifacts.find((a: any) => a.id === created.json.artifact.id);
+    const row = listed.json.artifacts.find((a) => a.id === created.json.artifact.id);
     expect(row).toBeDefined();
-    expect(row.title).not.toContain("Helios");
-    expect(row.title).toBe("Mindmap");
+    expect(row!.title).not.toContain("Helios");
+    expect(row!.title).toBe("Mindmap");
 
-    const opened = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${created.json.artifact.id}`);
+    const opened = await n.call<StructureArtifactEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts/${created.json.artifact.id}`,
+    );
     expect(opened.status).toBe(200);
     expect(opened.json.artifact.payload_json).toBeNull();
     expect(opened.json.artifact.title).toBe("Mindmap");

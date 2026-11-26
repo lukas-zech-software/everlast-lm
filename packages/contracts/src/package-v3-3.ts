@@ -2,6 +2,7 @@ import { z } from "zod";
 import { UUID_V7_REGEX } from "./document-chunk.ts";
 import { OutputLanguageSchema } from "./package-v2-1.ts";
 import type { PromptValidationResult } from "./package-v2-4.ts";
+import { countCodePoints } from "./text-limits.ts";
 
 /**
  * [011-studio-mindmaps-data-tables] T008 — Package 3.3 Studio Structure & Data Extraction
@@ -66,7 +67,7 @@ export const StudioEvidenceRefSchema = z
   .object({
     badge_number: z.number().int().positive(),
     chunk_id: z.string().regex(UUID_V7_REGEX, "chunk_id must be a valid UUID v7"),
-    source_id: z.string().uuid(),
+    source_id: z.uuid(),
     revision: z.number().int().positive(),
     snippet: z.string().min(1),
   })
@@ -87,9 +88,13 @@ export type StudioCoverageManifest = z.infer<typeof StudioCoverageManifestSchema
 /** FR-ST-08 / FR-002: Node label is 1..80 Unicode code points after trimming outer whitespace; never truncates. */
 export function validateMindmapLabel(input: string): PromptValidationResult {
   const trimmed = input.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
   if (codePoints < 1) {
-    return { valid: false, codePoints: 0, error: "Mindmap node label must not be empty or whitespace only." };
+    return {
+      valid: false,
+      codePoints: 0,
+      error: "Mindmap node label must not be empty or whitespace only.",
+    };
   }
   if (codePoints > MINDMAP_LABEL_MAX_CODE_POINTS) {
     return {
@@ -99,7 +104,11 @@ export function validateMindmapLabel(input: string): PromptValidationResult {
     };
   }
   if (/<[A-Za-z!/]/.test(trimmed)) {
-    return { valid: false, codePoints, error: "Mindmap node label must be plain text without HTML markup." };
+    return {
+      valid: false,
+      codePoints,
+      error: "Mindmap node label must be plain text without HTML markup.",
+    };
   }
   return { valid: true, codePoints, normalized: trimmed };
 }
@@ -107,7 +116,7 @@ export function validateMindmapLabel(input: string): PromptValidationResult {
 /** FR-ST-18 / FR-007: Optional focus_prompt is 0..2,000 Unicode code points after trimming outer whitespace. */
 export function validateDataTableFocusPrompt(input: string): PromptValidationResult {
   const trimmed = input.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
   if (codePoints > DATA_TABLE_FOCUS_PROMPT_MAX) {
     return {
       valid: false,
@@ -120,11 +129,11 @@ export function validateDataTableFocusPrompt(input: string): PromptValidationRes
 
 export const DataTableFocusPromptSchema = z.string().transform((value, ctx) => {
   const result = validateDataTableFocusPrompt(value);
-  if (!result.valid) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid focus prompt" });
+  if (!result.valid || result.normalized === undefined) {
+    ctx.addIssue({ code: "custom", message: result.error ?? "Invalid focus prompt" });
     return z.NEVER;
   }
-  return result.normalized as string;
+  return result.normalized;
 });
 
 export interface MindmapNode {
@@ -139,23 +148,35 @@ export interface MindmapNode {
 export const MindmapNodeSchema: z.ZodType<MindmapNode> = z.lazy(() =>
   z
     .object({
-      id: z.string().regex(STUDIO_NODE_ID_PATTERN, "node id must be a 1..64 char opaque identifier"),
+      id: z
+        .string()
+        .regex(STUDIO_NODE_ID_PATTERN, "node id must be a 1..64 char opaque identifier"),
       label: z.string().superRefine((val, ctx) => {
         const check = validateMindmapLabel(val);
         if (!check.valid) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, message: check.error ?? "Invalid node label" });
+          ctx.addIssue({
+            code: "custom",
+            message: check.error ?? "Invalid node label",
+          });
         }
       }),
       summary: z
         .string()
         .trim()
         .min(1, "node summary must not be empty")
-        .refine((s) => !/<[A-Za-z!/]/.test(s), "node summary must be plain text without HTML markup"),
-      label_citations: z.array(StudioEvidenceRefSchema).min(1, "node label must carry at least one citation"),
-      summary_citations: z.array(StudioEvidenceRefSchema).min(1, "node summary must carry at least one citation"),
+        .refine(
+          (s) => !/<[A-Za-z!/]/.test(s),
+          "node summary must be plain text without HTML markup",
+        ),
+      label_citations: z
+        .array(StudioEvidenceRefSchema)
+        .min(1, "node label must carry at least one citation"),
+      summary_citations: z
+        .array(StudioEvidenceRefSchema)
+        .min(1, "node summary must carry at least one citation"),
       children: z.array(MindmapNodeSchema),
     })
-    .strict()
+    .strict(),
 );
 
 export interface MindmapTreeMetrics {
@@ -205,42 +226,42 @@ export const StudioMindmapPayloadSchema = z
     const metrics = inspectMindmapTree(payload.root_node);
     if (metrics.duplicateIds.length > 0) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["root_node"],
         message: `Duplicate node ID(s): ${metrics.duplicateIds.join(", ")}`,
       });
     }
     if (metrics.nodeCount !== payload.node_count) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["node_count"],
         message: `node_count (${payload.node_count}) does not match actual tree node count (${metrics.nodeCount})`,
       });
     }
     if (metrics.nodeCount > MINDMAP_MAX_NODES) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["node_count"],
         message: `Mindmap exceeds maximum ${MINDMAP_MAX_NODES} nodes (${metrics.nodeCount})`,
       });
     }
     if (metrics.maxDepth < MINDMAP_MIN_DEPTH || metrics.maxDepth > MINDMAP_MAX_DEPTH) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["max_depth"],
         message: `Mindmap depth must be between ${MINDMAP_MIN_DEPTH} and ${MINDMAP_MAX_DEPTH} (actual ${metrics.maxDepth})`,
       });
     }
     if (metrics.maxDepth !== payload.max_depth) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["max_depth"],
         message: `max_depth (${payload.max_depth}) does not match actual tree depth (${metrics.maxDepth})`,
       });
     }
     if (metrics.nodeCount < MINDMAP_TARGET_MIN_NODES && !payload.insufficient_evidence_note) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["insufficient_evidence_note"],
         message: `Mindmap with fewer than ${MINDMAP_TARGET_MIN_NODES} nodes must include insufficient_evidence_note`,
       });
@@ -250,7 +271,7 @@ export const StudioMindmapPayloadSchema = z
       for (const ref of [...node.label_citations, ...node.summary_citations]) {
         if (!badgeSet.has(`${ref.badge_number}|${ref.chunk_id}`)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             path: ["citations"],
             message: `Node ${node.id} references citation ${ref.badge_number} (${ref.chunk_id}) not present in payload.citations`,
           });
@@ -263,7 +284,7 @@ export type StudioMindmapPayload = z.infer<typeof StudioMindmapPayloadSchema>;
 /** Validates that `expanded_node_ids` is non-empty, duplicate-free, exists in `root`, includes `root.id`, and is ancestor-closed. */
 export function validateExpandedNodeIds(
   root: MindmapNode,
-  expandedNodeIds: readonly string[]
+  expandedNodeIds: readonly string[],
 ): { valid: boolean; error?: string } {
   if (expandedNodeIds.length === 0) {
     return { valid: false, error: "expanded_node_ids must contain at least the root node." };
@@ -282,7 +303,10 @@ export function validateExpandedNodeIds(
     }
     const parentId = metrics.parentById.get(id);
     if (parentId !== null && parentId !== undefined && !unique.has(parentId)) {
-      return { valid: false, error: `Node ${id} cannot be expanded/visible when its parent ${parentId} is not included.` };
+      return {
+        valid: false,
+        error: `Node ${id} cannot be expanded/visible when its parent ${parentId} is not included.`,
+      };
     }
   }
   return { valid: true };
@@ -297,8 +321,13 @@ export const DataTableColumnSchema = z
       .string()
       .trim()
       .min(1)
-      .refine((l) => Array.from(l.trim()).length <= MINDMAP_LABEL_MAX_CODE_POINTS, "column label exceeds 80 code points"),
-    citations: z.array(StudioEvidenceRefSchema).min(1, "column header must carry at least one citation"),
+      .refine(
+        (l) => countCodePoints(l.trim()) <= MINDMAP_LABEL_MAX_CODE_POINTS,
+        "column label exceeds 80 code points",
+      ),
+    citations: z
+      .array(StudioEvidenceRefSchema)
+      .min(1, "column header must carry at least one citation"),
   })
   .strict();
 export type DataTableColumn = z.infer<typeof DataTableColumnSchema>;
@@ -329,7 +358,7 @@ export const DataTableConflictCellSchema = z
       .min(2)
       .refine(
         (vals) => new Set(vals.map((v) => v.value.trim())).size === vals.length,
-        "conflict cell must contain at least 2 distinct values"
+        "conflict cell must contain at least 2 distinct values",
       ),
     disagreement: z.literal(true),
   })
@@ -375,29 +404,45 @@ export const StudioDataTablePayloadSchema = z
   .superRefine((table, ctx) => {
     const colIds = table.columns.map((c) => c.id);
     if (new Set(colIds).size !== colIds.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["columns"], message: "column IDs must be unique" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "column IDs must be unique",
+      });
     }
     const colLabels = table.columns.map((c) => c.label.trim().toLowerCase());
     if (new Set(colLabels).size !== colLabels.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["columns"], message: "column labels must be unique" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "column labels must be unique",
+      });
     }
     const rowIds = table.rows.map((r) => r.item_id);
     if (new Set(rowIds).size !== rowIds.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rows"], message: "row item_ids must be unique" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["rows"],
+        message: "row item_ids must be unique",
+      });
     }
     const rowLabels = table.rows.map((r) => r.item_label.trim().toLowerCase());
     if (new Set(rowLabels).size !== rowLabels.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rows"], message: "row item_labels must be unique (one item per row)" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["rows"],
+        message: "row item_labels must be unique (one item per row)",
+      });
     }
     let hasSupportedOrConflict = false;
-    for (let i = 0; i < table.rows.length; i++) {
-      const row = table.rows[i]!;
+    for (const [i, row] of table.rows.entries()) {
       const cellKeys = Object.keys(row.cells);
       if (cellKeys.length !== colIds.length || !colIds.every((id) => id in row.cells)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["rows", i, "cells"],
-          message: "Every row must contain cells for the exact column ID set (rectangular table invariant).",
+          message:
+            "Every row must contain cells for the exact column ID set (rectangular table invariant).",
         });
       }
       for (const cell of Object.values(row.cells)) {
@@ -408,7 +453,7 @@ export const StudioDataTablePayloadSchema = z
     }
     if (!hasSupportedOrConflict) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["rows"],
         message: "A completed data table must contain at least one source-supported cell.",
       });
@@ -418,8 +463,8 @@ export type StudioDataTablePayload = z.infer<typeof StudioDataTablePayloadSchema
 
 /** Validates that `ordered_row_ids` is a complete, duplicate-free permutation of `rows.map(r => r.item_id)`. */
 export function validateOrderedRowIds(
-  rows: readonly Pick<DataTableRow, "item_id">[],
-  orderedRowIds: readonly string[]
+  rows: ReadonlyArray<Pick<DataTableRow, "item_id">>,
+  orderedRowIds: readonly string[],
 ): { valid: boolean; error?: string } {
   if (orderedRowIds.length !== rows.length) {
     return {
@@ -431,7 +476,8 @@ export function validateOrderedRowIds(
   const seen = new Set<string>();
   for (const id of orderedRowIds) {
     if (seen.has(id)) return { valid: false, error: `Duplicate row ID ${id} in ordered_row_ids.` };
-    if (!expected.has(id)) return { valid: false, error: `Unknown row ID ${id} in ordered_row_ids.` };
+    if (!expected.has(id))
+      return { valid: false, error: `Unknown row ID ${id} in ordered_row_ids.` };
     seen.add(id);
   }
   return { valid: true };
@@ -454,7 +500,10 @@ export type MindmapExportFormat = z.infer<typeof MindmapExportFormatSchema>;
 export const MindmapExportRequestSchema = z
   .object({
     format: MindmapExportFormatSchema,
-    expanded_node_ids: z.array(z.string().regex(STUDIO_NODE_ID_PATTERN)).min(1).max(MINDMAP_MAX_NODES),
+    expanded_node_ids: z
+      .array(z.string().regex(STUDIO_NODE_ID_PATTERN))
+      .min(1)
+      .max(MINDMAP_MAX_NODES),
   })
   .strict();
 export type MindmapExportRequest = z.infer<typeof MindmapExportRequestSchema>;
@@ -478,7 +527,11 @@ export type DataTableExportFormat = z.infer<typeof DataTableExportFormatSchema>;
 export const DataTableExportRequestSchema = z
   .object({
     format: DataTableExportFormatSchema,
-    ordered_row_ids: z.array(z.string().regex(STUDIO_NODE_ID_PATTERN)).min(1).max(DATA_TABLE_MAX_ROWS).optional(),
+    ordered_row_ids: z
+      .array(z.string().regex(STUDIO_NODE_ID_PATTERN))
+      .min(1)
+      .max(DATA_TABLE_MAX_ROWS)
+      .optional(),
   })
   .strict();
 export type DataTableExportRequest = z.infer<typeof DataTableExportRequestSchema>;
@@ -487,10 +540,10 @@ export const MindmapDrilldownRequestSchema = z
   .object({
     node_id: z.string().regex(STUDIO_NODE_ID_PATTERN),
     active_source_ids: z
-      .array(z.string().uuid("source ID must be a valid UUID"))
+      .array(z.uuid("source ID must be a valid UUID"))
       .min(1, "active_source_ids must contain at least 1 source ID")
       .refine((ids) => new Set(ids).size === ids.length, "active_source_ids must be unique"),
-    request_id: z.string().uuid().optional(),
+    request_id: z.uuid().optional(),
     output_language: OutputLanguageSchema.optional(),
   })
   .strict();

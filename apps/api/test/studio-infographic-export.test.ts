@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { renderInfographicSvg, StudioInfographicPayloadSchema, type StudioInfographicPayload } from "@everlast/contracts";
+import {
+  renderInfographicSvg,
+  StudioInfographicPayloadSchema,
+  type StudioInfographicPayload,
+} from "@everlast/contracts";
 import { buildInfographicExportScene } from "../src/studio/infographic-export.ts";
 
 /**
@@ -37,7 +41,15 @@ function makeInfographicPayload(): StudioInfographicPayload {
     structured_blocks: blocks,
     rendered_svg: svg,
     source_chunk_ids: [CHUNK],
-    citations: [{ badge_number: 1, chunk_id: CHUNK, source_id: SRC, revision: 1, snippet: "Telemetry detects anomalies." }],
+    citations: [
+      {
+        badge_number: 1,
+        chunk_id: CHUNK,
+        source_id: SRC,
+        revision: 1,
+        snippet: "Telemetry detects anomalies.",
+      },
+    ],
   });
 }
 
@@ -77,17 +89,20 @@ describe("[015-studio-visuals-presentations] T016: Infographic export scene vali
         title: "Incident Response",
         payload,
         body: { format: "pdf" },
-      })
+      }),
     ).toThrow();
 
-    const tampered = { ...payload, rendered_svg: `<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>` };
+    const tampered = {
+      ...payload,
+      rendered_svg: `<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>`,
+    };
     expect(() =>
       buildInfographicExportScene({
         artifactId: ART,
         title: "Incident Response",
-        payload: tampered as StudioInfographicPayload,
+        payload: tampered,
         body: { format: "svg" },
-      })
+      }),
     ).toThrow();
   });
 

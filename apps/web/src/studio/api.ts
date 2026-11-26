@@ -92,27 +92,57 @@ export interface BinaryExportResult {
 }
 
 export interface StudioApi {
-  list(): Promise<ArtifactDto[]>;
-  get(id: string): Promise<{ artifact: ArtifactDto; unavailable?: { code: string; message: string } }>;
-  create(body: CreateBody): Promise<ArtifactDto>;
-  cancel?(id: string): Promise<ArtifactDto>;
-  retry(id: string, activeSourceIds: string[]): Promise<ArtifactDto>;
-  convert(id: string): Promise<{ source_id: string }>;
-  remove(id: string): Promise<void>;
-  suggestions(activeSourceIds: string[], outputLanguage?: string): Promise<ReportSuggestionsResult>;
-  exportMindmap?(id: string, body: { format: MindmapExportFormat; expanded_node_ids: string[] }): Promise<StudioMindmapExportScene>;
-  drilldownMindmap?(id: string, body: { node_id: string; active_source_ids: string[] }): Promise<StudioDrilldownResponse>;
-  exportDataTable?(id: string, body: { format: DataTableExportFormat; ordered_row_ids: string[] }): Promise<BinaryExportResult>;
-  exportSlideDeck?(id: string, body: { format: SlideDeckExportFormat }): Promise<BinaryExportResult>;
-  exportInfographic?(id: string, body: { format: InfographicExportFormat }): Promise<StudioInfographicExportScene>;
-  getProgress?(id: string): Promise<{ progress: LearningProgressDto }>;
-  recordProgress?(id: string, body: { item_id: string; outcome: LearningItemOutcome }): Promise<{ progress: LearningProgressDto }>;
-  resetProgress?(id: string): Promise<{ progress: LearningProgressDto }>;
-  gradeQuiz?(id: string, body: { question_id: string; answer: string | string[] }): Promise<GradeQuizQuestionResponse>;
-  explainItem?(
+  list: () => Promise<ArtifactDto[]>;
+  get: (
     id: string,
-    body: { item_id: string; item_kind?: "flashcard" | "quiz_question"; active_source_ids: string[] }
-  ): Promise<StudioExplainResponse>;
+  ) => Promise<{ artifact: ArtifactDto; unavailable?: { code: string; message: string } }>;
+  create: (body: CreateBody) => Promise<ArtifactDto>;
+  cancel?: (id: string) => Promise<ArtifactDto>;
+  retry: (id: string, activeSourceIds: string[]) => Promise<ArtifactDto>;
+  convert: (id: string) => Promise<{ source_id: string }>;
+  remove: (id: string) => Promise<void>;
+  suggestions: (
+    activeSourceIds: string[],
+    outputLanguage?: string,
+  ) => Promise<ReportSuggestionsResult>;
+  exportMindmap?: (
+    id: string,
+    body: { format: MindmapExportFormat; expanded_node_ids: string[] },
+  ) => Promise<StudioMindmapExportScene>;
+  drilldownMindmap?: (
+    id: string,
+    body: { node_id: string; active_source_ids: string[] },
+  ) => Promise<StudioDrilldownResponse>;
+  exportDataTable?: (
+    id: string,
+    body: { format: DataTableExportFormat; ordered_row_ids: string[] },
+  ) => Promise<BinaryExportResult>;
+  exportSlideDeck?: (
+    id: string,
+    body: { format: SlideDeckExportFormat },
+  ) => Promise<BinaryExportResult>;
+  exportInfographic?: (
+    id: string,
+    body: { format: InfographicExportFormat },
+  ) => Promise<StudioInfographicExportScene>;
+  getProgress?: (id: string) => Promise<{ progress: LearningProgressDto }>;
+  recordProgress?: (
+    id: string,
+    body: { item_id: string; outcome: LearningItemOutcome },
+  ) => Promise<{ progress: LearningProgressDto }>;
+  resetProgress?: (id: string) => Promise<{ progress: LearningProgressDto }>;
+  gradeQuiz?: (
+    id: string,
+    body: { question_id: string; answer: string | string[] },
+  ) => Promise<GradeQuizQuestionResponse>;
+  explainItem?: (
+    id: string,
+    body: {
+      item_id: string;
+      item_kind?: "flashcard" | "quiz_question";
+      active_source_ids: string[];
+    },
+  ) => Promise<StudioExplainResponse>;
 }
 
 export class StudioApiError extends Error {
@@ -125,30 +155,48 @@ export class StudioApiError extends Error {
   }
 }
 
-type FetchLike = (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }) => Promise<{
+type FetchLike = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+) => Promise<{
   status: number;
   ok: boolean;
-  headers?: { get?(name: string): string | null };
-  json(): Promise<unknown>;
-  arrayBuffer?(): Promise<ArrayBuffer>;
-  text?(): Promise<string>;
+  headers?: { get?: (name: string) => string | null };
+  json: () => Promise<unknown>;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+  text?: () => Promise<string>;
 }>;
 
 /**
  * Studio HTTP client (FR-ST-08/09/10/11/18). `token` is optional: the workspace passes `authFetch`, which adds the
  * caller's bearer token itself. Every create, retry, drilldown and suggestions call carries the caller's explicit scope.
  */
-export function createStudioApi(opts: { notebookId: string; token?: string; fetch: FetchLike; baseUrl?: string }): StudioApi {
+export function createStudioApi(opts: {
+  notebookId: string;
+  token?: string;
+  fetch: FetchLike;
+  baseUrl?: string;
+}): StudioApi {
   const root = `${opts.baseUrl ?? ""}/api/notebooks/${encodeURIComponent(opts.notebookId)}/studio`;
   const call = async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
     const res = await opts.fetch(root + path, {
       method,
-      headers: { ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}), "Content-Type": "application/json" },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      headers: {
+        ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+        "Content-Type": "application/json",
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (res.status === 204) return undefined as T;
-    const data = (await res.json().catch(() => ({}))) as { error?: { code: string; message: string } };
-    if (!res.ok) throw new StudioApiError(res.status, data.error?.code ?? "Error", data.error?.message ?? "Request failed");
+    const data = (await res.json().catch(() => ({}))) as {
+      error?: { code: string; message: string };
+    };
+    if (!res.ok)
+      throw new StudioApiError(
+        res.status,
+        data.error?.code ?? "Error",
+        data.error?.message ?? "Request failed",
+      );
     return data as T;
   };
   const enc = encodeURIComponent;
@@ -156,16 +204,25 @@ export function createStudioApi(opts: { notebookId: string; token?: string; fetc
     id: string,
     body: unknown,
     fallbackContentType: string,
-    fallbackFilename: string
+    fallbackFilename: string,
   ): Promise<BinaryExportResult> => {
-    const res = await opts.fetch(root + `/artifacts/${enc(id)}/export`, {
+    const res = await opts.fetch(`${root}/artifacts/${enc(id)}/export`, {
       method: "POST",
-      headers: { ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}), "Content-Type": "application/json" },
+      headers: {
+        ...(opts.token ? { Authorization: `Bearer ${opts.token}` } : {}),
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(body),
     });
     if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { error?: { code: string; message: string } };
-      throw new StudioApiError(res.status, data.error?.code ?? "Error", data.error?.message ?? "Export failed");
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: { code: string; message: string };
+      };
+      throw new StudioApiError(
+        res.status,
+        data.error?.code ?? "Error",
+        data.error?.message ?? "Export failed",
+      );
     }
     const contentType = res.headers?.get?.("content-type") ?? fallbackContentType;
     const disposition = res.headers?.get?.("content-disposition") ?? "";
@@ -185,12 +242,21 @@ export function createStudioApi(opts: { notebookId: string; token?: string; fetc
     list: async () => (await call<{ artifacts: ArtifactDto[] }>("/artifacts")).artifacts,
     get: (id) => call(`/artifacts/${enc(id)}`),
     create: async (b) => (await call<{ artifact: ArtifactDto }>("/artifacts", "POST", b)).artifact,
-    cancel: async (id) => (await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/cancel`, "POST", {})).artifact,
-    retry: async (id, ids) => (await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/retry`, "POST", { active_source_ids: ids })).artifact,
+    cancel: async (id) =>
+      (await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/cancel`, "POST", {})).artifact,
+    retry: async (id, ids) =>
+      (
+        await call<{ artifact: ArtifactDto }>(`/artifacts/${enc(id)}/retry`, "POST", {
+          active_source_ids: ids,
+        })
+      ).artifact,
     convert: (id) => call(`/artifacts/${enc(id)}/convert-to-source`, "POST", {}),
     remove: (id) => call(`/artifacts/${enc(id)}`, "DELETE"),
     suggestions: (ids, lang) =>
-      call("/report-suggestions", "POST", { active_source_ids: ids, ...(lang ? { output_language: lang } : {}) }),
+      call("/report-suggestions", "POST", {
+        active_source_ids: ids,
+        ...(lang ? { output_language: lang } : {}),
+      }),
     exportMindmap: (id, body) => call(`/artifacts/${enc(id)}/export`, "POST", body),
     drilldownMindmap: (id, body) => call(`/artifacts/${enc(id)}/drilldown`, "POST", body),
     exportInfographic: (id, body) => call(`/artifacts/${enc(id)}/export`, "POST", body),
@@ -203,8 +269,10 @@ export function createStudioApi(opts: { notebookId: string; token?: string; fetc
       fetchBinaryExport(
         id,
         body,
-        body.format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        `data-table.${body.format}`
+        body.format === "csv"
+          ? "text/csv; charset=utf-8"
+          : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        `data-table.${body.format}`,
       ),
     exportSlideDeck: (id, body) =>
       fetchBinaryExport(
@@ -213,7 +281,7 @@ export function createStudioApi(opts: { notebookId: string; token?: string; fetc
         body.format === "pptx"
           ? "application/vnd.openxmlformats-officedocument.presentationml.presentation"
           : "application/pdf",
-        `slide-deck.${body.format}`
+        `slide-deck.${body.format}`,
       ),
   };
 }

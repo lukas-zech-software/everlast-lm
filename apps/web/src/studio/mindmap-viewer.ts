@@ -30,34 +30,60 @@ export interface MindmapFrameReport {
   samples: MindmapFrameSample[];
 }
 
+const VALID_FRAME_OPERATIONS = new Set<string>(["pan", "zoom", "expand", "collapse"]);
+
+function validateMindmapFrameSample(
+  sample: MindmapFrameSample,
+  identities: Set<number>,
+  operations: Set<string>,
+): void {
+  if (
+    !Number.isInteger(sample.frame_index) ||
+    sample.frame_index < 1 ||
+    identities.has(sample.frame_index)
+  ) {
+    throw new Error("Expected unique positive frame indices; duplicate index");
+  }
+  identities.add(sample.frame_index);
+  if (sample.node_count !== 120) {
+    throw new Error("The declared viewer benchmark requires 120 nodes");
+  }
+  if (!VALID_FRAME_OPERATIONS.has(sample.operation)) {
+    throw new Error("Invalid frame operation");
+  }
+  operations.add(sample.operation);
+  if (
+    !Number.isFinite(sample.duration_ms) ||
+    sample.duration_ms < 0 ||
+    typeof sample.dropped !== "boolean"
+  ) {
+    throw new Error("Invalid frame duration or dropped flag");
+  }
+}
+
 export function evaluateMindmapFrameSamples(
   samples: readonly MindmapFrameSample[],
-  budgetMs = MINDMAP_FRAME_BUDGET_MS
+  budgetMs = MINDMAP_FRAME_BUDGET_MS,
 ): MindmapFrameReport {
   if (samples.length < MINDMAP_MIN_FRAME_SAMPLES) {
     throw new Error(
-      `Mindmap frame benchmark requires at least ${MINDMAP_MIN_FRAME_SAMPLES} frame samples (received ${samples.length}).`
+      `Mindmap frame benchmark requires at least ${MINDMAP_MIN_FRAME_SAMPLES} frame samples (received ${samples.length}).`,
     );
   }
   if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("Invalid frame budget");
   const identities = new Set<number>();
   const operations = new Set<string>();
   for (const sample of samples) {
-    if (!Number.isInteger(sample.frame_index) || sample.frame_index < 1 || identities.has(sample.frame_index)) throw new Error("Expected unique positive frame indices; duplicate index");
-    identities.add(sample.frame_index);
-    if (sample.node_count !== 120) throw new Error("The declared viewer benchmark requires 120 nodes");
-    if (!["pan", "zoom", "expand", "collapse"].includes(sample.operation)) throw new Error("Invalid frame operation");
-    operations.add(sample.operation);
-    if (!Number.isFinite(sample.duration_ms) || sample.duration_ms < 0 || typeof sample.dropped !== "boolean") throw new Error("Invalid frame duration or dropped flag");
+    validateMindmapFrameSample(sample, identities, operations);
   }
   if (operations.size !== 4) throw new Error("Frame population must include all four operations");
   const durations = samples.map((s) =>
-    !Number.isFinite(s.duration_ms) || s.duration_ms < 0 ? Number.POSITIVE_INFINITY : s.duration_ms
+    !Number.isFinite(s.duration_ms) || s.duration_ms < 0 ? Number.POSITIVE_INFINITY : s.duration_ms,
   );
   const sorted = [...durations].sort((a, b) => a - b);
   const rank = Math.ceil(0.95 * sorted.length);
-  const p95 = sorted[rank - 1]!;
-  const max = sorted[sorted.length - 1]!;
+  const p95 = sorted[rank - 1] ?? Number.POSITIVE_INFINITY;
+  const max = sorted.at(-1) ?? Number.POSITIVE_INFINITY;
   const fps = p95 > 0 && Number.isFinite(p95) ? Math.min(60, Math.round(1000 / p95)) : 0;
   return {
     sample_count: samples.length,
@@ -74,10 +100,10 @@ export interface MindmapViewerOptions {
   artifactId: string;
   title: string;
   payload: StudioMindmapPayload;
-  onDrilldown?(nodeId: string): void;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onExport?(format: "svg" | "png", expandedNodeIds: string[]): void;
-  onClose?(): void;
+  onDrilldown?: (nodeId: string) => void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onExport?: (format: "svg" | "png", expandedNodeIds: string[]) => void;
+  onClose?: () => void;
   actions?: HTMLElement[];
 }
 
@@ -89,16 +115,16 @@ export interface MindmapTransform {
 
 export interface MindmapViewer {
   element: HTMLElement;
-  getExpandedNodeIds(): string[];
-  getTransform(): MindmapTransform;
-  setTransform(transform: MindmapTransform): void;
-  destroy(): void;
+  getExpandedNodeIds: () => string[];
+  getTransform: () => MindmapTransform;
+  setTransform: (transform: MindmapTransform) => void;
+  destroy: () => void;
 }
 
 export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewer {
   const { payload } = options;
   const visibleIds = new Set<string>(
-    defaultExpandedNodeIds(payload.root_node, payload.initial_expanded_depth ?? 2)
+    defaultExpandedNodeIds(payload.root_node, payload.initial_expanded_depth),
   );
   let transform: MindmapTransform = { x: 0, y: 0, scale: 1 };
 
@@ -151,7 +177,9 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
     class: "studio-ai-badge muted",
     "data-testid": "studio-ai-generated-badge",
     role: "note",
-    text: (payload as { ai_generated_label?: string }).ai_generated_label ?? "AI-generated from selected sources · Structural edges are illustrative",
+    text:
+      (payload as { ai_generated_label?: string }).ai_generated_label ??
+      "AI-generated from selected sources · Structural edges are illustrative",
   });
 
   const limitedNote = payload.insufficient_evidence_note
@@ -170,7 +198,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
   const applyTransform = () => {
     sceneHost.setAttribute(
       "data-transform",
-      `translate(${transform.x},${transform.y}) scale(${transform.scale.toFixed(2)})`
+      `translate(${transform.x},${transform.y}) scale(${transform.scale.toFixed(2)})`,
     );
     sceneHost.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
   };
@@ -196,25 +224,43 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
   });
 
   // Pan from the canvas background only: dragging a factual node must not create a chat turn (FR-ST-09).
-  let pan: { pointerId: number; clientX: number; clientY: number; x: number; y: number } | null = null;
+  let pan: { pointerId: number; clientX: number; clientY: number; x: number; y: number } | null =
+    null;
   sceneHost.style.touchAction = "none";
   sceneHost.style.cursor = "grab";
+  const pointerHost = sceneHost as Partial<
+    Pick<HTMLElement, "setPointerCapture" | "hasPointerCapture" | "releasePointerCapture">
+  >;
   const pointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 || (event.target as Element | null)?.closest?.("button")) return;
-    pan = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, x: transform.x, y: transform.y };
-    if (event.isTrusted) sceneHost.setPointerCapture?.(event.pointerId);
+    const target = event.target as { closest?: (selector: string) => Element | null } | null;
+    if (event.button !== 0 || target?.closest?.("button")) return;
+    pan = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      x: transform.x,
+      y: transform.y,
+    };
+    if (event.isTrusted) pointerHost.setPointerCapture?.(event.pointerId);
     sceneHost.style.cursor = "grabbing";
     event.preventDefault();
   };
   const pointerMove = (event: PointerEvent) => {
-    if (!pan || pan.pointerId !== event.pointerId) return;
-    transform = { ...transform, x: pan.x + event.clientX - pan.clientX, y: pan.y + event.clientY - pan.clientY };
+    const activePan = pan;
+    if (activePan?.pointerId !== event.pointerId) return;
+    transform = {
+      ...transform,
+      x: activePan.x + event.clientX - activePan.clientX,
+      y: activePan.y + event.clientY - activePan.clientY,
+    };
     applyTransform();
     event.preventDefault();
   };
   const pointerEnd = (event: PointerEvent) => {
-    if (!pan || pan.pointerId !== event.pointerId) return;
-    if (sceneHost.hasPointerCapture?.(event.pointerId)) sceneHost.releasePointerCapture(event.pointerId);
+    if (pan?.pointerId !== event.pointerId) return;
+    if (pointerHost.hasPointerCapture?.(event.pointerId)) {
+      pointerHost.releasePointerCapture?.(event.pointerId);
+    }
     pan = null;
     sceneHost.style.cursor = "grab";
   };
@@ -265,7 +311,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
           class: "mindmap-node-label",
           "data-testid": "mindmap-node-label",
           text: node.label,
-        })
+        }),
       );
       bodyBtn.addEventListener("click", () => {
         options.onDrilldown?.(node.id);
@@ -282,7 +328,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
           "data-y": String(positioned.y),
           style: `left: ${positioned.x}px; top: ${positioned.y}px;`,
         },
-        bodyBtn
+        bodyBtn,
       );
 
       if (hasChildren) {
@@ -295,7 +341,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
           text: expanded ? "▾" : "▸",
         });
         toggleBtn.addEventListener("click", (ev: Event) => {
-          ev.stopPropagation?.();
+          (ev as Partial<Event>).stopPropagation?.();
           toggleSubtree(node);
         });
         nodeContainer.append(toggleBtn);
@@ -310,7 +356,13 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
 
   const headItems: HTMLElement[] = [];
   if (closeBtn) headItems.push(closeBtn);
-  headItems.push(h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }));
+  headItems.push(
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
+  );
 
   const toolbar = h(
     "div",
@@ -319,7 +371,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
     zoomOutBtn,
     fitBtn,
     exportSvgBtn,
-    exportPngBtn
+    exportPngBtn,
   );
 
   const element = h(
@@ -337,7 +389,7 @@ export function createMindmapViewer(options: MindmapViewerOptions): MindmapViewe
     sceneHost,
     ...(options.actions && options.actions.length > 0
       ? [h("div", { class: "studio-viewer-actions" }, ...options.actions)]
-      : [])
+      : []),
   );
 
   return {

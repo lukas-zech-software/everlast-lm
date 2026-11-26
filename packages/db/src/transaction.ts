@@ -14,14 +14,14 @@ export type LockableEntity = (typeof LOCK_ORDER_HIERARCHY)[number];
 
 /** Anything that can run a parameterized query: a Pool or a transaction-bound PoolClient. */
 export interface Queryable {
-  query<R extends QueryResultRow = QueryResultRow>(
+  query: <R extends QueryResultRow = QueryResultRow>(
     text: string,
-    values?: unknown[]
-  ): Promise<pg.QueryResult<R>>;
+    values?: unknown[],
+  ) => Promise<pg.QueryResult<R>>;
 }
 
 // BIGINT columns (byte sizes) fit in a JS number for the 200,000,000-byte ceiling.
-pg.types.setTypeParser(20, (value: string) => Number(value));
+pg.types.setTypeParser(pg.types.builtins.INT8, (value: string) => Number(value));
 
 /**
  * Pool configuration. On Cloud Run (CLOUD_SQL_CONNECTION_NAME) the service connects through the Cloud SQL
@@ -50,7 +50,7 @@ export function databaseConfigFromEnv(env: NodeJS.ProcessEnv = process.env): Poo
         port: Number(env.PGPORT ?? 5432),
         database: env.PGDATABASE ?? "everlast",
         user: env.PGUSER ?? "everlast",
-        ...(env.PGPASSWORD !== undefined ? { password: env.PGPASSWORD } : {}),
+        ...(env.PGPASSWORD === undefined ? {} : { password: env.PGPASSWORD }),
       };
   return {
     ...base,
@@ -84,7 +84,7 @@ export interface TransactionOptions {
 export async function withTransaction<T>(
   pool: Pool,
   fn: (client: PoolClient) => Promise<T>,
-  options: TransactionOptions = {}
+  options: TransactionOptions = {},
 ): Promise<T> {
   const retries = options.retries ?? 3;
   for (let attempt = 0; ; attempt++) {

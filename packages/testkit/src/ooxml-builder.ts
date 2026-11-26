@@ -18,12 +18,14 @@ const CRC_TABLE = (() => {
 
 export function crc32(data: Buffer): number {
   let crc = 0xffffffff;
-  for (const byte of data) crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8);
+  for (const byte of data) {
+    crc = (CRC_TABLE[(crc ^ byte) & 0xff] ?? 0) ^ (crc >>> 8);
+  }
   return (crc ^ 0xffffffff) >>> 0;
 }
 
 /** Writes a ZIP archive (deflate, fixed timestamp) with the entries in the given order. */
-export function buildZip(entries: { name: string; data: Buffer | string }[]): Buffer {
+export function buildZip(entries: Array<{ name: string; data: Buffer | string }>): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
@@ -71,7 +73,8 @@ export function buildZip(entries: { name: string; data: Buffer | string }[]): Bu
   return Buffer.concat([...locals, ...centrals, end]);
 }
 
-const esc = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const esc = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // ---------------------------------------------------------------------------------------------------------
 // DOCX
@@ -92,7 +95,10 @@ function docxBlock(block: DocxBlock, index: number): string {
       return `<w:p>${block.heading ? '<w:pPr><w:pStyle w:val="Heading1"/></w:pPr>' : ""}<w:r><w:t xml:space="preserve">${esc(block.text)}</w:t></w:r></w:p>`;
     case "table":
       return `<w:tbl>${block.rows
-        .map((row) => `<w:tr>${row.map((cell) => `<w:tc><w:p><w:r><w:t>${esc(cell)}</w:t></w:r></w:p></w:tc>`).join("")}</w:tr>`)
+        .map(
+          (row) =>
+            `<w:tr>${row.map((cell) => `<w:tc><w:p><w:r><w:t>${esc(cell)}</w:t></w:r></w:p></w:tc>`).join("")}</w:tr>`,
+        )
         .join("")}</w:tbl>`;
     case "image":
       return `<w:p><w:r><w:drawing><wp:inline><wp:docPr id="${index + 1}" name="Picture ${index + 1}" descr="${esc(block.description)}"${
@@ -114,9 +120,13 @@ export function buildDocx(blocks: DocxBlock[], options: { macros?: boolean } = {
       name: "_rels/.rels",
       data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`,
     },
-    { name: "word/document.xml", data: `<?xml version="1.0" encoding="UTF-8"?><w:document ${W_NS}><w:body>${body}<w:sectPr/></w:body></w:document>` },
+    {
+      name: "word/document.xml",
+      data: `<?xml version="1.0" encoding="UTF-8"?><w:document ${W_NS}><w:body>${body}<w:sectPr/></w:body></w:document>`,
+    },
   ];
-  if (options.macros) entries.push({ name: "word/vbaProject.bin", data: "Sub AutoOpen()\nShell \"calc\"\nEnd Sub" });
+  if (options.macros)
+    entries.push({ name: "word/vbaProject.bin", data: 'Sub AutoOpen()\nShell "calc"\nEnd Sub' });
   return buildZip(entries);
 }
 
@@ -128,7 +138,7 @@ export interface PptxSlide {
   texts: string[];
   table?: string[][];
   notes?: string;
-  images?: { description: string }[];
+  images?: Array<{ description: string }>;
 }
 
 const P_NS =
@@ -137,15 +147,24 @@ const P_NS =
 function slideXml(slide: PptxSlide): string {
   let id = 1;
   const shapes = slide.texts
-    .map((text) => `<p:sp><p:nvSpPr><p:cNvPr id="${++id}" name="Text ${id}"/></p:nvSpPr><p:txBody><a:p><a:r><a:t>${esc(text)}</a:t></a:r></a:p></p:txBody></p:sp>`)
+    .map(
+      (text) =>
+        `<p:sp><p:nvSpPr><p:cNvPr id="${++id}" name="Text ${id}"/></p:nvSpPr><p:txBody><a:p><a:r><a:t>${esc(text)}</a:t></a:r></a:p></p:txBody></p:sp>`,
+    )
     .join("");
   const table = slide.table
     ? `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${++id}" name="Table"/></p:nvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>${slide.table
-        .map((row) => `<a:tr>${row.map((cell) => `<a:tc><a:txBody><a:p><a:r><a:t>${esc(cell)}</a:t></a:r></a:p></a:txBody></a:tc>`).join("")}</a:tr>`)
+        .map(
+          (row) =>
+            `<a:tr>${row.map((cell) => `<a:tc><a:txBody><a:p><a:r><a:t>${esc(cell)}</a:t></a:r></a:p></a:txBody></a:tc>`).join("")}</a:tr>`,
+        )
         .join("")}</a:tbl></a:graphicData></a:graphic></p:graphicFrame>`
     : "";
   const pics = (slide.images ?? [])
-    .map((img) => `<p:pic><p:nvPicPr><p:cNvPr id="${++id}" name="Picture" descr="${esc(img.description)}"/></p:nvPicPr></p:pic>`)
+    .map(
+      (img) =>
+        `<p:pic><p:nvPicPr><p:cNvPr id="${++id}" name="Picture" descr="${esc(img.description)}"/></p:nvPicPr></p:pic>`,
+    )
     .join("");
   return `<?xml version="1.0" encoding="UTF-8"?><p:sld ${P_NS}><p:cSld><p:spTree>${shapes}${table}${pics}</p:spTree></p:cSld></p:sld>`;
 }
@@ -155,11 +174,13 @@ function notesXml(notes: string, slideNumber: number): string {
   return `<?xml version="1.0" encoding="UTF-8"?><p:notes ${P_NS}><p:cSld><p:spTree><p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image"/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr></p:sp><p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes"/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:txBody>${notes
     .split("\n")
     .map((line) => `<a:p><a:r><a:t>${esc(line)}</a:t></a:r></a:p>`)
-    .join("")}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number"/><p:nvPr><p:ph type="sldNum" idx="5"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>${slideNumber}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
+    .join(
+      "",
+    )}</p:txBody></p:sp><p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number"/><p:nvPr><p:ph type="sldNum" idx="5"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>${slideNumber}</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:notes>`;
 }
 
 export function buildPptx(slides: PptxSlide[]): Buffer {
-  const entries: { name: string; data: string }[] = [
+  const entries: Array<{ name: string; data: string }> = [
     {
       name: "[Content_Types].xml",
       data: `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/ppt/presentation.xml" ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml"/></Types>`,
@@ -182,7 +203,7 @@ export function buildPptx(slides: PptxSlide[]): Buffer {
     data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${slides
       .map(
         (_, i) =>
-          `<Relationship Id="rId${i + 10}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${fileNumber(i)}.xml"/>`
+          `<Relationship Id="rId${i + 10}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide${fileNumber(i)}.xml"/>`,
       )
       .join("")}</Relationships>`,
   });
@@ -194,7 +215,10 @@ export function buildPptx(slides: PptxSlide[]): Buffer {
         name: `ppt/slides/_rels/slide${n}.xml.rels`,
         data: `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide${n}.xml"/></Relationships>`,
       });
-      entries.push({ name: `ppt/notesSlides/notesSlide${n}.xml`, data: notesXml(slide.notes, i + 1) });
+      entries.push({
+        name: `ppt/notesSlides/notesSlide${n}.xml`,
+        data: notesXml(slide.notes, i + 1),
+      });
     }
   });
   return buildZip(entries);

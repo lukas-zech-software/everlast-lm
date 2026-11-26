@@ -6,6 +6,7 @@ import type {
   StudioQuizPayload,
 } from "@everlast/contracts";
 import { clear, h } from "../lib/dom.ts";
+import { codePointLength } from "../lib/text.ts";
 
 /**
  * [014-studio-active-learning-suite] T019, T023 — Interactive multi-format Quiz viewer
@@ -21,18 +22,18 @@ export interface QuizViewerOptions {
   title: string;
   payload: StudioQuizPayload;
   progress: LearningProgressDto | null;
-  onGrade(questionId: string, answer: string | string[]): Promise<GradeQuizQuestionResponse>;
-  onResetProgress(): Promise<LearningProgressDto>;
-  onExplain(itemId: string): Promise<void> | void;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onClose?(): void;
+  onGrade: (questionId: string, answer: string | string[]) => Promise<GradeQuizQuestionResponse>;
+  onResetProgress: () => Promise<LearningProgressDto>;
+  onExplain: (itemId: string) => Promise<void> | void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onClose?: () => void;
   actions?: HTMLElement[];
-  confirmReset?(): Promise<boolean>;
+  confirmReset?: () => Promise<boolean>;
 }
 
 export interface QuizViewer {
   element: HTMLElement;
-  destroy(): void;
+  destroy: () => void;
 }
 
 export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
@@ -56,33 +57,40 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     : null;
   closeBtn?.addEventListener("click", () => options.onClose?.());
 
-  const masteryEl = h("span", { class: "badge active-learning-mastery", "data-testid": "quiz-mastery" });
+  const masteryEl = h("span", {
+    class: "badge active-learning-mastery",
+    "data-testid": "quiz-mastery",
+  });
   const counterEl = h("span", { class: "muted quiz-counter", "data-testid": "quiz-counter" });
   const reviewMissedBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "quiz-review-missed",
-  }) as HTMLButtonElement;
+  });
   const practiceAllBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "quiz-practice-all",
     text: "Practice all again",
-  }) as HTMLButtonElement;
+  });
   const resetBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "quiz-reset-progress",
     text: "Reset progress",
-  }) as HTMLButtonElement;
+  });
 
   const headEl = h(
     "div",
     { class: "studio-viewer-head" },
     ...(closeBtn ? [closeBtn] : []),
-    h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }),
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
     h("span", { class: "muted", text: "AI-generated" }),
-    ...(options.actions ?? [])
+    ...(options.actions ?? []),
   );
 
   const toolbarEl = h(
@@ -92,7 +100,7 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     counterEl,
     reviewMissedBtn,
     practiceAllBtn,
-    resetBtn
+    resetBtn,
   );
 
   const noteEl = payload.insufficient_evidence_note
@@ -111,7 +119,7 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     headEl,
     toolbarEl,
     ...(noteEl ? [noteEl] : []),
-    stageHost
+    stageHost,
   );
 
   const statesMap = () => progress?.item_states_json ?? {};
@@ -142,8 +150,12 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
 
   function updateToolbar(list: QuizQuestion[]): void {
     const states = statesMap();
-    const masteredCount = payload.questions.filter((q) => states[q.id]?.status === "mastered").length;
-    const missedCount = payload.questions.filter((q) => states[q.id]?.status === "needs_review").length;
+    const masteredCount = payload.questions.filter(
+      (q) => states[q.id]?.status === "mastered",
+    ).length;
+    const missedCount = payload.questions.filter(
+      (q) => states[q.id]?.status === "needs_review",
+    ).length;
     masteryEl.textContent = `${masteredCount}/${payload.questions.length} mastered`;
     counterEl.textContent = showSummary
       ? `Summary (${list.length} questions)`
@@ -158,7 +170,9 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     const correctCount = list.filter((q) => roundGrades.get(q.id)?.correct).length;
     const pct = list.length > 0 ? Math.round((correctCount / list.length) * 100) : 0;
     const states = statesMap();
-    const missedCount = payload.questions.filter((q) => states[q.id]?.status === "needs_review").length;
+    const missedCount = payload.questions.filter(
+      (q) => states[q.id]?.status === "needs_review",
+    ).length;
 
     const reviewBtn = h("button", {
       class: "btn btn-primary btn-sm",
@@ -166,7 +180,7 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
       "data-testid": "quiz-summary-review-missed",
       disabled: missedCount === 0,
       text: missedCount > 0 ? `Review ${missedCount} missed questions` : "Practice all again",
-    }) as HTMLButtonElement;
+    });
     reviewBtn.addEventListener("click", () => {
       reviewMissedOnly = missedCount > 0;
       showSummary = false;
@@ -195,57 +209,47 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
       h(
         "div",
         { class: "quiz-summary-card", "data-testid": "quiz-summary" },
-        h("h4", { class: "quiz-summary-score", "data-testid": "quiz-summary-score", text: `Score: ${correctCount} / ${list.length} (${pct}%)` }),
-        h("div", { class: "quiz-summary-actions" }, reviewBtn, retakeBtn)
-      )
+        h("h4", {
+          class: "quiz-summary-score",
+          "data-testid": "quiz-summary-score",
+          text: `Score: ${correctCount} / ${list.length} (${pct}%)`,
+        }),
+        h("div", { class: "quiz-summary-actions" }, reviewBtn, retakeBtn),
+      ),
     );
   }
 
-  function renderQuestion(list: QuizQuestion[]): void {
-    const q = list[currentIndex];
-    if (!q) return;
-    const graded = roundGrades.get(q.id);
+  type AnswerResult = { ok: true; value: string | string[] } | { ok: false; error: string };
 
-    const card = h("div", { class: "quiz-question-card", "data-testid": "quiz-question-card", "data-question-type": q.type });
-    card.append(
-      h("span", { class: "badge", text: q.type.replaceAll("_", " ") }),
-      h("p", { class: "quiz-question-prompt", "data-testid": "quiz-question-prompt", text: q.prompt })
-    );
-
-    if (q.hint && !graded) {
-      const hintBtn = h("button", {
-        class: "btn btn-sm",
-        type: "button",
-        "data-testid": "quiz-hint-btn",
-        text: hintVisible ? "Hide hint" : "Hint",
-      });
-      const hintEl = h("p", {
-        class: "muted quiz-hint-text",
-        "data-testid": "quiz-hint-text",
-        hidden: !hintVisible,
-        text: q.hint,
-      });
-      hintBtn.addEventListener("click", () => {
-        hintVisible = !hintVisible;
-        hintEl.hidden = !hintVisible;
-        hintBtn.textContent = hintVisible ? "Hide hint" : "Hint";
-      });
-      card.append(hintBtn, hintEl);
-    }
-
-    let selectedSingle = "";
-    const selectedMulti = new Set<string>();
-    let textAnswer = "";
-    const errorEl = h("p", { class: "chat-error", "data-testid": "quiz-error", role: "alert", hidden: true });
-    const submitBtn = h("button", {
-      class: "btn btn-primary btn-sm",
+  function renderHintControl(q: QuizQuestion, card: HTMLElement): void {
+    if (!q.hint) return;
+    const hintBtn = h("button", {
+      class: "btn btn-sm",
       type: "button",
-      "data-testid": "quiz-submit-btn",
-      disabled: Boolean(graded),
-      text: "Check",
-    }) as HTMLButtonElement;
+      "data-testid": "quiz-hint-btn",
+      text: hintVisible ? "Hide hint" : "Hint",
+    });
+    const hintEl = h("p", {
+      class: "muted quiz-hint-text",
+      "data-testid": "quiz-hint-text",
+      hidden: !hintVisible,
+      text: q.hint,
+    });
+    hintBtn.addEventListener("click", () => {
+      hintVisible = !hintVisible;
+      hintEl.hidden = !hintVisible;
+      hintBtn.textContent = hintVisible ? "Hide hint" : "Hint";
+    });
+    card.append(hintBtn, hintEl);
+  }
 
+  function renderQuestionInput(
+    q: QuizQuestion,
+    disabled: boolean,
+    card: HTMLElement,
+  ): () => AnswerResult {
     if (q.type === "multiple_choice" && q.options) {
+      let selectedSingle = "";
       const groupName = `quiz-mc-${q.id}`;
       const listEl = h("div", { class: "quiz-options" });
       for (const opt of q.options) {
@@ -254,80 +258,183 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
           name: groupName,
           value: opt.id,
           "data-option-id": opt.id,
-          disabled: Boolean(graded),
-        }) as HTMLInputElement;
+          disabled,
+        });
         input.addEventListener("change", () => {
           if (input.checked) selectedSingle = opt.id;
         });
-        listEl.append(h("label", { class: "quiz-option-row" }, input, " ", h("span", { text: opt.text })));
+        listEl.append(
+          h("label", { class: "quiz-option-row" }, input, " ", h("span", { text: opt.text })),
+        );
       }
       card.append(listEl);
-    } else if (q.type === "multiple_select" && q.options) {
+      return () =>
+        selectedSingle
+          ? { ok: true, value: selectedSingle }
+          : { ok: false, error: "Select an option before checking." };
+    }
+
+    if (q.type === "multiple_select" && q.options) {
+      const selectedMulti = new Set<string>();
       const listEl = h("div", { class: "quiz-options" });
       for (const opt of q.options) {
         const input = h("input", {
           type: "checkbox",
           value: opt.id,
           "data-option-id": opt.id,
-          disabled: Boolean(graded),
-        }) as HTMLInputElement;
+          disabled,
+        });
         input.addEventListener("change", () => {
           if (input.checked) selectedMulti.add(opt.id);
           else selectedMulti.delete(opt.id);
         });
-        listEl.append(h("label", { class: "quiz-option-row" }, input, " ", h("span", { text: opt.text })));
+        listEl.append(
+          h("label", { class: "quiz-option-row" }, input, " ", h("span", { text: opt.text })),
+        );
       }
       card.append(listEl);
-    } else {
-      const input = h("textarea", {
-        class: "report-prompt quiz-text-answer",
-        "data-testid": "quiz-text-answer",
-        rows: 3,
-        disabled: Boolean(graded),
-        placeholder: q.type === "fill_in_the_blank" ? "Fill in the blank..." : "Type your answer...",
-      }) as HTMLTextAreaElement;
-      const countEl = h("span", { class: "muted", text: `0 / ${QUIZ_ANSWER_MAX_CODE_POINTS}` });
-      input.addEventListener("input", () => {
-        textAnswer = input.value;
-        const n = Array.from(textAnswer.trim()).length;
-        countEl.textContent = `${n} / ${QUIZ_ANSWER_MAX_CODE_POINTS}`;
-      });
-      card.append(input, countEl);
+      return () =>
+        selectedMulti.size > 0
+          ? { ok: true, value: [...selectedMulti] }
+          : { ok: false, error: "Select at least one option before checking." };
     }
 
-    submitBtn.addEventListener("click", async () => {
+    let textAnswer = "";
+    const input = h("textarea", {
+      class: "report-prompt quiz-text-answer",
+      "data-testid": "quiz-text-answer",
+      rows: 3,
+      disabled,
+      placeholder: q.type === "fill_in_the_blank" ? "Fill in the blank..." : "Type your answer...",
+    });
+    const countEl = h("span", { class: "muted", text: `0 / ${QUIZ_ANSWER_MAX_CODE_POINTS}` });
+    input.addEventListener("input", () => {
+      textAnswer = input.value;
+      const n = codePointLength(textAnswer.trim());
+      countEl.textContent = `${n} / ${QUIZ_ANSWER_MAX_CODE_POINTS}`;
+    });
+    card.append(input, countEl);
+    return () => {
+      const trimmed = textAnswer.trim();
+      const cps = codePointLength(trimmed);
+      if (cps < 1 || cps > QUIZ_ANSWER_MAX_CODE_POINTS) {
+        return {
+          ok: false,
+          error: `Answer must be 1 to ${QUIZ_ANSWER_MAX_CODE_POINTS} characters.`,
+        };
+      }
+      return { ok: true, value: trimmed };
+    };
+  }
+
+  function renderGradedSection(
+    q: QuizQuestion,
+    graded: GradeQuizQuestionResponse,
+    listLength: number,
+    card: HTMLElement,
+  ): void {
+    const explainBtn = h("button", {
+      class: "btn btn-sm",
+      type: "button",
+      "data-testid": "quiz-explain-btn",
+      text: "Explain",
+    });
+    explainBtn.addEventListener("click", () => void options.onExplain(q.id));
+
+    const feedback = h(
+      "div",
+      {
+        class: `quiz-feedback ${graded.correct ? "quiz-feedback-correct" : "quiz-feedback-incorrect"}`,
+        "data-testid": "quiz-feedback",
+      },
+      h("strong", { text: graded.correct ? "Right!" : "Not quite" }),
+      h("p", { text: graded.explanation }),
+      h("div", { class: "quiz-citations" }, ...renderBadges(graded.citations)),
+      explainBtn,
+    );
+    card.append(feedback);
+
+    const navRow = h("div", { class: "quiz-nav-row" });
+    if (currentIndex < listLength - 1) {
+      const nextBtn = h("button", {
+        class: "btn btn-primary btn-sm",
+        type: "button",
+        "data-testid": "quiz-next-btn",
+        text: "Next question →",
+      });
+      nextBtn.addEventListener("click", () => {
+        currentIndex += 1;
+        hintVisible = false;
+        renderView();
+      });
+      navRow.append(nextBtn);
+    } else {
+      const finishBtn = h("button", {
+        class: "btn btn-primary btn-sm",
+        type: "button",
+        "data-testid": "quiz-finish-btn",
+        text: "View score",
+      });
+      finishBtn.addEventListener("click", () => {
+        showSummary = true;
+        renderView();
+      });
+      navRow.append(finishBtn);
+    }
+    card.append(navRow);
+  }
+
+  function renderQuestion(list: QuizQuestion[]): void {
+    const q = list[currentIndex];
+    if (!q) return;
+    const graded = roundGrades.get(q.id);
+
+    const card = h("div", {
+      class: "quiz-question-card",
+      "data-testid": "quiz-question-card",
+      "data-question-type": q.type,
+    });
+    card.append(
+      h("span", { class: "badge", text: q.type.replaceAll("_", " ") }),
+      h("p", {
+        class: "quiz-question-prompt",
+        "data-testid": "quiz-question-prompt",
+        text: q.prompt,
+      }),
+    );
+
+    if (!graded) renderHintControl(q, card);
+
+    const errorEl = h("p", {
+      class: "chat-error",
+      "data-testid": "quiz-error",
+      role: "alert",
+      hidden: true,
+    });
+    const submitBtn = h("button", {
+      class: "btn btn-primary btn-sm",
+      type: "button",
+      "data-testid": "quiz-submit-btn",
+      disabled: Boolean(graded),
+      text: "Check",
+    });
+
+    const readAnswer = renderQuestionInput(q, Boolean(graded), card);
+
+    const handleGrade = async (): Promise<void> => {
       if (busy || graded) return;
       errorEl.hidden = true;
-      let payloadAnswer: string | string[];
-      if (q.type === "multiple_choice") {
-        if (!selectedSingle) {
-          errorEl.hidden = false;
-          errorEl.textContent = "Select an option before checking.";
-          return;
-        }
-        payloadAnswer = selectedSingle;
-      } else if (q.type === "multiple_select") {
-        if (selectedMulti.size === 0) {
-          errorEl.hidden = false;
-          errorEl.textContent = "Select at least one option before checking.";
-          return;
-        }
-        payloadAnswer = [...selectedMulti];
-      } else {
-        const trimmed = textAnswer.trim();
-        const cps = Array.from(trimmed).length;
-        if (cps < 1 || cps > QUIZ_ANSWER_MAX_CODE_POINTS) {
-          errorEl.hidden = false;
-          errorEl.textContent = `Answer must be 1 to ${QUIZ_ANSWER_MAX_CODE_POINTS} characters.`;
-          return;
-        }
-        payloadAnswer = trimmed;
+      const answer = readAnswer();
+      if (!answer.ok) {
+        errorEl.hidden = false;
+        errorEl.textContent = answer.error;
+        return;
       }
 
       busy = true;
       submitBtn.disabled = true;
       try {
-        const res = await options.onGrade(q.id, payloadAnswer);
+        const res = await options.onGrade(q.id, answer.value);
         roundGrades.set(q.id, res);
         progress = res.progress;
         renderView();
@@ -338,62 +445,13 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
       } finally {
         busy = false;
       }
+    };
+    submitBtn.addEventListener("click", () => {
+      void handleGrade();
     });
 
     card.append(errorEl, submitBtn);
-
-    if (graded) {
-      const explainBtn = h("button", {
-        class: "btn btn-sm",
-        type: "button",
-        "data-testid": "quiz-explain-btn",
-        text: "Explain",
-      });
-      explainBtn.addEventListener("click", () => void options.onExplain(q.id));
-
-      const feedback = h(
-        "div",
-        {
-          class: `quiz-feedback ${graded.correct ? "quiz-feedback-correct" : "quiz-feedback-incorrect"}`,
-          "data-testid": "quiz-feedback",
-        },
-        h("strong", { text: graded.correct ? "Right!" : "Not quite" }),
-        h("p", { text: graded.explanation }),
-        h("div", { class: "quiz-citations" }, ...renderBadges(graded.citations)),
-        explainBtn
-      );
-      card.append(feedback);
-
-      const navRow = h("div", { class: "quiz-nav-row" });
-      if (currentIndex < list.length - 1) {
-        const nextBtn = h("button", {
-          class: "btn btn-primary btn-sm",
-          type: "button",
-          "data-testid": "quiz-next-btn",
-          text: "Next question →",
-        });
-        nextBtn.addEventListener("click", () => {
-          currentIndex += 1;
-          hintVisible = false;
-          renderView();
-        });
-        navRow.append(nextBtn);
-      } else {
-        const finishBtn = h("button", {
-          class: "btn btn-primary btn-sm",
-          type: "button",
-          "data-testid": "quiz-finish-btn",
-          text: "View score",
-        });
-        finishBtn.addEventListener("click", () => {
-          showSummary = true;
-          renderView();
-        });
-        navRow.append(finishBtn);
-      }
-      card.append(navRow);
-    }
-
+    if (graded) renderGradedSection(q, graded, list.length, card);
     stageHost.append(card);
   }
 
@@ -429,7 +487,7 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     renderView();
   });
 
-  resetBtn.addEventListener("click", async () => {
+  const handleReset = async (): Promise<void> => {
     const ok = options.confirmReset ? await options.confirmReset() : true;
     if (!ok) return;
     progress = await options.onResetProgress();
@@ -439,6 +497,9 @@ export function createQuizViewer(options: QuizViewerOptions): QuizViewer {
     roundGrades = new Map();
     hintVisible = false;
     renderView();
+  };
+  resetBtn.addEventListener("click", () => {
+    void handleReset();
   });
 
   renderView();

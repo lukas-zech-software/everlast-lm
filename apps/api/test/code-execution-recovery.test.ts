@@ -5,12 +5,22 @@ import { join } from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { seedReadySource } from "@everlast/db/testing";
-import { admitCodeExecution, getOrCreateThread, markSandboxActive, registerSandbox } from "@everlast/db";
-import { LATENCY_TABLE_PAGE, POPULATION_STDDEV_QUESTION } from "@everlast/testkit/code-execution-fixtures";
+import {
+  admitCodeExecution,
+  getOrCreateThread,
+  markSandboxActive,
+  registerSandbox,
+} from "@everlast/db";
+import {
+  LATENCY_TABLE_PAGE,
+  POPULATION_STDDEV_QUESTION,
+} from "@everlast/testkit/code-execution-fixtures";
 import { ChatService } from "../src/chat/service.ts";
+import { reconcileCodeExecutions } from "../src/chat/execution/reconcile.ts";
+import type { SandboxRuntime } from "../src/chat/execution/runtime.ts";
 import type { GroundedModel, GroundedModelInput } from "../src/chat/model.ts";
 import type { GroundedDraft } from "../src/chat/draft.ts";
-import { startTestApi, type TestApi } from "./support.ts";
+import { startTestApi, readJson, type TestApi } from "./support.ts";
 import { latencyComputeDraft, ScriptedSandbox } from "./code-execution-support.ts";
 
 /**
@@ -21,9 +31,10 @@ import { latencyComputeDraft, ScriptedSandbox } from "./code-execution-support.t
 
 class Model implements GroundedModel {
   readonly id = "scripted";
-  draft: (i: GroundedModelInput) => GroundedDraft = ({ chunks }) => latencyComputeDraft(chunks, "pstdev");
-  async generate(input: GroundedModelInput) {
-    return this.draft(input);
+  draft: (i: GroundedModelInput) => GroundedDraft = ({ chunks }) =>
+    latencyComputeDraft(chunks, "pstdev");
+  generate(input: GroundedModelInput): Promise<GroundedDraft> {
+    return Promise.resolve(this.draft(input));
   }
 }
 
@@ -33,27 +44,53 @@ const model = new Model();
 const sandbox = new ScriptedSandbox();
 const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 const embed = (t: string[]) => embedder.embed(t);
-let reconcile: Record<string, any> = {};
 
 beforeAll(async () => {
-  storage = new LocalObjectStorage({ root: await mkdtemp(join(tmpdir(), "everlast-rec-")), publicBaseUrl: "http://127.0.0.1" });
-  api = await startTestApi({}, (db) => ({ embedder, storage, chat: new ChatService({ pool: db.pool, embedder, model, codeExecution: { runtime: sandbox, storage } }) }));
-  reconcile = (await import("../src/chat/execution/reconcile.ts").catch(() => ({}))) as Record<string, any>;
+  storage = new LocalObjectStorage({
+    root: await mkdtemp(join(tmpdir(), "everlast-rec-")),
+    publicBaseUrl: "http://127.0.0.1",
+  });
+  api = await startTestApi({}, (db) => ({
+    embedder,
+    storage,
+    chat: new ChatService({
+      pool: db.pool,
+      embedder,
+      model,
+      codeExecution: { runtime: sandbox, storage },
+    }),
+  }));
 });
-afterAll(async () => api?.close());
+afterAll(async () => (api as TestApi | undefined)?.close());
 beforeEach(() => sandbox.reset());
 
 async function setup(as: string) {
   const res = await api.fetch("/api/notebooks", { method: "POST", as, json: {} });
-  const notebookId = ((await res.json()) as any).notebook.id as string;
-  const owner = (await api.db.pool.query("SELECT id FROM users WHERE subject = $1", [`local:${as}`])).rows[0].id as string;
-  const src = await seedReadySource(api.db.pool, owner, notebookId, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
+  const notebookId = (await readJson<{ notebook: { id: string } }>(res)).notebook.id;
+  const owner = (
+    await api.db.pool.query<{ id: string }>("SELECT id FROM users WHERE subject = $1", [
+      `local:${as}`,
+    ])
+  ).rows[0]!.id;
+  const src = await seedReadySource(api.db.pool, owner, notebookId, {
+    title: "Latency.pdf",
+    pages: [LATENCY_TABLE_PAGE],
+    embed,
+  });
   return { notebookId, owner, src };
 }
 
 function send(as: string, notebookId: string, sourceId: string, requestId = randomUUID()) {
   return api
-    .fetch(`/api/notebooks/${notebookId}/chat/turns`, { method: "POST", as, json: { message: POPULATION_STDDEV_QUESTION, active_source_ids: [sourceId], request_id: requestId } })
+    .fetch(`/api/notebooks/${notebookId}/chat/turns`, {
+      method: "POST",
+      as,
+      json: {
+        message: POPULATION_STDDEV_QUESTION,
+        active_source_ids: [sourceId],
+        request_id: requestId,
+      },
+    })
     .then((r) => r.text());
 }
 
@@ -72,15 +109,28 @@ describe("T026 cancellation fences during an attempt (FR-010, FR-011)", () => {
     sandbox.gate = new Promise<void>((r) => (release = r));
     const pending = send("rec01", notebookId, src.sourceId);
     await waitFor(() => sandbox.calls.length === 1);
-    expect((await api.fetch(`/api/notebooks/${notebookId}/chat`, { method: "DELETE", as: "rec01" })).status).toBe(200);
+    expect(
+      (await api.fetch(`/api/notebooks/${notebookId}/chat`, { method: "DELETE", as: "rec01" }))
+        .status,
+    ).toBe(200);
     release();
     const text = await pending;
     expect(text).toContain("event: error");
     expect(text).not.toContain("event: final");
     expect(sandbox.destroyed).toEqual(sandbox.created);
-    const rows = await api.db.pool.query("SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1", [notebookId]);
-    expect(rows.rows[0].n).toBe(0);
-    expect((await api.db.pool.query("SELECT count(*)::int AS n FROM chart_artifacts WHERE notebook_id = $1 AND state = 'published'", [notebookId])).rows[0].n).toBe(0);
+    const rows = await api.db.pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1",
+      [notebookId],
+    );
+    expect(rows.rows[0]!.n).toBe(0);
+    expect(
+      (
+        await api.db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM chart_artifacts WHERE notebook_id = $1 AND state = 'published'",
+          [notebookId],
+        )
+      ).rows[0]!.n,
+    ).toBe(0);
   });
 
   it("REC-API-02: revoking (deleting) a captured source during execution fails publication — no stale answer, chart or trace", async () => {
@@ -89,14 +139,40 @@ describe("T026 cancellation fences during an attempt (FR-010, FR-011)", () => {
     sandbox.gate = new Promise<void>((r) => (release = r));
     const pending = send("rec02", notebookId, src.sourceId);
     await waitFor(() => sandbox.calls.length === 1);
-    expect((await api.fetch(`/api/notebooks/${notebookId}/sources/${src.sourceId}`, { method: "DELETE", as: "rec02" })).status).toBe(204);
+    expect(
+      (
+        await api.fetch(`/api/notebooks/${notebookId}/sources/${src.sourceId}`, {
+          method: "DELETE",
+          as: "rec02",
+        })
+      ).status,
+    ).toBe(204);
     release();
     const text = await pending;
     expect(text).toContain("event: error");
-    expect((await api.db.pool.query("SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1", [notebookId])).rows[0].n).toBe(0);
-    const exec = (await api.db.pool.query("SELECT state, failure_code FROM code_executions WHERE notebook_id = $1", [notebookId])).rows[0];
+    expect(
+      (
+        await api.db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1",
+          [notebookId],
+        )
+      ).rows[0]!.n,
+    ).toBe(0);
+    const exec = (
+      await api.db.pool.query<{ state: string; failure_code: string | null }>(
+        "SELECT state, failure_code FROM code_executions WHERE notebook_id = $1",
+        [notebookId],
+      )
+    ).rows[0];
     expect(exec).toEqual({ state: "Failed", failure_code: "ScopeChanged" });
-    expect((await api.db.pool.query("SELECT state FROM chart_artifacts WHERE notebook_id = $1", [notebookId])).rows.map((r) => r.state)).toEqual(["invalidated"]);
+    expect(
+      (
+        await api.db.pool.query<{ state: string }>(
+          "SELECT state FROM chart_artifacts WHERE notebook_id = $1",
+          [notebookId],
+        )
+      ).rows.map((r) => r.state),
+    ).toEqual(["invalidated"]);
   });
 });
 
@@ -120,15 +196,20 @@ describe("T026 admission, replay and allocation boundaries (FR-007)", () => {
     const first = await send("rec04", notebookId, src.sourceId, requestId);
     const again = await send("rec04", notebookId, src.sourceId, requestId);
     expect(again).toContain('"replayed":true');
-    expect(JSON.parse(/event: final\ndata: (.+)/.exec(again)![1]!).messages[1].id).toBe(JSON.parse(/event: final\ndata: (.+)/.exec(first)![1]!).messages[1].id);
+    const parseMessageId = (sse: string) =>
+      (JSON.parse(/event: final\ndata: (.+)/.exec(sse)![1]!) as { messages: Array<{ id: string }> })
+        .messages[1]!.id;
+    expect(parseMessageId(again)).toBe(parseMessageId(first));
     expect(sandbox.calls).toHaveLength(1);
   });
 
   it("REC-API-05: a request rejected before allocation (unverifiable inputs) leaves no execution record", async () => {
     const { notebookId, src } = await setup("rec05");
     model.draft = ({ chunks }) => {
-      const d = latencyComputeDraft(chunks) as any;
-      d.computation.dataset[0].value = "999";
+      const d = latencyComputeDraft(chunks);
+      if (d.status === "compute" && d.computation) {
+        d.computation.dataset[0]!.value = "999";
+      }
       return d;
     };
     try {
@@ -136,7 +217,14 @@ describe("T026 admission, replay and allocation boundaries (FR-007)", () => {
     } finally {
       model.draft = ({ chunks }) => latencyComputeDraft(chunks, "pstdev");
     }
-    expect((await api.db.pool.query("SELECT count(*)::int AS n FROM code_executions WHERE notebook_id = $1", [notebookId])).rows[0].n).toBe(0);
+    expect(
+      (
+        await api.db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM code_executions WHERE notebook_id = $1",
+          [notebookId],
+        )
+      ).rows[0]!.n,
+    ).toBe(0);
   });
 });
 
@@ -144,36 +232,98 @@ describe("T029 crash reconciliation without replay (FR-006, FR-011)", () => {
   it("REC-API-06: expired executions are ended, their sandboxes deleted idempotently, and Python is never re-executed", async () => {
     const { notebookId, owner } = await setup("rec06");
     const thread = await getOrCreateThread(api.db.pool, owner, notebookId);
-    const exec = await admitCodeExecution(api.db.pool, { thread, requestId: randomUUID(), snapshot: [], leaseMs: 1 });
+    const exec = await admitCodeExecution(api.db.pool, {
+      thread,
+      requestId: randomUUID(),
+      snapshot: [],
+      leaseMs: 1,
+    });
     const attemptId = randomUUID();
     await registerSandbox(api.db.pool, { attemptId, executionId: exec.executionId, notebookId });
-    await markSandboxActive(api.db.pool, attemptId, "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan");
+    await markSandboxActive(
+      api.db.pool,
+      attemptId,
+      "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan",
+    );
     await new Promise((r) => setTimeout(r, 20));
-    const report = await reconcile.reconcileCodeExecutions?.({ pool: api.db.pool, runtime: sandbox, storage, sandboxMinAgeMs: 60_000 });
-    expect(report?.reconciled).toBeGreaterThanOrEqual(1);
-    expect(sandbox.destroyed).toContain("projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan");
+    const report = await reconcileCodeExecutions({
+      pool: api.db.pool,
+      runtime: sandbox,
+      storage,
+      sandboxMinAgeMs: 60_000,
+    });
+    expect(report.reconciled).toBeGreaterThanOrEqual(1);
+    expect(sandbox.destroyed).toContain(
+      "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan",
+    );
     expect(sandbox.calls).toHaveLength(0); // no replay
-    const ledger = (await api.db.pool.query("SELECT state FROM code_execution_sandboxes WHERE attempt_id = $1", [attemptId])).rows[0];
+    const ledger = (
+      await api.db.pool.query<{ state: string }>(
+        "SELECT state FROM code_execution_sandboxes WHERE attempt_id = $1",
+        [attemptId],
+      )
+    ).rows[0]!;
     expect(ledger.state).toBe("Destroyed");
     // Second pass is a no-op (idempotent).
     sandbox.destroyed = [];
-    await reconcile.reconcileCodeExecutions({ pool: api.db.pool, runtime: sandbox, storage, sandboxMinAgeMs: 60_000 });
-    expect(sandbox.destroyed).not.toContain("projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan");
+    await reconcileCodeExecutions({
+      pool: api.db.pool,
+      runtime: sandbox,
+      storage,
+      sandboxMinAgeMs: 60_000,
+    });
+    expect(sandbox.destroyed).not.toContain(
+      "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/orphan",
+    );
   });
 
   it("REC-API-07: a failed deletion stays DestroyPending and is retried later; a never-created sandbox is closed without a provider call", async () => {
     const { notebookId, owner } = await setup("rec07");
     const thread = await getOrCreateThread(api.db.pool, owner, notebookId);
-    const exec = await admitCodeExecution(api.db.pool, { thread, requestId: randomUUID(), snapshot: [], leaseMs: 1 });
+    const exec = await admitCodeExecution(api.db.pool, {
+      thread,
+      requestId: randomUUID(),
+      snapshot: [],
+      leaseMs: 1,
+    });
     const failing = randomUUID();
     const never = randomUUID();
-    await registerSandbox(api.db.pool, { attemptId: failing, executionId: exec.executionId, notebookId });
-    await markSandboxActive(api.db.pool, failing, "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/stuck");
-    await registerSandbox(api.db.pool, { attemptId: never, executionId: exec.executionId, notebookId });
+    await registerSandbox(api.db.pool, {
+      attemptId: failing,
+      executionId: exec.executionId,
+      notebookId,
+    });
+    await markSandboxActive(
+      api.db.pool,
+      failing,
+      "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/stuck",
+    );
+    await registerSandbox(api.db.pool, {
+      attemptId: never,
+      executionId: exec.executionId,
+      notebookId,
+    });
     await new Promise((r) => setTimeout(r, 20));
-    const flaky = { ...sandbox, id: "flaky", create: sandbox.create.bind(sandbox), execute: sandbox.execute.bind(sandbox), destroy: async () => Promise.reject(new Error("503")) };
-    await reconcile.reconcileCodeExecutions?.({ pool: api.db.pool, runtime: flaky, storage, sandboxMinAgeMs: 0 });
-    const states = Object.fromEntries((await api.db.pool.query("SELECT attempt_id, state FROM code_execution_sandboxes WHERE attempt_id = ANY($1::uuid[])", [[failing, never]])).rows.map((r) => [r.attempt_id, r.state]));
+    const flaky: SandboxRuntime = {
+      id: "flaky",
+      create: () => sandbox.create(),
+      execute: (handle, input, signal) => sandbox.execute(handle, input, signal),
+      destroy: () => Promise.reject(new Error("503")),
+    };
+    await reconcileCodeExecutions({
+      pool: api.db.pool,
+      runtime: flaky,
+      storage,
+      sandboxMinAgeMs: 0,
+    });
+    const states = Object.fromEntries(
+      (
+        await api.db.pool.query<{ attempt_id: string; state: string }>(
+          "SELECT attempt_id, state FROM code_execution_sandboxes WHERE attempt_id = ANY($1::uuid[])",
+          [[failing, never]],
+        )
+      ).rows.map((r) => [r.attempt_id, r.state]),
+    );
     expect(states[failing]).toBe("DestroyPending");
     expect(states[never]).toBe("Destroyed");
   });
@@ -181,10 +331,22 @@ describe("T029 crash reconciliation without replay (FR-006, FR-011)", () => {
   it("REC-API-08: invalidated chart objects are deleted from storage (Clear chat → asynchronous physical cleanup)", async () => {
     const { notebookId, src } = await setup("rec08");
     await send("rec08", notebookId, src.sourceId);
-    const chart = (await api.db.pool.query("SELECT id, object_key, object_generation FROM chart_artifacts WHERE notebook_id = $1", [notebookId])).rows[0];
+    const chart = (
+      await api.db.pool.query<{ id: string; object_key: string; object_generation: string }>(
+        "SELECT id, object_key, object_generation FROM chart_artifacts WHERE notebook_id = $1",
+        [notebookId],
+      )
+    ).rows[0]!;
     await api.fetch(`/api/notebooks/${notebookId}/chat`, { method: "DELETE", as: "rec08" });
-    await reconcile.reconcileCodeExecutions?.({ pool: api.db.pool, runtime: sandbox, storage });
+    await reconcileCodeExecutions({ pool: api.db.pool, runtime: sandbox, storage });
     await expect(storage.read(chart.object_key, chart.object_generation)).rejects.toBeTruthy();
-    expect((await api.db.pool.query("SELECT object_deleted_at IS NOT NULL AS gone FROM chart_artifacts WHERE id = $1", [chart.id])).rows[0].gone).toBe(true);
+    expect(
+      (
+        await api.db.pool.query<{ gone: boolean }>(
+          "SELECT object_deleted_at IS NOT NULL AS gone FROM chart_artifacts WHERE id = $1",
+          [chart.id],
+        )
+      ).rows[0]!.gone,
+    ).toBe(true);
   });
 });

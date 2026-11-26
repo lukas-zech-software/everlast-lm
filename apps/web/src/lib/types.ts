@@ -1,5 +1,13 @@
+import type { CodeExecutionTrace } from "@everlast/contracts";
+
 /** Wire types consumed by the SPA (mirrors packages/contracts DTOs and the chat API projection). */
-export type { NotebookDto, QuotaSummary, SourceDto, UnifiedDocumentChunk } from "@everlast/contracts";
+export type {
+  CodeExecutionTrace,
+  NotebookDto,
+  QuotaSummary,
+  SourceDto,
+  UnifiedDocumentChunk,
+} from "@everlast/contracts";
 
 export interface PageSpan {
   page_number: number;
@@ -21,8 +29,6 @@ export interface Citation {
   locator: AnyLocator | null;
 }
 
-export type { CodeExecutionTrace } from "@everlast/contracts";
-
 export interface ChatMessage {
   id: string;
   turn_id: string;
@@ -33,12 +39,15 @@ export interface ChatMessage {
   unavailable_reason: "source_deleted" | null;
   citations: Citation[];
   /** FR-GC-08 (specs/010): ordered execution attempts; null/absent for legacy and clarification messages. */
-  code_execution_trace?: import("@everlast/contracts").CodeExecutionTrace | null;
+  code_execution_trace?: CodeExecutionTrace | null;
   created_at: string;
 }
 
 /** C-01 locator union as seen by the SPA (page_span, time_span, dom_path). */
-export type AnyLocator = PageSpan | { start_ms: number; end_ms: number } | { selector: string; start_offset: number; end_offset: number };
+export type AnyLocator =
+  | PageSpan
+  | { start_ms: number; end_ms: number }
+  | { selector: string; start_offset: number; end_offset: number };
 
 export interface InspectorContent {
   source: {
@@ -55,8 +64,15 @@ export interface InspectorContent {
     last_synced_at?: string | null;
     media_duration_ms?: number | null;
   };
-  pages: { page_number: number; physical_page?: number; text: string; dom_selector?: string; start_ms?: number; end_ms?: number }[];
-  chunks: { chunk_id: string; locator: AnyLocator; text: string }[];
+  pages: Array<{
+    page_number: number;
+    physical_page?: number;
+    text: string;
+    dom_selector?: string;
+    start_ms?: number;
+    end_ms?: number;
+  }>;
+  chunks: Array<{ chunk_id: string; locator: AnyLocator; text: string }>;
   highlight: {
     chunk_id: string;
     page_number: number;
@@ -68,7 +84,13 @@ export interface InspectorContent {
     selector?: string;
   } | null;
   next_cursor: string | null;
-  transcript?: { page_number: number; start_ms: number; end_ms: number; display_time: string; text: string }[];
+  transcript?: Array<{
+    page_number: number;
+    start_ms: number;
+    end_ms: number;
+    display_time: string;
+    text: string;
+  }>;
   player?:
     | { type: "audio"; url: string; duration_ms: number | null }
     | { type: "video"; url: string; duration_ms: number | null }

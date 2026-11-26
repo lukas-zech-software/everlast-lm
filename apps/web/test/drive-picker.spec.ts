@@ -25,9 +25,18 @@ const FAKE_GOOGLE = `
   window.google.picker = { PickerBuilder: Builder, DocsView, ViewId: { DOCS: "docs" }, Action: { PICKED: "picked", CANCEL: "cancel" } };
 `;
 
-test("PICKER-E01: Choose from Google Drive imports the picked Slides file through the delegated server import", async ({ page }) => {
-  await page.route("https://apis.google.com/**", (route) => route.fulfill({ contentType: "text/javascript", body: FAKE_GOOGLE }));
-  await page.route("https://accounts.google.com/gsi/**", (route) => route.fulfill({ contentType: "text/javascript", body: "/* identity services loaded via apis fake */" }));
+test("PICKER-E01: Choose from Google Drive imports the picked Slides file through the delegated server import", async ({
+  page,
+}) => {
+  await page.route("https://apis.google.com/**", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: FAKE_GOOGLE }),
+  );
+  await page.route("https://accounts.google.com/gsi/**", (route) =>
+    route.fulfill({
+      contentType: "text/javascript",
+      body: "/* identity services loaded via apis fake */",
+    }),
+  );
   const apiBodies: string[] = [];
   page.on("request", (req) => {
     if (req.url().includes("/api/")) apiBodies.push(req.postData() ?? "");
@@ -46,6 +55,8 @@ test("PICKER-E01: Choose from Google Drive imports the picked Slides file throug
   const row = page.getByTestId("source-row");
   await expect(row).toHaveAttribute("data-status", "Ready", { timeout: 30_000 });
   await expect(row.getByTestId("source-title")).toHaveText("Steering deck");
-  expect(await page.evaluate(() => (window as unknown as { __pickerConfig: unknown }).__pickerConfig)).toEqual({ token: "browser-picker-token", key: "e2e-public-picker-key", app: "000000000000" });
+  expect(
+    await page.evaluate(() => (window as unknown as { __pickerConfig: unknown }).__pickerConfig),
+  ).toEqual({ token: "browser-picker-token", key: "e2e-public-picker-key", app: "000000000000" });
   expect(apiBodies.join("\\n")).not.toContain("browser-picker-token");
 });

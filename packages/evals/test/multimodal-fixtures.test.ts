@@ -12,7 +12,9 @@ import {
 
 /** [009-multimodal-ingestion-sync] T002 — versioned synthetic fixtures match their manifest (FR-SI-01/05, C-01). */
 
-const manifest = JSON.parse(readFileSync(new URL("../fixtures/v3-multimodal/manifest.json", import.meta.url), "utf8")) as {
+const manifest = JSON.parse(
+  readFileSync(new URL("../fixtures/v3-multimodal/manifest.json", import.meta.url), "utf8"),
+) as {
   version: string;
   sha256: Record<string, string>;
   symbolic_ids: Record<string, string>;
@@ -26,7 +28,8 @@ describe("v3 multimodal fixtures (T002)", () => {
 
   it("FX-02: symbolic chunk IDs map to schema-valid UUIDv7 values", () => {
     expect(manifest.symbolic_ids).toEqual(SYMBOLIC_IDS);
-    for (const [key, id] of Object.entries(SYMBOLIC_IDS)) if (key.startsWith("chk_")) expect(id).toMatch(UUID_V7_REGEX);
+    for (const [key, id] of Object.entries(SYMBOLIC_IDS))
+      if (key.startsWith("chk_")) expect(id).toMatch(UUID_V7_REGEX);
   });
 
   it("FX-03: Interview.mp3 words are integer, monotonic, within 10 minutes and include the 04:15 statement", () => {

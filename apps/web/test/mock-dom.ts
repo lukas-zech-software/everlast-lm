@@ -3,19 +3,61 @@
  * Supports element hierarchy, classList, dataset, compound querySelector, innerHTML parsing, events, and localStorage.
  */
 
+export interface MockEvent {
+  type: string;
+  target?: unknown;
+  currentTarget?: unknown;
+  detail?: unknown;
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+  [key: string]: unknown;
+}
+
+export type MockEventListener = (event: MockEvent) => void;
+
+export function asHTMLElement(el: MockElement): HTMLElement {
+  return el as unknown as HTMLElement;
+}
+
+export function asMockElement(el: unknown): MockElement {
+  return el as MockElement;
+}
+
+export function requestUrl(input: RequestInfo | URL): string {
+  if (typeof input === "string") {
+    return input;
+  }
+  if (input instanceof URL) {
+    return input.toString();
+  }
+  return input.url;
+}
+
+interface GlobalWithMockDOM {
+  window?: unknown;
+  document?: { activeElement?: MockElement | null };
+  localStorage?: unknown;
+  HTMLElement?: unknown;
+}
+
 export class MockClassList {
-  private classes = new Set<string>();
+  private readonly classes = new Set<string>();
 
   constructor(initial = "") {
     if (initial) {
-      initial.split(/\s+/).filter(Boolean).forEach((c) => this.classes.add(c));
+      initial
+        .split(/\s+/)
+        .filter(Boolean)
+        .forEach((c) => this.classes.add(c));
     }
   }
 
   add(...tokens: string[]) {
     tokens.forEach((t) => {
       if (t) {
-        t.split(/\s+/).filter(Boolean).forEach((c) => this.classes.add(c));
+        t.split(/\s+/)
+          .filter(Boolean)
+          .forEach((c) => this.classes.add(c));
       }
     });
   }
@@ -23,7 +65,9 @@ export class MockClassList {
   remove(...tokens: string[]) {
     tokens.forEach((t) => {
       if (t) {
-        t.split(/\s+/).filter(Boolean).forEach((c) => this.classes.delete(c));
+        t.split(/\s+/)
+          .filter(Boolean)
+          .forEach((c) => this.classes.delete(c));
       }
     });
   }
@@ -50,7 +94,7 @@ export class MockClassList {
   }
 
   toString(): string {
-    return Array.from(this.classes).join(" ");
+    return [...this.classes].join(" ");
   }
 }
 
@@ -76,27 +120,28 @@ export function parseHTMLToElements(html: string): MockElement[] {
   let match: RegExpExecArray | null;
 
   while ((match = tagRegex.exec(html)) !== null) {
-    const [, isClosing, tagName, rawAttrs, isSelfClosing, textContent] = match;
+    const [, isClosing, tagName, rawAttrs = "", isSelfClosing, textContent] = match;
 
     if (textContent) {
       const text = textContent.trim();
       if (text) {
-        if (current !== root) {
-          current.textContent = (current.textContent ? current.textContent + " " : "") + text;
-        } else {
+        if (current === root) {
           const textEl = new MockElement("span");
           textEl.textContent = text;
           root.appendChild(textEl);
+        } else {
+          current.textContent = (current.textContent ? `${current.textContent} ` : "") + text;
         }
       }
     } else if (tagName) {
       const tag = tagName.toLowerCase();
-      const isVoid = Boolean(isSelfClosing) || ["img", "input", "br", "hr", "meta", "link"].includes(tag);
+      const isVoid =
+        Boolean(isSelfClosing) || ["img", "input", "br", "hr", "meta", "link"].includes(tag);
 
       if (isClosing) {
         for (let i = stack.length - 1; i > 0; i--) {
           const stackItem = stack[i];
-          if (stackItem && stackItem.tagName.toLowerCase() === tag) {
+          if (stackItem?.tagName.toLowerCase() === tag) {
             stack.splice(i);
             current = stack[stack.length - 1] ?? root;
             break;
@@ -104,7 +149,7 @@ export function parseHTMLToElements(html: string): MockElement[] {
         }
       } else {
         const el = new MockElement(tag);
-        parseAttributes(rawAttrs ?? "", el);
+        parseAttributes(rawAttrs, el);
         current.appendChild(el);
 
         if (!isVoid) {
@@ -120,7 +165,7 @@ export function parseHTMLToElements(html: string): MockElement[] {
 
 /** One simple selector (`.a.b`, `#id`, `[attr]`, `[attr=value]`, `tag`) against one element. */
 function matchesSimple(el: MockElement, sel: string): boolean {
-  if (sel.startsWith(".") && sel.indexOf(".", 1) !== -1) {
+  if (sel.startsWith(".") && sel.includes(".", 1)) {
     const classes = sel.split(".").filter(Boolean);
     return classes.every((c) => el.classList.contains(c));
   }
@@ -133,8 +178,8 @@ function matchesSimple(el: MockElement, sel: string): boolean {
   if (sel.startsWith("[") && sel.endsWith("]")) {
     const inner = sel.slice(1, -1);
     if (inner.includes("=")) {
-      const [attr, rawVal] = inner.split("=");
-      const val = (rawVal ?? "").replace(/['"]/g, "");
+      const [attr, rawVal = ""] = inner.split("=");
+      const val = rawVal.replace(/['"]/g, "");
       if (attr) {
         return el.getAttribute(attr) === val;
       }
@@ -172,7 +217,7 @@ export class MockElement {
   value = "";
   scrollTop = 0;
   private _className = "";
-  private eventListeners: Record<string, Function[]> = {};
+  private readonly eventListeners: Record<string, MockEventListener[]> = {};
   private _textContent = "";
 
   constructor(tagName: string) {
@@ -219,9 +264,7 @@ export class MockElement {
 
   get outerHTML(): string {
     const tag = this.tagName.toLowerCase();
-    const attrs = Array.from(this.attributes.entries())
-      .map(([k, v]) => `${k}="${v}"`)
-      .join(" ");
+    const attrs = [...this.attributes.entries()].map(([k, v]) => `${k}="${v}"`).join(" ");
     const attrStr = attrs ? ` ${attrs}` : "";
     return `<${tag}${attrStr}>${this.innerHTML}</${tag}>`;
   }
@@ -233,7 +276,7 @@ export class MockElement {
       this.className = value;
     }
     if (name.startsWith("data-")) {
-      const key = name.slice(5).replace(/-([a-z])/g, (_, l) => l.toUpperCase());
+      const key = name.slice(5).replace(/-([a-z])/g, (_, l: string) => l.toUpperCase());
       this.dataset[key] = value;
     }
   }
@@ -251,8 +294,8 @@ export class MockElement {
       this.className = "";
     }
     if (name.startsWith("data-")) {
-      const key = name.slice(5).replace(/-([a-z])/g, (_, l) => l.toUpperCase());
-      delete this.dataset[key];
+      const key = name.slice(5).replace(/-([a-z])/g, (_, l: string) => l.toUpperCase());
+      Reflect.deleteProperty(this.dataset, key);
     }
   }
 
@@ -262,6 +305,11 @@ export class MockElement {
 
   get hidden(): boolean {
     return this.attributes.has("hidden");
+  }
+
+  set hidden(value: boolean) {
+    if (value) this.setAttribute("hidden", "");
+    else this.removeAttribute("hidden");
   }
 
   /** Reflects the `disabled` attribute like the real DOM property. */
@@ -295,16 +343,11 @@ export class MockElement {
 
   /** Records focus on the mock document (`document.activeElement`). */
   focus() {
-    const doc = (globalThis as any).document;
+    const doc = (globalThis as unknown as GlobalWithMockDOM).document;
     if (doc) doc.activeElement = this;
   }
 
-  set hidden(value: boolean) {
-    if (value) this.setAttribute("hidden", "");
-    else this.removeAttribute("hidden");
-  }
-
-  append(...nodes: (MockElement | string)[]) {
+  append(...nodes: Array<MockElement | string>) {
     for (const node of nodes) {
       if (typeof node === "string") {
         const text = new MockElement("#text");
@@ -321,9 +364,14 @@ export class MockElement {
   }
 
   closest(selector: string): MockElement | null {
-    let el: MockElement | null = this;
+    if (matchesSelectorList(this, selector)) {
+      return this;
+    }
+    let el = this.parentElement;
     while (el) {
-      if (matchesSelectorList(el, selector)) return el;
+      if (matchesSelectorList(el, selector)) {
+        return el;
+      }
       el = el.parentElement;
     }
     return null;
@@ -343,10 +391,10 @@ export class MockElement {
       return newChild;
     }
     const idx = this.children.indexOf(refChild);
-    if (idx !== -1) {
-      this.children.splice(idx, 0, newChild);
-    } else {
+    if (idx === -1) {
       this.children.push(newChild);
+    } else {
+      this.children.splice(idx, 0, newChild);
     }
     return newChild;
   }
@@ -360,22 +408,22 @@ export class MockElement {
     return child;
   }
 
-  addEventListener(type: string, listener: Function) {
-    if (!this.eventListeners[type]) {
-      this.eventListeners[type] = [];
-    }
-    this.eventListeners[type].push(listener);
+  addEventListener(type: string, listener: MockEventListener) {
+    const bucket = (this.eventListeners[type] ??= []);
+    bucket.push(listener);
   }
 
-  removeEventListener(type: string, listener: Function) {
+  removeEventListener(type: string, listener: MockEventListener) {
     if (this.eventListeners[type]) {
       this.eventListeners[type] = this.eventListeners[type].filter((l) => l !== listener);
     }
   }
 
-  dispatchEvent(event: { type: string; [key: string]: any }): boolean {
-    const listeners = this.eventListeners[event.type] || [];
-    listeners.forEach((l) => l.call(this, event));
+  dispatchEvent(event: MockEvent): boolean {
+    const listeners = this.eventListeners[event.type] ?? [];
+    for (const listener of listeners) {
+      listener.call(this, event);
+    }
     return true;
   }
 
@@ -412,22 +460,22 @@ export class MockElement {
 }
 
 export class MockLocalStorage {
-  private store: Record<string, string> = {};
+  private readonly store = new Map<string, string>();
 
   getItem(key: string): string | null {
-    return this.store[key] ?? null;
+    return this.store.get(key) ?? null;
   }
 
   setItem(key: string, value: string): void {
-    this.store[key] = String(value);
+    this.store.set(key, value);
   }
 
   removeItem(key: string): void {
-    delete this.store[key];
+    this.store.delete(key);
   }
 
   clear(): void {
-    this.store = {};
+    this.store.clear();
   }
 }
 
@@ -441,30 +489,33 @@ export function setupMockDOM(initialWidth = 1440) {
       node.textContent = text;
       return node;
     },
-    getElementById: (id: string) => elementsById.get(id) || null,
+    getElementById: (id: string) => elementsById.get(id) ?? null,
     documentElement: new MockElement("html"),
     body: new MockElement("body"),
+    activeElement: null as MockElement | null,
   };
 
   const localStorageMock = new MockLocalStorage();
 
-  const windowListeners: Record<string, Function[]> = {};
+  const windowListeners: Record<string, MockEventListener[]> = {};
 
   const windowMock = {
     innerWidth: initialWidth,
     innerHeight: 900,
     localStorage: localStorageMock,
-    addEventListener: (type: string, fn: Function) => {
-      if (!windowListeners[type]) windowListeners[type] = [];
-      windowListeners[type].push(fn);
+    addEventListener: (type: string, fn: MockEventListener) => {
+      const bucket = (windowListeners[type] ??= []);
+      bucket.push(fn);
     },
-    removeEventListener: (type: string, fn: Function) => {
+    removeEventListener: (type: string, fn: MockEventListener) => {
       if (windowListeners[type]) {
         windowListeners[type] = windowListeners[type].filter((l) => l !== fn);
       }
     },
-    dispatchEvent: (event: { type: string; [key: string]: any }) => {
-      (windowListeners[event.type] || []).forEach((fn) => fn(event));
+    dispatchEvent: (event: MockEvent) => {
+      for (const fn of windowListeners[event.type] ?? []) {
+        fn(event);
+      }
     },
     resizeTo: (width: number) => {
       windowMock.innerWidth = width;
@@ -472,10 +523,11 @@ export function setupMockDOM(initialWidth = 1440) {
     },
   };
 
-  (globalThis as any).window = windowMock;
-  (globalThis as any).document = documentMock;
-  (globalThis as any).localStorage = localStorageMock;
-  (globalThis as any).HTMLElement = MockElement;
+  const globals = globalThis as unknown as GlobalWithMockDOM;
+  globals.window = windowMock;
+  globals.document = documentMock;
+  globals.localStorage = localStorageMock;
+  globals.HTMLElement = MockElement;
 
   return {
     window: windowMock,

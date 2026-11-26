@@ -22,7 +22,13 @@ export const MANIFEST_FILENAME = "data.json";
 export const MAX_COMPUTE_CHUNKS = 400;
 export const MAX_DATASET_VALUES = 5_000;
 
-export type ManifestRefusal = "unknown_chunk" | "out_of_snapshot" | "unverified_value" | "unsafe_text" | "insufficient_evidence" | "invalid_value";
+export type ManifestRefusal =
+  | "unknown_chunk"
+  | "out_of_snapshot"
+  | "unverified_value"
+  | "unsafe_text"
+  | "insufficient_evidence"
+  | "invalid_value";
 
 export class ManifestError extends Error {
   readonly reason: ManifestRefusal;
@@ -48,7 +54,8 @@ export interface InputManifest {
   readonly supportingChunkIds: readonly string[];
 }
 
-const UNSAFE = /(?:[a-z][a-z0-9+.-]*:\/\/|\.\.[/\\]|^[/\\]|bearer\s|ya29\.|AIza[0-9A-Za-z_-]{10,}|-----BEGIN|password|secret)/i;
+const UNSAFE =
+  /(?:[a-z][a-z0-9+.-]*:\/\/|\.\.[/\\]|^[/\\]|bearer\s|ya29\.|AIza[0-9A-Za-z_-]{10,}|-----BEGIN|password|secret)/i;
 
 /**
  * Numeric literals in source text, as every reading a careful copier could make ("1,200" → 1200, "$1.2B" → 1.2,
@@ -63,9 +70,17 @@ export function numericTokens(text: string): number[] {
   };
   const SIGN = "(?:(?<![\\p{L}\\p{N}])-)?";
   // Dot-decimal with optional comma thousands.
-  for (const m of text.matchAll(new RegExp(`${SIGN}(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)`, "gu"))) add(m[0].replace(/,/g, ""));
+  for (const m of text.matchAll(
+    new RegExp(`${SIGN}(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?)`, "gu"),
+  ))
+    add(m[0].replace(/,/g, ""));
   // Comma-decimal with optional dot thousands ("1.234,5", "3,75"); a single comma before exactly three digits stays a thousands separator.
-  for (const m of text.matchAll(new RegExp(`${SIGN}(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+,(?:\\d{1,2}|\\d{4,})(?!\\d))`, "gu"))) {
+  for (const m of text.matchAll(
+    new RegExp(
+      `${SIGN}(?:\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+,(?:\\d{1,2}|\\d{4,})(?!\\d))`,
+      "gu",
+    ),
+  )) {
     add(m[0].replace(/\./g, "").replace(",", "."));
   }
   return [...out];
@@ -79,34 +94,75 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+function validateDatasetItem(
+  item: DatasetValue,
+  universe: Map<string, UnifiedDocumentChunk>,
+  scope: Set<string>,
+): ManifestValue {
+  const chunk = universe.get(item.chunk_id);
+  if (!chunk) {
+    throw new ManifestError(
+      "unknown_chunk",
+      "A value cites a chunk that was not supplied for this request",
+    );
+  }
+  if (!scope.has(`${chunk.source_id}:${chunk.revision}`)) {
+    throw new ManifestError(
+      "out_of_snapshot",
+      "A value cites a chunk outside the captured snapshot",
+    );
+  }
+  if (UNSAFE.test(item.label) || (item.unit !== null && UNSAFE.test(item.unit))) {
+    throw new ManifestError("unsafe_text", "Labels and units must be plain text");
+  }
+  if (!CanonicalNumberSchema.safeParse(item.value).success) {
+    throw new ManifestError("invalid_value", "Input values must be finite numbers");
+  }
+  const numeric = Number(item.value);
+  if (!numericTokens(chunk.text).some((t) => t === numeric)) {
+    throw new ManifestError(
+      "unverified_value",
+      "An input value does not occur in its cited source passage",
+    );
+  }
+  return { label: item.label, value: item.value, unit: item.unit, chunk_id: item.chunk_id };
+}
+
 export function buildInputManifest(input: {
   snapshot: SourceRevisionPair[];
   /** The exact chunks supplied by the request's C-02 provider (the citation universe). */
   chunks: UnifiedDocumentChunk[];
   dataset: DatasetValue[];
 }): InputManifest {
-  if (input.dataset.length === 0) throw new ManifestError("insufficient_evidence", "No source values were identified for the calculation");
-  if (input.dataset.length > MAX_DATASET_VALUES) throw new ManifestError("insufficient_evidence", "Too many input values");
+  if (input.dataset.length === 0) {
+    throw new ManifestError(
+      "insufficient_evidence",
+      "No source values were identified for the calculation",
+    );
+  }
+  if (input.dataset.length > MAX_DATASET_VALUES) {
+    throw new ManifestError("insufficient_evidence", "Too many input values");
+  }
   const universe = new Map(input.chunks.map((c) => [c.chunk_id, c]));
   const scope = new Set(input.snapshot.map((p) => `${p.source_id}:${p.revision}`));
   const values: ManifestValue[] = [];
   const supporting: string[] = [];
   for (const item of input.dataset) {
-    const chunk = universe.get(item.chunk_id);
-    if (!chunk) throw new ManifestError("unknown_chunk", "A value cites a chunk that was not supplied for this request");
-    if (!scope.has(`${chunk.source_id}:${chunk.revision}`)) throw new ManifestError("out_of_snapshot", "A value cites a chunk outside the captured snapshot");
-    if (UNSAFE.test(item.label) || (item.unit !== null && UNSAFE.test(item.unit))) throw new ManifestError("unsafe_text", "Labels and units must be plain text");
-    if (!CanonicalNumberSchema.safeParse(item.value).success) throw new ManifestError("invalid_value", "Input values must be finite numbers");
-    const numeric = Number(item.value);
-    if (!numericTokens(chunk.text).some((t) => t === numeric)) {
-      throw new ManifestError("unverified_value", "An input value does not occur in its cited source passage");
+    values.push(validateDatasetItem(item, universe, scope));
+    if (!supporting.includes(item.chunk_id)) {
+      supporting.push(item.chunk_id);
     }
-    values.push({ label: item.label, value: item.value, unit: item.unit, chunk_id: item.chunk_id });
-    if (!supporting.includes(item.chunk_id)) supporting.push(item.chunk_id);
   }
   const content = Buffer.from(
-    JSON.stringify({ values: values.map((v) => ({ label: v.label, value: Number(v.value), unit: v.unit, chunk_id: v.chunk_id })) }),
-    "utf8"
+    JSON.stringify({
+      values: values.map((v) => ({
+        label: v.label,
+        value: Number(v.value),
+        unit: v.unit,
+        chunk_id: v.chunk_id,
+      })),
+    }),
+    "utf8",
   );
   const entry = ManifestEntrySchema.parse({
     filename: MANIFEST_FILENAME,
@@ -128,7 +184,9 @@ export function buildInputManifest(input: {
  * cover every chunk of the captured snapshot, a calculation re-reads the complete snapshot through C-02 (bounded);
  * when even that bound is exceeded the honest answer is insufficient evidence, never a partial calculation.
  */
-export function evidencePlan(input: { retrieved: number; snapshotTotal: number }): { kind: "complete" | "expand" | "insufficient" } {
+export function evidencePlan(input: { retrieved: number; snapshotTotal: number }): {
+  kind: "complete" | "expand" | "insufficient";
+} {
   if (input.snapshotTotal > MAX_COMPUTE_CHUNKS) return { kind: "insufficient" };
   if (input.retrieved >= input.snapshotTotal) return { kind: "complete" };
   return { kind: "expand" };

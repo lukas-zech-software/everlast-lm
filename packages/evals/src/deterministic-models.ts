@@ -7,7 +7,11 @@ import type { GroundedDraft } from "@everlast/api/chat/draft";
  * quality, which only the judged suite on the real model measures.
  */
 
-const STOP = new Set("what which when where who whom does with that this from about have there their the and for are was were is of to in on by repeat earlier mentioned figure tell please service".split(" "));
+const STOP = new Set(
+  "what which when where who whom does with that this from about have there their the and for are was were is of to in on by repeat earlier mentioned figure tell please service".split(
+    " ",
+  ),
+);
 
 function keywords(text: string): string[] {
   return (text.toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) ?? []).filter((w) => !STOP.has(w));
@@ -17,24 +21,36 @@ function keywords(text: string): string[] {
 /** Drops trailing "?", "." and "!" in linear time (no backtracking regex on untrusted input). */
 function trimEndPunctuation(text: string): string {
   let end = text.length;
-  while (end > 0 && "?.!".includes(text[end - 1]!)) end--;
+  while (end > 0 && "?.!".includes(text.charAt(end - 1))) {
+    end--;
+  }
   return text.slice(0, end);
 }
 
 export class LexicalCitingModel implements GroundedModel {
   readonly id = "deterministic-lexical-citing-model";
 
-  async generate({ question, chunks }: GroundedModelInput): Promise<GroundedDraft> {
+  generate({ question, chunks }: GroundedModelInput): Promise<GroundedDraft> {
     const words = keywords(question);
     const hits = chunks.filter((c) => {
       const text = c.text.toLowerCase();
       return words.filter((w) => text.includes(w)).length >= Math.min(2, words.length);
     });
-    if (hits.length === 0) return { status: "not_in_sources", missing_topic: trimEndPunctuation(question), sentences: [] };
-    return {
+    if (hits.length === 0) {
+      return Promise.resolve({
+        status: "not_in_sources",
+        missing_topic: trimEndPunctuation(question),
+        sentences: [],
+      });
+    }
+    return Promise.resolve({
       status: "answered",
-      sentences: hits.slice(0, 4).map((c) => ({ text: c.text.split("\n")[0]!.slice(0, 400), citations: [c.chunk_id], kind: "claim" as const })),
-    };
+      sentences: hits.slice(0, 4).map((c) => ({
+        text: (c.text.split("\n")[0] ?? "").slice(0, 400),
+        citations: [c.chunk_id],
+        kind: "claim" as const,
+      })),
+    });
   }
 }
 
@@ -51,16 +67,24 @@ export class AdversarialCitingModel implements GroundedModel {
     this.foreignIds = foreignIds;
   }
 
-  async generate({ chunks }: GroundedModelInput): Promise<GroundedDraft> {
+  generate({ chunks }: GroundedModelInput): Promise<GroundedDraft> {
     const inPrompt = new Set(chunks.map((c) => c.chunk_id));
     const foreign = this.foreignIds().find((id) => !inPrompt.has(id)) ?? "chk_99999";
     this.attempts++;
-    return {
+    return Promise.resolve({
       status: "answered",
       sentences: [
-        { text: chunks[0] ? chunks[0].text.slice(0, 200) : "Claim.", citations: chunks[0] ? [chunks[0].chunk_id] : [], kind: "claim" },
-        { text: "A fact taken from a source outside the selection.", citations: [foreign], kind: "claim" },
+        {
+          text: chunks[0] ? chunks[0].text.slice(0, 200) : "Claim.",
+          citations: chunks[0] ? [chunks[0].chunk_id] : [],
+          kind: "claim",
+        },
+        {
+          text: "A fact taken from a source outside the selection.",
+          citations: [foreign],
+          kind: "claim",
+        },
       ],
-    };
+    });
   }
 }

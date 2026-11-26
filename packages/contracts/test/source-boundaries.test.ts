@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import {
-  MAX_SOURCE_BYTES,
-  MAX_SOURCE_WORDS,
   validateDeclaredAdmission,
   validateWorkerReceivedSource,
   validateWorkerExtractedWords,
@@ -23,7 +21,7 @@ describe("T034 [P] [US3] Trusted-Worker Boundary and Size Validation (FR-WM-07, 
 
     // 200,000,001 bytes: strictly rejected
     expect(() => validateDeclaredAdmission({ declared_byte_size: 200_000_001 })).toThrow(
-      SourceOversizedBytesError
+      SourceOversizedBytesError,
     );
     expect(() => validateWorkerReceivedSource(200_000_001)).toThrow(SourceOversizedBytesError);
   });
@@ -43,7 +41,7 @@ describe("T034 [P] [US3] Trusted-Worker Boundary and Size Validation (FR-WM-07, 
   it("BND-03: 215 MB PDF rejected pre-upload on declared bytes", () => {
     const bytes215MB = 215 * 1024 * 1024; // ~225,443,840 bytes > 200,000,000
     expect(() =>
-      validateDeclaredAdmission({ declared_byte_size: bytes215MB, file_name: "oversized.pdf" })
+      validateDeclaredAdmission({ declared_byte_size: bytes215MB, file_name: "oversized.pdf" }),
     ).toThrow(SourceOversizedBytesError);
   });
 
@@ -61,13 +59,13 @@ describe("T034 [P] [US3] Trusted-Worker Boundary and Size Validation (FR-WM-07, 
     const actualBytes = 205 * 1024 * 1024; // actual 205 MB
 
     expect(() => detectDishonestDeclaration(declaredBytes, actualBytes)).toThrow(
-      DishonestDeclarationError
+      DishonestDeclarationError,
     );
   });
 
   it("BND-06: client-provided word count is never trusted; worker validation required", () => {
     // Calling validation without worker verification throws or enforces worker source
-    expect(() => validateWorkerExtractedWords(undefined as any)).toThrow();
+    expect(() => validateWorkerExtractedWords(undefined as unknown as number)).toThrow();
     expect(() => validateWorkerExtractedWords(-1)).toThrow();
   });
 });

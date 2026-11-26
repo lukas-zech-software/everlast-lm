@@ -32,7 +32,9 @@ describe("dev-only live fixture guard", () => {
       { CLOUD_SQL_CONNECTION_NAME: "proj:europe-west4:everlast-prod-pg" },
       { WORKSPACE_IT_APPROVED_FIXTURE: "wrong" },
     ]) {
-      expect(() => approvedLiveFixture({ ...identityEnv, ...bad }, "identity")).toThrow(/UNAVAILABLE/);
+      expect(() => approvedLiveFixture({ ...identityEnv, ...bad }, "identity")).toThrow(
+        /UNAVAILABLE/,
+      );
     }
 
     const storageEnv = {
@@ -46,9 +48,14 @@ describe("dev-only live fixture guard", () => {
       target: "everlast-dev-workspace",
     });
 
-    expect(() => approvedLiveFixture({ ...storageEnv, TEST_DATABASE_URL: "malformed" }, "storage")).toThrow(/UNAVAILABLE/);
     expect(() =>
-      approvedLiveFixture({ ...storageEnv, TEST_DATABASE_URL: "postgres://user:pw@db/everlast_prod" }, "storage")
+      approvedLiveFixture({ ...storageEnv, TEST_DATABASE_URL: "malformed" }, "storage"),
+    ).toThrow(/UNAVAILABLE/);
+    expect(() =>
+      approvedLiveFixture(
+        { ...storageEnv, TEST_DATABASE_URL: "postgres://user:pw@db/everlast_prod" },
+        "storage",
+      ),
     ).toThrow(/staging\/production/);
     expect(() => assertDevOnlyEnvironment({ EVERLAST_ENV: "dev" })).not.toThrow();
   });
@@ -72,7 +79,11 @@ describe("dev-only live fixture guard", () => {
 });
 
 describe("dev instance permission prompt and auto scale-down", () => {
-  function fakeGcloud(opts: { sqlPolicy: "ALWAYS" | "NEVER"; sqlState: "RUNNABLE" | "STOPPED"; apiMinScale?: string }) {
+  function fakeGcloud(opts: {
+    sqlPolicy: "ALWAYS" | "NEVER";
+    sqlState: "RUNNABLE" | "STOPPED";
+    apiMinScale?: string;
+  }) {
     const calls: string[] = [];
     const execCommand = vi.fn((cmd: string, args: string[]) => {
       calls.push(`${cmd} ${args.join(" ")}`);
@@ -85,7 +96,11 @@ describe("dev instance permission prompt and auto scale-down", () => {
       }
       if (args[0] === "run" && args[2] === "describe") {
         return JSON.stringify({
-          spec: { template: { metadata: { annotations: { "run.googleapis.com/minScale": opts.apiMinScale ?? "0" } } } },
+          spec: {
+            template: {
+              metadata: { annotations: { "run.googleapis.com/minScale": opts.apiMinScale ?? "0" } },
+            },
+          },
         });
       }
       return "";
@@ -95,30 +110,45 @@ describe("dev instance permission prompt and auto scale-down", () => {
 
   it("prompts for permission when dev is scaled to zero and refuses execution if denied", async () => {
     const { calls, execCommand } = fakeGcloud({ sqlPolicy: "NEVER", sqlState: "STOPPED" });
-    const promptConfirm = vi.fn(async () => false);
+    const promptConfirm = vi.fn(() => Promise.resolve(false));
 
     await expect(
-      ensureDevEnvironmentForTests({ env: { EVERLAST_ENV: "dev" }, execCommand, promptConfirm, log: () => {} })
+      ensureDevEnvironmentForTests({
+        env: { EVERLAST_ENV: "dev" },
+        execCommand,
+        promptConfirm,
+        log: () => undefined,
+      }),
     ).rejects.toThrow(/permission to start it for test execution was not granted/i);
 
     expect(promptConfirm).toHaveBeenCalledTimes(1);
-    expect(promptConfirm.mock.calls[0]![0]).toMatch(/everlast-dev-pg.*scaled down to zero/i);
+    expect(promptConfirm.mock.calls[0]?.[0]).toMatch(/everlast-dev-pg.*scaled down to zero/i);
     expect(calls.some((c) => c.includes("instances patch"))).toBe(false);
   });
 
   it("starts dev when approved and scales it back down even if the test throws", async () => {
-    const { calls, execCommand } = fakeGcloud({ sqlPolicy: "NEVER", sqlState: "STOPPED", apiMinScale: "0" });
-    const promptConfirm = vi.fn(async () => true);
+    const { calls, execCommand } = fakeGcloud({
+      sqlPolicy: "NEVER",
+      sqlState: "STOPPED",
+      apiMinScale: "0",
+    });
+    const promptConfirm = vi.fn(() => Promise.resolve(true));
 
     await expect(
       withDevTestEnvironment(
-        { env: { EVERLAST_ENV: "dev" }, warmupApi: true, execCommand, promptConfirm, log: () => {} },
-        async (lease) => {
+        {
+          env: { EVERLAST_ENV: "dev" },
+          warmupApi: true,
+          execCommand,
+          promptConfirm,
+          log: () => undefined,
+        },
+        (lease) => {
           expect(lease.startedSql).toBe(true);
           expect(lease.warmedApi).toBe(true);
-          throw new Error("boom during test");
-        }
-      )
+          return Promise.reject(new Error("boom during test"));
+        },
+      ),
     ).rejects.toThrow("boom during test");
 
     expect(promptConfirm).toHaveBeenCalledTimes(1);
@@ -133,15 +163,26 @@ describe("dev instance permission prompt and auto scale-down", () => {
   });
 
   it("leaves dev running untouched when it was already manually started beforehand", async () => {
-    const { calls, execCommand } = fakeGcloud({ sqlPolicy: "ALWAYS", sqlState: "RUNNABLE", apiMinScale: "1" });
-    const promptConfirm = vi.fn(async () => true);
+    const { calls, execCommand } = fakeGcloud({
+      sqlPolicy: "ALWAYS",
+      sqlState: "RUNNABLE",
+      apiMinScale: "1",
+    });
+    const promptConfirm = vi.fn(() => Promise.resolve(true));
 
     await withDevTestEnvironment(
-      { env: { EVERLAST_ENV: "dev" }, warmupApi: true, execCommand, promptConfirm, log: () => {} },
-      async (lease) => {
+      {
+        env: { EVERLAST_ENV: "dev" },
+        warmupApi: true,
+        execCommand,
+        promptConfirm,
+        log: () => undefined,
+      },
+      (lease) => {
         expect(lease.startedSql).toBe(false);
         expect(lease.warmedApi).toBe(false);
-      }
+        return Promise.resolve();
+      },
     );
 
     expect(promptConfirm).not.toHaveBeenCalled();
@@ -152,7 +193,11 @@ describe("dev instance permission prompt and auto scale-down", () => {
   });
 
   it("refuses to run against staging or production environments", async () => {
-    await expect(ensureDevEnvironmentForTests({ env: { EVERLAST_ENV: "staging" } })).rejects.toThrow(/only run against the dev/i);
-    await expect(ensureDevEnvironmentForTests({ env: { EVERLAST_ENV: "prod" } })).rejects.toThrow(/only run against the dev/i);
+    await expect(
+      ensureDevEnvironmentForTests({ env: { EVERLAST_ENV: "staging" } }),
+    ).rejects.toThrow(/only run against the dev/i);
+    await expect(ensureDevEnvironmentForTests({ env: { EVERLAST_ENV: "prod" } })).rejects.toThrow(
+      /only run against the dev/i,
+    );
   });
 });

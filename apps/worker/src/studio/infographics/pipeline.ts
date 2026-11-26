@@ -7,7 +7,11 @@ import type {
   StudioProgress,
   UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import { processAllOriginalEvidenceBatches, verifyEvidenceCoverage, type EvidenceBatchLimits } from "../evidence.ts";
+import {
+  processAllOriginalEvidenceBatches,
+  verifyEvidenceCoverage,
+  type EvidenceBatchLimits,
+} from "../evidence.ts";
 import type { InfographicFactCandidate, InfographicModelClient } from "./model.ts";
 import { validateInfographicPayload } from "./validation.ts";
 
@@ -29,10 +33,13 @@ export interface GenerateInfographicInput {
   output_language?: string | undefined;
   limits?: EvidenceBatchLimits | undefined;
   signal: AbortSignal;
-  reportProgress(stage: StudioProgress["stage"], percent: number): void;
+  reportProgress: (stage: StudioProgress["stage"], percent: number) => void;
 }
 
-const refuse = (code: StudioFailureCode, message: string): StudioGenerationOutcome<StudioInfographicPayload> => ({
+const refuse = (
+  code: StudioFailureCode,
+  message: string,
+): StudioGenerationOutcome<StudioInfographicPayload> => ({
   status: "refused",
   code,
   message,
@@ -49,7 +56,7 @@ function dedupeCandidates(items: InfographicFactCandidate[]): InfographicFactCan
 }
 
 export async function generateInfographic(
-  input: GenerateInfographicInput
+  input: GenerateInfographicInput,
 ): Promise<StudioGenerationOutcome<StudioInfographicPayload>> {
   let chunks = [...input.chunks];
   const { snapshot, model, signal, output_language, focus_prompt } = input;
@@ -57,7 +64,10 @@ export async function generateInfographic(
   signal.throwIfAborted();
 
   if (chunks.length === 0 && !input.original_chunks) {
-    return refuse("InsufficientEvidence", "The selected sources contain no readable content to generate an infographic.");
+    return refuse(
+      "InsufficientEvidence",
+      "The selected sources contain no readable content to generate an infographic.",
+    );
   }
 
   input.reportProgress("reading", 5);
@@ -83,7 +93,9 @@ export async function generateInfographic(
     },
   });
 
-  const coverageError = input.original_chunks ? null : verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks
+    ? null
+    : verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -92,7 +104,7 @@ export async function generateInfographic(
   if (candidates.length === 0) {
     return refuse(
       "InsufficientEvidence",
-      "The selected sources do not contain enough grounded facts for a visual infographic."
+      "The selected sources do not contain enough grounded facts for a visual infographic.",
     );
   }
 

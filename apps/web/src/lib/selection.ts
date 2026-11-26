@@ -19,7 +19,7 @@ interface Stored {
 
 function storage(): Storage | null {
   try {
-    return globalThis.sessionStorage ?? null;
+    return (globalThis as { sessionStorage?: Storage }).sessionStorage ?? null;
   } catch {
     return null;
   }
@@ -28,9 +28,9 @@ function storage(): Storage | null {
 export class SelectionModel {
   private selected = new Set<string>();
   /** Ready sources this session has already decided on (so a later deselect is respected). */
-  private known = new Set<string>();
+  private readonly known = new Set<string>();
   /** Sources uploaded from this session: they auto-select when they become Ready. */
-  private imported = new Set<string>();
+  private readonly imported = new Set<string>();
   private ready: string[] = [];
   private readonly key: string;
 
@@ -53,7 +53,11 @@ export class SelectionModel {
     try {
       storage()?.setItem(
         this.key,
-        JSON.stringify({ selected: [...this.selected], known: [...this.known], imported: [...this.imported] } satisfies Stored)
+        JSON.stringify({
+          selected: [...this.selected],
+          known: [...this.known],
+          imported: [...this.imported],
+        } satisfies Stored),
       );
     } catch {
       /* storage unavailable: selection still works for this page */
@@ -69,14 +73,18 @@ export class SelectionModel {
   sync(sources: SelectableSource[], firstLoad = false): void {
     this.ready = sources.filter((s) => s.status === "Ready").map((s) => s.id);
     const readySet = new Set(this.ready);
-    for (const id of [...this.selected]) if (!readySet.has(id)) this.selected.delete(id);
+    for (const id of this.selected) {
+      if (!readySet.has(id)) this.selected.delete(id);
+    }
     for (const id of this.ready) {
       if (this.known.has(id)) continue;
       if (firstLoad || this.imported.has(id)) this.selected.add(id);
       this.known.add(id);
     }
     const present = new Set(sources.map((s) => s.id));
-    for (const id of [...this.known]) if (!present.has(id)) this.known.delete(id);
+    for (const id of this.known) {
+      if (!present.has(id)) this.known.delete(id);
+    }
     this.persist();
   }
 

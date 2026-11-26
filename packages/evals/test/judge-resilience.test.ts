@@ -11,21 +11,32 @@ const input = { question: "Unknown?", response: "Not in sources." };
 describe("judge provider failure evidence", () => {
   it("retains a transient failure and success with cumulative backoff timing and no content", async () => {
     vi.useFakeTimers();
-    const call = vi.fn().mockRejectedValueOnce(Object.assign(new Error("PRIVATE_SOURCE"), { status: 429 }))
-      .mockResolvedValue({ text: JSON.stringify({ refused: true, leaked_answer: false, reason: "safe" }) });
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(Object.assign(new Error("PRIVATE_SOURCE"), { status: 429 }))
+      .mockResolvedValue({
+        text: JSON.stringify({ refused: true, leaked_answer: false, reason: "safe" }),
+      });
     const judge = judgeWith(call);
     const result = judge.judgeRejection(input);
     await vi.runAllTimersAsync();
     await expect(result).resolves.toMatchObject({ refused: true });
     expect(judge.attempts).toHaveLength(2);
-    expect(judge.attempts[0]).toMatchObject({ purpose: "rejection", attempt: 1, outcome: "error", status: 429 });
+    expect(judge.attempts[0]).toMatchObject({
+      purpose: "rejection",
+      attempt: 1,
+      outcome: "error",
+      status: 429,
+    });
     expect(judge.attempts[1]).toMatchObject({ attempt: 2, outcome: "success" });
     expect(judge.attempts[1]!.elapsed_ms).toBeGreaterThanOrEqual(1000);
     expect(JSON.stringify(judge.attempts)).not.toContain("PRIVATE_SOURCE");
   });
   it("stops after five transient attempts and retains every failure", async () => {
     vi.useFakeTimers();
-    const call = vi.fn().mockRejectedValue(Object.assign(new Error("unavailable"), { status: 503 }));
+    const call = vi
+      .fn()
+      .mockRejectedValue(Object.assign(new Error("unavailable"), { status: 503 }));
     const judge = judgeWith(call);
     const result = expect(judge.judgeRejection(input)).rejects.toThrow("unavailable");
     await vi.runAllTimersAsync();

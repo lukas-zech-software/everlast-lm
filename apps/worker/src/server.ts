@@ -46,13 +46,28 @@ export interface WorkerDeps {
 export function ingestHandler(deps: WorkerDeps): JobHandler {
   return async (job) => {
     if (!deps.embedder || !deps.ocr) return { kind: "retry", errorCode: "IngestionNotConfigured" };
+    const { source_id, attempt_id, operation_id } = job.payload;
+    if (!source_id || !attempt_id) return { kind: "dead", errorCode: "InvalidPayload" };
     const outcome = await processIngestJob(
-      { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr, adapters: deps.adapters, screener: deps.screener },
-      { source_id: job.payload.source_id!, attempt_id: job.payload.attempt_id!, operation_id: job.payload.operation_id },
-      job.attempts
+      {
+        pool: deps.pool,
+        storage: deps.storage,
+        embedder: deps.embedder,
+        ocr: deps.ocr,
+        adapters: deps.adapters,
+        screener: deps.screener,
+      },
+      {
+        source_id,
+        attempt_id,
+        operation_id,
+      },
+      job.attempts,
     );
     if (outcome.status === "busy") return { kind: "defer", seconds: 30 };
-    return outcome.status === "retry" ? { kind: "retry", errorCode: outcome.errorCode } : { kind: "done" };
+    return outcome.status === "retry"
+      ? { kind: "retry", errorCode: outcome.errorCode }
+      : { kind: "done" };
   };
 }
 
@@ -60,19 +75,32 @@ export function ingestHandler(deps: WorkerDeps): JobHandler {
 export function syncHandler(deps: WorkerDeps): JobHandler {
   return async (job) => {
     if (!deps.embedder || !deps.ocr) return { kind: "retry", errorCode: "IngestionNotConfigured" };
+    const operationId = job.payload.operation_id;
+    if (!operationId) return { kind: "dead", errorCode: "InvalidPayload" };
     const outcome = await processSyncJob(
-      { pool: deps.pool, storage: deps.storage, embedder: deps.embedder, ocr: deps.ocr, adapters: deps.adapters, screener: deps.screener },
-      { operation_id: job.payload.operation_id! },
-      job.attempts
+      {
+        pool: deps.pool,
+        storage: deps.storage,
+        embedder: deps.embedder,
+        ocr: deps.ocr,
+        adapters: deps.adapters,
+        screener: deps.screener,
+      },
+      { operation_id: operationId },
+      job.attempts,
     );
     if (outcome.status === "busy") return { kind: "defer", seconds: 30 };
-    return outcome.status === "retry" ? { kind: "retry", errorCode: outcome.errorCode } : { kind: "done" };
+    return outcome.status === "retry"
+      ? { kind: "retry", errorCode: outcome.errorCode }
+      : { kind: "done" };
   };
 }
 
 export function cleanupHandler(deps: WorkerDeps): JobHandler {
   return async (job) => {
-    const outcome = await processNotebookCleanup(deps, job.payload.deletion_id!);
+    const deletionId = job.payload.deletion_id;
+    if (!deletionId) return { kind: "dead", errorCode: "InvalidPayload" };
+    const outcome = await processNotebookCleanup(deps, deletionId);
     switch (outcome.status) {
       case "purged":
       case "missing":
@@ -85,14 +113,25 @@ export function cleanupHandler(deps: WorkerDeps): JobHandler {
   };
 }
 
-export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = process.env) {
+export interface WorkerHandler {
+  drain: () => Promise<unknown>;
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => void;
+}
+
+export function createWorkerHandler(
+  deps: WorkerDeps,
+  env: NodeJS.ProcessEnv = process.env,
+): WorkerHandler {
   const handlers: Partial<Record<JobKind, JobHandler>> = {
     cleanup: cleanupHandler(deps),
     ingest: ingestHandler(deps),
     sync: syncHandler(deps),
     // Durable Studio jobs (specs/011 FR-017): without an injected runner the worker uses its own, so an
     // interrupted mindmap/data_table attempt is always recovered from the outbox (PR #161 review).
-    studio: createStudioOutboxHandler(deps.studioRunner ?? createDurableStudioRunner(deps.pool), deps.pool),
+    studio: createStudioOutboxHandler(
+      deps.studioRunner ?? createDurableStudioRunner(deps.pool),
+      deps.pool,
+    ),
     ...deps.handlers,
   };
   let draining: Promise<unknown> | null = null;
@@ -114,9 +153,16 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
           return;
         }
         drain()
-          .then((result) => res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(result)))
-          .catch((err) => {
-            console.error(JSON.stringify({ severity: "ERROR", message: `drain failed: ${(err as Error).message}` }));
+          .then((result) =>
+            res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(result)),
+          )
+          .catch((err: unknown) => {
+            console.error(
+              JSON.stringify({
+                severity: "ERROR",
+                message: `drain failed: ${err instanceof Error ? err.message : String(err)}`,
+              }),
+            );
             res.writeHead(500).end();
           });
         return;
@@ -126,14 +172,31 @@ export function createWorkerHandler(deps: WorkerDeps, env: NodeJS.ProcessEnv = p
   };
 }
 
-export async function startWorker(env: NodeJS.ProcessEnv = process.env, extra: Partial<WorkerDeps> = {}) {
+export interface StartedWorker {
+  server: http.Server;
+  deps: WorkerDeps;
+  worker: WorkerHandler;
+}
+
+export async function startWorker(
+  env: NodeJS.ProcessEnv = process.env,
+  extra: Partial<WorkerDeps> = {},
+): Promise<StartedWorker> {
   const pool = extra.pool ?? createPool();
   const storage = extra.storage ?? createObjectStorage(env);
-  const vertexConfigured = Boolean(env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT);
-  const useEnterpriseStudio = (vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1") || env.K_SERVICE || env.NODE_ENV === "production";
-  const studioRunner = !extra.studioRunner && !extra.handlers?.studio && useEnterpriseStudio
-    ? createDurableStudioRunner(pool, { structureGenerator: createEnterpriseStructuredGenerator("flash", env) })
-    : undefined;
+  const vertexConfigured = Boolean(
+    env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT,
+  );
+  const useEnterpriseStudio =
+    (vertexConfigured && env.EVERLAST_DEV_TEST_EMBEDDER !== "1") ||
+    Boolean(env.K_SERVICE) ||
+    env.NODE_ENV === "production";
+  const studioRunner =
+    !extra.studioRunner && !extra.handlers?.studio && useEnterpriseStudio
+      ? createDurableStudioRunner(pool, {
+          structureGenerator: createEnterpriseStructuredGenerator("flash", env),
+        })
+      : undefined;
   // Package 3.1 (specs/009): format adapters and Model Armor screening from configuration (absent → fail clearly).
   const v3 = createV3IngestionFromEnv(env, storage);
   const deps: WorkerDeps = {
@@ -146,7 +209,10 @@ export async function startWorker(env: NodeJS.ProcessEnv = process.env, extra: P
       extra.embedder ??
       (env.EVERLAST_DEV_TEST_EMBEDDER === "1"
         ? new HashingTestEmbedder(env)
-        : new VertexEmbedder({ client: createVertexClient(vertexConfigFromEnv(env)), model: env.EMBEDDING_MODEL })),
+        : new VertexEmbedder({
+            client: createVertexClient(vertexConfigFromEnv(env)),
+            model: env.EMBEDDING_MODEL,
+          })),
     ocr: extra.ocr ?? createOcrEngine(env),
     ...extra,
   };
@@ -163,7 +229,7 @@ export async function startWorker(env: NodeJS.ProcessEnv = process.env, extra: P
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  startWorker().catch((err) => {
+  startWorker().catch((err: unknown) => {
     console.error(err);
     process.exit(1);
   });

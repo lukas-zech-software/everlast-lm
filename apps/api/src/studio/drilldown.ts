@@ -3,6 +3,7 @@ import {
   inspectMindmapTree,
   MindmapDrilldownRequestSchema,
   StudioParamsError,
+  type MindmapNode,
   type SourceRevisionPair,
   type StudioDrilldownResponse,
   type StudioMindmapPayload,
@@ -28,7 +29,10 @@ import type { NoteAssistantModel } from "../notes/assistant-model.ts";
 
 export class StudioSupportingSourcesRequiredError extends Error {
   readonly missingSourceIds: string[];
-  constructor(missingSourceIds: string[], message = "Select all supporting sources for this mindmap node and its parent branch before asking in chat.") {
+  constructor(
+    missingSourceIds: string[],
+    message = "Select all supporting sources for this mindmap node and its parent branch before asking in chat.",
+  ) {
     super(message);
     this.name = "StudioSupportingSourcesRequiredError";
     this.missingSourceIds = missingSourceIds;
@@ -36,25 +40,85 @@ export class StudioSupportingSourcesRequiredError extends Error {
 }
 
 export interface StudioDrilldownPort {
-  readScope(ownerId: string, notebookId: string, sourceIds: string[]): Promise<{
+  readScope: (
+    ownerId: string,
+    notebookId: string,
+    sourceIds: string[],
+  ) => Promise<{
     snapshot: SourceRevisionPair[];
     chunks: UnifiedDocumentChunk[];
   }>;
   answer?: NoteAssistantModel | undefined;
-  publishTurn(input: {
+  publishTurn: (input: {
     ownerId: string;
     notebookId: string;
     snapshot: SourceRevisionPair[];
     question: string;
     answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
-  }): Promise<VisibleMessage[]>;
+  }) => Promise<VisibleMessage[]>;
 }
 
-export function buildContextualDrilldownPrompt(nodeLabel: string, parentLabel: string | null): string {
+export function buildContextualDrilldownPrompt(
+  nodeLabel: string,
+  parentLabel: string | null,
+): string {
   if (parentLabel) {
     return `Explain the subtopic "${nodeLabel}" in the context of "${parentLabel}" using only the selected sources, and cite supporting passages.`;
   }
   return `Explain the central topic "${nodeLabel}" using only the selected sources, and cite supporting passages.`;
+}
+
+function collectMissingDrilldownSources(
+  targetNode: MindmapNode,
+  parentNode: MindmapNode | null,
+  snapshot: SourceRevisionPair[],
+): string[] {
+  // Union of factual evidence citations for targetNode + parentNode (FR-005, FR-006)
+  const requiredCitations = [
+    ...targetNode.label_citations,
+    ...targetNode.summary_citations,
+    ...(parentNode ? [...parentNode.label_citations, ...parentNode.summary_citations] : []),
+  ];
+  const requiredBySource = new Map<string, number>();
+  for (const cite of requiredCitations) {
+    requiredBySource.set(cite.source_id, cite.revision);
+  }
+  const currentRevisionBySource = new Map(snapshot.map((p) => [p.source_id, p.revision]));
+  const missingSources: string[] = [];
+  for (const [sourceId, requiredRev] of requiredBySource.entries()) {
+    const activeRev = currentRevisionBySource.get(sourceId);
+    if (activeRev !== requiredRev) {
+      missingSources.push(sourceId);
+    }
+  }
+  return missingSources;
+}
+
+function buildFallbackDrilldownAnswer(targetNode: MindmapNode): {
+  kind: "answer";
+  content: string;
+  citations: StoredCitation[];
+} {
+  const validCitations: StoredCitation[] = [];
+  const seenChunks = new Set<string>();
+  for (const c of [...targetNode.label_citations, ...targetNode.summary_citations]) {
+    if (seenChunks.has(c.chunk_id)) {
+      continue;
+    }
+    seenChunks.add(c.chunk_id);
+    validCitations.push({
+      badge_number: validCitations.length + 1,
+      chunk_id: c.chunk_id,
+      source_id: c.source_id,
+      revision: c.revision,
+    });
+  }
+  const markers = validCitations.map((c) => `[${c.badge_number}]`).join("");
+  return {
+    kind: "answer",
+    content: `${targetNode.summary} ${markers}`.trim(),
+    citations: validCitations,
+  };
 }
 
 export async function executeMindmapDrilldown(input: {
@@ -77,61 +141,24 @@ export async function executeMindmapDrilldown(input: {
   }
 
   const parentId = metrics.parentById.get(req.node_id) ?? null;
-  const parentNode = parentId ? metrics.nodesById.get(parentId) ?? null : null;
-
-  // Union of factual evidence citations for targetNode + parentNode (FR-005, FR-006)
-  const requiredCitations = [
-    ...targetNode.label_citations,
-    ...targetNode.summary_citations,
-    ...(parentNode ? [...parentNode.label_citations, ...parentNode.summary_citations] : []),
-  ];
-  const requiredBySource = new Map<string, number>();
-  for (const cite of requiredCitations) {
-    requiredBySource.set(cite.source_id, cite.revision);
-  }
+  const parentNode = parentId ? (metrics.nodesById.get(parentId) ?? null) : null;
 
   // Resolve current Ready snapshot for the caller's explicit active_source_ids
-  const { snapshot, chunks } = await input.port.readScope(input.ownerId, input.notebookId, req.active_source_ids);
-  const currentRevisionBySource = new Map(snapshot.map((p) => [p.source_id, p.revision]));
-
-  const missingSources: string[] = [];
-  for (const [sourceId, requiredRev] of requiredBySource.entries()) {
-    const activeRev = currentRevisionBySource.get(sourceId);
-    if (activeRev === undefined || activeRev !== requiredRev) {
-      missingSources.push(sourceId);
-    }
-  }
+  const { snapshot, chunks } = await input.port.readScope(
+    input.ownerId,
+    input.notebookId,
+    req.active_source_ids,
+  );
+  const missingSources = collectMissingDrilldownSources(targetNode, parentNode, snapshot);
   if (missingSources.length > 0) {
     throw new StudioSupportingSourcesRequiredError(missingSources);
   }
 
   // Only AFTER eligibility passes do we construct the prompt containing node/parent labels!
   const prompt = buildContextualDrilldownPrompt(targetNode.label, parentNode?.label ?? null);
-
-  let answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
-  if (input.port.answer) {
-    answer = await input.port.answer.answer({ question: prompt, chunks });
-  } else {
-    // Deterministic grounded answer fallback citing the node's verified supporting chunks
-    const validCitations: StoredCitation[] = [];
-    const seenChunks = new Set<string>();
-    for (const c of [...targetNode.label_citations, ...targetNode.summary_citations]) {
-      if (seenChunks.has(c.chunk_id)) continue;
-      seenChunks.add(c.chunk_id);
-      validCitations.push({
-        badge_number: validCitations.length + 1,
-        chunk_id: c.chunk_id,
-        source_id: c.source_id,
-        revision: c.revision,
-      });
-    }
-    const markers = validCitations.map((c) => `[${c.badge_number}]`).join("");
-    answer = {
-      kind: "answer",
-      content: `${targetNode.summary} ${markers}`.trim(),
-      citations: validCitations,
-    };
-  }
+  const answer = input.port.answer
+    ? await input.port.answer.answer({ question: prompt, chunks })
+    : buildFallbackDrilldownAnswer(targetNode);
 
   const messages = await input.port.publishTurn({
     ownerId: input.ownerId,

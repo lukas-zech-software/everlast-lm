@@ -12,9 +12,14 @@ export interface TestApi {
   db: TestDatabase;
   issuer: LocalIdentityIssuer;
   deps: AppDeps;
-  token(user: string): string;
-  fetch(path: string, init?: RequestInit & { as?: string; json?: unknown }): Promise<Response>;
-  close(): Promise<void>;
+  token: (user: string) => string;
+  fetch: (path: string, init?: RequestInit & { as?: string; json?: unknown }) => Promise<Response>;
+  close: () => Promise<void>;
+}
+
+/** Parses a `Response` JSON body with an explicit expected type instead of `any`. */
+export async function readJson<T = Record<string, unknown>>(res: Response): Promise<T> {
+  return (await res.json()) as T;
 }
 
 /**
@@ -24,14 +29,21 @@ export interface TestApi {
 export async function startTestApi(
   overrides: Partial<ApiConfig> = {},
   extraOrFactory: Partial<AppDeps> | ((db: TestDatabase) => Partial<AppDeps>) = {},
-  options: { db?: TestDatabase } = {}
+  options: { db?: TestDatabase } = {},
 ): Promise<TestApi> {
   const db = options.db ?? (await createTestDatabase());
   const extra = typeof extraOrFactory === "function" ? extraOrFactory(db) : extraOrFactory;
   const issuer = new LocalIdentityIssuer({ NODE_ENV: "test" });
   const deps: AppDeps = {
     pool: db.pool,
-    config: { port: 0, authMode: "local", projectId: "test", sourceLimit: 50, checkRevocation: false, ...overrides },
+    config: {
+      port: 0,
+      authMode: "local",
+      projectId: "test",
+      sourceLimit: 50,
+      checkRevocation: false,
+      ...overrides,
+    },
     verifier: issuer.verifier,
     localIssuer: issuer,
     notifyJobs: () => undefined,

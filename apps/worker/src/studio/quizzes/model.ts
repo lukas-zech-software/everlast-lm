@@ -56,8 +56,8 @@ export interface QuizComposeRequest {
 
 export interface QuizModelClient {
   readonly id?: string;
-  extract(request: QuizExtractRequest): Promise<QuizFactCandidate[]>;
-  compose(request: QuizComposeRequest): Promise<StudioQuizPayload>;
+  extract: (request: QuizExtractRequest) => Promise<QuizFactCandidate[]>;
+  compose: (request: QuizComposeRequest) => Promise<StudioQuizPayload>;
 }
 
 export class QuizGenerationError extends Error {
@@ -67,7 +67,11 @@ export class QuizGenerationError extends Error {
   }
 }
 
-const stripHtml = (s: string) => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const stripHtml = (s: string) =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
 function extractSubjectAndValue(sentence: string): { subject: string; answer: string } {
   const clean = stripHtml(sentence).replace(/[.!?]+$/, "");
@@ -75,9 +79,10 @@ function extractSubjectAndValue(sentence: string): { subject: string; answer: st
   if (isMatch?.[1] && isMatch[2]) {
     return { subject: isMatch[1].trim(), answer: isMatch[2].trim() };
   }
-  const verbMatch = /^([^,;:.]+?)\s+(?:uses?|stores?|enforces?|runs?|provides?|handles?|processes?|retains?|merges?|requires?|contains?|operates?)\s+(.+)$/i.exec(
-    clean
-  );
+  const verbMatch =
+    /^([^,;:.]+?)\s+(?:uses?|stores?|enforces?|runs?|provides?|handles?|processes?|retains?|merges?|requires?|contains?|operates?)\s+(.+)$/i.exec(
+      clean,
+    );
   if (verbMatch?.[1] && verbMatch[2]) {
     return { subject: verbMatch[1].trim(), answer: verbMatch[2].trim() };
   }
@@ -104,247 +109,334 @@ const QUESTION_TYPE_CYCLE: readonly QuizQuestionType[] = [
   "short_answer",
 ];
 
+function collectFacts(req: QuizExtractRequest): QuizFactCandidate[] {
+  req.signal.throwIfAborted();
+  const out: QuizFactCandidate[] = [];
+  for (const chunk of req.chunks) {
+    const sentences = splitSentences(chunk.text);
+    const list = sentences.length > 0 ? sentences : [chunk.text.trim()].filter(Boolean);
+    for (const sentence of list) {
+      const clean = stripHtml(sentence);
+      if (!clean || !chunk.text.includes(sentence.trim())) continue;
+      out.push(buildFactCandidate(chunk, sentence, clean));
+    }
+  }
+  return out;
+}
+
+const NUMERIC_LIMIT_PATTERN =
+  /\b\d[\d.,]*\s*(?:megabytes?|mb|gigabytes?|gb|kilobytes?|kb|words?|ms|seconds?|s|%)/i;
+
+function buildFactCandidate(
+  chunk: UnifiedDocumentChunk,
+  sentence: string,
+  clean: string,
+): QuizFactCandidate {
+  const { subject, answer } = extractSubjectAndValue(clean);
+  const isNumericLimit = NUMERIC_LIMIT_PATTERN.test(clean);
+  return {
+    sentence: clean,
+    subject,
+    answer_phrase: answer,
+    chunk_id: chunk.chunk_id,
+    source_id: chunk.source_id,
+    revision: chunk.revision,
+    snippet: sentence.trim(),
+    ...(isNumericLimit
+      ? {
+          preferred_type: "short_answer" as const,
+          custom_prompt: `What is ${subject.replace(/^(?:a|an|the)\s+/i, "the ")}?`,
+          custom_rubric: `Must accurately state ${answer} (including equivalent units).`,
+          custom_hint: `Review the exact measurement or limit stated for ${subject}.`,
+        }
+      : {}),
+  };
+}
+
+function selectUniqueCandidates(
+  candidates: readonly QuizFactCandidate[],
+  focusPrompt: string | undefined,
+  targetCount: number,
+): QuizFactCandidate[] {
+  const focusTokens = tokenizeFocus(focusPrompt);
+  const scored = candidates.map((c, idx) => {
+    const hay = `${c.sentence} ${c.subject} ${c.answer_phrase}`.toLowerCase();
+    const hits = focusTokens.reduce((acc, tok) => (hay.includes(tok) ? acc + 1 : acc), 0);
+    return { c, hits, idx };
+  });
+  if (focusTokens.length > 0) {
+    scored.sort((a, b) => b.hits - a.hits || a.idx - b.idx);
+  }
+
+  const unique: QuizFactCandidate[] = [];
+  const seen = new Set<string>();
+  for (const entry of scored) {
+    const k = entry.c.sentence.toLowerCase();
+    if (seen.has(k)) continue;
+    seen.add(k);
+    unique.push(entry.c);
+    if (unique.length >= targetCount) break;
+  }
+  return unique;
+}
+
+interface CitationIssuer {
+  citations: StudioEvidenceRef[];
+  issue: (c: QuizFactCandidate) => StudioEvidenceRef;
+}
+
+function createCitationIssuer(): CitationIssuer {
+  const citations: StudioEvidenceRef[] = [];
+  const citeMap = new Map<string, StudioEvidenceRef>();
+  const issue = (c: QuizFactCandidate): StudioEvidenceRef => {
+    const key = `${c.chunk_id}|${c.snippet}`;
+    const existing = citeMap.get(key);
+    if (existing) return existing;
+    const ref: StudioEvidenceRef = {
+      badge_number: citations.length + 1,
+      chunk_id: c.chunk_id,
+      source_id: c.source_id,
+      revision: c.revision,
+      snippet: c.snippet,
+    };
+    citations.push(ref);
+    citeMap.set(key, ref);
+    return ref;
+  };
+  return { citations, issue };
+}
+
+const FALLBACK_DISTRACTORS = [
+  "Unsupported configuration option",
+  "External unverified service",
+  "Manual offline override",
+];
+
+function distractorsFor(answers: readonly string[], excludeIdx: number): string[] {
+  const own = answers[excludeIdx];
+  const pool: string[] = [];
+  answers.forEach((cand, i) => {
+    if (i !== excludeIdx && cand && cand !== own && !pool.includes(cand)) pool.push(cand);
+  });
+  for (const fb of FALLBACK_DISTRACTORS) {
+    if (pool.length >= 3) break;
+    if (fb !== own) pool.push(fb);
+  }
+  return pool.slice(0, 3);
+}
+
+function cycleType(idx: number): QuizQuestionType {
+  return QUESTION_TYPE_CYCLE[idx % QUESTION_TYPE_CYCLE.length] ?? "short_answer";
+}
+
+function reassignSlot(
+  assignedTypes: QuizQuestionType[],
+  unique: readonly QuizFactCandidate[],
+  requiredType: QuizQuestionType,
+): void {
+  const replaceIdx = assignedTypes.findIndex(
+    (t, i) => !unique[i]?.preferred_type && assignedTypes.indexOf(t) !== i,
+  );
+  if (replaceIdx >= 0) {
+    assignedTypes[replaceIdx] = requiredType;
+    return;
+  }
+  const nonPreferred = unique.findIndex((c) => !c.preferred_type);
+  if (nonPreferred >= 0) assignedTypes[nonPreferred] = requiredType;
+}
+
+/** Ensures coverage of all 4 question types when >= 4 questions exist. */
+function assignQuestionTypes(unique: readonly QuizFactCandidate[]): QuizQuestionType[] {
+  const assignedTypes: QuizQuestionType[] = unique.map(
+    (c, idx) => c.preferred_type ?? cycleType(idx),
+  );
+  if (unique.length < 4) return assignedTypes;
+  for (const requiredType of QUESTION_TYPE_CYCLE) {
+    if (!assignedTypes.includes(requiredType)) reassignSlot(assignedTypes, unique, requiredType);
+  }
+  return assignedTypes;
+}
+
+interface QuestionContext {
+  candidate: QuizFactCandidate;
+  ref: StudioEvidenceRef;
+  explanation: string;
+  index: number;
+  unique: readonly QuizFactCandidate[];
+  answers: readonly string[];
+  issueCitation: (c: QuizFactCandidate) => StudioEvidenceRef;
+}
+
+function buildMultipleChoice(ctx: QuestionContext): QuizQuestion {
+  const { candidate: c, ref, explanation } = ctx;
+  if (c.custom_options && typeof c.custom_correct_answer === "string") {
+    return {
+      id: randomUUID(),
+      type: "multiple_choice",
+      prompt: c.custom_prompt ?? `According to the sources, what applies to ${c.subject}?`,
+      hint: c.custom_hint ?? `Focus on ${c.subject}.`,
+      options: c.custom_options,
+      correct_answer: c.custom_correct_answer,
+      rubric: c.custom_rubric ?? c.answer_phrase,
+      explanation,
+      source_chunk_ids: [c.chunk_id],
+      citations: [ref],
+    };
+  }
+  const distractors = distractorsFor(ctx.answers, ctx.index);
+  const options: QuizOption[] = [
+    { id: "opt_1", text: c.answer_phrase },
+    ...distractors.map((text, dIdx) => ({ id: `opt_${dIdx + 2}`, text })),
+  ];
+  return {
+    id: randomUUID(),
+    type: "multiple_choice",
+    prompt:
+      c.custom_prompt ??
+      `According to the selected sources, what is stated regarding ${c.subject}?`,
+    hint: c.custom_hint ?? `Look for details about ${c.subject}.`,
+    options,
+    correct_answer: "opt_1",
+    rubric: `Must match option opt_1: ${c.answer_phrase}`,
+    explanation,
+    source_chunk_ids: [c.chunk_id],
+    citations: [ref],
+  };
+}
+
+function buildMultipleSelect(ctx: QuestionContext): QuizQuestion {
+  const { candidate: c, ref, explanation, unique } = ctx;
+  const peer = unique[(ctx.index + 1) % unique.length] ?? c;
+  const peerDifferent = peer.chunk_id !== c.chunk_id || peer.answer_phrase !== c.answer_phrase;
+  const peerRef = peerDifferent ? ctx.issueCitation(peer) : ref;
+  const options: QuizOption[] = peerDifferent
+    ? [
+        { id: "opt_1", text: c.answer_phrase },
+        { id: "opt_2", text: peer.answer_phrase },
+        { id: "opt_3", text: "Unverified global developer fallback" },
+      ]
+    : [
+        { id: "opt_1", text: c.answer_phrase },
+        { id: "opt_2", text: "Unverified global developer fallback" },
+        { id: "opt_3", text: "Disabled scope isolation" },
+      ];
+  const correctIds = peerDifferent ? ["opt_1", "opt_2"] : ["opt_1"];
+  const usedRefs = peerDifferent && peerRef.chunk_id !== ref.chunk_id ? [ref, peerRef] : [ref];
+  return {
+    id: randomUUID(),
+    type: "multiple_select",
+    prompt: peerDifferent
+      ? `Select all statements supported by the sources about ${c.subject} and ${peer.subject}.`
+      : `Select all statements supported by the sources about ${c.subject}.`,
+    hint: `Only select claims explicitly grounded in the active sources.`,
+    options,
+    correct_answer: correctIds,
+    rubric: `Must select ${correctIds.join(", ")}`,
+    explanation: peerDifferent
+      ? `${c.sentence} [${ref.badge_number}] ${peer.sentence} [${peerRef.badge_number}]`
+      : explanation,
+    source_chunk_ids: [...new Set(usedRefs.map((r) => r.chunk_id))],
+    citations: usedRefs,
+  };
+}
+
+function buildFillInTheBlank(ctx: QuestionContext): QuizQuestion {
+  const { candidate: c, ref, explanation } = ctx;
+  const blankPrompt = c.sentence.includes(c.answer_phrase)
+    ? `Complete the statement from the source: ${c.sentence.replace(c.answer_phrase, "_____")}`
+    : `Fill in the missing detail about ${c.subject}: _____`;
+  return {
+    id: randomUUID(),
+    type: "fill_in_the_blank",
+    prompt: c.custom_prompt ?? blankPrompt,
+    hint: c.custom_hint ?? `Recall the exact detail for ${c.subject}.`,
+    correct_answer: c.answer_phrase,
+    rubric: c.custom_rubric ?? `Must match or semantically equal: ${c.answer_phrase}`,
+    explanation,
+    source_chunk_ids: [c.chunk_id],
+    citations: [ref],
+  };
+}
+
+function buildShortAnswer(ctx: QuestionContext): QuizQuestion {
+  const { candidate: c, ref, explanation } = ctx;
+  return {
+    id: randomUUID(),
+    type: "short_answer",
+    prompt: c.custom_prompt ?? `Explain what the source specifies for ${c.subject}.`,
+    hint: c.custom_hint ?? `Cite the exact specification or value for ${c.subject}.`,
+    correct_answer: c.answer_phrase,
+    rubric: c.custom_rubric ?? `Must state ${c.answer_phrase}`,
+    explanation,
+    source_chunk_ids: [c.chunk_id],
+    citations: [ref],
+  };
+}
+
+const QUESTION_BUILDERS: Record<QuizQuestionType, (ctx: QuestionContext) => QuizQuestion> = {
+  multiple_choice: buildMultipleChoice,
+  multiple_select: buildMultipleSelect,
+  fill_in_the_blank: buildFillInTheBlank,
+  short_answer: buildShortAnswer,
+};
+
+function composeQuiz(req: QuizComposeRequest): StudioQuizPayload {
+  req.signal.throwIfAborted();
+  const targetCount = Math.min(
+    QUIZ_MAX_QUESTIONS,
+    Math.max(QUIZ_MIN_QUESTIONS, req.question_count ?? QUIZ_DEFAULT_QUESTIONS),
+  );
+  const unique = selectUniqueCandidates(req.candidates, req.focus_prompt, targetCount);
+  if (unique.length === 0) {
+    throw new QuizGenerationError(
+      "No grounded quiz questions could be extracted from scoped sources.",
+    );
+  }
+
+  const { citations, issue: issueCitation } = createCitationIssuer();
+  const answers = unique.map((c) => c.answer_phrase);
+  const assignedTypes = assignQuestionTypes(unique);
+
+  const questions: QuizQuestion[] = unique.map((candidate, index) => {
+    const ref = issueCitation(candidate);
+    const qType = assignedTypes[index] ?? cycleType(index);
+    const explanation = `${candidate.sentence} [${ref.badge_number}]`;
+    return QUESTION_BUILDERS[qType]({
+      candidate,
+      ref,
+      explanation,
+      index,
+      unique,
+      answers,
+      issueCitation,
+    });
+  });
+
+  return {
+    questions,
+    target_count: targetCount,
+    difficulty: req.difficulty,
+    insufficient_evidence_note:
+      questions.length < targetCount
+        ? `Selected sources supported ${questions.length} grounded quiz question(s) out of the requested ${targetCount}.`
+        : null,
+    citations,
+  };
+}
+
 export class DeterministicQuizModel implements QuizModelClient {
   readonly id = "deterministic-quiz-model";
 
-  async extract(req: QuizExtractRequest): Promise<QuizFactCandidate[]> {
-    req.signal.throwIfAborted();
-    const out: QuizFactCandidate[] = [];
-    for (const chunk of req.chunks) {
-      const sentences = splitSentences(chunk.text);
-      const list = sentences.length > 0 ? sentences : [chunk.text.trim()].filter(Boolean);
-      for (const sentence of list) {
-        const clean = stripHtml(sentence);
-        if (!clean || !chunk.text.includes(sentence.trim())) continue;
-        const { subject, answer } = extractSubjectAndValue(clean);
-        const isNumericLimit = /\b\d[\d.,]*\s*(?:megabytes?|mb|gigabytes?|gb|kilobytes?|kb|words?|ms|seconds?|s|%)/i.test(
-          clean
-        );
-        out.push({
-          sentence: clean,
-          subject,
-          answer_phrase: answer,
-          chunk_id: chunk.chunk_id,
-          source_id: chunk.source_id,
-          revision: chunk.revision,
-          snippet: sentence.trim(),
-          ...(isNumericLimit
-            ? {
-                preferred_type: "short_answer" as const,
-                custom_prompt: `What is ${subject.replace(/^(?:a|an|the)\s+/i, "the ")}?`,
-                custom_rubric: `Must accurately state ${answer} (including equivalent units).`,
-                custom_hint: `Review the exact measurement or limit stated for ${subject}.`,
-              }
-            : {}),
-        });
-      }
-    }
-    return out;
+  extract(req: QuizExtractRequest): Promise<QuizFactCandidate[]> {
+    return new Promise((resolve) => {
+      resolve(collectFacts(req));
+    });
   }
 
-  async compose(req: QuizComposeRequest): Promise<StudioQuizPayload> {
-    req.signal.throwIfAborted();
-    const targetCount = Math.min(
-      QUIZ_MAX_QUESTIONS,
-      Math.max(QUIZ_MIN_QUESTIONS, req.question_count ?? QUIZ_DEFAULT_QUESTIONS)
-    );
-    const focusTokens = tokenizeFocus(req.focus_prompt);
-
-    const scored = req.candidates.map((c, idx) => {
-      const hay = `${c.sentence} ${c.subject} ${c.answer_phrase}`.toLowerCase();
-      const hits = focusTokens.reduce((acc, tok) => (hay.includes(tok) ? acc + 1 : acc), 0);
-      return { c, hits, idx };
+  compose(req: QuizComposeRequest): Promise<StudioQuizPayload> {
+    return new Promise((resolve) => {
+      resolve(composeQuiz(req));
     });
-    if (focusTokens.length > 0) {
-      scored.sort((a, b) => b.hits - a.hits || a.idx - b.idx);
-    }
-
-    const unique: QuizFactCandidate[] = [];
-    const seen = new Set<string>();
-    for (const entry of scored) {
-      const k = entry.c.sentence.toLowerCase();
-      if (seen.has(k)) continue;
-      seen.add(k);
-      unique.push(entry.c);
-      if (unique.length >= targetCount) break;
-    }
-
-    if (unique.length === 0) {
-      throw new QuizGenerationError("No grounded quiz questions could be extracted from scoped sources.");
-    }
-
-    const citations: StudioEvidenceRef[] = [];
-    const citeMap = new Map<string, StudioEvidenceRef>();
-    const issueCitation = (c: QuizFactCandidate): StudioEvidenceRef => {
-      const key = `${c.chunk_id}|${c.snippet}`;
-      const existing = citeMap.get(key);
-      if (existing) return existing;
-      const ref: StudioEvidenceRef = {
-        badge_number: citations.length + 1,
-        chunk_id: c.chunk_id,
-        source_id: c.source_id,
-        revision: c.revision,
-        snippet: c.snippet,
-      };
-      citations.push(ref);
-      citeMap.set(key, ref);
-      return ref;
-    };
-
-    const otherAnswers = (excludeIdx: number): string[] => {
-      const pool: string[] = [];
-      for (let i = 0; i < unique.length; i++) {
-        if (i === excludeIdx) continue;
-        const cand = unique[i]!.answer_phrase;
-        if (cand && cand !== unique[excludeIdx]!.answer_phrase && !pool.includes(cand)) {
-          pool.push(cand);
-        }
-      }
-      const fallbackDistractors = [
-        "Unsupported configuration option",
-        "External unverified service",
-        "Manual offline override",
-      ];
-      for (const fb of fallbackDistractors) {
-        if (pool.length >= 3) break;
-        if (fb !== unique[excludeIdx]!.answer_phrase) pool.push(fb);
-      }
-      return pool.slice(0, 3);
-    };
-
-    // Ensure coverage of all 4 question types when >= 4 questions exist
-    const assignedTypes: QuizQuestionType[] = unique.map((c, idx) => {
-      if (c.preferred_type) return c.preferred_type;
-      return QUESTION_TYPE_CYCLE[idx % QUESTION_TYPE_CYCLE.length]!;
-    });
-    if (unique.length >= 4) {
-      for (const requiredType of QUESTION_TYPE_CYCLE) {
-        if (!assignedTypes.includes(requiredType)) {
-          const replaceIdx = assignedTypes.findIndex((t, i) => !unique[i]!.preferred_type && assignedTypes.indexOf(t) !== i);
-          if (replaceIdx >= 0) assignedTypes[replaceIdx] = requiredType;
-          else {
-            const nonPreferred = unique.findIndex((c) => !c.preferred_type);
-            if (nonPreferred >= 0) assignedTypes[nonPreferred] = requiredType;
-          }
-        }
-      }
-    }
-
-    const questions: QuizQuestion[] = unique.map((c, idx) => {
-      const ref = issueCitation(c);
-      const qType = assignedTypes[idx]!;
-      const explanation = `${c.sentence} [${ref.badge_number}]`;
-
-      if (qType === "multiple_choice") {
-        if (c.custom_options && typeof c.custom_correct_answer === "string") {
-          return {
-            id: randomUUID(),
-            type: "multiple_choice",
-            prompt: c.custom_prompt ?? `According to the sources, what applies to ${c.subject}?`,
-            hint: c.custom_hint ?? `Focus on ${c.subject}.`,
-            options: c.custom_options,
-            correct_answer: c.custom_correct_answer,
-            rubric: c.custom_rubric ?? c.answer_phrase,
-            explanation,
-            source_chunk_ids: [c.chunk_id],
-            citations: [ref],
-          };
-        }
-        const distractors = otherAnswers(idx);
-        const options: QuizOption[] = [
-          { id: "opt_1", text: c.answer_phrase },
-          ...distractors.map((text, dIdx) => ({ id: `opt_${dIdx + 2}`, text })),
-        ];
-        return {
-          id: randomUUID(),
-          type: "multiple_choice",
-          prompt: c.custom_prompt ?? `According to the selected sources, what is stated regarding ${c.subject}?`,
-          hint: c.custom_hint ?? `Look for details about ${c.subject}.`,
-          options,
-          correct_answer: "opt_1",
-          rubric: `Must match option opt_1: ${c.answer_phrase}`,
-          explanation,
-          source_chunk_ids: [c.chunk_id],
-          citations: [ref],
-        };
-      }
-
-      if (qType === "multiple_select") {
-        const peer = unique[(idx + 1) % unique.length]!;
-        const peerDifferent = peer.chunk_id !== c.chunk_id || peer.answer_phrase !== c.answer_phrase;
-        const peerRef = peerDifferent ? issueCitation(peer) : ref;
-        const options: QuizOption[] = peerDifferent
-          ? [
-              { id: "opt_1", text: c.answer_phrase },
-              { id: "opt_2", text: peer.answer_phrase },
-              { id: "opt_3", text: "Unverified global developer fallback" },
-            ]
-          : [
-              { id: "opt_1", text: c.answer_phrase },
-              { id: "opt_2", text: "Unverified global developer fallback" },
-              { id: "opt_3", text: "Disabled scope isolation" },
-            ];
-        const correctIds = peerDifferent ? ["opt_1", "opt_2"] : ["opt_1"];
-        const usedRefs = peerDifferent && peerRef.chunk_id !== ref.chunk_id ? [ref, peerRef] : [ref];
-        return {
-          id: randomUUID(),
-          type: "multiple_select",
-          prompt:
-            peerDifferent
-              ? `Select all statements supported by the sources about ${c.subject} and ${peer.subject}.`
-              : `Select all statements supported by the sources about ${c.subject}.`,
-          hint: `Only select claims explicitly grounded in the active sources.`,
-          options,
-          correct_answer: correctIds,
-          rubric: `Must select ${correctIds.join(", ")}`,
-          explanation: peerDifferent
-            ? `${c.sentence} [${ref.badge_number}] ${peer.sentence} [${peerRef.badge_number}]`
-            : explanation,
-          source_chunk_ids: [...new Set(usedRefs.map((r) => r.chunk_id))],
-          citations: usedRefs,
-        };
-      }
-
-      if (qType === "fill_in_the_blank") {
-        const blankPrompt = c.sentence.includes(c.answer_phrase)
-          ? `Complete the statement from the source: ${c.sentence.replace(c.answer_phrase, "_____")}`
-          : `Fill in the missing detail about ${c.subject}: _____`;
-        return {
-          id: randomUUID(),
-          type: "fill_in_the_blank",
-          prompt: c.custom_prompt ?? blankPrompt,
-          hint: c.custom_hint ?? `Recall the exact detail for ${c.subject}.`,
-          correct_answer: c.answer_phrase,
-          rubric: c.custom_rubric ?? `Must match or semantically equal: ${c.answer_phrase}`,
-          explanation,
-          source_chunk_ids: [c.chunk_id],
-          citations: [ref],
-        };
-      }
-
-      return {
-        id: randomUUID(),
-        type: "short_answer",
-        prompt: c.custom_prompt ?? `Explain what the source specifies for ${c.subject}.`,
-        hint: c.custom_hint ?? `Cite the exact specification or value for ${c.subject}.`,
-        correct_answer: c.answer_phrase,
-        rubric: c.custom_rubric ?? `Must state ${c.answer_phrase}`,
-        explanation,
-        source_chunk_ids: [c.chunk_id],
-        citations: [ref],
-      };
-    });
-
-    return {
-      questions,
-      target_count: targetCount,
-      difficulty: req.difficulty,
-      insufficient_evidence_note:
-        questions.length < targetCount
-          ? `Selected sources supported ${questions.length} grounded quiz question(s) out of the requested ${targetCount}.`
-          : null,
-      citations,
-    };
   }
 }
 
@@ -361,7 +453,7 @@ const vertexQuizSchema = z.strictObject({
       rubric: z.string().trim().min(1),
       chunk_id: z.string().min(1),
       snippet: z.string().trim().min(1),
-    })
+    }),
   ),
 });
 
@@ -436,7 +528,9 @@ export class VertexQuizModel implements QuizModelClient {
         sentence: stripHtml(q.snippet),
         subject: stripHtml(q.prompt),
         answer_phrase:
-          typeof q.correct_answer === "string" ? stripHtml(q.correct_answer) : q.correct_answer.join(", "),
+          typeof q.correct_answer === "string"
+            ? stripHtml(q.correct_answer)
+            : q.correct_answer.join(", "),
         chunk_id: chunk.chunk_id,
         source_id: chunk.source_id,
         revision: chunk.revision,

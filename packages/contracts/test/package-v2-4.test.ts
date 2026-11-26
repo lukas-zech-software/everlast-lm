@@ -49,7 +49,9 @@ describe("C-03 lifecycle (Queued → Running → Completed | Failed | Cancelled)
   });
 });
 
-const briefingSections = ["executive_summary", "core_themes", "key_takeaways", "quotes"].map((key) => ({ key, heading: key }));
+const briefingSections = ["executive_summary", "core_themes", "key_takeaways", "quotes"].map(
+  (key) => ({ key, heading: key }),
+);
 
 describe("FR-ST-10 StudioArtifact schema", () => {
   it("accepts a Queued artifact without payload", () => {
@@ -58,15 +60,28 @@ describe("FR-ST-10 StudioArtifact schema", () => {
   it("requires payload with citations iff Completed", () => {
     const payload = {
       content_md: "# Report [1]",
-      citations: [{ badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" }],
+      citations: [
+        { badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" },
+      ],
       sections: briefingSections,
     };
-    expect(StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: payload }).success).toBe(true);
-    expect(StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: null }).success).toBe(false);
     expect(
-      StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: { ...payload, citations: [] } }).success
+      StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: payload })
+        .success,
+    ).toBe(true);
+    expect(
+      StudioArtifactSchema.safeParse({ ...base, status: "Completed", payload_json: null }).success,
     ).toBe(false);
-    expect(StudioArtifactSchema.safeParse({ ...base, status: "Running", payload_json: payload }).success).toBe(false);
+    expect(
+      StudioArtifactSchema.safeParse({
+        ...base,
+        status: "Completed",
+        payload_json: { ...payload, citations: [] },
+      }).success,
+    ).toBe(false);
+    expect(
+      StudioArtifactSchema.safeParse({ ...base, status: "Running", payload_json: payload }).success,
+    ).toBe(false);
   });
   it("requires a failure explanation for Failed and rejects an empty snapshot", () => {
     expect(StudioArtifactSchema.safeParse({ ...base, status: "Failed" }).success).toBe(false);
@@ -75,9 +90,12 @@ describe("FR-ST-10 StudioArtifact schema", () => {
         ...base,
         status: "Failed",
         failure: { code: "SourceChanged", message: "Source A was replaced." },
-      }).success
+      }).success,
     ).toBe(true);
-    expect(StudioArtifactSchema.safeParse({ ...base, status: "Queued", source_revisions_snapshot: [] }).success).toBe(false);
+    expect(
+      StudioArtifactSchema.safeParse({ ...base, status: "Queued", source_revisions_snapshot: [] })
+        .success,
+    ).toBe(false);
   });
 });
 
@@ -100,32 +118,56 @@ describe("FR-ST-11 custom report prompt boundaries (code points after trim)", ()
 describe("FR-ST-10/11, FR-012 create request", () => {
   const ok = { plugin_type: "report", subtype: "faq", active_source_ids: [SRC_A] };
   it("rejects empty or omitted scope (no all-sources fallback)", () => {
-    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, active_source_ids: [] }).success).toBe(false);
-    expect(CreateStudioJobRequestSchema.safeParse({ plugin_type: "report", subtype: "faq" }).success).toBe(false);
+    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, active_source_ids: [] }).success).toBe(
+      false,
+    );
+    expect(
+      CreateStudioJobRequestSchema.safeParse({ plugin_type: "report", subtype: "faq" }).success,
+    ).toBe(false);
   });
   it("requires a prompt for dynamic and custom subtypes only", () => {
-    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "custom" }).success).toBe(false);
-    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "dynamic", custom_prompt: "  " }).success).toBe(false);
-    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "custom", custom_prompt: "z" }).success).toBe(true);
+    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "custom" }).success).toBe(
+      false,
+    );
+    expect(
+      CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "dynamic", custom_prompt: "  " })
+        .success,
+    ).toBe(false);
+    expect(
+      CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "custom", custom_prompt: "z" })
+        .success,
+    ).toBe(true);
     expect(CreateStudioJobRequestSchema.safeParse(ok).success).toBe(true);
   });
   it("rejects unknown template subtypes", () => {
-    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "mindmap" }).success).toBe(false);
+    expect(CreateStudioJobRequestSchema.safeParse({ ...ok, subtype: "mindmap" }).success).toBe(
+      false,
+    );
   });
 });
 
 describe("FR-ST-11 suggestion results", () => {
   const card = (n: number) => ({ title: `T${n}`, description: "d", prompt_template: "p" });
   it("requires 3-4 suggestions when ready", () => {
-    const mk = (n: number) => ({ state: "SuggestionsReady", suggestions: Array.from({ length: n }, (_, i) => card(i)) });
+    const mk = (n: number) => ({
+      state: "SuggestionsReady",
+      suggestions: Array.from({ length: n }, (_, i) => card(i)),
+    });
     expect(ReportSuggestionsResultSchema.safeParse(mk(2)).success).toBe(false);
     expect(ReportSuggestionsResultSchema.safeParse(mk(3)).success).toBe(true);
     expect(ReportSuggestionsResultSchema.safeParse(mk(4)).success).toBe(true);
     expect(ReportSuggestionsResultSchema.safeParse(mk(5)).success).toBe(false);
   });
   it("supports loading and unavailable states", () => {
-    expect(ReportSuggestionsResultSchema.safeParse({ state: "SuggestionsLoading" }).success).toBe(true);
-    expect(ReportSuggestionsResultSchema.safeParse({ state: "SuggestionsUnavailable", reason: "Guide failed" }).success).toBe(true);
+    expect(ReportSuggestionsResultSchema.safeParse({ state: "SuggestionsLoading" }).success).toBe(
+      true,
+    );
+    expect(
+      ReportSuggestionsResultSchema.safeParse({
+        state: "SuggestionsUnavailable",
+        reason: "Guide failed",
+      }).success,
+    ).toBe(true);
   });
 });
 
@@ -133,7 +175,8 @@ describe("C-03 StudioPluginRegistry", () => {
   const plugin = (type: string): StudioGeneratorPlugin => ({
     manifest: { plugin_type: type, display_name: type, subtypes: ["a"] },
     triggerJob: () => ({ title: "t", params_json: {} }),
-    generate: async () => ({ status: "refused", code: "InsufficientEvidence", message: "n/a" }),
+    generate: () =>
+      Promise.resolve({ status: "refused", code: "InsufficientEvidence", message: "n/a" }),
   });
   it("registers, resolves and lists plugins; rejects duplicates and unknown types", () => {
     const registry = new StudioPluginRegistry();
@@ -148,27 +191,75 @@ describe("C-03 StudioPluginRegistry", () => {
 
 /** [008-studio-text-reports] T041 — card section model (FR-ST-10, FR-002..FR-005a, FR-015). */
 describe("FR-ST-10 report sections (stable keys, localized headings)", () => {
-  const citations = [{ badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" }];
+  const citations = [
+    { badge_number: 1, chunk_id: CHUNK, source_id: SRC_A, revision: 1, snippet: "x" },
+  ];
   it("declares the card's required section keys per template", () => {
     expect(REQUIRED_REPORT_SECTIONS).toEqual({
       briefing_doc: ["executive_summary", "core_themes", "key_takeaways", "quotes"],
-      study_guide: ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+      study_guide: [
+        "topic_review",
+        "short_answer_questions",
+        "answer_key",
+        "essay_questions",
+        "glossary",
+      ],
       faq: ["faq"],
       timeline: ["events", "cast_of_characters"],
     });
   });
   it("requires sections with a stable key and a localized heading", () => {
-    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations }).success).toBe(false);
-    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "faq" }] }).success).toBe(false);
-    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "Not A Key", heading: "x" }] }).success).toBe(false);
-    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations, sections: [{ key: "faq", heading: "Häufige Fragen" }] }).success).toBe(true);
+    expect(StudioReportPayloadSchema.safeParse({ content_md: "# R [1]", citations }).success).toBe(
+      false,
+    );
+    expect(
+      StudioReportPayloadSchema.safeParse({
+        content_md: "# R [1]",
+        citations,
+        sections: [{ key: "faq" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      StudioReportPayloadSchema.safeParse({
+        content_md: "# R [1]",
+        citations,
+        sections: [{ key: "Not A Key", heading: "x" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      StudioReportPayloadSchema.safeParse({
+        content_md: "# R [1]",
+        citations,
+        sections: [{ key: "faq", heading: "Häufige Fragen" }],
+      }).success,
+    ).toBe(true);
   });
   it("a Completed template artifact must carry every required key of its template", () => {
     const completed = (subtype: string, keys: string[]) =>
-      StudioArtifactSchema.safeParse({ ...base, subtype, status: "Completed", payload_json: { content_md: "# R [1]", citations, sections: keys.map((key) => ({ key, heading: key })) } }).success;
-    expect(completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways", "quotes"])).toBe(true);
-    expect(completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways"])).toBe(false);
-    expect(completed("study_guide", ["topic_review", "short_answer_questions", "essay_questions", "glossary"])).toBe(false);
+      StudioArtifactSchema.safeParse({
+        ...base,
+        subtype,
+        status: "Completed",
+        payload_json: {
+          content_md: "# R [1]",
+          citations,
+          sections: keys.map((key) => ({ key, heading: key })),
+        },
+      }).success;
+    expect(
+      completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways", "quotes"]),
+    ).toBe(true);
+    expect(completed("briefing_doc", ["executive_summary", "core_themes", "key_takeaways"])).toBe(
+      false,
+    );
+    expect(
+      completed("study_guide", [
+        "topic_review",
+        "short_answer_questions",
+        "essay_questions",
+        "glossary",
+      ]),
+    ).toBe(false);
     expect(completed("timeline", ["events", "cast_of_characters"])).toBe(true);
     expect(completed("timeline", ["events"])).toBe(false);
     expect(completed("custom", ["report"])).toBe(true);
@@ -179,7 +270,19 @@ describe("FR-ST-10 report sections (stable keys, localized headings)", () => {
 describe("StudioArtifact source_revisions_snapshot (FR-ST-10)", () => {
   it("uses source_revisions_snapshot and rejects the old field name", () => {
     const { source_revisions_snapshot: pairs, ...rest } = base;
-    expect(StudioArtifactSchema.safeParse({ ...rest, status: "Queued", source_revisions_snapshot: pairs }).success).toBe(true);
-    expect(StudioArtifactSchema.safeParse({ ...rest, status: "Queued", active_source_ids_snapshot: pairs }).success).toBe(false);
+    expect(
+      StudioArtifactSchema.safeParse({
+        ...rest,
+        status: "Queued",
+        source_revisions_snapshot: pairs,
+      }).success,
+    ).toBe(true);
+    expect(
+      StudioArtifactSchema.safeParse({
+        ...rest,
+        status: "Queued",
+        active_source_ids_snapshot: pairs,
+      }).success,
+    ).toBe(false);
   });
 });

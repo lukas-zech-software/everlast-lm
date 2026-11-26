@@ -10,7 +10,7 @@ import {
   requestSourceSync,
   resolveSyncChannel,
 } from "@everlast/db";
-import { readJson, sendJson, sendNoContent, validationError } from "../http.ts";
+import { readJson, requireParam, sendJson, sendNoContent, validationError } from "../http.ts";
 import type { Router } from "../router.ts";
 import type { AppDeps } from "../app.ts";
 import { toSourceDto } from "./sources.ts";
@@ -24,45 +24,95 @@ import { toSourceDto } from "./sources.ts";
 
 export function registerSourceSyncRoutes(router: Router, deps: AppDeps): void {
   const written = async (userId: string, notebookId: string) => {
-    if (deps.v2) await deps.v2.notebookModified(userId, await getNotebook(deps.pool, userId, notebookId));
+    if (deps.v2)
+      await deps.v2.notebookModified(userId, await getNotebook(deps.pool, userId, notebookId));
   };
 
   router.add("POST", "/api/notebooks/:id/sources/imports", async ({ req, res, user, params }) => {
+    const notebookId = requireParam(params, "id");
     const body = await readJson(req, 16_384);
-    const result = await admitLinkedImport(deps.pool, user.userId, params.id!, body, { sourceLimit: deps.config.sourceLimit });
+    const result = await admitLinkedImport(deps.pool, user.userId, notebookId, body, {
+      sourceLimit: deps.config.sourceLimit,
+    });
     if (!result.replayed) {
       deps.notifyJobs();
-      await written(user.userId, params.id!);
+      await written(user.userId, notebookId);
     }
-    sendJson(res, 202, { source_id: result.source.id, operation_id: result.operation.operation_id, status: "Processing" });
+    sendJson(res, 202, {
+      source_id: result.source.id,
+      operation_id: result.operation.operation_id,
+      status: "Processing",
+    });
   });
 
-  router.add("PATCH", "/api/notebooks/:id/sources/:sourceId", async ({ req, res, user, params }) => {
-    await getSource(deps.pool, user.userId, params.id!, params.sourceId!);
-    const source = await renameSource(deps.pool, user.userId, params.id!, params.sourceId!, await readJson(req, 16_384));
-    await written(user.userId, params.id!);
-    sendJson(res, 200, { source: toSourceDto(source) });
-  });
+  router.add(
+    "PATCH",
+    "/api/notebooks/:id/sources/:sourceId",
+    async ({ req, res, user, params }) => {
+      const notebookId = requireParam(params, "id");
+      const sourceId = requireParam(params, "sourceId");
+      await getSource(deps.pool, user.userId, notebookId, sourceId);
+      const source = await renameSource(
+        deps.pool,
+        user.userId,
+        notebookId,
+        sourceId,
+        await readJson(req, 16_384),
+      );
+      await written(user.userId, notebookId);
+      sendJson(res, 200, { source: toSourceDto(source) });
+    },
+  );
 
   router.add("DELETE", "/api/notebooks/:id/sources/:sourceId", async ({ res, user, params }) => {
-    await deleteSource(deps.pool, user.userId, params.id!, params.sourceId!);
+    const notebookId = requireParam(params, "id");
+    const sourceId = requireParam(params, "sourceId");
+    await deleteSource(deps.pool, user.userId, notebookId, sourceId);
     deps.notifyJobs();
-    await written(user.userId, params.id!);
+    await written(user.userId, notebookId);
     sendNoContent(res);
   });
 
-  router.add("POST", "/api/notebooks/:id/sources/:sourceId/sync", async ({ req, res, user, params }) => {
-    const parsed = SourceSyncRequestSchema.safeParse(await readJson(req, 16_384));
-    if (!parsed.success) throw validationError("Body must be {attempt_id}");
-    await getSource(deps.pool, user.userId, params.id!, params.sourceId!);
-    const { operation, replayed } = await requestSourceSync(deps.pool, user.userId, params.id!, params.sourceId!, { attemptId: parsed.data.attempt_id, trigger: "manual" });
-    if (!replayed) deps.notifyJobs();
-    sendJson(res, 202, { operation_id: operation.operation_id, source_id: operation.source_id, committed_revision: operation.committed_revision });
-  });
+  router.add(
+    "POST",
+    "/api/notebooks/:id/sources/:sourceId/sync",
+    async ({ req, res, user, params }) => {
+      const notebookId = requireParam(params, "id");
+      const sourceId = requireParam(params, "sourceId");
+      const parsed = SourceSyncRequestSchema.safeParse(await readJson(req, 16_384));
+      if (!parsed.success) throw validationError("Body must be {attempt_id}");
+      await getSource(deps.pool, user.userId, notebookId, sourceId);
+      const { operation, replayed } = await requestSourceSync(
+        deps.pool,
+        user.userId,
+        notebookId,
+        sourceId,
+        { attemptId: parsed.data.attempt_id, trigger: "manual" },
+      );
+      if (!replayed) deps.notifyJobs();
+      sendJson(res, 202, {
+        operation_id: operation.operation_id,
+        source_id: operation.source_id,
+        committed_revision: operation.committed_revision,
+      });
+    },
+  );
 
-  router.add("GET", "/api/notebooks/:id/sources/:sourceId/operations/:operationId", async ({ res, user, params }) => {
-    sendJson(res, 200, { operation: await getSourceOperation(deps.pool, user.userId, params.id!, params.sourceId!, params.operationId!) });
-  });
+  router.add(
+    "GET",
+    "/api/notebooks/:id/sources/:sourceId/operations/:operationId",
+    async ({ res, user, params }) => {
+      sendJson(res, 200, {
+        operation: await getSourceOperation(
+          deps.pool,
+          user.userId,
+          requireParam(params, "id"),
+          requireParam(params, "sourceId"),
+          requireParam(params, "operationId"),
+        ),
+      });
+    },
+  );
 }
 
 /**
@@ -70,7 +120,10 @@ export function registerSourceSyncRoutes(router: Router, deps: AppDeps): void {
  * a registered channel (token compared as a hash). The mapped source goes through the same Owner-scoped sync
  * admission as a manual click; an overlap answers 409 and nothing is queued. Unknown channels get 404 without detail.
  */
-export async function handleDriveWebhook(deps: AppDeps, headers: Record<string, string | string[] | undefined>): Promise<{ status: number; body?: unknown }> {
+export async function handleDriveWebhook(
+  deps: AppDeps,
+  headers: Record<string, string | string[] | undefined>,
+): Promise<{ status: number; body?: unknown }> {
   const channelId = String(headers["x-goog-channel-id"] ?? "");
   const token = String(headers["x-goog-channel-token"] ?? "");
   const state = String(headers["x-goog-resource-state"] ?? "");
@@ -82,11 +135,15 @@ export async function handleDriveWebhook(deps: AppDeps, headers: Record<string, 
   try {
     // A redelivered notification carries the same message number → same idempotency key → replay, not a new sync.
     const attemptId = webhookAttemptId(channelId, messageNumber);
-    await requestSourceSync(deps.pool, mapped.ownerId, mapped.notebookId, mapped.sourceId, { attemptId, trigger: "webhook" });
+    await requestSourceSync(deps.pool, mapped.ownerId, mapped.notebookId, mapped.sourceId, {
+      attemptId,
+      trigger: "webhook",
+    });
     deps.notifyJobs();
     return { status: 202 };
   } catch (err) {
-    if (err instanceof AppError) return { status: err.status, body: { error: { code: err.code, message: err.message } } };
+    if (err instanceof AppError)
+      return { status: err.status, body: { error: { code: err.code, message: err.message } } };
     throw err;
   }
 }

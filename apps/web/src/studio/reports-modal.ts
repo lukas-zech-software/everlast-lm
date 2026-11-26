@@ -1,5 +1,6 @@
 import type { ReportSuggestion } from "@everlast/contracts";
 import type { ArtifactDto, CreateBody, StudioApi } from "./api.ts";
+import { codePointLength } from "../lib/text.ts";
 import { CUSTOM_REPORT_PROMPT_MAX, REPORT_TEMPLATE_TYPES } from "../lib/v2-contracts.ts";
 
 export type SuggestionState = "SuggestionsLoading" | "SuggestionsReady" | "SuggestionsUnavailable";
@@ -11,12 +12,21 @@ export const CUSTOM_PROMPT_MAX = CUSTOM_REPORT_PROMPT_MAX;
 export const DEFAULT_MAX_LOADING_POLLS = 20;
 
 const TEMPLATE_TEXT: Record<ReportTemplate, { label: string; description: string }> = {
-  briefing_doc: { label: "Briefing doc", description: "Overview of your sources featuring key insights and quotes" },
-  study_guide: { label: "Study guide", description: "Short-answer quiz, answer key, essay questions and glossary" },
+  briefing_doc: {
+    label: "Briefing doc",
+    description: "Overview of your sources featuring key insights and quotes",
+  },
+  study_guide: {
+    label: "Study guide",
+    description: "Short-answer quiz, answer key, essay questions and glossary",
+  },
   faq: { label: "FAQ", description: "Frequently asked questions with detailed answers" },
   timeline: { label: "Timeline", description: "Chronological events and a cast of characters" },
 };
-export const REPORT_TEMPLATES = REPORT_TEMPLATE_TYPES.map((subtype) => ({ subtype, ...TEMPLATE_TEXT[subtype] }));
+export const REPORT_TEMPLATES = REPORT_TEMPLATE_TYPES.map((subtype) => ({
+  subtype,
+  ...TEMPLATE_TEXT[subtype],
+}));
 
 export interface ReportsModalOptions {
   api: StudioApi;
@@ -28,7 +38,7 @@ export interface ReportsModalOptions {
 }
 
 /** Trimmed code-point length of a prompt (FR-ST-11: 1–5,000 after trimming outer whitespace). */
-export const promptCodePoints = (text: string): number => Array.from(text.trim()).length;
+export const promptCodePoints = (text: string): number => codePointLength(text.trim());
 
 /** Reports modal state (FR-ST-11, FR-018): templates and custom prompt never wait on suggestions. */
 export class ReportsModalController {
@@ -90,7 +100,8 @@ export class ReportsModalController {
         this.unavailableReason = null;
       } else if (result.state === "SuggestionsLoading") {
         this.loadingPolls += 1;
-        if (this.loadingPolls >= (this.options.maxLoadingPolls ?? DEFAULT_MAX_LOADING_POLLS)) this.setUnavailable("unavailable");
+        if (this.loadingPolls >= (this.options.maxLoadingPolls ?? DEFAULT_MAX_LOADING_POLLS))
+          this.setUnavailable("unavailable");
         else this.suggestionState = "SuggestionsLoading";
       } else this.setUnavailable("unavailable");
     } catch {
@@ -114,14 +125,17 @@ export class ReportsModalController {
     this.prompt = s.prompt_template;
   }
 
-  private body(fields: { subtype: "briefing_doc" | "study_guide" | "faq" | "timeline" | "dynamic" | "custom"; custom_prompt?: string }): CreateBody {
+  private body(fields: {
+    subtype: "briefing_doc" | "study_guide" | "faq" | "timeline" | "dynamic" | "custom";
+    custom_prompt?: string;
+  }): CreateBody {
     const ids = this.options.getActiveSourceIds();
     if (ids.length === 0) throw new Error("Select at least one source.");
     return {
       plugin_type: "report",
       subtype: fields.subtype,
       active_source_ids: ids,
-      ...(fields.custom_prompt !== undefined ? { custom_prompt: fields.custom_prompt } : {}),
+      ...(fields.custom_prompt === undefined ? {} : { custom_prompt: fields.custom_prompt }),
       ...(this.options.outputLanguage ? { output_language: this.options.outputLanguage } : {}),
     };
   }
@@ -135,12 +149,17 @@ export class ReportsModalController {
   generateSuggestion(index: number): Promise<ArtifactDto> {
     const s = this.suggestions[index];
     if (!s) throw new Error("Unknown suggestion.");
-    return this.options.api.create(this.body({ subtype: "dynamic", custom_prompt: s.prompt_template.trim() }));
+    return this.options.api.create(
+      this.body({ subtype: "dynamic", custom_prompt: s.prompt_template.trim() }),
+    );
   }
 
   /** Generates the prompt editor's content as `custom` (Create Your Own) or `dynamic` (edited suggestion). */
   generate(): Promise<ArtifactDto> {
-    if (!this.canGenerate) throw new Error("Prompt must be 1–5,000 characters and at least one source must be active.");
-    return this.options.api.create(this.body({ subtype: this.mode, custom_prompt: this.prompt.trim() }));
+    if (!this.canGenerate)
+      throw new Error("Prompt must be 1–5,000 characters and at least one source must be active.");
+    return this.options.api.create(
+      this.body({ subtype: this.mode, custom_prompt: this.prompt.trim() }),
+    );
   }
 }

@@ -6,7 +6,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { UnifiedDocumentChunk } from "@everlast/contracts";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { createNotebook, deleteSource } from "@everlast/db";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "@everlast/db/testing";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "@everlast/db/testing";
 import {
   AMBIGUOUS_STDDEV_QUESTION,
   CAGR_2021_2025,
@@ -25,7 +30,11 @@ import {
 } from "@everlast/testkit/code-execution-fixtures";
 import { ChatService, type TurnObservation } from "@everlast/api/chat/service";
 import type { GroundedDraft } from "@everlast/api/chat/draft";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import type { CodeCorrectionInput, GroundedModel, GroundedModelInput } from "@everlast/api/chat/model";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import type { RawExecution, SandboxFile, SandboxHandle, SandboxRuntime } from "@everlast/api/chat/execution/runtime";
 import {
   assertDatasetMinimums,
@@ -54,7 +63,10 @@ import { containsForbidden, judgeMetric, ratio } from "../src/metrics.ts";
  * - Current golden dataset lineage (`DATASET_VERSION`, `datasetHash`, `corpusHash`, `RELEASE_SAMPLE_SIZE === 50`).
  */
 
-type Script = (input: GroundedModelInput, callIndex: number) => Promise<GroundedDraft> | GroundedDraft;
+type Script = (
+  input: GroundedModelInput,
+  callIndex: number,
+) => Promise<GroundedDraft> | GroundedDraft;
 
 interface SandboxCall {
   handle: string;
@@ -77,7 +89,11 @@ function interpretFixture(call: SandboxCall): RawExecution {
   const op = /# FIXTURE:(\w+)/.exec(call.code)?.[1] ?? "none";
   const data = call.files.find((f) => f.name === "data.json");
   const v = data
-    ? (JSON.parse(data.content.toString()) as { values: { value: number; unit: string | null; chunk_id: string; label: string }[] }).values
+    ? (
+        JSON.parse(data.content.toString()) as {
+          values: Array<{ value: number; unit: string | null; chunk_id: string; label: string }>;
+        }
+      ).values
     : [];
   const nums = v.map((x) => x.value);
   const sources = [...new Set(v.map((x) => x.chunk_id))];
@@ -89,7 +105,17 @@ function interpretFixture(call: SandboxCall): RawExecution {
         stdout: "computed population sd\n",
         stderr: "",
         files: [
-          resultFile({ status: "ok", results: [{ label: "Population standard deviation", value: String(Math.sqrt(ss / nums.length)), unit: "ms", sources }] }),
+          resultFile({
+            status: "ok",
+            results: [
+              {
+                label: "Population standard deviation",
+                value: String(Math.sqrt(ss / nums.length)),
+                unit: "ms",
+                sources,
+              },
+            ],
+          }),
           pngFile(),
         ],
       };
@@ -98,7 +124,17 @@ function interpretFixture(call: SandboxCall): RawExecution {
         stdout: "computed sample sd\n",
         stderr: "",
         files: [
-          resultFile({ status: "ok", results: [{ label: "Sample standard deviation", value: String(Math.sqrt(ss / (nums.length - 1))), unit: "ms", sources }] }),
+          resultFile({
+            status: "ok",
+            results: [
+              {
+                label: "Sample standard deviation",
+                value: String(Math.sqrt(ss / (nums.length - 1))),
+                unit: "ms",
+                sources,
+              },
+            ],
+          }),
           pngFile(),
         ],
       };
@@ -108,20 +144,34 @@ function interpretFixture(call: SandboxCall): RawExecution {
       return {
         stdout: "",
         stderr: "",
-        files: [resultFile({ status: "ok", results: [{ label: "R&D spend CAGR 2021–2025", value: String(cagr), unit: null, sources }] })],
+        files: [
+          resultFile({
+            status: "ok",
+            results: [
+              { label: "R&D spend CAGR 2021–2025", value: String(cagr), unit: null, sources },
+            ],
+          }),
+        ],
       };
     }
     case "raise":
       return {
         stdout: "",
         stderr: "Traceback (most recent call last):\nZeroDivisionError: division by zero\n",
-        files: [resultFile({ status: "exception", exception_type: "ZeroDivisionError", results: [] })],
+        files: [
+          resultFile({ status: "exception", exception_type: "ZeroDivisionError", results: [] }),
+        ],
       };
     case "forge":
       return {
         stdout: "",
         stderr: "",
-        files: [resultFile({ status: "ok", results: [{ label: "x", value: "1", unit: null, sources: [UNKNOWN_CHUNK_ID] }] })],
+        files: [
+          resultFile({
+            status: "ok",
+            results: [{ label: "x", value: "1", unit: null, sources: [UNKNOWN_CHUNK_ID] }],
+          }),
+        ],
       };
     default:
       return { stdout: "", stderr: "", files: [resultFile({ status: "ok", results: [] })] };
@@ -131,35 +181,60 @@ function interpretFixture(call: SandboxCall): RawExecution {
 class ScriptedSandbox implements SandboxRuntime {
   readonly id = "eval-scripted-sandbox-double";
   calls: SandboxCall[] = [];
-  async create(): Promise<SandboxHandle> {
-    return { name: `projects/test/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/${randomUUID()}` };
+  create(): Promise<SandboxHandle> {
+    return Promise.resolve({
+      name: `projects/test/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/${randomUUID()}`,
+    });
   }
-  async execute(handle: SandboxHandle, input: { code: string; files: SandboxFile[] }): Promise<RawExecution> {
-    const call = { handle: handle.name, code: input.code, files: input.files.map((f) => ({ ...f, content: Buffer.from(f.content) })) };
+  execute(
+    handle: SandboxHandle,
+    input: { code: string; files: SandboxFile[] },
+  ): Promise<RawExecution> {
+    const call = {
+      handle: handle.name,
+      code: input.code,
+      files: input.files.map((f) => ({ ...f, content: Buffer.from(f.content) })),
+    };
     this.calls.push(call);
-    return interpretFixture(call);
+    return Promise.resolve(interpretFixture(call));
   }
-  async destroy(): Promise<void> {}
+  destroy(): Promise<void> {
+    return Promise.resolve();
+  }
   reset(): void {
     this.calls = [];
   }
 }
 
-function latencyComputeDraft(chunks: UnifiedDocumentChunk[], op: "pstdev" | "stdev" | "raise" | "forge" = "pstdev", preamble = true): GroundedDraft {
-  const rows: { label: string; value: string; chunk_id: string }[] = [];
+function latencyComputeDraft(
+  chunks: UnifiedDocumentChunk[],
+  op: "pstdev" | "stdev" | "raise" | "forge" = "pstdev",
+  preamble = true,
+): GroundedDraft {
+  const rows: Array<{ label: string; value: string; chunk_id: string }> = [];
   for (const c of chunks) {
-    for (const m of c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g)) rows.push({ label: `${m[1]} 2025`, value: m[2]!, chunk_id: c.chunk_id });
+    for (const m of c.text.matchAll(/(\w{3}) 2025: (\d+) ms/g))
+      rows.push({ label: `${m[1]} 2025`, value: m[2]!, chunk_id: c.chunk_id });
   }
   const first = chunks.find((c) => /2025: \d+ ms/.test(c.text));
   return {
     status: "compute",
-    sentences: preamble && first ? [{ text: "The latency table lists monthly server latency in ms for 2025.", citations: [first.chunk_id], kind: "claim" }] : [],
+    sentences:
+      preamble && first
+        ? [
+            {
+              text: "The latency table lists monthly server latency in ms for 2025.",
+              citations: [first.chunk_id],
+              kind: "claim",
+            },
+          ]
+        : [],
     computation: {
       intent: op === "stdev" ? "sample standard deviation" : "population standard deviation",
       dataset: rows.map((r) => ({ ...r, unit: "ms" })),
       code: `# FIXTURE:${op}\nimport json, statistics\nimport matplotlib.pyplot as plt\nrows = json.load(open('data.json'))['values']\nvals = [r['value'] for r in rows]\nemit('Population standard deviation', statistics.pstdev(vals), unit='ms', sources=[r['chunk_id'] for r in rows])\nplt.plot(vals); plt.savefig('chart_1.png')\n`,
     },
-  } as GroundedDraft;
+  };
 }
 
 class EvalScriptedModel implements GroundedModel {
@@ -167,7 +242,8 @@ class EvalScriptedModel implements GroundedModel {
   calls: GroundedModelInput[] = [];
   corrections: CodeCorrectionInput[] = [];
   script: Script = () => ({ status: "not_in_sources", sentences: [] });
-  correction: (input: CodeCorrectionInput) => Promise<string> = async () => "# FIXTURE:pstdev\nemit('sd', 1)";
+  correction: (input: CodeCorrectionInput) => Promise<string> = () =>
+    Promise.resolve("# FIXTURE:pstdev\nemit('sd', 1)");
   async generate(input: GroundedModelInput): Promise<GroundedDraft> {
     this.calls.push(input);
     return this.script(input, this.calls.length);
@@ -215,15 +291,52 @@ beforeAll(async () => {
   owner = await createTestUser(db.pool);
   foreignOwner = await createTestUser(db.pool);
   nb = (await createNotebook(db.pool, owner, { title: "Package 3.2 Eval Notebook" })).notebook.id;
-  foreignNb = (await createNotebook(db.pool, foreignOwner, { title: "Foreign Eval Notebook" })).notebook.id;
+  foreignNb = (await createNotebook(db.pool, foreignOwner, { title: "Foreign Eval Notebook" }))
+    .notebook.id;
 
-  sources.latency = (await seedReadySource(db.pool, owner, nb, { title: "Latency_2025.pdf", pages: [LATENCY_TABLE_PAGE], embed })).sourceId;
-  sources.rnd2021 = (await seedReadySource(db.pool, owner, nb, { title: "Report_2021.pdf", pages: [RND_2021_PAGE], embed })).sourceId;
-  sources.rnd2025 = (await seedReadySource(db.pool, owner, nb, { title: "Report_2025.pdf", pages: [RND_2025_PAGE], embed })).sourceId;
-  sources.decoyUnselected = (await seedReadySource(db.pool, owner, nb, { title: "Unselected_Decoy.pdf", pages: [DECOY_PAGE], embed })).sourceId;
-  sources.decoyRemoved = (await seedReadySource(db.pool, owner, nb, { title: "Removed_Decoy.pdf", pages: [DECOY_PAGE], embed })).sourceId;
+  sources.latency = (
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Latency_2025.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    })
+  ).sourceId;
+  sources.rnd2021 = (
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Report_2021.pdf",
+      pages: [RND_2021_PAGE],
+      embed,
+    })
+  ).sourceId;
+  sources.rnd2025 = (
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Report_2025.pdf",
+      pages: [RND_2025_PAGE],
+      embed,
+    })
+  ).sourceId;
+  sources.decoyUnselected = (
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Unselected_Decoy.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    })
+  ).sourceId;
+  sources.decoyRemoved = (
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Removed_Decoy.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    })
+  ).sourceId;
   await deleteSource(db.pool, owner, nb, sources.decoyRemoved);
-  sources.foreignDecoy = (await seedReadySource(db.pool, foreignOwner, foreignNb, { title: "Foreign_Decoy.pdf", pages: [DECOY_PAGE], embed })).sourceId;
+  sources.foreignDecoy = (
+    await seedReadySource(db.pool, foreignOwner, foreignNb, {
+      title: "Foreign_Decoy.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    })
+  ).sourceId;
 
   chat = new ChatService({
     pool: db.pool,
@@ -235,7 +348,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -246,13 +359,24 @@ beforeEach(() => {
   observations.length = 0;
 });
 
+type ChatTurnEvent = ReturnType<ChatService["runTurn"]> extends AsyncIterable<infer E> ? E : never;
+
 async function runTurn(question: string, activeSourceIds: string[]) {
-  const events: any[] = [];
-  for await (const event of chat.runTurn({ ownerId: owner, notebookId: nb, message: question, activeSourceIds, requestId: randomUUID() })) {
+  const events: ChatTurnEvent[] = [];
+  for await (const event of chat.runTurn({
+    ownerId: owner,
+    notebookId: nb,
+    message: question,
+    activeSourceIds,
+    requestId: randomUUID(),
+  })) {
     events.push(event);
   }
   const final = events.find((e) => e.type === "final");
-  const assistant = final?.messages.find((m: any) => m.role === "assistant");
+  const assistant = final?.messages.find((m) => m.role === "assistant");
+  if (!assistant) {
+    throw new Error("Expected assistant message in final event");
+  }
   return { events, final, assistant, observation: observations.at(-1)! };
 }
 
@@ -266,15 +390,19 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
     model.script = ({ chunks }) => latencyComputeDraft(chunks, "pstdev");
     const pop = await runTurn(POPULATION_STDDEV_QUESTION, [sources.latency]);
     expect(pop.assistant.kind).toBe("answer");
-    const popVal = Number(/Population standard deviation: (\S+) ms \(Computed\)/.exec(pop.assistant.content)?.[1]);
+    const popVal = Number(
+      /Population standard deviation: (\S+) ms \(Computed\)/.exec(pop.assistant.content ?? "")?.[1],
+    );
     expect(Math.abs(popVal - POPULATION_STDDEV)).toBeLessThan(NUMERIC_TOLERANCE);
-    expect(pop.assistant.code_execution_trace.published_artifact_ids).toHaveLength(1);
+    expect(pop.assistant.code_execution_trace?.published_artifact_ids).toHaveLength(1);
 
     // 2. Sample standard deviation + chart
     model.script = ({ chunks }) => latencyComputeDraft(chunks, "stdev");
     const samp = await runTurn(SAMPLE_STDDEV_QUESTION, [sources.latency]);
     expect(samp.assistant.kind).toBe("answer");
-    const sampVal = Number(/Sample standard deviation: (\S+) ms \(Computed\)/.exec(samp.assistant.content)?.[1]);
+    const sampVal = Number(
+      /Sample standard deviation: (\S+) ms \(Computed\)/.exec(samp.assistant.content ?? "")?.[1],
+    );
     expect(Math.abs(sampVal - SAMPLE_STDDEV)).toBeLessThan(NUMERIC_TOLERANCE);
 
     // 3. Two-source unit-normalized CAGR ($850M in 2021 vs $1.2B in 2025)
@@ -294,11 +422,18 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
         },
       };
     };
-    const cagr = await runTurn("Compute the exact R&D spend CAGR from 2021 to 2025.", [sources.rnd2021, sources.rnd2025]);
+    const cagr = await runTurn("Compute the exact R&D spend CAGR from 2021 to 2025.", [
+      sources.rnd2021,
+      sources.rnd2025,
+    ]);
     expect(cagr.assistant.kind).toBe("answer");
-    const cagrVal = Number(/CAGR 2021–2025: (\S+) \(Computed\)/.exec(cagr.assistant.content)?.[1]);
+    const cagrVal = Number(
+      /CAGR 2021–2025: (\S+) \(Computed\)/.exec(cagr.assistant.content ?? "")?.[1],
+    );
     expect(Math.abs(cagrVal - CAGR_2021_2025)).toBeLessThan(NUMERIC_TOLERANCE);
-    expect(new Set(cagr.assistant.citations.map((c: any) => c.source_id))).toEqual(new Set([sources.rnd2021, sources.rnd2025]));
+    expect(new Set(cagr.assistant.citations.map((c) => c.source_id))).toEqual(
+      new Set([sources.rnd2021, sources.rnd2025]),
+    );
 
     for (const [turnResult, activeIds] of [
       [pop, [sources.latency]],
@@ -312,22 +447,29 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
         if (retrievedIds.has(cit.chunk_id) && activeSet.has(cit.source_id)) validBadges++;
       }
       for (const chunk of turnResult.observation.retrieved) {
-        if (!activeSet.has(chunk.source_id) || containsForbidden(chunk.text, DECOY_MARKER)) leakageCount++;
+        if (!activeSet.has(chunk.source_id) || containsForbidden(chunk.text, DECOY_MARKER))
+          leakageCount++;
       }
-      if (containsForbidden(JSON.stringify(turnResult.observation.modelInput), DECOY_MARKER)) leakageCount++;
-      if (containsForbidden(turnResult.assistant.content, DECOY_MARKER)) leakageCount++;
+      if (containsForbidden(JSON.stringify(turnResult.observation.modelInput), DECOY_MARKER))
+        leakageCount++;
+      if (containsForbidden(turnResult.assistant.content ?? "", DECOY_MARKER)) leakageCount++;
     }
 
     for (const call of sandbox.calls) {
       const dataJson = call.files.find((f) => f.name === "data.json")!.content.toString("utf8");
-      if (containsForbidden(dataJson, DECOY_MARKER) || containsForbidden(call.code, DECOY_MARKER)) leakageCount++;
+      if (containsForbidden(dataJson, DECOY_MARKER) || containsForbidden(call.code, DECOY_MARKER))
+        leakageCount++;
     }
 
-    const precisionMetric = judgeMetric("citation_precision", ratio(validBadges, publishedBadges, "citation_precision"), {
-      numerator: validBadges,
-      denominator: publishedBadges,
-      failing_cases: [],
-    });
+    const precisionMetric = judgeMetric(
+      "citation_precision",
+      ratio(validBadges, publishedBadges, "citation_precision"),
+      {
+        numerator: validBadges,
+        denominator: publishedBadges,
+        failing_cases: [],
+      },
+    );
     const leakageMetric = judgeMetric("scoping_leakage_count", leakageCount, { failing_cases: [] });
     expect(publishedBadges).toBeGreaterThanOrEqual(4);
     expect(precisionMetric).toMatchObject({ status: "pass", value: 1 });
@@ -338,7 +480,13 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
     // 1. Forged chunk ID in preamble
     model.script = ({ chunks }) => {
       const draft = latencyComputeDraft(chunks, "pstdev");
-      draft.sentences = [{ text: "Monthly server latency is recorded in ms.", citations: [UNKNOWN_CHUNK_ID], kind: "claim" }];
+      draft.sentences = [
+        {
+          text: "Monthly server latency is recorded in ms.",
+          citations: [UNKNOWN_CHUNK_ID],
+          kind: "claim",
+        },
+      ];
       return draft;
     };
     const badPreamble = await runTurn(POPULATION_STDDEV_QUESTION, [sources.latency]);
@@ -348,8 +496,10 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
 
     // 2. Forged chunk ID in dataset
     model.script = ({ chunks }) => {
-      const draft = latencyComputeDraft(chunks, "pstdev") as any;
-      draft.computation.dataset[0].chunk_id = UNKNOWN_CHUNK_ID;
+      const draft = latencyComputeDraft(chunks, "pstdev");
+      if (draft.status === "compute" && draft.computation?.dataset[0]) {
+        draft.computation.dataset[0].chunk_id = UNKNOWN_CHUNK_ID;
+      }
       return draft;
     };
     const badDataset = await runTurn(POPULATION_STDDEV_QUESTION, [sources.latency]);
@@ -376,7 +526,8 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
     model.script = () => ({
       status: "clarify",
       sentences: [],
-      clarification_question: "Should the standard deviation treat the 12 months as the whole population or as a sample?",
+      clarification_question:
+        "Should the standard deviation treat the 12 months as the whole population or as a sample?",
     });
     const clarifyTurn = await runTurn(AMBIGUOUS_STDDEV_QUESTION, [sources.latency]);
     expect(clarifyTurn.assistant).toMatchObject({
@@ -388,17 +539,23 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
 
     // Follow-up resolution with 1 runtime failure followed by 1 repair attempt
     model.script = ({ chunks }) => latencyComputeDraft(chunks, "raise");
-    model.correction = async () => "# FIXTURE:pstdev\nemit('sd', 1)";
-    const retryTurn = await runTurn("Treat the 12 months as the whole population.", [sources.latency]);
+    model.correction = () => Promise.resolve("# FIXTURE:pstdev\nemit('sd', 1)");
+    const retryTurn = await runTurn("Treat the 12 months as the whole population.", [
+      sources.latency,
+    ]);
     expect(retryTurn.assistant.kind).toBe("answer");
     const trace = retryTurn.assistant.code_execution_trace;
+    expect(trace).not.toBeNull();
+    if (!trace) {
+      throw new Error("Expected code_execution_trace");
+    }
     expect(trace.state).toBe("Succeeded");
     expect(trace.attempts).toHaveLength(2);
-    expect(trace.attempts.map((a: any) => [a.ordinal, a.terminal_reason, a.exit_code])).toEqual([
+    expect(trace.attempts.map((a) => [a.ordinal, a.terminal_reason, a.exit_code])).toEqual([
       [1, "PythonException", 1],
       [2, "Succeeded", 0],
     ]);
-    expect(trace.final_attempt_id).toBe(trace.attempts[1].attempt_id);
+    expect(trace.final_attempt_id).toBe(trace.attempts[1]?.attempt_id);
     expect(retryTurn.assistant.content).not.toContain("ZeroDivisionError");
   });
 
@@ -418,6 +575,8 @@ describe("code-execution deterministic & semantic evals (FR-GC-08, NFR-EVAL-01..
     expect(counts.history).toBeGreaterThan(0);
     expect(counts.synthesis).toBeGreaterThan(0);
     // Deterministic repeatable selection
-    expect(releaseSample(cases, RELEASE_SAMPLE_SIZE).map((c) => c.id)).toEqual(sample.map((c) => c.id));
+    expect(releaseSample(cases, RELEASE_SAMPLE_SIZE).map((c) => c.id)).toEqual(
+      sample.map((c) => c.id),
+    );
   });
 });

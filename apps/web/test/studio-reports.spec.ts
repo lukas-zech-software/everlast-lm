@@ -24,7 +24,13 @@ const TECH = [
 
 const REQUIRED: Record<string, string[]> = {
   "Briefing doc": ["executive_summary", "core_themes", "key_takeaways", "quotes"],
-  "Study guide": ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+  "Study guide": [
+    "topic_review",
+    "short_answer_questions",
+    "answer_key",
+    "essay_questions",
+    "glossary",
+  ],
   FAQ: ["faq"],
   Timeline: ["events", "cast_of_characters"],
 };
@@ -37,7 +43,8 @@ async function ask(page: Page, question: string) {
   return page.getByTestId("message-assistant").nth(before);
 }
 
-const row = (page: Page, title: string): Locator => page.getByTestId("studio-artifact-row").filter({ hasText: title });
+const row = (page: Page, title: string): Locator =>
+  page.getByTestId("studio-artifact-row").filter({ hasText: title });
 
 async function openReport(page: Page, title: string) {
   await row(page, title).getByTestId("studio-artifact-open").click();
@@ -46,14 +53,29 @@ async function openReport(page: Page, title: string) {
   return viewer;
 }
 
-test("ST-E01: four standard reports while chatting; sections and citations; Copy, Delete and Convert to source", async ({ page, context }) => {
+test("ST-E01: four standard reports while chatting; sections and citations; Copy, Delete and Convert to source", async ({
+  page,
+  context,
+}) => {
   test.setTimeout(120_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const email = uniqueEmail("st01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "History.pdf", buildPdf([{ kind: "text", lines: HISTORY }]));
-  await uploadSource(page.request, email, id, "Technology.pdf", buildPdf([{ kind: "text", lines: TECH }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "History.pdf",
+    buildPdf([{ kind: "text", lines: HISTORY }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Technology.pdf",
+    buildPdf([{ kind: "text", lines: TECH }]),
+  );
   await waitReady(page.request, email, id, 2);
   await page.goto(`/notebook/${id}`);
   await expect(page.getByTestId("sources-pill")).toHaveText("2 sources");
@@ -65,7 +87,12 @@ test("ST-E01: four standard reports while chatting; sections and citations; Copy
   const modal = page.getByTestId("reports-modal");
   await expect(modal).toContainText("Create report");
   await expect(modal.getByTestId("report-create-own")).toBeEnabled();
-  await expect(modal.getByTestId("report-template")).toHaveText(["Briefing doc", "Study guide", "FAQ", "Timeline"]);
+  await expect(modal.getByTestId("report-template")).toHaveText([
+    "Briefing doc",
+    "Study guide",
+    "FAQ",
+    "Timeline",
+  ]);
   await expect(modal.getByTestId("report-suggestions-unavailable")).toBeVisible();
   await page.getByTestId("reports-modal-close").click();
   await expect(modal).toHaveCount(0);
@@ -75,8 +102,13 @@ test("ST-E01: four standard reports while chatting; sections and citations; Copy
     await page.getByTestId("studio-reports-tile").click();
     await modal.getByTestId("report-template").filter({ hasText: title }).click();
     await expect(modal).toHaveCount(0);
-    await expect(row(page, title).getByTestId("studio-artifact-label")).toHaveText(`Generating ${title}...`);
-    if (index === 1) await expect(await ask(page, "When was the Treaty of Westphalia signed?")).toContainText("1648");
+    await expect(row(page, title).getByTestId("studio-artifact-label")).toHaveText(
+      `Generating ${title}...`,
+    );
+    if (index === 1)
+      await expect(await ask(page, "When was the Treaty of Westphalia signed?")).toContainText(
+        "1648",
+      );
   }
   for (const title of Object.keys(REQUIRED)) {
     await expect(row(page, title)).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
@@ -87,7 +119,8 @@ test("ST-E01: four standard reports while chatting; sections and citations; Copy
   for (const [title, keys] of Object.entries(REQUIRED)) {
     const viewer = await openReport(page, title);
     const content = viewer.getByTestId("studio-report-content");
-    for (const key of keys) await expect(content.locator(`h2[data-section-key="${key}"]`)).toHaveCount(1);
+    for (const key of keys)
+      await expect(content.locator(`h2[data-section-key="${key}"]`)).toHaveCount(1);
     await expect(content.getByTestId("report-citation").first()).toBeVisible();
     await viewer.getByTestId("studio-viewer-close").click();
   }
@@ -121,11 +154,19 @@ test("ST-E01: four standard reports while chatting; sections and citations; Copy
   await expect(page.getByTestId("sources-pill")).toHaveText("3 sources");
 });
 
-test("ST-E02: Create Your Own boundaries and an empty selection disables every report action", async ({ page }) => {
+test("ST-E02: Create Your Own boundaries and an empty selection disables every report action", async ({
+  page,
+}) => {
   const email = uniqueEmail("st02");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "Technology.pdf", buildPdf([{ kind: "text", lines: TECH }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Technology.pdf",
+    buildPdf([{ kind: "text", lines: TECH }]),
+  );
   await waitReady(page.request, email, id, 1);
   await page.goto(`/notebook/${id}`);
   await expect(page.getByTestId("sources-pill")).toHaveText("1 source");
@@ -144,13 +185,20 @@ test("ST-E02: Create Your Own boundaries and an empty selection disables every r
   await expect(generate).toBeEnabled();
   await generate.click();
   await expect(modal).toHaveCount(0);
-  await expect(row(page, "Custom report")).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
+  await expect(row(page, "Custom report")).toHaveAttribute("data-status", "Completed", {
+    timeout: 30_000,
+  });
 
   // FR-012: no selection → templates, Create Your Own and suggestions are unavailable; no all-sources fallback.
-  await page.getByTestId("source-row").filter({ hasText: "Technology.pdf" }).getByTestId("source-checkbox").uncheck();
+  await page
+    .getByTestId("source-row")
+    .filter({ hasText: "Technology.pdf" })
+    .getByTestId("source-checkbox")
+    .uncheck();
   await expect(page.getByTestId("sources-pill")).toHaveText("0 sources");
   await page.getByTestId("studio-reports-tile").click();
-  for (const button of await modal.getByTestId("report-template").all()) await expect(button).toBeDisabled();
+  for (const button of await modal.getByTestId("report-template").all())
+    await expect(button).toBeDisabled();
   await expect(modal.getByTestId("report-create-own")).toBeDisabled();
   await expect(modal.getByTestId("report-scope-hint")).toBeVisible();
 });

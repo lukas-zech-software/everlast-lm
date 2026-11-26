@@ -16,8 +16,20 @@ import {
 
 const chunks = [...historyChunks(), ...techChunks()];
 const snapshot = [SRC_HISTORY, SRC_TECH].map((source_id) => ({ source_id, revision: 1 }));
-const run = (subtype: ReportSubtype, cs = chunks, model: ReportModelClient = new DeterministicReportModel(), custom_prompt?: string) =>
-  generateReport({ subtype, chunks: cs, model, custom_prompt, signal: new AbortController().signal, reportProgress: () => undefined });
+const run = (
+  subtype: ReportSubtype,
+  cs = chunks,
+  model: ReportModelClient = new DeterministicReportModel(),
+  custom_prompt?: string,
+) =>
+  generateReport({
+    subtype,
+    chunks: cs,
+    model,
+    custom_prompt,
+    signal: new AbortController().signal,
+    reportProgress: () => undefined,
+  });
 
 /** Text of one `## heading` section of a rendered report. */
 const section = (md: string, heading: string): string => {
@@ -28,7 +40,8 @@ const section = (md: string, heading: string): string => {
   const next = rest.findIndex((l) => l.startsWith("## "));
   return (next < 0 ? rest : rest.slice(0, next)).join("\n").trim();
 };
-const keys = (out: Awaited<ReturnType<typeof run>>) => (out.status === "completed" ? out.payload.sections.map((x) => x.key) : []);
+const keys = (out: Awaited<ReturnType<typeof run>>) =>
+  out.status === "completed" ? out.payload.sections.map((x) => x.key) : [];
 
 describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-text-reports] T041)", () => {
   it("Briefing doc: executive_summary, core_themes, key_takeaways and verbatim cited quotes", async () => {
@@ -36,17 +49,30 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
     if (out.status !== "completed") throw new Error(`refused: ${out.message}`);
     expect(keys(out)).toEqual(["executive_summary", "core_themes", "key_takeaways", "quotes"]);
     const md = out.payload.content_md;
-    for (const h of ["Executive Summary", "Core Themes", "Key Takeaways", "Quotes"]) expect(section(md, h)).not.toBe("");
-    expect(section(md, "Quotes")).toMatch(/^> The Treaty of Westphalia was signed in 1648.* \[\d+\]$/m);
+    for (const h of ["Executive Summary", "Core Themes", "Key Takeaways", "Quotes"])
+      expect(section(md, h)).not.toBe("");
+    expect(section(md, "Quotes")).toMatch(
+      /^> The Treaty of Westphalia was signed in 1648.* \[\d+\]$/m,
+    );
     expect(validateReportPayload(out.payload, chunks, snapshot, "briefing_doc")).toBeNull();
   });
   it("Study guide: topic review, short-answer questions, a separate matching answer key, essay questions, glossary", async () => {
     const out = await run("study_guide");
     if (out.status !== "completed") throw new Error(`refused: ${out.message}`);
-    expect(keys(out)).toEqual(["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"]);
+    expect(keys(out)).toEqual([
+      "topic_review",
+      "short_answer_questions",
+      "answer_key",
+      "essay_questions",
+      "glossary",
+    ]);
     const md = out.payload.content_md;
-    const questions = section(md, "Short-Answer Questions").split("\n").filter((l) => /^\d+\. /.test(l));
-    const answers = section(md, "Answer Key").split("\n").filter((l) => /^\d+\. /.test(l));
+    const questions = section(md, "Short-Answer Questions")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l));
+    const answers = section(md, "Answer Key")
+      .split("\n")
+      .filter((l) => /^\d+\. /.test(l));
     expect(questions.length).toBeGreaterThan(0);
     expect(answers).toHaveLength(questions.length);
     for (const q of questions) expect(q).toMatch(/\?$/);
@@ -77,14 +103,20 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
     const out = await run("timeline", nd);
     if (out.status !== "completed") throw new Error("refused");
     expect(keys(out)).toEqual(["events", "cast_of_characters"]);
-    expect(section(out.payload.content_md, "Events")).toBe("_The selected sources contain no dated events._");
+    expect(section(out.payload.content_md, "Events")).toBe(
+      "_The selected sources contain no dated events._",
+    );
     expect(out.payload.content_md).not.toMatch(/\b1[0-9]{3}\b|\b20[0-9]{2}\b/);
     expect(section(out.payload.content_md, "Cast of Characters")).toContain("Alice Johnson");
     expect(nd[0]!.source_id).toBe(SRC_NODATES);
-    expect(validateReportPayload(out.payload, nd, [{ source_id: SRC_NODATES, revision: 1 }], "timeline")).toBeNull();
+    expect(
+      validateReportPayload(out.payload, nd, [{ source_id: SRC_NODATES, revision: 1 }], "timeline"),
+    ).toBeNull();
   });
   it("Timeline with neither dated events nor actors fails", async () => {
-    const out = await run("timeline", [makeChunk(SRC_NODATES, "the policy covers equipment and communication rules.")]);
+    const out = await run("timeline", [
+      makeChunk(SRC_NODATES, "the policy covers equipment and communication rules."),
+    ]);
     expect(out).toMatchObject({ status: "refused", code: "InsufficientEvidence" });
   });
   it("one empty required section refuses the report (InsufficientEvidence), never a filler note", async () => {
@@ -94,14 +126,21 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
     const base = new DeterministicReportModel();
     const noThemes: ReportModelClient = {
       extract: (r) => base.extract(r),
-      compose: async (r) => (await base.compose(r)).map((b) => (b.id === "core_themes" ? { ...b, items: [] } : b)),
+      compose: async (r) =>
+        (await base.compose(r)).map((b) => (b.id === "core_themes" ? { ...b, items: [] } : b)),
     };
-    expect(await run("briefing_doc", chunks, noThemes)).toMatchObject({ status: "refused", code: "InsufficientEvidence" });
+    expect(await run("briefing_doc", chunks, noThemes)).toMatchObject({
+      status: "refused",
+      code: "InsufficientEvidence",
+    });
     const missing: ReportModelClient = {
       extract: (r) => base.extract(r),
       compose: async (r) => (await base.compose(r)).filter((b) => b.id !== "quotes"),
     };
-    expect(await run("briefing_doc", chunks, missing)).toMatchObject({ status: "refused", code: "InsufficientEvidence" });
+    expect(await run("briefing_doc", chunks, missing)).toMatchObject({
+      status: "refused",
+      code: "InsufficientEvidence",
+    });
   });
   it("refuses with InsufficientEvidence when no core content is supported", async () => {
     const out = await run("faq", [makeChunk(SRC_HISTORY, "   ")]);
@@ -119,7 +158,9 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
       },
       compose: (r) => model.compose(r),
     };
-    const many = Array.from({ length: 95 }, (_, i) => makeChunk(SRC_HISTORY, `Fact number ${i} happened in ${1000 + i}.`, 1, 50));
+    const many = Array.from({ length: 95 }, (_, i) =>
+      makeChunk(SRC_HISTORY, `Fact number ${i} happened in ${1000 + i}.`, 1, 50),
+    );
     await run("timeline", many, spy);
     expect(seen).toEqual(many.map((c) => c.chunk_id));
   });
@@ -127,7 +168,13 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
     const ac = new AbortController();
     ac.abort();
     await expect(
-      generateReport({ subtype: "faq", chunks, model: new DeterministicReportModel(), signal: ac.signal, reportProgress: () => undefined })
+      generateReport({
+        subtype: "faq",
+        chunks,
+        model: new DeterministicReportModel(),
+        signal: ac.signal,
+        reportProgress: () => undefined,
+      }),
     ).rejects.toThrow();
   });
 });
@@ -135,19 +182,36 @@ describe("generateReport per template (FR-ST-10, FR-002..FR-005, [008-studio-tex
 /** [008-studio-text-reports] T045 — effective output language reaches the model and localizes headings (FR-UI-02). */
 describe("generateReport output language (FR-UI-02, FR-ST-10/11)", () => {
   it("passes output_language to extract and compose and localizes headings by stable key", async () => {
-    const seen: (string | undefined)[] = [];
+    const seen: Array<string | undefined> = [];
     const base = new DeterministicReportModel();
     const spy: ReportModelClient = {
       extract: (r) => (seen.push(r.output_language), base.extract(r)),
       compose: (r) => (seen.push(r.output_language), base.compose(r)),
     };
-    const out = await generateReport({ subtype: "timeline", chunks, model: spy, output_language: "de-DE", signal: new AbortController().signal, reportProgress: () => undefined });
+    const out = await generateReport({
+      subtype: "timeline",
+      chunks,
+      model: spy,
+      output_language: "de-DE",
+      signal: new AbortController().signal,
+      reportProgress: () => undefined,
+    });
     if (out.status !== "completed") throw new Error("refused");
     expect(seen.length).toBeGreaterThan(1);
     expect(new Set(seen)).toEqual(new Set(["de-DE"]));
-    expect(out.payload.sections).toEqual([{ key: "events", heading: "Ereignisse" }, { key: "cast_of_characters", heading: "Hauptakteure" }]);
+    expect(out.payload.sections).toEqual([
+      { key: "events", heading: "Ereignisse" },
+      { key: "cast_of_characters", heading: "Hauptakteure" },
+    ]);
     expect(out.payload.content_md).toContain("## Hauptakteure");
-    const en = await generateReport({ subtype: "timeline", chunks, model: base, output_language: "en-US", signal: new AbortController().signal, reportProgress: () => undefined });
+    const en = await generateReport({
+      subtype: "timeline",
+      chunks,
+      model: base,
+      output_language: "en-US",
+      signal: new AbortController().signal,
+      reportProgress: () => undefined,
+    });
     if (en.status !== "completed") throw new Error("refused");
     expect(en.payload.sections.map((x) => x.key)).toEqual(["events", "cast_of_characters"]);
     expect(en.payload.sections[1]!.heading).toBe("Cast of Characters");
@@ -176,7 +240,14 @@ describe("map step latency (D12, Gate v2.0 #3 P95 ≤ 25 s)", () => {
         return inner.compose(req);
       },
     };
-    const out = await generateReport({ subtype: "faq", chunks, model, limits: { maxTokens: 100_000, maxChunks: 1 }, signal: new AbortController().signal, reportProgress: () => undefined });
+    const out = await generateReport({
+      subtype: "faq",
+      chunks,
+      model,
+      limits: { maxTokens: 100_000, maxChunks: 1 },
+      signal: new AbortController().signal,
+      reportProgress: () => undefined,
+    });
     expect(out.status).toBe("completed");
     expect(EXTRACT_CONCURRENCY).toBeGreaterThan(1);
     expect(peak).toBeGreaterThan(1);

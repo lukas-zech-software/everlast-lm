@@ -14,16 +14,30 @@ import type {
 } from "@everlast/contracts";
 import type { ChatMessage } from "../lib/types.ts";
 import { clear, confirmDialog, h, toast } from "../lib/dom.ts";
+import { codePointLength } from "../lib/text.ts";
 import { createStudioApi, StudioApiError, type ArtifactDto } from "./api.ts";
-import { StudioArtifactListController, type ArtifactView, type StudioRow } from "./artifact-list.ts";
+import {
+  StudioArtifactListController,
+  type ArtifactView,
+  type StudioRow,
+} from "./artifact-list.ts";
 import { createFlashcardsViewer } from "./flashcards-viewer.ts";
 import { createInfographicViewer } from "./infographic-viewer.ts";
 import { createLearningOverviewViewer } from "./learning-overview-viewer.ts";
 import { renderMarkdownNodes } from "./markdown.ts";
-import { downloadMindmapScene, revokePendingExportUrls, triggerBlobDownload } from "./mindmap-export.ts";
+import {
+  downloadMindmapScene,
+  revokePendingExportUrls,
+  triggerBlobDownload,
+} from "./mindmap-export.ts";
 import { createMindmapViewer } from "./mindmap-viewer.ts";
 import { createQuizViewer } from "./quiz-viewer.ts";
-import { CUSTOM_PROMPT_MAX, promptCodePoints, REPORT_TEMPLATES, ReportsModalController } from "./reports-modal.ts";
+import {
+  CUSTOM_PROMPT_MAX,
+  promptCodePoints,
+  REPORT_TEMPLATES,
+  ReportsModalController,
+} from "./reports-modal.ts";
 import { createSlideDeckViewer } from "./slide-deck-viewer.ts";
 import { createDataTableViewer } from "./table-viewer.ts";
 
@@ -41,18 +55,23 @@ export interface StudioPanelOptions {
   /** `authFetch`: adds the caller's bearer token. */
   fetcher: typeof fetch;
   /** Current Left Panel selection, read at request time. */
-  selectedSourceIds(): string[];
+  selectedSourceIds: () => string[];
   /** Opens the Source Inspector on a cited chunk. */
-  openCitation(sourceId: string, chunkId: string): void;
+  openCitation: (sourceId: string, chunkId: string) => void;
   /** Convert to source created a source: add it to this browser's selection and refresh the Left Panel. */
-  onSourceCreated(sourceId: string): Promise<void> | void;
+  onSourceCreated: (sourceId: string) => Promise<void> | void;
   /** Appends persisted chat messages from a mindmap node drilldown turn (FR-ST-09). */
-  onAssistantMessages?(messages: ChatMessage[]): void;
+  onAssistantMessages?: (messages: ChatMessage[]) => void;
   /** Fallback chat submission when drilldown delegates to chat panel. */
-  onAskChat?(prompt: string): void;
-  confirm?: (options: { title: string; body: string; confirm: string; danger?: boolean }) => Promise<boolean>;
+  onAskChat?: (prompt: string) => void;
+  confirm?: (options: {
+    title: string;
+    body: string;
+    confirm: string;
+    danger?: boolean;
+  }) => Promise<boolean>;
   notify?: (message: string, kind?: "error" | "info") => void;
-  clipboard?: { writeText(text: string): Promise<void> };
+  clipboard?: { writeText: (text: string) => Promise<void> };
   /** List refresh interval while a job is Queued or Running. */
   pollMs?: number;
   /** Suggestions re-read interval while Source Guides are pending. */
@@ -63,12 +82,12 @@ export interface StudioPanelOptions {
 
 export interface StudioPanel {
   element: HTMLElement;
-  refresh(): Promise<void>;
+  refresh: () => Promise<void>;
   /** Re-evaluates the actions that depend on the Left Panel selection. */
-  updateSourceSelection(): void;
+  updateSourceSelection: () => void;
   /** Starts a mindmap generation job using the current explicit source selection (FR-ST-08). */
-  generateMindmap(): Promise<void>;
-  destroy(): void;
+  generateMindmap: () => Promise<void>;
+  destroy: () => void;
 }
 
 const SCOPE_HINT = "Select at least one source to create a report.";
@@ -81,7 +100,7 @@ const SLIDE_COUNT_MIN = 5;
 const SLIDE_COUNT_MAX = 20;
 const SLIDE_COUNT_DEFAULT = 10;
 const SLIDE_FOCUS_PROMPT_MAX = 2000;
-const INFOGRAPHIC_STYLE_OPTIONS: readonly { value: InfographicStyle; text: string }[] = [
+const INFOGRAPHIC_STYLE_OPTIONS: ReadonlyArray<{ value: InfographicStyle; text: string }> = [
   { value: "auto", text: "Auto" },
   { value: "process_flow", text: "Process Flow" },
   { value: "comparison", text: "Comparison" },
@@ -89,16 +108,40 @@ const INFOGRAPHIC_STYLE_OPTIONS: readonly { value: InfographicStyle; text: strin
   { value: "architecture_diagram", text: "Architecture Diagram" },
 ];
 const SUGGESTIONS_LOADING = "Finding report formats for your sources…";
-const SUGGESTIONS_UNAVAILABLE = "Suggested formats are unavailable right now. You can still use a standard format or Create Your Own.";
-const SUGGESTIONS_NEED_SCOPE = "Suggested formats are unavailable until you select at least one source.";
+const SUGGESTIONS_UNAVAILABLE =
+  "Suggested formats are unavailable right now. You can still use a standard format or Create Your Own.";
+const SUGGESTIONS_NEED_SCOPE =
+  "Suggested formats are unavailable until you select at least one source.";
 const PROMPT_PLACEHOLDER =
   "Describe the report you want: its structure, style, tone and audience. Example: a one-page brief for new engineers in a friendly tone.";
 
+const PLUGIN_ICON: Record<string, string> = {
+  mindmap: "🧠",
+  data_table: "📊",
+  flashcards: "🃏",
+  quiz: "❓",
+  learning_overview: "📘",
+  slide_deck: "📑",
+  infographic: "🖼️",
+};
+
+const VIEWER_TEST_ID: Record<string, string> = {
+  mindmap: "studio-mindmap-viewer",
+  data_table: "studio-table-viewer",
+  flashcards: "studio-flashcards-viewer",
+  quiz: "studio-quiz-viewer",
+  learning_overview: "studio-learning-overview-viewer",
+  slide_deck: "studio-slide-deck-viewer",
+  infographic: "studio-infographic-viewer",
+};
+
 const messageOf = (error: unknown): string =>
-  error instanceof StudioApiError || error instanceof Error ? error.message : "The request failed. Please try again.";
+  error instanceof StudioApiError || error instanceof Error
+    ? error.message
+    : "The request failed. Please try again.";
 
 /** Data Table schemas offered in the modal; exactly the contract's DataTableSchemaIdSchema values (FR-ST-18). */
-export const DATA_TABLE_SCHEMA_OPTIONS: readonly { value: string; text: string }[] = [
+export const DATA_TABLE_SCHEMA_OPTIONS: ReadonlyArray<{ value: string; text: string }> = [
   { value: "auto", text: "Auto-detect attributes" },
   { value: "vendor_comparison", text: "Vendor Comparison" },
   { value: "feature_matrix", text: "Feature Matrix" },
@@ -110,8 +153,11 @@ export const DATA_TABLE_SCHEMA_OPTIONS: readonly { value: string; text: string }
 export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   const api = createStudioApi({ notebookId: options.notebookId, fetch: options.fetcher });
   const confirm = options.confirm ?? confirmDialog;
-  const notify = options.notify ?? ((message: string, kind: "error" | "info" = "info") => toast(message, kind));
-  const clipboard = options.clipboard ?? { writeText: (text: string) => navigator.clipboard.writeText(text) };
+  const notify =
+    options.notify ?? ((message: string, kind: "error" | "info" = "info") => toast(message, kind));
+  const clipboard = options.clipboard ?? {
+    writeText: (text: string) => navigator.clipboard.writeText(text),
+  };
   const pollMs = options.pollMs ?? 2000;
   const suggestionPollMs = options.suggestionPollMs ?? 1500;
   const list = new StudioArtifactListController({ api, clipboard });
@@ -120,14 +166,19 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
   let destroyed = false;
   let listTimer: ReturnType<typeof setTimeout> | null = null;
   let viewing: string | null = null;
-  let activeViewer: { destroy(): void } | null = null;
+  let activeViewer: { destroy: () => void } | null = null;
 
   // ---- Static frame --------------------------------------------------------------------------------------------
   const tile = h(
     "button",
-    { class: "studio-tile", type: "button", "data-testid": "studio-reports-tile", "aria-haspopup": "dialog" },
+    {
+      class: "studio-tile",
+      type: "button",
+      "data-testid": "studio-reports-tile",
+      "aria-haspopup": "dialog",
+    },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📄" }),
-    h("span", { class: "studio-tile-label", text: "Reports" })
+    h("span", { class: "studio-tile-label", text: "Reports" }),
   );
   tile.addEventListener("click", () => openModal());
   const mindmapTile = h(
@@ -137,11 +188,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       type: "button",
       "data-testid": "studio-mindmap-tile",
       disabled: !hasScope(),
-      title: hasScope() ? "Generate a grounded Mindmap from selected sources" : "Select at least one source to generate a mindmap.",
+      title: hasScope()
+        ? "Generate a grounded Mindmap from selected sources"
+        : "Select at least one source to generate a mindmap.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "🧠" }),
-    h("span", { class: "studio-tile-label", text: "Mindmap" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Mindmap" }),
+  );
   mindmapTile.addEventListener("click", () => void generateMindmap());
 
   const dataTableTile = h(
@@ -152,11 +205,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       "data-testid": "studio-data-table-tile",
       "aria-haspopup": "dialog",
       disabled: !hasScope(),
-      title: hasScope() ? "Generate a grounded Data Table from selected sources" : "Select at least one source to generate a data table.",
+      title: hasScope()
+        ? "Generate a grounded Data Table from selected sources"
+        : "Select at least one source to generate a data table.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📊" }),
-    h("span", { class: "studio-tile-label", text: "Data Table" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Data Table" }),
+  );
   dataTableTile.addEventListener("click", () => openDataTableModal());
 
   const flashcardsTile = h(
@@ -167,11 +222,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       "data-testid": "studio-flashcards-tile",
       "aria-haspopup": "dialog",
       disabled: !hasScope(),
-      title: hasScope() ? "Generate grounded Flashcards from selected sources" : "Select at least one source to generate flashcards.",
+      title: hasScope()
+        ? "Generate grounded Flashcards from selected sources"
+        : "Select at least one source to generate flashcards.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "🃏" }),
-    h("span", { class: "studio-tile-label", text: "Flashcards" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Flashcards" }),
+  );
   flashcardsTile.addEventListener("click", () => openFlashcardsModal());
 
   const quizTile = h(
@@ -182,11 +239,13 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       "data-testid": "studio-quiz-tile",
       "aria-haspopup": "dialog",
       disabled: !hasScope(),
-      title: hasScope() ? "Generate a grounded Quiz from selected sources" : "Select at least one source to generate a quiz.",
+      title: hasScope()
+        ? "Generate a grounded Quiz from selected sources"
+        : "Select at least one source to generate a quiz.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "❓" }),
-    h("span", { class: "studio-tile-label", text: "Quiz" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Quiz" }),
+  );
   quizTile.addEventListener("click", () => openQuizModal());
 
   const learningOverviewTile = h(
@@ -202,8 +261,8 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         : "Select at least one source to generate a learning overview.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📘" }),
-    h("span", { class: "studio-tile-label", text: "Learning Overview" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Learning Overview" }),
+  );
   learningOverviewTile.addEventListener("click", () => openLearningOverviewModal());
 
   const slideDeckTile = h(
@@ -219,8 +278,8 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         : "Select at least one source to generate a slide deck.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "📑" }),
-    h("span", { class: "studio-tile-label", text: "Slide Deck" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Slide Deck" }),
+  );
   slideDeckTile.addEventListener("click", () => openSlideDeckModal());
 
   const infographicTile = h(
@@ -236,13 +295,22 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         : "Select at least one source to generate an infographic.",
     },
     h("span", { class: "studio-tile-icon", "aria-hidden": "true", text: "🖼️" }),
-    h("span", { class: "studio-tile-label", text: "Infographic" })
-  ) as HTMLButtonElement;
+    h("span", { class: "studio-tile-label", text: "Infographic" }),
+  );
   infographicTile.addEventListener("click", () => openInfographicModal());
 
-  const status = h("p", { class: "studio-status muted", "data-testid": "studio-status", role: "status", "aria-live": "polite" });
+  const status = h("p", {
+    class: "studio-status muted",
+    "data-testid": "studio-status",
+    role: "status",
+    "aria-live": "polite",
+  });
   const listEl = h("ul", { class: "studio-artifacts", "data-testid": "studio-artifacts" });
-  const empty = h("p", { class: "studio-empty muted", "data-testid": "studio-empty", text: "Generated reports will appear here." });
+  const empty = h("p", {
+    class: "studio-empty muted",
+    "data-testid": "studio-empty",
+    text: "Generated reports will appear here.",
+  });
   const viewerHost = h("div", { class: "studio-viewer-host" });
   const element = h(
     "section",
@@ -258,12 +326,12 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       quizTile,
       learningOverviewTile,
       slideDeckTile,
-      infographicTile
+      infographicTile,
     ),
     status,
     empty,
     listEl,
-    viewerHost
+    viewerHost,
   );
 
   async function generateMindmap(): Promise<void> {
@@ -283,23 +351,12 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
 
   // ---- Artifact list (FR-006) ----------------------------------------------------------------------------------
   function renderRow(row: StudioRow): HTMLElement {
-    const iconText =
-      row.plugin_type === "mindmap"
-        ? "🧠"
-        : row.plugin_type === "data_table"
-          ? "📊"
-          : row.plugin_type === "flashcards"
-            ? "🃏"
-            : row.plugin_type === "quiz"
-              ? "❓"
-              : row.plugin_type === "learning_overview"
-                ? "📘"
-                : row.plugin_type === "slide_deck"
-                  ? "📑"
-                  : row.plugin_type === "infographic"
-                    ? "🖼️"
-                    : "📄";
-    const label = h("span", { class: "studio-artifact-label", "data-testid": "studio-artifact-label", text: row.generating ? `Generating ${row.title}...` : row.title });
+    const iconText = PLUGIN_ICON[row.plugin_type] ?? "📄";
+    const label = h("span", {
+      class: "studio-artifact-label",
+      "data-testid": "studio-artifact-label",
+      text: row.generating ? `Generating ${row.title}...` : row.title,
+    });
     const item = h("li", {
       class: "studio-artifact-row",
       "data-testid": "studio-artifact-row",
@@ -308,14 +365,40 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       "data-artifact-id": row.id,
     });
     if (row.status === "Completed") {
-      const open = h("button", { class: "studio-artifact-open", type: "button", "data-testid": "studio-artifact-open", "aria-label": `Open ${row.title}` }, label);
+      const open = h(
+        "button",
+        {
+          class: "studio-artifact-open",
+          type: "button",
+          "data-testid": "studio-artifact-open",
+          "aria-label": `Open ${row.title}`,
+        },
+        label,
+      );
       open.addEventListener("click", () => void openViewer(row.id, row.title, row.plugin_type));
-      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: iconText }), open);
+      item.append(
+        h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: iconText }),
+        open,
+      );
     } else {
-      item.append(h("span", { class: "studio-artifact-icon", "aria-hidden": "true", text: row.generating ? "" : "⚠" }), label);
+      item.append(
+        h("span", {
+          class: "studio-artifact-icon",
+          "aria-hidden": "true",
+          text: row.generating ? "" : "⚠",
+        }),
+        label,
+      );
     }
     if (row.generating) {
-      item.append(h("span", { class: "studio-generating", "data-testid": "studio-generating", role: "progressbar", "aria-label": `Generating ${row.title}` }));
+      item.append(
+        h("span", {
+          class: "studio-generating",
+          "data-testid": "studio-generating",
+          role: "progressbar",
+          "aria-label": `Generating ${row.title}`,
+        }),
+      );
       if (row.cancellable) {
         const cancelBtn = h("button", {
           class: "btn btn-sm",
@@ -328,14 +411,26 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       }
     }
     if (row.failure !== null) {
-      const retry = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-retry", text: "Retry" }) as HTMLButtonElement;
+      const retry = h("button", {
+        class: "btn btn-sm",
+        type: "button",
+        "data-testid": "studio-retry",
+        text: "Retry",
+      });
       retry.disabled = !hasScope();
       retry.title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
       retry.addEventListener("click", () => void retryRow(row.id));
       item.append(
-        h("span", { class: "studio-artifact-status", text: row.status === "Failed" ? "Failed" : row.status }),
-        h("p", { class: "studio-artifact-failure", "data-testid": "studio-artifact-failure", text: row.failure }),
-        retry
+        h("span", {
+          class: "studio-artifact-status",
+          text: row.status === "Failed" ? "Failed" : row.status,
+        }),
+        h("p", {
+          class: "studio-artifact-failure",
+          "data-testid": "studio-artifact-failure",
+          text: row.failure,
+        }),
+        retry,
       );
     }
     return item;
@@ -418,7 +513,9 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         title: citation.snippet,
         text: String(n),
       });
-      badge.addEventListener("click", () => options.openCitation(citation.source_id, citation.chunk_id));
+      badge.addEventListener("click", () =>
+        options.openCitation(citation.source_id, citation.chunk_id),
+      );
       return badge;
     };
   }
@@ -429,11 +526,56 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     const unused = [...sections];
     return (heading) => {
       const index = unused.findIndex((s) => s.heading === heading.trim());
-      return index >= 0 ? unused.splice(index, 1)[0]!.key : undefined;
+      if (index < 0) return undefined;
+      return unused.splice(index, 1)[0]?.key;
     };
   }
 
-  function renderMindmapInitialCanvas(article: HTMLElement, id: string, title: string, payload: StudioMindmapPayload): void {
+  async function handleMindmapDrilldown(id: string, nodeId: string): Promise<void> {
+    const activeIds = options.selectedSourceIds();
+    if (activeIds.length === 0) {
+      status.textContent =
+        "Select supporting sources in the Left Panel before asking about this node.";
+      return;
+    }
+    try {
+      if (!api.drilldownMindmap) throw new Error("Mindmap drilldown is not available.");
+      const res = await api.drilldownMindmap(id, {
+        node_id: nodeId,
+        active_source_ids: activeIds,
+      });
+      if (options.onAssistantMessages && Array.isArray(res.messages) && res.messages.length > 0) {
+        options.onAssistantMessages(res.messages as ChatMessage[]);
+      } else if (options.onAskChat) {
+        options.onAskChat(res.prompt);
+      }
+      status.textContent = `Asked in chat: ${res.node_label}`;
+    } catch (err) {
+      status.textContent = messageOf(err);
+    }
+  }
+
+  async function handleMindmapExport(
+    id: string,
+    format: "svg" | "png",
+    expandedNodeIds: string[],
+  ): Promise<void> {
+    try {
+      if (!api.exportMindmap) throw new Error("Mindmap export is not available.");
+      const scene = await api.exportMindmap(id, { format, expanded_node_ids: expandedNodeIds });
+      if (viewing !== id) return;
+      await downloadMindmapScene(scene);
+      status.textContent = `Exported ${format.toUpperCase()}`;
+    } catch (err) {
+      status.textContent = messageOf(err);
+    }
+  }
+
+  function renderMindmapInitialCanvas(
+    id: string,
+    title: string,
+    payload: StudioMindmapPayload,
+  ): void {
     clear(viewerHost);
     const mv = createMindmapViewer({
       artifactId: id,
@@ -442,137 +584,75 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       onClose: closeViewer,
       actions: [deleteButton(id, title)],
       onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-      onDrilldown: async (nodeId) => {
-        const activeIds = options.selectedSourceIds();
-        if (activeIds.length === 0) {
-          status.textContent = "Select supporting sources in the Left Panel before asking about this node.";
-          return;
-        }
-        try {
-          if (!api.drilldownMindmap) throw new Error("Mindmap drilldown is not available.");
-          const res = await api.drilldownMindmap(id, { node_id: nodeId, active_source_ids: activeIds });
-          if (options.onAssistantMessages && Array.isArray(res.messages) && res.messages.length > 0) {
-            options.onAssistantMessages(res.messages as ChatMessage[]);
-          } else if (options.onAskChat) {
-            options.onAskChat(res.prompt);
-          }
-          status.textContent = `Asked in chat: ${res.node_label}`;
-        } catch (err) {
-          status.textContent = messageOf(err);
-        }
+      onDrilldown: (nodeId) => {
+        void handleMindmapDrilldown(id, nodeId);
       },
-      onExport: async (format, expandedNodeIds) => {
-        try {
-          if (!api.exportMindmap) throw new Error("Mindmap export is not available.");
-          const scene = await api.exportMindmap(id, { format, expanded_node_ids: expandedNodeIds });
-          if (viewing !== id) return;
-          await downloadMindmapScene(scene);
-          status.textContent = `Exported ${format.toUpperCase()}`;
-        } catch (err) {
-          status.textContent = messageOf(err);
-        }
+      onExport: (format, expandedNodeIds) => {
+        void handleMindmapExport(id, format, expandedNodeIds);
       },
     });
     viewerHost.append(mv.element);
   }
 
-  async function openViewer(id: string, title: string, pluginType: ArtifactDto["plugin_type"] = "report"): Promise<void> {
-    activeViewer?.destroy();
-    activeViewer = null;
-    viewing = id;
-    renderList();
-    clear(viewerHost);
-    const close = h("button", { class: "icon-btn", type: "button", "data-testid": "studio-viewer-close", "aria-label": "Close viewer", text: "←" });
-    close.addEventListener("click", closeViewer);
-    const viewerTestId =
-      pluginType === "mindmap"
-        ? "studio-mindmap-viewer"
-        : pluginType === "data_table"
-          ? "studio-table-viewer"
-          : pluginType === "flashcards"
-            ? "studio-flashcards-viewer"
-            : pluginType === "quiz"
-              ? "studio-quiz-viewer"
-              : pluginType === "learning_overview"
-                ? "studio-learning-overview-viewer"
-                : pluginType === "slide_deck"
-                  ? "studio-slide-deck-viewer"
-                  : pluginType === "infographic"
-                    ? "studio-infographic-viewer"
-                    : "studio-report-viewer";
-    const article = h(
-      "article",
-      { class: viewerTestId, "data-testid": viewerTestId, "data-artifact-id": id },
-      h("div", { class: "studio-viewer-head" }, close, h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: title }))
-    );
-    viewerHost.append(article);
-    let view: ArtifactView;
+  async function handleDataTableExport(
+    id: string,
+    format: "csv" | "xlsx",
+    orderedRowIds: string[],
+  ): Promise<void> {
     try {
-      view = await list.view(id);
-    } catch (error) {
-      const msg = messageOf(error);
-      article.append(
-        h("p", {
-          class: "studio-report-unavailable muted",
-          "data-testid": pluginType === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
-          text: msg,
-        })
-      );
-      return;
-    }
-    if (viewing !== id) return;
-    const actualPlugin = view.artifact.plugin_type ?? pluginType;
-    const payload = view.artifact.payload_json;
-    if (!payload) {
-      const unavailMsg = view.unavailable?.message ?? "This artifact is not available.";
-      const unavailEl = h("p", {
-        class: "studio-report-unavailable muted",
-        "data-testid": actualPlugin === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
-        text: unavailMsg,
+      if (!api.exportDataTable) throw new Error("Data table export is not available.");
+      const exported = await api.exportDataTable(id, {
+        format,
+        ordered_row_ids: orderedRowIds,
       });
-      // For backward compatibility if tests query studio-report-unavailable or studio-artifact-unavailable
-      article.append(unavailEl, h("div", { class: "studio-viewer-actions" }, deleteButton(id, title)));
-      return;
+      if (viewing !== id) return;
+      const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
+      triggerBlobDownload(blob, exported.filename);
+      status.textContent = `Exported ${format.toUpperCase()}`;
+    } catch (err) {
+      status.textContent = messageOf(err);
     }
-    if (actualPlugin === "mindmap" || ("root_node" in (payload as object))) {
-      renderMindmapInitialCanvas(article, id, title, payload as StudioMindmapPayload);
-      return;
-    }
-    if (actualPlugin === "data_table" || ("rows" in (payload as object))) {
-      clear(viewerHost);
-      const tv = createDataTableViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioDataTablePayload,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExport: async (format, orderedRowIds) => {
-          try {
-            if (!api.exportDataTable) throw new Error("Data table export is not available.");
-            const exported = await api.exportDataTable(id, { format, ordered_row_ids: orderedRowIds });
-            if (viewing !== id) return;
-            const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
-            triggerBlobDownload(blob, exported.filename);
-            status.textContent = `Exported ${format.toUpperCase()}`;
-          } catch (err) {
-            status.textContent = messageOf(err);
-          }
-        },
-      });
-      viewerHost.append(tv.element);
-      return;
-    }
+  }
 
-    const handleExplain = async (itemId: string, itemKind: "flashcard" | "quiz_question"): Promise<void> => {
+  function mountDataTableViewer(id: string, title: string, payload: StudioDataTablePayload): void {
+    clear(viewerHost);
+    const tv = createDataTableViewer({
+      artifactId: id,
+      title,
+      payload,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExport: (format, orderedRowIds) => {
+        void handleDataTableExport(id, format, orderedRowIds);
+      },
+    });
+    viewerHost.append(tv.element);
+  }
+
+  async function loadInitialProgress(id: string) {
+    if (!api.getProgress) return null;
+    return api
+      .getProgress(id)
+      .then((r) => r.progress)
+      .catch(() => null);
+  }
+
+  function createExplainHandler(id: string) {
+    return async (itemId: string, itemKind: "flashcard" | "quiz_question"): Promise<void> => {
       const activeIds = options.selectedSourceIds();
       if (activeIds.length === 0) {
-        status.textContent = "Select supporting sources in the Left Panel before asking to explain this item.";
+        status.textContent =
+          "Select supporting sources in the Left Panel before asking to explain this item.";
         return;
       }
       try {
         if (!api.explainItem) throw new Error("Explain is not available.");
-        const res = await api.explainItem(id, { item_id: itemId, item_kind: itemKind, active_source_ids: activeIds });
+        const res = await api.explainItem(id, {
+          item_id: itemId,
+          item_kind: itemKind,
+          active_source_ids: activeIds,
+        });
         if (viewing !== id) return;
         if (options.onAssistantMessages && Array.isArray(res.messages) && res.messages.length > 0) {
           options.onAssistantMessages(res.messages as ChatMessage[]);
@@ -584,171 +664,212 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         status.textContent = messageOf(err);
       }
     };
+  }
 
-    const confirmLearningReset = () =>
-      confirm({
-        title: "Reset learning progress?",
-        body: "Your mastery state for this artifact will be cleared.",
-        confirm: "Reset",
-        danger: true,
-      });
+  const confirmLearningReset = () =>
+    confirm({
+      title: "Reset learning progress?",
+      body: "Your mastery state for this artifact will be cleared.",
+      confirm: "Reset",
+      danger: true,
+    });
 
-    if (actualPlugin === "flashcards" || ("cards" in (payload as object))) {
-      const initialProgress = api.getProgress ? await api.getProgress(id).then((r) => r.progress).catch(() => null) : null;
-      if (viewing !== id) return;
-      clear(viewerHost);
-      const fv = createFlashcardsViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioFlashcardsPayload,
-        progress: initialProgress,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        confirmReset: confirmLearningReset,
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExplain: (itemId) => handleExplain(itemId, "flashcard"),
-        onRecordProgress: async (itemId, outcome) => {
-          if (!api.recordProgress) throw new Error("Learning progress API is not available.");
-          return (await api.recordProgress(id, { item_id: itemId, outcome })).progress;
-        },
-        onResetProgress: async () => {
-          if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
-          return (await api.resetProgress(id)).progress;
-        },
-      });
-      activeViewer = fv;
-      viewerHost.append(fv.element);
-      return;
-    }
+  async function mountFlashcardsViewer(
+    id: string,
+    title: string,
+    payload: StudioFlashcardsPayload,
+  ): Promise<void> {
+    const initialProgress = await loadInitialProgress(id);
+    if (viewing !== id) return;
+    clear(viewerHost);
+    const handleExplain = createExplainHandler(id);
+    const fv = createFlashcardsViewer({
+      artifactId: id,
+      title,
+      payload,
+      progress: initialProgress,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      confirmReset: confirmLearningReset,
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExplain: (itemId) => handleExplain(itemId, "flashcard"),
+      onRecordProgress: async (itemId, outcome) => {
+        if (!api.recordProgress) throw new Error("Learning progress API is not available.");
+        return (await api.recordProgress(id, { item_id: itemId, outcome })).progress;
+      },
+      onResetProgress: async () => {
+        if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
+        return (await api.resetProgress(id)).progress;
+      },
+    });
+    activeViewer = fv;
+    viewerHost.append(fv.element);
+  }
 
-    if (actualPlugin === "quiz" || ("questions" in (payload as object))) {
-      const initialProgress = api.getProgress ? await api.getProgress(id).then((r) => r.progress).catch(() => null) : null;
-      if (viewing !== id) return;
-      clear(viewerHost);
-      const qv = createQuizViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioQuizPayload,
-        progress: initialProgress,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        confirmReset: confirmLearningReset,
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExplain: (itemId) => handleExplain(itemId, "quiz_question"),
-        onGrade: async (questionId, answer) => {
-          if (!api.gradeQuiz) throw new Error("Quiz grading API is not available.");
-          return api.gradeQuiz(id, { question_id: questionId, answer });
-        },
-        onResetProgress: async () => {
-          if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
-          return (await api.resetProgress(id)).progress;
-        },
-      });
-      activeViewer = qv;
-      viewerHost.append(qv.element);
-      return;
-    }
+  async function mountQuizViewer(
+    id: string,
+    title: string,
+    payload: StudioQuizPayload,
+  ): Promise<void> {
+    const initialProgress = await loadInitialProgress(id);
+    if (viewing !== id) return;
+    clear(viewerHost);
+    const handleExplain = createExplainHandler(id);
+    const qv = createQuizViewer({
+      artifactId: id,
+      title,
+      payload,
+      progress: initialProgress,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      confirmReset: confirmLearningReset,
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExplain: (itemId) => handleExplain(itemId, "quiz_question"),
+      onGrade: async (questionId, answer) => {
+        if (!api.gradeQuiz) throw new Error("Quiz grading API is not available.");
+        return api.gradeQuiz(id, { question_id: questionId, answer });
+      },
+      onResetProgress: async () => {
+        if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
+        return (await api.resetProgress(id)).progress;
+      },
+    });
+    activeViewer = qv;
+    viewerHost.append(qv.element);
+  }
 
-    if (actualPlugin === "learning_overview" || ("modules" in (payload as object))) {
-      const initialProgress = api.getProgress ? await api.getProgress(id).then((r) => r.progress).catch(() => null) : null;
-      if (viewing !== id) return;
-      clear(viewerHost);
-      const lov = createLearningOverviewViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioLearningOverviewPayload,
-        progress: initialProgress,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        confirmReset: confirmLearningReset,
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExplain: (itemId, itemKind) => handleExplain(itemId, itemKind),
-        onRecordProgress: async (itemId, outcome) => {
-          if (!api.recordProgress) throw new Error("Learning progress API is not available.");
-          return (await api.recordProgress(id, { item_id: itemId, outcome })).progress;
-        },
-        onGrade: async (questionId, answer) => {
-          if (!api.gradeQuiz) throw new Error("Quiz grading API is not available.");
-          return api.gradeQuiz(id, { question_id: questionId, answer });
-        },
-        onResetProgress: async () => {
-          if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
-          return (await api.resetProgress(id)).progress;
-        },
-      });
-      activeViewer = lov;
-      viewerHost.append(lov.element);
-      return;
-    }
+  async function mountLearningOverviewViewer(
+    id: string,
+    title: string,
+    payload: StudioLearningOverviewPayload,
+  ): Promise<void> {
+    const initialProgress = await loadInitialProgress(id);
+    if (viewing !== id) return;
+    clear(viewerHost);
+    const handleExplain = createExplainHandler(id);
+    const lov = createLearningOverviewViewer({
+      artifactId: id,
+      title,
+      payload,
+      progress: initialProgress,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      confirmReset: confirmLearningReset,
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExplain: (itemId, itemKind) => handleExplain(itemId, itemKind),
+      onRecordProgress: async (itemId, outcome) => {
+        if (!api.recordProgress) throw new Error("Learning progress API is not available.");
+        return (await api.recordProgress(id, { item_id: itemId, outcome })).progress;
+      },
+      onGrade: async (questionId, answer) => {
+        if (!api.gradeQuiz) throw new Error("Quiz grading API is not available.");
+        return api.gradeQuiz(id, { question_id: questionId, answer });
+      },
+      onResetProgress: async () => {
+        if (!api.resetProgress) throw new Error("Learning progress reset API is not available.");
+        return (await api.resetProgress(id)).progress;
+      },
+    });
+    activeViewer = lov;
+    viewerHost.append(lov.element);
+  }
 
-    if (actualPlugin === "slide_deck" || ("slides" in (payload as object))) {
-      clear(viewerHost);
-      const sdv = createSlideDeckViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioSlideDeckPayload,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExport: async (format) => {
-          try {
-            if (!api.exportSlideDeck) throw new Error("Slide deck export is not available.");
-            const exported = await api.exportSlideDeck(id, { format });
-            if (viewing !== id) return;
-            const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
-            triggerBlobDownload(blob, exported.filename);
-            status.textContent = `Exported ${format.toUpperCase()}`;
-          } catch (err) {
-            status.textContent = messageOf(err);
-          }
-        },
-      });
-      activeViewer = sdv;
-      viewerHost.append(sdv.element);
-      return;
-    }
+  function mountSlideDeckViewer(id: string, title: string, payload: StudioSlideDeckPayload): void {
+    clear(viewerHost);
+    const sdv = createSlideDeckViewer({
+      artifactId: id,
+      title,
+      payload,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExport: async (format) => {
+        try {
+          if (!api.exportSlideDeck) throw new Error("Slide deck export is not available.");
+          const exported = await api.exportSlideDeck(id, { format });
+          if (viewing !== id) return;
+          const blob = new Blob([new Uint8Array(exported.bytes)], { type: exported.contentType });
+          triggerBlobDownload(blob, exported.filename);
+          status.textContent = `Exported ${format.toUpperCase()}`;
+        } catch (err) {
+          status.textContent = messageOf(err);
+        }
+      },
+    });
+    activeViewer = sdv;
+    viewerHost.append(sdv.element);
+  }
 
-    if (actualPlugin === "infographic" || ("rendered_svg" in (payload as object))) {
-      clear(viewerHost);
-      const iv = createInfographicViewer({
-        artifactId: id,
-        title,
-        payload: payload as StudioInfographicPayload,
-        onClose: closeViewer,
-        actions: [deleteButton(id, title)],
-        onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
-        onExport: async (format) => {
-          try {
-            if (!api.exportInfographic) throw new Error("Infographic export is not available.");
-            const scene = await api.exportInfographic(id, { format });
-            if (viewing !== id) return;
-            await downloadMindmapScene(scene);
-            status.textContent = `Exported ${format.toUpperCase()}`;
-          } catch (err) {
-            status.textContent = messageOf(err);
-          }
-        },
-      });
-      activeViewer = iv;
-      viewerHost.append(iv.element);
-      return;
+  function mountInfographicViewer(
+    id: string,
+    title: string,
+    payload: StudioInfographicPayload,
+  ): void {
+    clear(viewerHost);
+    const iv = createInfographicViewer({
+      artifactId: id,
+      title,
+      payload,
+      onClose: closeViewer,
+      actions: [deleteButton(id, title)],
+      onCitationClick: (sourceId, chunkId) => options.openCitation(sourceId, chunkId),
+      onExport: async (format) => {
+        try {
+          if (!api.exportInfographic) throw new Error("Infographic export is not available.");
+          const scene = await api.exportInfographic(id, { format });
+          if (viewing !== id) return;
+          await downloadMindmapScene(scene);
+          status.textContent = `Exported ${format.toUpperCase()}`;
+        } catch (err) {
+          status.textContent = messageOf(err);
+        }
+      },
+    });
+    activeViewer = iv;
+    viewerHost.append(iv.element);
+  }
+
+  function mountReportViewer(
+    article: HTMLElement,
+    id: string,
+    title: string,
+    view: ArtifactView,
+    payload: { content_md: string; citations: ReportCitation[] },
+  ): void {
+    const content = h("div", {
+      class: "studio-report-content",
+      "data-testid": "studio-report-content",
+    });
+    for (const node of renderMarkdownNodes(payload.content_md, {
+      badge: badgeFor(payload.citations),
+      sectionKey: sectionKeys(view),
+    })) {
+      content.append(node);
     }
-    if (!("content_md" in payload)) {
-      return;
-    }
-    const content = h("div", { class: "studio-report-content", "data-testid": "studio-report-content" });
-    for (const node of renderMarkdownNodes(payload.content_md, { badge: badgeFor(payload.citations), sectionKey: sectionKeys(view) })) content.append(node);
-    const copy = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-copy", text: "Copy" });
-    copy.addEventListener("click", async () => {
+    const copy = h("button", {
+      class: "btn btn-sm",
+      type: "button",
+      "data-testid": "studio-copy",
+      text: "Copy",
+    });
+    const handleCopy = async (): Promise<void> => {
       try {
         await clipboard.writeText(payload.content_md);
         status.textContent = "Report copied";
       } catch {
         notify("Could not copy the report.", "error");
       }
+    };
+    copy.addEventListener("click", () => {
+      void handleCopy();
     });
-    const convert = h("button", { class: "btn btn-sm", type: "button", "data-testid": "studio-convert", text: "Convert to source" }) as HTMLButtonElement;
-    convert.addEventListener("click", async () => {
+    const convert = h("button", {
+      class: "btn btn-sm",
+      type: "button",
+      "data-testid": "studio-convert",
+      text: "Convert to source",
+    });
+    const handleConvert = async (): Promise<void> => {
       convert.disabled = true;
       status.textContent = "Converting to source…";
       try {
@@ -760,14 +881,125 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       } finally {
         convert.disabled = false;
       }
+    };
+    convert.addEventListener("click", () => {
+      void handleConvert();
     });
-    article.append(content, h("div", { class: "studio-viewer-actions" }, copy, convert, deleteButton(id, title)));
+    article.append(
+      content,
+      h("div", { class: "studio-viewer-actions" }, copy, convert, deleteButton(id, title)),
+    );
+  }
+
+  async function mountArtifactPayload(
+    article: HTMLElement,
+    id: string,
+    title: string,
+    view: ArtifactView,
+  ): Promise<void> {
+    const actualPlugin = view.artifact.plugin_type;
+    const payload = view.artifact.payload_json;
+    if (!payload) {
+      const unavailMsg = view.unavailable?.message ?? "This artifact is not available.";
+      const unavailEl = h("p", {
+        class: "studio-report-unavailable muted",
+        "data-testid":
+          actualPlugin === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
+        text: unavailMsg,
+      });
+      // For backward compatibility if tests query studio-report-unavailable or studio-artifact-unavailable
+      article.append(
+        unavailEl,
+        h("div", { class: "studio-viewer-actions" }, deleteButton(id, title)),
+      );
+      return;
+    }
+    if (actualPlugin === "mindmap" || "root_node" in payload) {
+      renderMindmapInitialCanvas(id, title, payload as StudioMindmapPayload);
+    } else if (actualPlugin === "data_table" || "rows" in payload) {
+      mountDataTableViewer(id, title, payload as StudioDataTablePayload);
+    } else if (actualPlugin === "flashcards" || "cards" in payload) {
+      await mountFlashcardsViewer(id, title, payload as StudioFlashcardsPayload);
+    } else if (actualPlugin === "quiz" || "questions" in payload) {
+      await mountQuizViewer(id, title, payload as StudioQuizPayload);
+    } else if (actualPlugin === "learning_overview" || "modules" in payload) {
+      await mountLearningOverviewViewer(id, title, payload as StudioLearningOverviewPayload);
+    } else if (actualPlugin === "slide_deck" || "slides" in payload) {
+      mountSlideDeckViewer(id, title, payload as StudioSlideDeckPayload);
+    } else if (actualPlugin === "infographic" || "rendered_svg" in payload) {
+      mountInfographicViewer(id, title, payload as StudioInfographicPayload);
+    } else if ("content_md" in payload) {
+      mountReportViewer(article, id, title, view, payload);
+    }
+  }
+
+  async function openViewer(
+    id: string,
+    title: string,
+    pluginType: ArtifactDto["plugin_type"] = "report",
+  ): Promise<void> {
+    activeViewer?.destroy();
+    activeViewer = null;
+    viewing = id;
+    renderList();
+    clear(viewerHost);
+    const close = h("button", {
+      class: "icon-btn",
+      type: "button",
+      "data-testid": "studio-viewer-close",
+      "aria-label": "Close viewer",
+      text: "←",
+    });
+    close.addEventListener("click", closeViewer);
+    const viewerTestId = VIEWER_TEST_ID[pluginType] ?? "studio-report-viewer";
+    const article = h(
+      "article",
+      { class: viewerTestId, "data-testid": viewerTestId, "data-artifact-id": id },
+      h(
+        "div",
+        { class: "studio-viewer-head" },
+        close,
+        h("h3", {
+          class: "studio-report-title",
+          "data-testid": "studio-report-title",
+          text: title,
+        }),
+      ),
+    );
+    viewerHost.append(article);
+    let view: ArtifactView;
+    try {
+      view = await list.view(id);
+    } catch (error) {
+      const msg = messageOf(error);
+      article.append(
+        h("p", {
+          class: "studio-report-unavailable muted",
+          "data-testid":
+            pluginType === "report" ? "studio-report-unavailable" : "studio-artifact-unavailable",
+          text: msg,
+        }),
+      );
+      return;
+    }
+    if (viewing !== id) return;
+    await mountArtifactPayload(article, id, title, view);
   }
 
   function deleteButton(id: string, title: string): HTMLElement {
-    const button = h("button", { class: "btn btn-sm btn-danger", type: "button", "data-testid": "studio-delete", text: "Delete" });
-    button.addEventListener("click", async () => {
-      const ok = await confirm({ title: "Delete report?", body: `“${title}” will be permanently deleted.`, confirm: "Delete", danger: true });
+    const button = h("button", {
+      class: "btn btn-sm btn-danger",
+      type: "button",
+      "data-testid": "studio-delete",
+      text: "Delete",
+    });
+    const handleDelete = async (): Promise<void> => {
+      const ok = await confirm({
+        title: "Delete report?",
+        body: `“${title}” will be permanently deleted.`,
+        confirm: "Delete",
+        danger: true,
+      });
       if (!ok) return;
       try {
         await list.remove(id);
@@ -777,12 +1009,20 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       } catch (error) {
         status.textContent = messageOf(error);
       }
+    };
+    button.addEventListener("click", () => {
+      void handleDelete();
     });
     return button;
   }
 
   // ---- Create report modal (FR-001, FR-009..FR-012, FR-018) -----------------------------------------------------
-  let modal: { root: HTMLElement; sync(): void; rescope(): void; close(): void } | null = null;
+  let modal: {
+    root: HTMLElement;
+    sync: () => void;
+    rescope: () => void;
+    close: () => void;
+  } | null = null;
 
   function openModal(): void {
     if (modal) return;
@@ -790,32 +1030,70 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       api,
       notebookId: options.notebookId,
       getActiveSourceIds: () => options.selectedSourceIds(),
-      ...(options.maxSuggestionPolls !== undefined ? { maxLoadingPolls: options.maxSuggestionPolls } : {}),
+      ...(options.maxSuggestionPolls === undefined
+        ? {}
+        : { maxLoadingPolls: options.maxSuggestionPolls }),
     });
     let suggestionTimer: ReturnType<typeof setTimeout> | null = null;
     let open = true;
     let busy = false;
 
-    const error = h("p", { class: "chat-error report-modal-error", "data-testid": "report-modal-error", role: "alert", hidden: true });
+    const error = h("p", {
+      class: "chat-error report-modal-error",
+      "data-testid": "report-modal-error",
+      role: "alert",
+      hidden: true,
+    });
     const showError = (message: string | null) => {
       error.hidden = message === null;
       error.textContent = message ?? "";
     };
-    const closeButton = h("button", { class: "icon-btn", type: "button", "data-testid": "reports-modal-close", "aria-label": "Close", text: "✕" });
-    const scopeHint = h("p", { class: "muted report-scope-hint", "data-testid": "report-scope-hint", text: SCOPE_HINT });
+    const closeButton = h("button", {
+      class: "icon-btn",
+      type: "button",
+      "data-testid": "reports-modal-close",
+      "aria-label": "Close",
+      text: "✕",
+    });
+    const scopeHint = h("p", {
+      class: "muted report-scope-hint",
+      "data-testid": "report-scope-hint",
+      text: SCOPE_HINT,
+    });
 
     const createOwn = h(
       "button",
-      { class: "report-card report-create-own", type: "button", "data-testid": "report-create-own" },
+      {
+        class: "report-card report-create-own",
+        type: "button",
+        "data-testid": "report-create-own",
+      },
       h("strong", { text: "Create Your Own" }),
-      h("span", { class: "muted", text: "Craft reports your way by specifying structure, style, tone, and more" })
-    ) as HTMLButtonElement;
+      h("span", {
+        class: "muted",
+        text: "Craft reports your way by specifying structure, style, tone, and more",
+      }),
+    );
     const templateButtons = REPORT_TEMPLATES.map((t) => {
-      const button = h("button", { class: "report-card report-template", type: "button", "data-testid": "report-template", "data-subtype": t.subtype, title: t.description, text: t.label }) as HTMLButtonElement;
-      button.addEventListener("click", () => void submit(() => controller.generateTemplate(t.subtype)));
+      const button = h("button", {
+        class: "report-card report-template",
+        type: "button",
+        "data-testid": "report-template",
+        "data-subtype": t.subtype,
+        title: t.description,
+        text: t.label,
+      });
+      button.addEventListener(
+        "click",
+        () => void submit(() => controller.generateTemplate(t.subtype)),
+      );
       return button;
     });
-    const suggestionsEl = h("div", { class: "report-suggestions", "data-testid": "report-suggestions", "aria-live": "polite" });
+    const suggestionsEl = h("div", {
+      class: "report-suggestions",
+      "data-testid": "report-suggestions",
+      "aria-live": "polite",
+    });
 
     // Prompt editor: Create Your Own (custom) or an edited suggestion (dynamic).
     const promptHeading = h("h3", { class: "report-prompt-heading" });
@@ -825,17 +1103,33 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       rows: 8,
       "aria-label": "Report prompt",
       placeholder: PROMPT_PLACEHOLDER,
-    }) as HTMLTextAreaElement;
-    const count = h("span", { class: "muted report-prompt-count", "data-testid": "report-prompt-count" });
-    const generate = h("button", { class: "btn btn-primary", type: "button", "data-testid": "report-generate", text: "Generate" }) as HTMLButtonElement;
-    const back = h("button", { class: "btn", type: "button", "data-testid": "report-prompt-back", text: "Back" });
+    });
+    const count = h("span", {
+      class: "muted report-prompt-count",
+      "data-testid": "report-prompt-count",
+    });
+    const generate = h("button", {
+      class: "btn btn-primary",
+      type: "button",
+      "data-testid": "report-generate",
+      text: "Generate",
+    });
+    const back = h("button", {
+      class: "btn",
+      type: "button",
+      "data-testid": "report-prompt-back",
+      text: "Back",
+    });
     const promptForm = h(
       "div",
       { class: "report-prompt-form", "data-testid": "report-prompt-form", hidden: true },
       promptHeading,
-      h("p", { class: "muted", text: "Reports are written only from your selected sources and always cite them." }),
+      h("p", {
+        class: "muted",
+        text: "Reports are written only from your selected sources and always cite them.",
+      }),
       prompt,
-      h("div", { class: "report-prompt-meta" }, count, h("div", { class: "grow" }), back, generate)
+      h("div", { class: "report-prompt-meta" }, count, h("div", { class: "grow" }), back, generate),
     );
     const choices = h(
       "div",
@@ -846,15 +1140,21 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       h("h3", { text: "Format" }),
       h("div", { class: "report-templates" }, ...templateButtons),
       h("h3", { text: "Suggested Format" }),
-      suggestionsEl
+      suggestionsEl,
     );
     const dialog = h(
       "div",
-      { class: "modal reports-modal", "data-testid": "reports-modal", role: "dialog", "aria-modal": "true", "aria-label": "Create report" },
+      {
+        class: "modal reports-modal",
+        "data-testid": "reports-modal",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": "Create report",
+      },
       h("div", { class: "modal-head" }, h("h2", { text: "Create report" }), closeButton),
       choices,
       promptForm,
-      error
+      error,
     );
     const root = h("div", { class: "modal-backdrop" }, dialog);
 
@@ -869,7 +1169,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       for (const b of templateButtons) b.disabled = !enabled;
       createOwn.disabled = !enabled;
       scopeHint.hidden = controller.templatesEnabled;
-      for (const b of suggestionsEl.querySelectorAll("button")) (b as HTMLButtonElement).disabled = !enabled;
+      for (const b of suggestionsEl.querySelectorAll("button")) b.disabled = !enabled;
       syncPrompt();
     };
     const showPrompt = (heading: string) => {
@@ -886,30 +1186,70 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       clear(suggestionsEl);
       suggestionsEl.setAttribute("data-state", controller.suggestionState);
       if (controller.suggestionState === "SuggestionsLoading") {
-        suggestionsEl.append(h("p", { class: "muted report-suggestions-loading", "data-testid": "report-suggestions-loading", role: "status", text: SUGGESTIONS_LOADING }));
+        suggestionsEl.append(
+          h("p", {
+            class: "muted report-suggestions-loading",
+            "data-testid": "report-suggestions-loading",
+            role: "status",
+            text: SUGGESTIONS_LOADING,
+          }),
+        );
       } else if (controller.suggestionState === "SuggestionsUnavailable") {
         suggestionsEl.append(
           h("p", {
             class: "muted report-suggestions-unavailable",
             "data-testid": "report-suggestions-unavailable",
-            text: controller.unavailableReason === "scope" ? SUGGESTIONS_NEED_SCOPE : SUGGESTIONS_UNAVAILABLE,
-          })
+            text:
+              controller.unavailableReason === "scope"
+                ? SUGGESTIONS_NEED_SCOPE
+                : SUGGESTIONS_UNAVAILABLE,
+          }),
         );
       } else {
         controller.suggestions.forEach((s, index) => {
           const use = h(
             "button",
-            { class: "report-suggestion-use", type: "button", "data-testid": "report-suggestion-use", "aria-label": `Generate ${s.title}` },
-            h("strong", { class: "report-suggestion-title", "data-testid": "report-suggestion-title", text: s.title }),
-            h("span", { class: "muted report-suggestion-description", "data-testid": "report-suggestion-description", text: s.description })
+            {
+              class: "report-suggestion-use",
+              type: "button",
+              "data-testid": "report-suggestion-use",
+              "aria-label": `Generate ${s.title}`,
+            },
+            h("strong", {
+              class: "report-suggestion-title",
+              "data-testid": "report-suggestion-title",
+              text: s.title,
+            }),
+            h("span", {
+              class: "muted report-suggestion-description",
+              "data-testid": "report-suggestion-description",
+              text: s.description,
+            }),
           );
-          use.addEventListener("click", () => void submit(() => controller.generateSuggestion(index)));
-          const edit = h("button", { class: "icon-btn report-suggestion-edit", type: "button", "data-testid": "report-suggestion-edit", "aria-label": `Edit prompt: ${s.title}`, title: "Edit prompt", text: "✎" });
+          use.addEventListener(
+            "click",
+            () => void submit(() => controller.generateSuggestion(index)),
+          );
+          const edit = h("button", {
+            class: "icon-btn report-suggestion-edit",
+            type: "button",
+            "data-testid": "report-suggestion-edit",
+            "aria-label": `Edit prompt: ${s.title}`,
+            title: "Edit prompt",
+            text: "✎",
+          });
           edit.addEventListener("click", () => {
             controller.editSuggestion(index);
             showPrompt(s.title);
           });
-          suggestionsEl.append(h("div", { class: "report-card report-suggestion", "data-testid": "report-suggestion" }, use, edit));
+          suggestionsEl.append(
+            h(
+              "div",
+              { class: "report-card report-suggestion", "data-testid": "report-suggestion" },
+              use,
+              edit,
+            ),
+          );
         });
       }
       sync();
@@ -923,7 +1263,8 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       const state = await controller.loadSuggestions();
       if (!open || mine !== cycle) return;
       renderSuggestions();
-      if (state === "SuggestionsLoading") suggestionTimer = setTimeout(() => void loadSuggestions(), suggestionPollMs);
+      if (state === "SuggestionsLoading")
+        suggestionTimer = setTimeout(() => void loadSuggestions(), suggestionPollMs);
     }
 
     async function submit(start: () => Promise<ArtifactDto>): Promise<void> {
@@ -994,30 +1335,51 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     void loadSuggestions();
   }
 
-  let tableModal: { root: HTMLElement; close(): void } | null = null;
+  let tableModal: { root: HTMLElement; close: () => void } | null = null;
 
   function openDataTableModal(): void {
     if (tableModal || !hasScope()) return;
     let open = true;
     let busy = false;
 
-    const closeBtn = h("button", { class: "icon-btn", type: "button", "data-testid": "data-table-modal-close", "aria-label": "Close", text: "✕" });
+    const closeBtn = h("button", {
+      class: "icon-btn",
+      type: "button",
+      "data-testid": "data-table-modal-close",
+      "aria-label": "Close",
+      text: "✕",
+    });
     const schemaSelect = h(
       "select",
-      { class: "form-select", "data-testid": "data-table-schema-select", "aria-label": "Table schema" },
-      ...DATA_TABLE_SCHEMA_OPTIONS.map((o) => h("option", { value: o.value, text: o.text }))
-    ) as HTMLSelectElement;
+      {
+        class: "form-select",
+        "data-testid": "data-table-schema-select",
+        "aria-label": "Table schema",
+      },
+      ...DATA_TABLE_SCHEMA_OPTIONS.map((o) => h("option", { value: o.value, text: o.text })),
+    );
 
     const focusPrompt = h("textarea", {
       class: "report-prompt",
       "data-testid": "data-table-focus-prompt",
       rows: 4,
       "aria-label": "Focus prompt (optional)",
-      placeholder: "Optional: specify which items or attributes to compare (up to 2,000 characters).",
-    }) as HTMLTextAreaElement;
+      placeholder:
+        "Optional: specify which items or attributes to compare (up to 2,000 characters).",
+    });
 
-    const errorEl = h("p", { class: "chat-error", "data-testid": "data-table-modal-error", role: "alert", hidden: true });
-    const generateBtn = h("button", { class: "btn btn-primary", type: "button", "data-testid": "data-table-generate", text: "Generate" }) as HTMLButtonElement;
+    const errorEl = h("p", {
+      class: "chat-error",
+      "data-testid": "data-table-modal-error",
+      role: "alert",
+      hidden: true,
+    });
+    const generateBtn = h("button", {
+      class: "btn btn-primary",
+      type: "button",
+      "data-testid": "data-table-generate",
+      text: "Generate",
+    });
 
     function close(): void {
       if (!open) return;
@@ -1028,7 +1390,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     }
 
     closeBtn.addEventListener("click", close);
-    generateBtn.addEventListener("click", async () => {
+    const handleGenerateDataTable = async (): Promise<void> => {
       if (busy) return;
       const ids = options.selectedSourceIds();
       if (ids.length === 0) {
@@ -1037,7 +1399,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         return;
       }
       const trimmedPrompt = focusPrompt.value.trim();
-      if (Array.from(trimmedPrompt).length > 2000) {
+      if (codePointLength(trimmedPrompt) > 2000) {
         errorEl.hidden = false;
         errorEl.textContent = "Focus prompt must not exceed 2,000 characters.";
         return;
@@ -1061,29 +1423,49 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         busy = false;
         if (open) generateBtn.disabled = false;
       }
+    };
+    generateBtn.addEventListener("click", () => {
+      void handleGenerateDataTable();
     });
 
     const dialog = h(
       "div",
-      { class: "modal data-table-modal", "data-testid": "data-table-modal", role: "dialog", "aria-modal": "true", "aria-label": "Create data table" },
+      {
+        class: "modal data-table-modal",
+        "data-testid": "data-table-modal",
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": "Create data table",
+      },
       h("div", { class: "modal-head" }, h("h2", { text: "Create Data Table" }), closeBtn),
-      h("div", { class: "modal-body" }, h("label", { text: "Schema" }), schemaSelect, h("label", { text: "Focus Prompt (Optional)" }), focusPrompt, errorEl),
-      h("div", { class: "modal-foot" }, generateBtn)
+      h(
+        "div",
+        { class: "modal-body" },
+        h("label", { text: "Schema" }),
+        schemaSelect,
+        h("label", { text: "Focus Prompt (Optional)" }),
+        focusPrompt,
+        errorEl,
+      ),
+      h("div", { class: "modal-foot" }, generateBtn),
     );
     const root = h("div", { class: "modal-backdrop" }, dialog);
     tableModal = { root, close };
     document.body.append(root);
   }
 
-  let flashcardsModal: { root: HTMLElement; close(): void } | null = null;
-  let quizModal: { root: HTMLElement; close(): void } | null = null;
-  let learningOverviewModal: { root: HTMLElement; close(): void } | null = null;
-  let slideDeckModal: { root: HTMLElement; close(): void } | null = null;
-  let infographicModal: { root: HTMLElement; close(): void } | null = null;
+  let flashcardsModal: { root: HTMLElement; close: () => void } | null = null;
+  let quizModal: { root: HTMLElement; close: () => void } | null = null;
+  let learningOverviewModal: { root: HTMLElement; close: () => void } | null = null;
+  let slideDeckModal: { root: HTMLElement; close: () => void } | null = null;
+  let infographicModal: { root: HTMLElement; close: () => void } | null = null;
 
-  function validateModalFocusPrompt(rawValue: string, maxChars = PEDAGOGY_FOCUS_PROMPT_MAX): string | null {
+  function validateModalFocusPrompt(
+    rawValue: string,
+    maxChars = PEDAGOGY_FOCUS_PROMPT_MAX,
+  ): string | null {
     const trimmed = rawValue.trim();
-    if (Array.from(trimmed).length > maxChars) {
+    if (codePointLength(trimmed) > maxChars) {
       return `Focus prompt must not exceed ${maxChars.toLocaleString("en-US")} characters.`;
     }
     return null;
@@ -1099,16 +1481,32 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     generateTestId: string;
     focusTarget: HTMLButtonElement;
     bodyNodes: HTMLElement[];
-    setRef: (handle: { root: HTMLElement; close(): void } | null) => void;
+    setRef: (handle: { root: HTMLElement; close: () => void } | null) => void;
     validate?: () => string | null;
     watchInputs?: HTMLElement[];
     onGenerate: (activeSourceIds: string[]) => Promise<ArtifactDto>;
   }): void {
     let open = true;
     let busy = false;
-    const closeBtn = h("button", { class: "icon-btn", type: "button", "data-testid": config.closeTestId, "aria-label": "Close", text: "✕" });
-    const errorEl = h("p", { class: "chat-error", "data-testid": config.errorTestId, role: "alert", hidden: true });
-    const generateBtn = h("button", { class: "btn btn-primary", type: "button", "data-testid": config.generateTestId, text: "Generate" }) as HTMLButtonElement;
+    const closeBtn = h("button", {
+      class: "icon-btn",
+      type: "button",
+      "data-testid": config.closeTestId,
+      "aria-label": "Close",
+      text: "✕",
+    });
+    const errorEl = h("p", {
+      class: "chat-error",
+      "data-testid": config.errorTestId,
+      role: "alert",
+      hidden: true,
+    });
+    const generateBtn = h("button", {
+      class: "btn btn-primary",
+      type: "button",
+      "data-testid": config.generateTestId,
+      text: "Generate",
+    });
 
     function syncValidation(): string | null {
       const msg = config.validate?.() ?? null;
@@ -1136,7 +1534,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       control.addEventListener("input", () => syncValidation());
       control.addEventListener("change", () => syncValidation());
     }
-    generateBtn.addEventListener("click", async () => {
+    const handleGenerate = async (): Promise<void> => {
       if (busy) return;
       const validationMsg = syncValidation();
       if (validationMsg) return;
@@ -1161,6 +1559,9 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         busy = false;
         if (open) generateBtn.disabled = Boolean(config.validate?.());
       }
+    };
+    generateBtn.addEventListener("click", () => {
+      void handleGenerate();
     });
 
     const dialog = h(
@@ -1174,7 +1575,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       },
       h("div", { class: "modal-head" }, h("h2", { text: config.heading }), closeBtn),
       h("div", { class: "modal-body" }, ...config.bodyNodes, errorEl),
-      h("div", { class: "modal-foot" }, generateBtn)
+      h("div", { class: "modal-foot" }, generateBtn),
     );
     const root = h("div", { class: "modal-backdrop" }, dialog);
     root.addEventListener("click", (event: Event) => {
@@ -1194,20 +1595,23 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       { class: "form-select", "data-testid": testId, "aria-label": "Difficulty" },
       h("option", { value: "easy", text: "Easy" }),
       h("option", { value: "medium", text: "Medium" }),
-      h("option", { value: "hard", text: "Hard" })
-    ) as HTMLSelectElement;
+      h("option", { value: "hard", text: "Hard" }),
+    );
     select.value = "medium";
     return select;
   }
 
-  function makeFocusPromptInput(testId: string, maxChars = PEDAGOGY_FOCUS_PROMPT_MAX): HTMLTextAreaElement {
+  function makeFocusPromptInput(
+    testId: string,
+    maxChars = PEDAGOGY_FOCUS_PROMPT_MAX,
+  ): HTMLTextAreaElement {
     return h("textarea", {
       class: "report-prompt",
       "data-testid": testId,
       rows: 3,
       "aria-label": "Focus prompt (optional)",
       placeholder: `Optional: focus topic or emphasis (up to ${maxChars.toLocaleString("en-US")} characters).`,
-    }) as HTMLTextAreaElement;
+    });
   }
 
   function openFlashcardsModal(): void {
@@ -1215,11 +1619,15 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     const difficultySelect = makeDifficultySelect("flashcards-difficulty-select");
     const countSelect = h(
       "select",
-      { class: "form-select", "data-testid": "flashcards-count-select", "aria-label": "Card count" },
+      {
+        class: "form-select",
+        "data-testid": "flashcards-count-select",
+        "aria-label": "Card count",
+      },
       h("option", { value: "fewer", text: "Fewer (10)" }),
       h("option", { value: "standard", text: "Standard (20)" }),
-      h("option", { value: "more", text: "More (35)" })
-    ) as HTMLSelectElement;
+      h("option", { value: "more", text: "More (35)" }),
+    );
     countSelect.value = "standard";
     const focusPrompt = makeFocusPromptInput("flashcards-focus-prompt");
 
@@ -1270,7 +1678,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       value: 10,
       "data-testid": "quiz-count-input",
       "aria-label": "Question count",
-    }) as HTMLInputElement;
+    });
     countInput.value = "10";
     const focusPrompt = makeFocusPromptInput("quiz-focus-prompt");
 
@@ -1296,8 +1704,14 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       },
       onGenerate: async (ids) => {
         const questionCount = Number(countInput.value);
-        if (!Number.isInteger(questionCount) || questionCount < QUIZ_QUESTION_MIN || questionCount > QUIZ_QUESTION_MAX) {
-          throw new Error(`Question count must be an integer between ${QUIZ_QUESTION_MIN} and ${QUIZ_QUESTION_MAX}.`);
+        if (
+          !Number.isInteger(questionCount) ||
+          questionCount < QUIZ_QUESTION_MIN ||
+          questionCount > QUIZ_QUESTION_MAX
+        ) {
+          throw new Error(
+            `Question count must be an integer between ${QUIZ_QUESTION_MIN} and ${QUIZ_QUESTION_MAX}.`,
+          );
         }
         const promptError = validateModalFocusPrompt(focusPrompt.value);
         if (promptError) throw new Error(promptError);
@@ -1324,7 +1738,7 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       value: 4,
       "data-testid": "learning-overview-sections-input",
       "aria-label": "Target section count",
-    }) as HTMLInputElement;
+    });
     sectionsInput.value = "4";
     const focusPrompt = makeFocusPromptInput("learning-overview-focus-prompt");
 
@@ -1348,8 +1762,14 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       },
       onGenerate: async (ids) => {
         const sectionCount = Number(sectionsInput.value);
-        if (!Number.isInteger(sectionCount) || sectionCount < OVERVIEW_SECTION_MIN || sectionCount > OVERVIEW_SECTION_MAX) {
-          throw new Error(`Target sections must be an integer between ${OVERVIEW_SECTION_MIN} and ${OVERVIEW_SECTION_MAX}.`);
+        if (
+          !Number.isInteger(sectionCount) ||
+          sectionCount < OVERVIEW_SECTION_MIN ||
+          sectionCount > OVERVIEW_SECTION_MAX
+        ) {
+          throw new Error(
+            `Target sections must be an integer between ${OVERVIEW_SECTION_MIN} and ${OVERVIEW_SECTION_MAX}.`,
+          );
         }
         const promptError = validateModalFocusPrompt(focusPrompt.value);
         if (promptError) throw new Error(promptError);
@@ -1375,13 +1795,17 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
       value: SLIDE_COUNT_DEFAULT,
       "data-testid": "slide-deck-count-input",
       "aria-label": "Slide count",
-    }) as HTMLInputElement;
+    });
     countInput.value = String(SLIDE_COUNT_DEFAULT);
     const focusPrompt = makeFocusPromptInput("slide-deck-focus-prompt", SLIDE_FOCUS_PROMPT_MAX);
 
     const validateInputs = (): string | null => {
       const slideCount = Number(countInput.value);
-      if (!Number.isInteger(slideCount) || slideCount < SLIDE_COUNT_MIN || slideCount > SLIDE_COUNT_MAX) {
+      if (
+        !Number.isInteger(slideCount) ||
+        slideCount < SLIDE_COUNT_MIN ||
+        slideCount > SLIDE_COUNT_MAX
+      ) {
         return `Slide count must be an integer between ${SLIDE_COUNT_MIN} and ${SLIDE_COUNT_MAX}.`;
       }
       return validateModalFocusPrompt(focusPrompt.value, SLIDE_FOCUS_PROMPT_MAX);
@@ -1427,13 +1851,18 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
     if (infographicModal || !hasScope()) return;
     const styleSelect = h(
       "select",
-      { class: "form-select", "data-testid": "infographic-style-select", "aria-label": "Infographic style" },
-      ...INFOGRAPHIC_STYLE_OPTIONS.map((opt) => h("option", { value: opt.value, text: opt.text }))
-    ) as HTMLSelectElement;
+      {
+        class: "form-select",
+        "data-testid": "infographic-style-select",
+        "aria-label": "Infographic style",
+      },
+      ...INFOGRAPHIC_STYLE_OPTIONS.map((opt) => h("option", { value: opt.value, text: opt.text })),
+    );
     styleSelect.value = "auto";
     const focusPrompt = makeFocusPromptInput("infographic-focus-prompt", PEDAGOGY_FOCUS_PROMPT_MAX);
 
-    const validateInputs = (): string | null => validateModalFocusPrompt(focusPrompt.value, PEDAGOGY_FOCUS_PROMPT_MAX);
+    const validateInputs = (): string | null =>
+      validateModalFocusPrompt(focusPrompt.value, PEDAGOGY_FOCUS_PROMPT_MAX);
 
     mountPedagogyModal({
       modalClass: "infographic-modal",
@@ -1507,7 +1936,9 @@ export function createStudioPanel(options: StudioPanelOptions): StudioPanel {
         : "Select at least one source to generate an infographic.";
       for (const button of listEl.querySelectorAll("[data-testid=studio-retry]")) {
         (button as HTMLButtonElement).disabled = !hasScope();
-        (button as HTMLButtonElement).title = hasScope() ? "Retry with the current source selection" : SCOPE_HINT;
+        (button as HTMLButtonElement).title = hasScope()
+          ? "Retry with the current source selection"
+          : SCOPE_HINT;
       }
     },
     destroy() {

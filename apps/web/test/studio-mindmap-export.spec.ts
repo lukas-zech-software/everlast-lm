@@ -32,9 +32,27 @@ test("MM-E02: explores mindmap branches, downloads valid full-bounds SVG and 2x 
   const email = uniqueEmail("mme02");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "Compute.pdf", buildPdf([{ kind: "text", lines: SOURCE_1 }]));
-  await uploadSource(page.request, email, id, "Storage.pdf", buildPdf([{ kind: "text", lines: SOURCE_2 }]));
-  await uploadSource(page.request, email, id, "Studio.pdf", buildPdf([{ kind: "text", lines: SOURCE_3 }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Compute.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_1 }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Storage.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_2 }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Studio.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_3 }]),
+  );
   await waitReady(page.request, email, id, 3);
 
   await page.goto(`/notebook/${id}`);
@@ -68,7 +86,7 @@ test("MM-E02: explores mindmap branches, downloads valid full-bounds SVG and 2x 
   ]);
   const svgPath = await svgDownload.path();
   expect(svgPath).toBeTruthy();
-  const svgContent = readFileSync(svgPath!, "utf8");
+  const svgContent = readFileSync(svgPath, "utf8");
   expect(svgContent).toContain("<svg");
   expect(svgContent).not.toMatch(/<script|foreignObject/i);
 
@@ -78,9 +96,11 @@ test("MM-E02: explores mindmap branches, downloads valid full-bounds SVG and 2x 
   ]);
   const pngPath = await pngDownload.path();
   expect(pngPath).toBeTruthy();
-  const pngBytes = readFileSync(pngPath!);
+  const pngBytes = readFileSync(pngPath);
   // Verify PNG magic signature: 89 50 4E 47 0D 0A 1A 0A
-  expect(pngBytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe(true);
+  expect(
+    pngBytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+  ).toBe(true);
   // IHDR width & height at bytes 16..24 (big-endian uint32)
   const width = pngBytes.readUInt32BE(16);
   const height = pngBytes.readUInt32BE(20);
@@ -90,7 +110,9 @@ test("MM-E02: explores mindmap branches, downloads valid full-bounds SVG and 2x 
   // Eligible node body click triggers grounded chat drilldown turn
   const beforeMessages = await page.getByTestId("message-assistant").count();
   await viewer.getByTestId("mindmap-node-body").first().click();
-  await expect(page.getByTestId("message-assistant")).toHaveCount(beforeMessages + 1, { timeout: 20_000 });
+  await expect(page.getByTestId("message-assistant")).toHaveCount(beforeMessages + 1, {
+    timeout: 20_000,
+  });
 
   // Deselect all sources -> clicking node body shows missing-scope notice and does NOT send a chat turn
   for (const checkbox of await page.getByTestId("source-checkbox").all()) {

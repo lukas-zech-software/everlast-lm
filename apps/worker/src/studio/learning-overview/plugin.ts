@@ -31,7 +31,7 @@ export class LearningOverviewGeneratorPlugin implements StudioGeneratorPlugin {
 
   constructor(
     model: LearningOverviewModelClient = new DeterministicLearningOverviewModel(),
-    limits?: EvidenceBatchLimits
+    limits?: EvidenceBatchLimits,
   ) {
     this.model = model;
     this.limits = limits;
@@ -45,9 +45,13 @@ export class LearningOverviewGeneratorPlugin implements StudioGeneratorPlugin {
     let sectionCount: number | undefined;
     if (request.params.section_count !== undefined) {
       const s = request.params.section_count;
-      if (!Number.isInteger(s) || s < LEARNING_OVERVIEW_MIN_SECTIONS || s > LEARNING_OVERVIEW_MAX_SECTIONS) {
+      if (
+        !Number.isInteger(s) ||
+        s < LEARNING_OVERVIEW_MIN_SECTIONS ||
+        s > LEARNING_OVERVIEW_MAX_SECTIONS
+      ) {
         throw new StudioParamsError(
-          `Learning Overview section_count must be an integer between ${LEARNING_OVERVIEW_MIN_SECTIONS} and ${LEARNING_OVERVIEW_MAX_SECTIONS}.`
+          `Learning Overview section_count must be an integer between ${LEARNING_OVERVIEW_MIN_SECTIONS} and ${LEARNING_OVERVIEW_MAX_SECTIONS}.`,
         );
       }
       sectionCount = s;
@@ -61,8 +65,8 @@ export class LearningOverviewGeneratorPlugin implements StudioGeneratorPlugin {
     return {
       title: focusPrompt ? `Learning Overview: ${focusPrompt.slice(0, 40)}` : "Learning Overview",
       params_json: {
-        ...(sectionCount !== undefined ? { section_count: sectionCount } : {}),
-        ...(focusPrompt !== undefined ? { focus_prompt: focusPrompt } : {}),
+        ...(sectionCount === undefined ? {} : { section_count: sectionCount }),
+        ...(focusPrompt === undefined ? {} : { focus_prompt: focusPrompt }),
       },
     };
   }

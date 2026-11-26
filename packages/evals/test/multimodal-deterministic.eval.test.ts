@@ -21,7 +21,13 @@ import { createAudioAdapter } from "@everlast/worker/ingestion/media";
 import { createWebAdapter, type Transport } from "@everlast/worker/ingestion/web";
 import { processIngestJob, type IngestionDeps } from "@everlast/worker/ingestion/pipeline";
 import { processSyncJob } from "@everlast/worker/ingestion/sync";
-import { articleHtml, docxFixture, interviewMp3, interviewWords, roadmapHtml } from "../src/fixtures/multimodal-ingestion.ts";
+import {
+  articleHtml,
+  docxFixture,
+  interviewMp3,
+  interviewWords,
+  roadmapHtml,
+} from "../src/fixtures/multimodal-ingestion.ts";
 import { AdversarialCitingModel, LexicalCitingModel } from "../src/deterministic-models.ts";
 import { judgeMetric, ratio } from "../src/metrics.ts";
 
@@ -43,27 +49,64 @@ const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 let deps: IngestionDeps;
 const ids: Record<string, string> = {};
 
+function singleChunkStream(bytes: Buffer): AsyncIterable<Buffer> {
+  return {
+    [Symbol.asyncIterator]() {
+      let emitted = false;
+      return {
+        next() {
+          if (emitted) {
+            return Promise.resolve({ done: true as const, value: undefined });
+          }
+          emitted = true;
+          return Promise.resolve({ done: false as const, value: bytes });
+        },
+      };
+    },
+  };
+}
+
 const transport: Transport = {
-  async request(req) {
+  request(req) {
     const body = req.url.pathname.includes("roadmap") ? roadmapHtml(month) : articleHtml();
-    return { status: 200, headers: { "content-type": "text/html" }, body: (async function* () { yield Buffer.from(body); })() };
+    return Promise.resolve({
+      status: 200,
+      headers: { "content-type": "text/html" },
+      body: singleChunkStream(Buffer.from(body)),
+    });
   },
 };
 
 async function upload(name: string, mediaType: string, bytes: Buffer): Promise<string> {
   const attempt = randomUUID();
-  const [r] = await reserveSources(db.pool, owner, nb, [{ attempt_id: attempt, title: name, media_type: mediaType, declared_bytes: bytes.length }]);
+  const [r] = await reserveSources(db.pool, owner, nb, [
+    { attempt_id: attempt, title: name, media_type: mediaType, declared_bytes: bytes.length },
+  ]);
   const source = r!.source!;
   const name_ = `notebooks/${nb}/sources/${source.id}/raw`;
   const written = await deps.storage.write(name_, bytes, mediaType);
-  await acceptReceivedSource(db.pool, { sourceId: source.id, attemptId: attempt, actualBytes: written.size, objectName: name_, objectGeneration: written.generation });
+  await acceptReceivedSource(db.pool, {
+    sourceId: source.id,
+    attemptId: attempt,
+    actualBytes: written.size,
+    objectName: name_,
+    objectGeneration: written.generation,
+  });
   await processIngestJob(deps, { source_id: source.id, attempt_id: attempt });
   return source.id;
 }
 
 async function linked(url: string): Promise<string> {
-  const a = await admitLinkedImport(db.pool, owner, nb, { attempt_id: randomUUID(), kind: "web", url });
-  await processIngestJob(deps, { source_id: a.source.id, attempt_id: a.source.attempt_id, operation_id: a.operation.operation_id });
+  const a = await admitLinkedImport(db.pool, owner, nb, {
+    attempt_id: randomUUID(),
+    kind: "web",
+    url,
+  });
+  await processIngestJob(deps, {
+    source_id: a.source.id,
+    attempt_id: a.source.attempt_id,
+    operation_id: a.operation.operation_id,
+  });
   return a.source.id;
 }
 
@@ -76,31 +119,44 @@ beforeAll(async () => {
     pool: db.pool,
     storage: new LocalObjectStorage({ root: dir, publicBaseUrl: "http://localhost" }),
     embedder,
-    ocr: { name: "none", recognize: async () => new Map() },
+    ocr: { name: "none", recognize: () => Promise.resolve(new Map()) },
     adapters: {
       office: createOfficeAdapter({}),
-      audio: createAudioAdapter({ transcriber: { name: "fixture-asr", transcribe: async () => ({ words: interviewWords() }) } }),
-      web: createWebAdapter({ resolver: { lookup: async () => [{ address: "93.184.216.34", family: 4 }] }, transport, policy: { privateNetworks: [], allowedPrivateHosts: [] } }),
+      audio: createAudioAdapter({
+        transcriber: {
+          name: "fixture-asr",
+          transcribe: () => Promise.resolve({ words: interviewWords() }),
+        },
+      }),
+      web: createWebAdapter({
+        resolver: { lookup: () => Promise.resolve([{ address: "93.184.216.34", family: 4 }]) },
+        transport,
+        policy: { privateNetworks: [], allowedPrivateHosts: [] },
+      }),
     },
-    screener: { name: "clean", screen: async () => ({ verdict: "clean" }) },
+    screener: { name: "clean", screen: () => Promise.resolve({ verdict: "clean" }) },
   };
   ids.docx = await upload("Falcon.docx", DOCX_MEDIA_TYPE, docxFixture());
   ids.audio = await upload("Interview.mp3", "audio/mpeg", interviewMp3());
   ids.web = await linked("https://news.example.test/articles/depot-automation");
   ids.roadmap = await linked("https://intranet.example.test/roadmap");
   ids.removed = await linked("https://news.example.test/articles/removed");
-  for (const id of Object.values(ids)) expect((await getSourceById(db.pool, id))!.status).toBe("Ready");
+  for (const id of Object.values(ids))
+    expect((await getSourceById(db.pool, id))!.status).toBe("Ready");
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
   await rm(dir, { recursive: true, force: true });
 });
 
-const QUESTIONS: { q: string; active: () => string[] }[] = [
+const QUESTIONS: Array<{ q: string; active: () => string[] }> = [
   { q: "What is the Falcon programme budget for phase two?", active: () => [ids.docx!, ids.web!] },
   { q: "Why does the budget review move to Thursday?", active: () => [ids.audio!] },
-  { q: "How did automating the northern depot change loading time?", active: () => [ids.web!, ids.audio!] },
+  {
+    q: "How did automating the northern depot change loading time?",
+    active: () => [ids.web!, ids.audio!],
+  },
   { q: "When is Release v1 in the roadmap?", active: () => [ids.roadmap!] },
   { q: "What speaker notes mention the vendor contract?", active: () => [ids.audio!] },
 ];
@@ -110,18 +166,35 @@ describe("mixed-modality deterministic evals (NFR-EVAL-02/04)", () => {
     // Invalidation cases: one source removed, the roadmap re-synced May → June (revision 1 must never be used again).
     await deleteSource(db.pool, owner, nb, ids.removed!);
     month = "June";
-    const { operation } = await requestSourceSync(db.pool, owner, nb, ids.roadmap!, { attemptId: randomUUID(), trigger: "manual" });
-    expect(await processSyncJob(deps, { operation_id: operation.operation_id })).toMatchObject({ status: "synced", revision: 2 });
+    const { operation } = await requestSourceSync(db.pool, owner, nb, ids.roadmap!, {
+      attemptId: randomUUID(),
+      trigger: "manual",
+    });
+    expect(await processSyncJob(deps, { operation_id: operation.operation_id })).toMatchObject({
+      status: "synced",
+      revision: 2,
+    });
 
     const observations: TurnObservation[] = [];
-    const lexical = new ChatService({ pool: db.pool, embedder, model: new LexicalCitingModel(), observer: (o) => observations.push(o) });
+    const lexical = new ChatService({
+      pool: db.pool,
+      embedder,
+      model: new LexicalCitingModel(),
+      observer: (o) => observations.push(o),
+    });
     let published = 0;
     let valid = 0;
     let leaks = 0;
     const failing: string[] = [];
     for (const { q, active } of QUESTIONS) {
       const selection = active();
-      for await (const event of lexical.runTurn({ ownerId: owner, notebookId: nb, message: q, activeSourceIds: selection, requestId: randomUUID() })) {
+      for await (const event of lexical.runTurn({
+        ownerId: owner,
+        notebookId: nb,
+        message: q,
+        activeSourceIds: selection,
+        requestId: randomUUID(),
+      })) {
         if (event.type !== "final") continue;
         const obs = observations.at(-1)!;
         const retrieved = new Set(obs.retrieved.map((c) => c.chunk_id));
@@ -133,13 +206,20 @@ describe("mixed-modality deterministic evals (NFR-EVAL-02/04)", () => {
           }
         }
         for (const c of obs.retrieved) {
-          const outOfScope = !selection.includes(c.source_id) || c.source_id === ids.removed || (c.source_id === ids.roadmap && c.revision !== 2);
+          const outOfScope =
+            !selection.includes(c.source_id) ||
+            c.source_id === ids.removed ||
+            (c.source_id === ids.roadmap && c.revision !== 2);
           if (outOfScope) leaks++;
         }
         if (obs.modelInput?.chunks.some((c) => c.text.includes("Release v1 in May"))) leaks++;
       }
     }
-    const precision = judgeMetric("citation_precision", ratio(valid, published, "citation_precision"), { numerator: valid, denominator: published, failing_cases: failing });
+    const precision = judgeMetric(
+      "citation_precision",
+      ratio(valid, published, "citation_precision"),
+      { numerator: valid, denominator: published, failing_cases: failing },
+    );
     const leakage = judgeMetric("scoping_leakage_count", leaks, { failing_cases: [] });
     expect(published).toBeGreaterThan(0);
     expect(precision).toMatchObject({ status: "pass", value: 1 });
@@ -150,7 +230,7 @@ describe("mixed-modality deterministic evals (NFR-EVAL-02/04)", () => {
     const foreign = async () => {
       const rows = await db.pool.query<{ chunk_id: string }>(
         "SELECT chunk_id FROM chunks WHERE notebook_id = $1 AND (source_id = $2 OR (source_id = $3 AND revision = 1))",
-        [nb, ids.docx, ids.roadmap]
+        [nb, ids.docx, ids.roadmap],
       );
       return rows.rows.map((r) => r.chunk_id);
     };
@@ -159,7 +239,13 @@ describe("mixed-modality deterministic evals (NFR-EVAL-02/04)", () => {
     const model = new AdversarialCitingModel(() => foreignIds);
     const service = new ChatService({ pool: db.pool, embedder, model });
     for (const selection of [[ids.web!], [ids.audio!], [ids.roadmap!]]) {
-      for await (const event of service.runTurn({ ownerId: owner, notebookId: nb, message: "Tell me about the depot.", activeSourceIds: selection, requestId: randomUUID() })) {
+      for await (const event of service.runTurn({
+        ownerId: owner,
+        notebookId: nb,
+        message: "Tell me about the depot.",
+        activeSourceIds: selection,
+        requestId: randomUUID(),
+      })) {
         if (event.type !== "final") continue;
         const answer = event.messages.find((m) => m.role === "assistant")!;
         expect(answer.kind).toBe("refusal");

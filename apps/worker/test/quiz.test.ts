@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STUDIO_QUIZ_PLUGIN_TYPE } from "@everlast/contracts";
+import { STUDIO_QUIZ_PLUGIN_TYPE, StudioQuizPayloadSchema } from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   makeStudioChunk,
@@ -45,9 +45,9 @@ describe("[014-studio-active-learning-suite] T014: Quiz worker pipeline, all fou
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const payload = outcome.payload as any;
+    const payload = StudioQuizPayloadSchema.parse(outcome.payload);
     expect(payload.questions.length).toBe(10);
-    const types = new Set(payload.questions.map((q: any) => q.type));
+    const types = new Set(payload.questions.map((q) => q.type));
     expect(types.has("multiple_choice")).toBe(true);
     expect(types.has("multiple_select")).toBe(true);
     expect(types.has("fill_in_the_blank")).toBe(true);
@@ -73,10 +73,12 @@ describe("[014-studio-active-learning-suite] T014: Quiz worker pipeline, all fou
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const p = outcome.payload as any;
+    const p = StudioQuizPayloadSchema.parse(outcome.payload);
     expect(p.questions.length).toBeLessThan(5);
     expect(p.insufficient_evidence_note).toBeTruthy();
-    expect(p.questions.some((q: any) => q.type === "short_answer" && q.rubric.includes("200"))).toBe(true);
+    expect(p.questions.some((q) => q.type === "short_answer" && q.rubric.includes("200"))).toBe(
+      true,
+    );
     expect(validateQuizPayload(p, [chunk], snapshot)).toBeNull();
 
     const empty = await generateQuiz({

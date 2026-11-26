@@ -13,7 +13,7 @@ import { ensureUser } from "./users.ts";
 export interface TestDatabase {
   pool: Pool;
   url: string;
-  drop(): Promise<void>;
+  drop: () => Promise<void>;
 }
 
 export function testDatabaseUrl(): string {
@@ -21,7 +21,7 @@ export function testDatabaseUrl(): string {
   if (!url) {
     throw new Error(
       "UNAVAILABLE: TEST_DATABASE_URL is not set. Start PostgreSQL+pgvector with `pnpm db:test:up` and export " +
-        "TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast"
+        "TEST_DATABASE_URL=postgres://everlast:everlast@127.0.0.1:54329/everlast",
     );
   }
   return url;
@@ -40,7 +40,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const url = new URL(adminUrl);
   url.pathname = `/${name}`;
   const pool = new pg.Pool({ connectionString: url.toString(), max: 20 });
-  pool.on("error", () => {});
+  pool.on("error", () => undefined);
   await runMigrations(pool);
 
   return {
@@ -59,7 +59,10 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   };
 }
 
-export async function createTestUser(pool: Pool, subject: string = `subject-${randomUUID()}`): Promise<string> {
+export async function createTestUser(
+  pool: Pool,
+  subject = `subject-${randomUUID()}`,
+): Promise<string> {
   const user = await ensureUser(pool, { issuer: "https://test.everlast.local", subject });
   return user.id;
 }
@@ -76,8 +79,9 @@ export async function seedReadySource(
     title?: string;
     pages: string[];
     embed: (texts: string[]) => Promise<number[][]>;
-    mediaType?: "application/pdf" | "text/plain" | "text/markdown" | "copied_text" | "note_markdown";
-  }
+    mediaType?:
+      "application/pdf" | "text/plain" | "text/markdown" | "copied_text" | "note_markdown";
+  },
 ): Promise<{ sourceId: string; revision: number; chunkIds: string[] }> {
   const { reserveSources, acceptReceivedSource } = await import("./quota.ts");
   const { publishReadySource } = await import("./ingestion.ts");
@@ -85,33 +89,67 @@ export async function seedReadySource(
   const attemptId = randomUUID();
   const mediaType = input.mediaType ?? "application/pdf";
   const bytes = Buffer.byteLength(input.pages.join("\n"));
-  const [admitted] = await reserveSources(pool, ownerId, notebookId, [
-    { attempt_id: attemptId, title: input.title ?? "Fixture.pdf", media_type: mediaType, declared_bytes: bytes },
-  ], { sourceLimit: 300 });
-  const sourceId = admitted!.source!.id;
-  await acceptReceivedSource(pool, { sourceId, attemptId, actualBytes: bytes, objectName: `fixtures/${sourceId}`, objectGeneration: "1" });
-  const chunks: { text: string; page: number; start: number; end: number }[] = [];
+  const [admitted] = await reserveSources(
+    pool,
+    ownerId,
+    notebookId,
+    [
+      {
+        attempt_id: attemptId,
+        title: input.title ?? "Fixture.pdf",
+        media_type: mediaType,
+        declared_bytes: bytes,
+      },
+    ],
+    { sourceLimit: 300 },
+  );
+  const sourceId = admitted?.source?.id;
+  if (!sourceId) {
+    throw new Error("seedReadySource failed to reserve source");
+  }
+  await acceptReceivedSource(pool, {
+    sourceId,
+    attemptId,
+    actualBytes: bytes,
+    objectName: `fixtures/${sourceId}`,
+    objectGeneration: "1",
+  });
+  const chunks: Array<{ text: string; page: number; start: number; end: number }> = [];
   input.pages.forEach((page, p) => {
     let offset = 0;
     for (const para of page.split("\n\n")) {
-      const len = Array.from(para).length;
+      let len = 0;
+      for (const _cp of para) {
+        len += 1;
+      }
       if (para.trim()) chunks.push({ text: para, page: p + 1, start: offset, end: offset + len });
       offset += len + 2;
     }
   });
   const vectors = await input.embed(chunks.map((c) => c.text));
   const isPdf = mediaType === "application/pdf";
-  const built = chunks.map((c, i) => ({
-    chunk: {
-      chunk_id: uuidv7(),
-      source_id: sourceId,
-      revision: 1,
-      locator: { page_number: c.page, ...(isPdf ? { physical_page: c.page } : {}), start_offset: c.start, end_offset: c.end },
-      token_count: c.text.split(/\s+/).filter(Boolean).length,
-      text: c.text,
-    },
-    embedding: vectors[i]!,
-  }));
+  const built = chunks.map((c, i) => {
+    const embedding = vectors[i];
+    if (!embedding) {
+      throw new Error(`seedReadySource missing embedding for chunk ${i}`);
+    }
+    return {
+      chunk: {
+        chunk_id: uuidv7(),
+        source_id: sourceId,
+        revision: 1,
+        locator: {
+          page_number: c.page,
+          ...(isPdf ? { physical_page: c.page } : {}),
+          start_offset: c.start,
+          end_offset: c.end,
+        },
+        token_count: c.text.split(/\s+/).filter(Boolean).length,
+        text: c.text,
+      },
+      embedding,
+    };
+  });
   const result = await publishReadySource(pool, {
     sourceId,
     attemptId,
@@ -120,7 +158,11 @@ export async function seedReadySource(
     wordCount: input.pages.join(" ").split(/\s+/).filter(Boolean).length,
     pageCount: input.pages.length,
     embeddingModel: "test-hashing-embedder-v1",
-    pages: input.pages.map((text, i) => ({ page_number: i + 1, ...(isPdf ? { physical_page: i + 1 } : {}), text })),
+    pages: input.pages.map((text, i) => ({
+      page_number: i + 1,
+      ...(isPdf ? { physical_page: i + 1 } : {}),
+      text,
+    })),
     chunks: built,
   });
   if (!result.published) throw new Error(`seedReadySource failed: ${result.reason}`);

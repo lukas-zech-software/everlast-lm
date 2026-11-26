@@ -18,7 +18,7 @@ export const PageSpanLocatorSchema = z
   })
   .strict()
   .refine((data) => data.end_offset >= data.start_offset, {
-    message: "end_offset must be greater than or equal to start_offset",
+    error: "end_offset must be greater than or equal to start_offset",
     path: ["end_offset"],
   });
 
@@ -31,7 +31,7 @@ export const TimeSpanLocatorSchema = z
   })
   .strict()
   .refine((data) => data.end_ms >= data.start_ms, {
-    message: "end_ms must be greater than or equal to start_ms",
+    error: "end_ms must be greater than or equal to start_ms",
     path: ["end_ms"],
   });
 
@@ -45,7 +45,7 @@ export const DomPathLocatorSchema = z
   })
   .strict()
   .refine((data) => data.end_offset >= data.start_offset, {
-    message: "end_offset must be greater than or equal to start_offset",
+    error: "end_offset must be greater than or equal to start_offset",
     path: ["end_offset"],
   });
 
@@ -62,7 +62,7 @@ export type ChunkLocator = z.infer<typeof ChunkLocatorSchema>;
 export const UnifiedDocumentChunkSchema = z
   .object({
     chunk_id: z.string().regex(UUID_V7_REGEX, "chunk_id must be a valid UUID v7"),
-    source_id: z.string().uuid("source_id must be a valid UUID"),
+    source_id: z.uuid("source_id must be a valid UUID"),
     revision: z.number().int().positive("revision must be a positive integer"),
     locator: ChunkLocatorSchema,
     token_count: z.number().int().nonnegative("token_count must be a nonnegative integer"),

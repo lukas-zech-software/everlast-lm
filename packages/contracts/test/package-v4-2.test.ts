@@ -114,7 +114,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         slide_count: 4,
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -122,7 +122,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         slide_count: 21,
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -130,7 +130,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         focus_prompt: "x".repeat(2001),
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -138,7 +138,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         style: "process_flow",
-      }).success
+      }).success,
     ).toBe(false);
 
     const infoReq = CreateStudioJobRequestSchema.parse({
@@ -156,7 +156,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         focus_prompt: "y".repeat(1001),
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -164,7 +164,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         slide_count: 8,
-      }).success
+      }).success,
     ).toBe(false);
 
     // Export request schemas forbid Google Slides (D8/DEV-02)
@@ -185,7 +185,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         "Bullet five stays short",
         "Overflow sixth bullet pushed to speaker notes",
       ],
-      "Base speaker notes."
+      "Base speaker notes.",
     );
     expect(normalized.bullets).toHaveLength(5);
     for (const b of normalized.bullets) {
@@ -197,7 +197,7 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
 
     const sanitized = enforceSlideBulletLimit(
       ["<scr<script>ipt>safe <<script>alert(1)</script>text"],
-      "<b<bold>>Notes</b>"
+      "<b<bold>>Notes</b>",
     );
     expect(sanitized.bullets[0]).not.toMatch(/<[A-Za-z!/]/);
     expect(sanitized.speaker_notes).not.toMatch(/<[A-Za-z!/]/);
@@ -206,7 +206,13 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
   });
 
   it("validates StudioSlideDeckPayloadSchema, OOXML .pptx entries, and 16:9 multi-page .pdf bytes (FR-ST-16, Gate v4.0 #3)", () => {
-    const layouts = ["title", "two_column", "key_metric_callout", "comparison_table", "diagram_chart"] as const;
+    const layouts = [
+      "title",
+      "two_column",
+      "key_metric_callout",
+      "comparison_table",
+      "diagram_chart",
+    ] as const;
     const slides: SlideItem[] = Array.from({ length: 8 }, (_, idx) => {
       const layout = layouts[idx % layouts.length]!;
       return {
@@ -217,7 +223,9 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         visual_spec: {
           layout,
           subtitle: `Summary ${idx + 1}`,
-          ...(layout === "key_metric_callout" ? { callout: { value: "99.95%", label: "Regional Uptime" } } : {}),
+          ...(layout === "key_metric_callout"
+            ? { callout: { value: "99.95%", label: "Regional Uptime" } }
+            : {}),
           ...(layout === "two_column"
             ? {
                 columns: {
@@ -231,7 +239,9 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
           ...(layout === "comparison_table"
             ? { table: { headers: ["Phase", "Owner"], rows: [["Detection", "SRE"]] } }
             : {}),
-          ...(layout === "diagram_chart" ? { diagram_steps: ["Detection", "Triage", "Containment", "Recovery"] } : {}),
+          ...(layout === "diagram_chart"
+            ? { diagram_steps: ["Detection", "Triage", "Containment", "Recovery"] }
+            : {}),
         },
         speaker_notes: `Detailed executive presenter notes for slide ${idx + 1}.`,
         source_chunk_ids: [CHUNK],
@@ -245,7 +255,9 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
       insufficient_evidence_note: null,
       citations: [cite],
     });
-    expect(validateSlideDeckPayload(payload, [chunkFixture], [{ source_id: SRC, revision: 1 }])).toBeNull();
+    expect(
+      validateSlideDeckPayload(payload, [chunkFixture], [{ source_id: SRC, revision: 1 }]),
+    ).toBeNull();
 
     const artifact = StudioArtifactSchema.parse({
       id: ART,
@@ -274,9 +286,11 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
     expect(names).toContain("ppt/presentation.xml");
     expect(names).toContain("ppt/slides/slide8.xml");
     expect(names).toContain("ppt/notesSlides/notesSlide8.xml");
-    expect(ooxml.find((e) => e.name === "ppt/presentation.xml")!.content).toContain('cx="12192000" cy="6858000"');
+    expect(ooxml.find((e) => e.name === "ppt/presentation.xml")!.content).toContain(
+      'cx="12192000" cy="6858000"',
+    );
     expect(ooxml.find((e) => e.name === "ppt/notesSlides/notesSlide3.xml")!.content).toContain(
-      "Detailed executive presenter notes for slide 3."
+      "Detailed executive presenter notes for slide 3.",
     );
 
     const pdfBytes = buildSlideDeckPdfBytes("Incident Response Deck", payload);
@@ -290,7 +304,8 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
     const blocks = [
       {
         id: "step_1",
-        heading: "Stage 1: Automated Detection & Telemetry Ingestion with Very Long Descriptive Label",
+        heading:
+          "Stage 1: Automated Detection & Telemetry Ingestion with Very Long Descriptive Label",
         body: "Alerts trigger immediately when regional latency or availability thresholds deviate across europe-west4 endpoints.",
         metric_value: "99.95%",
         metric_label: "SLA Target",
@@ -326,7 +341,12 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
       },
     ];
 
-    for (const style of ["process_flow", "comparison", "metrics_summary", "architecture_diagram"] as const) {
+    for (const style of [
+      "process_flow",
+      "comparison",
+      "metrics_summary",
+      "architecture_diagram",
+    ] as const) {
       const { svg, width, height } = renderInfographicSvg({
         style,
         title: "Incident Response Workflow Overview",
@@ -351,7 +371,9 @@ describe("[015-studio-visuals-presentations] T003: Package 4.2 contracts, limits
         source_chunk_ids: [CHUNK],
         citations: [cite],
       });
-      expect(validateInfographicPayload(payload, [chunkFixture], [{ source_id: SRC, revision: 1 }])).toBeNull();
+      expect(
+        validateInfographicPayload(payload, [chunkFixture], [{ source_id: SRC, revision: 1 }]),
+      ).toBeNull();
     }
 
     const scene = StudioInfographicExportSceneSchema.parse({

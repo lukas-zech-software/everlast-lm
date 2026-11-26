@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CitationSchema } from "./package-v1-3.ts";
 import { MAX_SOURCE_BYTES, MAX_SOURCE_WORDS } from "./source-admission.ts";
+import { countCodePoints, toCodePoints } from "./text-limits.ts";
 
 // Package 2.3 Notes & Pinboard Lifecycle (FR-NM-01..04, FR-GC-09, C-01, C-02).
 // The one shared save-note contract (FR-GC-09, FR-NM-02) is defined here; package-v2-2.ts re-exports it.
@@ -34,13 +35,14 @@ export function countNoteWords(text: string): number {
 }
 
 export function clampCodePoints(value: string, max: number): string {
-  const cps = Array.from(value);
+  const cps = toCodePoints(value);
   return cps.length <= max ? value : cps.slice(0, max).join("");
 }
 
 export function noteSourceTitle(noteTitles: string[]): string {
-  if (noteTitles.length === 1) {
-    return clampCodePoints(noteTitles[0]!, NOTE_SOURCE_TITLE_MAX_CODE_POINTS);
+  const [firstTitle] = noteTitles;
+  if (noteTitles.length === 1 && firstTitle !== undefined) {
+    return clampCodePoints(firstTitle, NOTE_SOURCE_TITLE_MAX_CODE_POINTS);
   }
   return COMBINED_NOTES_TITLE;
 }
@@ -51,12 +53,26 @@ export function noteSourceTitle(noteTitles: string[]): string {
  * Linear: the pattern has no nested or overlapping quantifiers.
  */
 export function stripCitationMarkers(content: string, badges: ReadonlySet<number>): string {
-  return content.replace(/[ \t]?\[\[(\d{1,6})\]\]|[ \t]?\[(\d{1,6})\]/g, (marker, double: string | undefined, single: string | undefined) =>
-    badges.has(Number(double ?? single)) ? "" : marker
+  return content.replace(
+    /[ \t]?\[\[(\d{1,6})\]\]|[ \t]?\[(\d{1,6})\]/g,
+    (marker, double: string | undefined, single: string | undefined) =>
+      badges.has(Number(double ?? single)) ? "" : marker,
   );
 }
 
 const SAFE_SCHEME = /^(https?|mailto):/i;
+
+function skipHtmlBlockContent(
+  input: string,
+  lower: string,
+  tagName: string,
+  fromIndex: number,
+): number {
+  const end = lower.indexOf(`</${tagName}`, fromIndex);
+  if (end === -1) return input.length;
+  const endClose = input.indexOf(">", end);
+  return endClose === -1 ? input.length : endClose + 1;
+}
 
 /**
  * One scanning pass over raw HTML (no regex replacement): every `<tag ...>`, `</tag>` or `<!...>` is dropped and
@@ -67,7 +83,8 @@ function stripHtmlPass(input: string): string {
   let out = "";
   let i = 0;
   while (i < input.length) {
-    const ch = input[i]!;
+    const ch = input[i];
+    if (ch === undefined) break;
     const next = input[i + 1] ?? "";
     if (ch !== "<" || !/[a-z!/]/i.test(next)) {
       out += ch;
@@ -78,13 +95,9 @@ function stripHtmlPass(input: string): string {
     if (close === -1) break; // an unterminated tag runs to the end: drop it
 
     const name = /^<\/?([a-z][a-z0-9-]*)/i.exec(input.slice(i, close + 1))?.[1]?.toLowerCase();
-    const opensBlock = (name === "script" || name === "style") && next !== "/";
     i = close + 1;
-    if (opensBlock) {
-      const end = lower.indexOf(`</${name}`, i);
-      if (end === -1) break;
-      const endClose = input.indexOf(">", end);
-      i = endClose === -1 ? input.length : endClose + 1;
+    if ((name === "script" || name === "style") && next !== "/") {
+      i = skipHtmlBlockContent(input, lower, name, i);
     }
   }
   return out;
@@ -104,7 +117,9 @@ function stripHtml(input: string): string {
 /** For each position, the index of the next `ch` at or after it (or -1): one backward pass, O(n). */
 function nextIndexTable(text: string, ch: string): Int32Array {
   const table = new Int32Array(text.length + 1).fill(-1);
-  for (let i = text.length - 1; i >= 0; i--) table[i] = text[i] === ch ? i : table[i + 1]!;
+  for (let i = text.length - 1; i >= 0; i--) {
+    table[i] = text[i] === ch ? i : (table[i + 1] ?? -1);
+  }
   return table;
 }
 
@@ -112,6 +127,42 @@ function isUnsafeUrl(url: string): boolean {
   let cleaned = "";
   for (const c of url) if (c.charCodeAt(0) > 0x20) cleaned += c;
   return /^[a-z][a-z0-9+.-]*:/i.test(cleaned) && !SAFE_SCHEME.test(cleaned);
+}
+
+function extractLinkUrl(markdown: string, start: number, end: number): string {
+  let u = start;
+  while (u < end && /\s/.test(markdown[u] ?? "")) {
+    u++;
+  }
+  let urlEnd = u;
+  while (urlEnd < end && !/\s/.test(markdown[urlEnd] ?? "")) {
+    urlEnd++;
+  }
+  return markdown.slice(u, urlEnd);
+}
+
+function trySanitizeMarkdownLinkAt(
+  markdown: string,
+  index: number,
+  nextClose: Int32Array,
+  nextParen: Int32Array,
+): { replacement: string; nextIndex: number } | null {
+  const isImage = markdown[index] === "!" && markdown[index + 1] === "[";
+  const bracketStart = isImage ? index + 1 : index;
+  if (markdown[bracketStart] !== "[") {
+    return null;
+  }
+  const close = nextClose[bracketStart + 1] ?? -1;
+  const end = close === -1 ? -1 : (nextParen[close + 2] ?? -1);
+  if (close === -1 || markdown[close + 1] !== "(" || end === -1) {
+    return null;
+  }
+  const url = extractLinkUrl(markdown, close + 2, end);
+  if (!isUnsafeUrl(url)) {
+    return { replacement: markdown.slice(index, end + 1), nextIndex: end + 1 };
+  }
+  const text = markdown.slice(bracketStart + 1, close);
+  return { replacement: isImage ? "" : text, nextIndex: end + 1 };
 }
 
 /**
@@ -124,27 +175,14 @@ function dropUnsafeLinks(markdown: string): string {
   let out = "";
   let i = 0;
   while (i < markdown.length) {
-    const image = markdown[i] === "!" && markdown[i + 1] === "[";
-    const start = image ? i + 1 : i;
-    if (markdown[start] !== "[") {
-      out += markdown[i];
+    const match = trySanitizeMarkdownLinkAt(markdown, i, nextClose, nextParen);
+    if (match) {
+      out += match.replacement;
+      i = match.nextIndex;
+    } else {
+      out += markdown[i] ?? "";
       i++;
-      continue;
     }
-    const close = nextClose[start + 1] ?? -1;
-    const end = close === -1 ? -1 : (nextParen[close + 2] ?? -1);
-    if (close === -1 || markdown[close + 1] !== "(" || end === -1) {
-      out += markdown[i];
-      i++;
-      continue;
-    }
-    let u = close + 2;
-    while (u < end && /\s/.test(markdown[u]!)) u++;
-    let urlEnd = u;
-    while (urlEnd < end && !/\s/.test(markdown[urlEnd]!)) urlEnd++;
-    const text = markdown.slice(start + 1, close);
-    out += isUnsafeUrl(markdown.slice(u, urlEnd)) ? (image ? "" : text) : markdown.slice(i, end + 1);
-    i = end + 1;
   }
   return out;
 }
@@ -170,13 +208,16 @@ const TitleSchema = z
   .string()
   .transform((v) => v.trim())
   .refine((v) => {
-    const n = Array.from(v).length;
+    const n = countCodePoints(v);
     return n >= 1 && n <= NOTE_TITLE_MAX_CODE_POINTS;
   }, `title must be 1-${NOTE_TITLE_MAX_CODE_POINTS} Unicode code points after trimming`);
 
 const BodySchema = z
   .string()
-  .refine((v) => countNoteWords(v) <= NOTE_BODY_MAX_WORDS, `content_md must not exceed ${NOTE_BODY_MAX_WORDS} words`)
+  .refine(
+    (v) => countNoteWords(v) <= NOTE_BODY_MAX_WORDS,
+    `content_md must not exceed ${NOTE_BODY_MAX_WORDS} words`,
+  )
   .transform(sanitizeNoteMarkdown);
 
 export const NoteOriginTypeSchema = z.enum(["manual", "saved_response"]);
@@ -184,19 +225,19 @@ export type NoteOriginType = z.infer<typeof NoteOriginTypeSchema>;
 
 export const NoteSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
     owner_id: z.string().min(1),
     title: TitleSchema,
     content_md: z.string(),
     origin_type: NoteOriginTypeSchema,
-    source_message_id: z.string().uuid().nullable(),
+    source_message_id: z.uuid().nullable(),
     citations_json: z.array(CitationSchema),
-    origin_note_id: z.string().uuid().nullable(),
+    origin_note_id: z.uuid().nullable(),
     revision: z.number().int().positive(),
     display_order: z.number().int().nonnegative(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
   })
   .strict();
 export type Note = z.infer<typeof NoteSchema>;
@@ -222,20 +263,22 @@ export type PatchNoteInput = z.output<typeof PatchNoteInputSchema>;
 // POST /api/notebooks/{notebook_id}/chat/messages/{message_id}/note. Body IDs must equal the path IDs (else 400);
 // user identity comes only from the authenticated API context.
 
-export const SaveResponseNoteRequestSchema = z.object({ notebook_id: z.string().uuid(), message_id: z.string().uuid() }).strict();
+export const SaveResponseNoteRequestSchema = z
+  .object({ notebook_id: z.uuid(), message_id: z.uuid() })
+  .strict();
 export type SaveResponseNoteRequest = z.infer<typeof SaveResponseNoteRequestSchema>;
 
 export const SavedResponseNoteSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
-    source_message_id: z.string().uuid(),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
+    source_message_id: z.uuid(),
     title: TitleSchema,
     content_md: z.string(),
     citations_json: z.array(CitationSchema),
     origin_type: z.literal("saved_response"),
     read_only: z.literal(true),
-    created_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
   })
   .strict();
 export type SavedResponseNote = z.infer<typeof SavedResponseNoteSchema>;
@@ -245,25 +288,30 @@ export type SaveResponseNoteResponse = z.infer<typeof SaveResponseNoteResponseSc
 
 /** `reuse: true` returns an existing Ready note-source of the same notes and revisions (FR-NM-04 snapshot phase). */
 export const ConvertToSourceInputSchema = z.union([
-  z.object({ note_ids: z.array(z.string().uuid()).min(1), reuse: z.boolean().optional() }).strict(),
+  z.object({ note_ids: z.array(z.uuid()).min(1), reuse: z.boolean().optional() }).strict(),
   z.object({ all: z.literal(true) }).strict(),
 ]);
 export type ConvertToSourceInput = z.infer<typeof ConvertToSourceInputSchema>;
 
-export const NoteAssistantActionSchema = z.enum(["summarize", "create_outline", "related_ideas", "critique"]);
+export const NoteAssistantActionSchema = z.enum([
+  "summarize",
+  "create_outline",
+  "related_ideas",
+  "critique",
+]);
 export type NoteAssistantAction = z.infer<typeof NoteAssistantActionSchema>;
 
 export const NoteAssistantInputSchema = z
   .object({
     action_type: NoteAssistantActionSchema,
-    selected_note_ids: z.array(z.string().uuid()).min(1).max(NOTE_ASSISTANT_MAX_NOTES),
-    selected_source_ids: z.array(z.string().uuid()).default([]),
+    selected_note_ids: z.array(z.uuid()).min(1).max(NOTE_ASSISTANT_MAX_NOTES),
+    selected_source_ids: z.array(z.uuid()).default([]),
   })
   .strict();
 export type NoteAssistantInput = z.output<typeof NoteAssistantInputSchema>;
 
 export const NoteSourceOriginSchema = z
-  .object({ note_id: z.string().uuid(), revision: z.number().int().positive(), title: z.string() })
+  .object({ note_id: z.uuid(), revision: z.number().int().positive(), title: z.string() })
   .strict();
 
 export type NoteSourceOrigin = z.infer<typeof NoteSourceOriginSchema>;
@@ -271,8 +319,8 @@ export type NoteSourceOrigin = z.infer<typeof NoteSourceOriginSchema>;
 /** A note-source as the notes routes return it: the v1 source row plus its provenance (FR-NM-03). */
 export const NoteSourceSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
     title: z.string().min(1),
     media_type: z.literal(NOTE_SOURCE_MEDIA_TYPE),
     status: z.enum(["Uploading", "Processing", "Ready", "Failed"]),
@@ -282,7 +330,7 @@ export const NoteSourceSchema = z
     origin_notes: z.array(NoteSourceOriginSchema).min(1),
     /** Citations copied from saved-response notes: provenance only, never cited by new answers. */
     origin_citations: z.array(CitationSchema),
-    created_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
   })
   .strict();
 export type NoteSource = z.infer<typeof NoteSourceSchema>;

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createPocNotebook, getNotebookRaw, resetPocBridge, setReadySourceCount } from "../src/poc-bridge.ts";
+import {
+  createPocNotebook,
+  getNotebookRaw,
+  resetPocBridge,
+  setReadySourceCount,
+} from "../src/poc-bridge.ts";
 import {
   buildNotebookOverview,
   getOwnerNotebookPreferences,
@@ -15,8 +20,8 @@ import {
 const OWNER_A = "owner-a";
 const OWNER_B = "owner-b";
 
-async function makeNotebook(owner = OWNER_A, title = "Notebook") {
-  return createPocNotebook(owner, title);
+function makeNotebook(owner = OWNER_A, title = "Notebook") {
+  return Promise.resolve(createPocNotebook(owner, title));
 }
 
 beforeEach(() => {
@@ -50,15 +55,22 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
       makeNotebook(OWNER_A, "Alpha"),
       makeNotebook(OWNER_A, "Beta"),
     ]);
-    const [zeta, alpha, beta] = notebooks;
-    expect(zeta && alpha && beta).toBeTruthy();
-    await setNotebookPinned(OWNER_A, beta!.id, true);
+    const [, , beta] = notebooks;
+    expect(notebooks).toHaveLength(3);
+    await setNotebookPinned(OWNER_A, beta.id, true);
     const items = await buildNotebookOverview(OWNER_A, notebooks);
     for (const order of ["recent", "title_asc", "created_desc"] as const) {
-      expect(sortNotebookOverview(items, order)[0]?.id).toBe(beta!.id);
+      expect(sortNotebookOverview(items, order)[0]?.id).toBe(beta.id);
     }
-    const tied = items.map((item) => ({ ...item, is_pinned: false, created_at: "2026-01-01T00:00:00.000Z", last_opened_at: null }));
-    expect(sortNotebookOverview(tied, "created_desc").map(({ id }) => id)).toEqual([...tied.map(({ id }) => id).sort()]);
+    const tied = items.map((item) => ({
+      ...item,
+      is_pinned: false,
+      created_at: "2026-01-01T00:00:00.000Z",
+      last_opened_at: null,
+    }));
+    expect(sortNotebookOverview(tied, "created_desc").map(({ id }) => id)).toEqual([
+      ...tied.map(({ id }) => id).sort(),
+    ]);
   });
 
   it("shows the Ready-only source count mirrored from PostgreSQL (countReadySources)", async () => {
@@ -87,13 +99,25 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
     await recordNotebookOpened(OWNER_A, notebook.id, "2026-10-19T12:00:00.000Z");
     expect(getNotebookRaw(notebook.id)!.updated_at).toBe(afterSource);
     await touchNotebookModified(notebook.id);
-    expect(Date.parse(getNotebookRaw(notebook.id)!.updated_at)).toBeGreaterThan(Date.parse(afterSource));
+    expect(Date.parse(getNotebookRaw(notebook.id)!.updated_at)).toBeGreaterThan(
+      Date.parse(afterSource),
+    );
   });
 
-  it("sorts titles case-insensitively with Intl.Collator and breaks equal titles by created_at descending (FR-WM-03, FR-005)", async () => {
+  it("sorts titles case-insensitively with Intl.Collator and breaks equal titles by created_at descending (FR-WM-03, FR-005)", () => {
     const make = (id: string, title: string, created_at: string, is_pinned = false) => ({
-      id, owner_id: OWNER_A, title, created_at, updated_at: created_at, archived_at: null,
-      icon_emoji: "📓", icon_source: "default" as const, ready_source_count: 0, is_pinned, last_opened_at: null, owner_role: "Owner" as const,
+      id,
+      owner_id: OWNER_A,
+      title,
+      created_at,
+      updated_at: created_at,
+      archived_at: null,
+      icon_emoji: "📓",
+      icon_source: "default" as const,
+      ready_source_count: 0,
+      is_pinned,
+      last_opened_at: null,
+      owner_role: "Owner" as const,
     });
     const items = [
       make("a-early", "Alpha", "2026-01-01T00:00:00.000Z"),
@@ -101,9 +125,23 @@ describe("Package 2.1 workspace repository (FR-WM-02, FR-WM-03)", () => {
       make("m-beta", "beta", "2026-01-02T00:00:00.000Z"),
       make("p-zeta", "Zeta", "2026-01-02T00:00:00.000Z", true),
     ];
-    expect(sortNotebookOverview(items, "title_asc").map(({ id }) => id)).toEqual(["p-zeta", "z-late", "a-early", "m-beta"]);
-    const umlaut = [make("1", "Äpfel", "2026-01-01T00:00:00.000Z"), make("2", "Zebra", "2026-01-01T00:00:00.000Z")];
-    expect(sortNotebookOverview(umlaut, "title_asc", "de-DE").map(({ title }) => title)).toEqual(["Äpfel", "Zebra"]);
-    expect(sortNotebookOverview(umlaut, "title_asc", "sv-SE").map(({ title }) => title)).toEqual(["Zebra", "Äpfel"]);
+    expect(sortNotebookOverview(items, "title_asc").map(({ id }) => id)).toEqual([
+      "p-zeta",
+      "z-late",
+      "a-early",
+      "m-beta",
+    ]);
+    const umlaut = [
+      make("1", "Äpfel", "2026-01-01T00:00:00.000Z"),
+      make("2", "Zebra", "2026-01-01T00:00:00.000Z"),
+    ];
+    expect(sortNotebookOverview(umlaut, "title_asc", "de-DE").map(({ title }) => title)).toEqual([
+      "Äpfel",
+      "Zebra",
+    ]);
+    expect(sortNotebookOverview(umlaut, "title_asc", "sv-SE").map(({ title }) => title)).toEqual([
+      "Zebra",
+      "Äpfel",
+    ]);
   });
 });

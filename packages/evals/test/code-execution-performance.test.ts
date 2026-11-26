@@ -38,7 +38,8 @@ const basePlan: CodeExecutionBenchmarkPlan = {
     id: "latency-12m-pstdev-v1",
     version: 1,
     sha256: "b".repeat(64),
-    question: "What is the exact population standard deviation of the monthly latency? Plot the trend.",
+    question:
+      "What is the exact population standard deviation of the monthly latency? Plot the trend.",
   },
   provider: {
     service: "aiplatform.googleapis.com/AgentEngineSandbox",
@@ -65,7 +66,7 @@ function makeCohortObservations(
     outcome?: (i: number) => CodeExecutionBenchmarkObservation["outcome"];
     attempts?: (i: number) => number;
     retryEndToEndMs?: (i: number) => number | null;
-  } = {}
+  } = {},
 ): CodeExecutionBenchmarkObservation[] {
   return Array.from({ length: n }, (_, i) => {
     const sub = Date.parse("2026-10-24T12:00:00.000Z") + i * 60_000;
@@ -74,15 +75,22 @@ function makeCohortObservations(
     const bootDelta = opts.bootExecMs ? opts.bootExecMs(i) : 2_100;
     const outcome = opts.outcome ? opts.outcome(i) : "succeeded";
     const attempts = opts.attempts ? opts.attempts(i) : 1;
-    const retryTotal = opts.retryEndToEndMs ? opts.retryEndToEndMs(i) : attempts > 1 ? 5_200 : null;
+    let retryTotal: number | null;
+    if (opts.retryEndToEndMs) {
+      retryTotal = opts.retryEndToEndMs(i);
+    } else {
+      retryTotal = attempts > 1 ? 5_200 : null;
+    }
     return {
       cohort,
       sampleIndex: i + 1,
       submittedAt: new Date(sub).toISOString(),
       runningCodeAt: runDelta === null ? null : new Date(sub + runDelta).toISOString(),
       sandboxCreatedAt: new Date(createAt).toISOString(),
-      executionCompletedAt: bootDelta === null ? null : new Date(createAt + bootDelta).toISOString(),
-      answerPublishedAt: bootDelta === null ? null : new Date(createAt + bootDelta + 350).toISOString(),
+      executionCompletedAt:
+        bootDelta === null ? null : new Date(createAt + bootDelta).toISOString(),
+      answerPublishedAt:
+        bootDelta === null ? null : new Date(createAt + bootDelta + 350).toISOString(),
       outcome,
       attempts,
       retryEndToEndMs: retryTotal,
@@ -102,7 +110,9 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     expect(COHORT_NAMES).toEqual(["cold_1u", "warm_1u", "cold_2u", "warm_2u"]);
     expect(nearestRankP95(Array.from({ length: 20 }, (_, i) => (i + 1) * 100))).toBe(1_900);
     expect(nearestRankP95([...Array.from({ length: 19 }, () => 2_000), Infinity])).toBe(2_000);
-    expect(nearestRankP95([...Array.from({ length: 18 }, () => 2_000), Infinity, Infinity])).toBe(Infinity);
+    expect(nearestRankP95([...Array.from({ length: 18 }, () => 2_000), Infinity, Infinity])).toBe(
+      Infinity,
+    );
     expect(() => nearestRankP95([])).toThrow(/sample/i);
   });
 
@@ -112,7 +122,7 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
       validateCodeExecutionPlan({
         ...basePlan,
         fixture: { ...basePlan.fixture, sha256: "invalid" },
-      })
+      }),
     ).toThrow(/sha256/i);
     expect(() =>
       validateCodeExecutionPlan({
@@ -121,7 +131,7 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
           ...basePlan.cohorts,
           cold_1u: { repetitions: 0, warm: false, concurrency: 1 },
         },
-      })
+      }),
     ).toThrow(/repetitions/i);
     expect(() =>
       validateCodeExecutionPlan({
@@ -130,7 +140,7 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
           ...basePlan.cohorts,
           warm_2u: { repetitions: 20, warm: true, concurrency: 1 },
         },
-      })
+      }),
     ).toThrow(/concurrency/i);
   });
 
@@ -152,7 +162,10 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
 
   it("CE-PERF-04: boundary at 10,000 ms and 15,000 ms passes (inclusive); 10,001 ms or 15,001 ms fails the cohort and overall benchmark", () => {
     const exactBoundary = [
-      ...makeCohortObservations("cold_1u", 20, { runningMs: () => 10_000, bootExecMs: () => 15_000 }),
+      ...makeCohortObservations("cold_1u", 20, {
+        runningMs: () => 10_000,
+        bootExecMs: () => 15_000,
+      }),
       ...makeCohortObservations("warm_1u", 20),
       ...makeCohortObservations("cold_2u", 20),
       ...makeCohortObservations("warm_2u", 20),
@@ -194,9 +207,13 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     ];
     const result = evaluateCodeExecutionBenchmark(basePlan, oneTimeout);
     // With 1/20 at +Infinity, ceil(0.95*20)=19th sample is still 1,500 ms, yet the rule mandates any failed/timeout sample fails its cohort!
-    expect(result.cohorts.cold_1u.bootExecutionSamplesMs.filter((x) => x === Infinity)).toHaveLength(1);
+    expect(
+      result.cohorts.cold_1u.bootExecutionSamplesMs.filter((x) => x === Infinity),
+    ).toHaveLength(1);
     expect(result.cohorts.cold_1u.bootExecutionP95Ms).toBe(1_500);
-    expect(result.cohorts.cold_1u.failedSamples).toEqual([{ sampleIndex: 1, outcome: "timed_out" }]);
+    expect(result.cohorts.cold_1u.failedSamples).toEqual([
+      { sampleIndex: 1, outcome: "timed_out" },
+    ]);
     expect(result.cohorts.cold_1u.pass).toBe(false);
     expect(result.cohorts.cold_1u.status).toBe("FAIL");
     expect(result.pass).toBe(false);
@@ -243,10 +260,17 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
 
   // [010-code-execution-sandbox] T049: evidence integrity per FR-GC-08, NFR-PERF-01, Gate v3.0 #2.
   it("CE-PERF-08: duplicated identities and unknown or out-of-range samples cannot satisfy a declared cohort", () => {
-    for (const patch of [{ sampleIndex: 2 }, { sampleIndex: 0 }, { sampleIndex: 21 }, { cohort: "undeclared" }]) {
+    for (const patch of [
+      { sampleIndex: 2 },
+      { sampleIndex: 0 },
+      { sampleIndex: 21 },
+      { cohort: "undeclared" },
+    ]) {
       const observations = allPassingObservations();
       Object.assign(observations[0]!, patch);
-      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(/sample|cohort/i);
+      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(
+        /sample|cohort/i,
+      );
     }
   });
 
@@ -262,19 +286,27 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     ]) {
       const observations = allPassingObservations();
       Object.assign(observations[0]!, patch);
-      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(/timestamp|chronolog|declar|success/i);
+      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(
+        /timestamp|chronolog|declar|success/i,
+      );
     }
   });
 
   it("CE-PERF-10: invalid outcome and retry metadata are rejected rather than omitted from failure accounting", () => {
     for (const patch of [
-      { outcome: "unknown" }, { attempts: 0 }, { attempts: 3 }, { attempts: 1.5 },
-      { attempts: 2, retryEndToEndMs: null }, { attempts: 2, retryEndToEndMs: -1 },
+      { outcome: "unknown" },
+      { attempts: 0 },
+      { attempts: 3 },
+      { attempts: 1.5 },
+      { attempts: 2, retryEndToEndMs: null },
+      { attempts: 2, retryEndToEndMs: -1 },
       { attempts: 2, retryEndToEndMs: Infinity },
     ]) {
       const observations = allPassingObservations();
       Object.assign(observations[0]!, patch);
-      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(/outcome|attempt|retry/i);
+      expect(() => evaluateCodeExecutionBenchmark(basePlan, observations)).toThrow(
+        /outcome|attempt|retry/i,
+      );
     }
   });
 
@@ -282,15 +314,27 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     for (const plan of [
       { ...basePlan, declaredAt: "invalid" },
       { ...basePlan, provider: { ...basePlan.provider, region: "us-central1" } },
-      { ...basePlan, cohorts: { ...basePlan.cohorts, cold_1u: { ...basePlan.cohorts.cold_1u, repetitions: 1 } } },
-    ]) expect(() => validateCodeExecutionPlan(plan)).toThrow(/declar|provider|region|repetitions/i);
-    expect(evaluateCodeExecutionBenchmark(basePlan, allPassingObservations())).toHaveProperty("observations", allPassingObservations());
+      {
+        ...basePlan,
+        cohorts: { ...basePlan.cohorts, cold_1u: { ...basePlan.cohorts.cold_1u, repetitions: 1 } },
+      },
+    ])
+      expect(() => validateCodeExecutionPlan(plan)).toThrow(/declar|provider|region|repetitions/i);
+    expect(evaluateCodeExecutionBenchmark(basePlan, allPassingObservations())).toHaveProperty(
+      "observations",
+      allPassingObservations(),
+    );
   });
 
   function runCli(args: string[], extraEnv: Record<string, string> = {}) {
     return spawnSync(process.execPath, ["scripts/eval-v3-code-execution.mjs", ...args], {
       cwd: fileURLToPath(new URL("../../../", import.meta.url)),
-      env: { ...process.env, CODE_EXECUTION_IT: "", CODE_EXECUTION_REASONING_ENGINE: "", ...extraEnv },
+      env: {
+        ...process.env,
+        CODE_EXECUTION_IT: "",
+        CODE_EXECUTION_REASONING_ENGINE: "",
+        ...extraEnv,
+      },
       encoding: "utf8",
       timeout: 15_000,
     });
@@ -301,13 +345,18 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
     try {
       const result = runCli(["--out", out], {
         CODE_EXECUTION_IT: "1",
-        CODE_EXECUTION_REASONING_ENGINE: "projects/test/locations/europe-west4/reasoningEngines/123",
+        CODE_EXECUTION_REASONING_ENGINE:
+          "projects/test/locations/europe-west4/reasoningEngines/123",
       });
       expect(result.error).toBeUndefined();
       expect(result.status).toBe(2);
       expect(result.stderr).toContain("UNAVAILABLE");
-      expect(JSON.parse(readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8"))).toMatchObject({ status: "UNAVAILABLE", pass: false });
-    } finally { rmSync(out, { recursive: true, force: true }); }
+      expect(
+        JSON.parse(readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8")),
+      ).toMatchObject({ status: "UNAVAILABLE", pass: false });
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
   });
 
   it("CE-PERF-13: importing observations without an explicit predeclared plan cannot manufacture a passing run", () => {
@@ -318,7 +367,9 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
       const result = runCli(["--observations", input, "--out", out]);
       expect(result.status).toBe(2);
       expect(result.stderr).toMatch(/predeclared.*plan|plan.*predeclared/i);
-    } finally { rmSync(out, { recursive: true, force: true }); }
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
   });
 
   it("CE-PERF-14: explicit evidence import preserves observations and hashes; invalid evidence writes a FAIL report", () => {
@@ -331,21 +382,61 @@ describe("code-execution performance benchmark aggregation (FR-GC-08, NFR-PERF-0
       const args = ["--plan", plan, "--observations", input, "--out", out];
       const result = runCli(args);
       expect(result.status).toBe(0);
-      const report = JSON.parse(readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8"));
+      const report = JSON.parse(
+        readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8"),
+      ) as {
+        observations: CodeExecutionBenchmarkObservation[];
+        provenance: Record<string, unknown>;
+      };
       expect(report.observations).toEqual(allPassingObservations());
-      expect(report.provenance).toMatchObject({ collector: "external-observations", planSha256: expect.stringMatching(/^[0-9a-f]{64}$/), observationsSha256: expect.stringMatching(/^[0-9a-f]{64}$/) });
+      expect(report.provenance).toMatchObject({
+        collector: "external-observations",
+        planSha256: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
+        observationsSha256: expect.stringMatching(/^[0-9a-f]{64}$/) as unknown,
+      });
       writeFileSync(input, JSON.stringify([{ ...allPassingObservations()[0], attempts: 0 }]));
       expect(runCli(args).status).toBe(1);
-      const invalid = JSON.parse(readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8"));
+      const invalid = JSON.parse(
+        readFileSync(join(out, "v3-code-execution-benchmark.json"), "utf8"),
+      ) as { status: string; pass: boolean; detail: string };
       expect(invalid).toMatchObject({ status: "FAIL", pass: false });
       expect(invalid.detail).toMatch(/attempt/i);
-    } finally { rmSync(out, { recursive: true, force: true }); }
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
   });
 });
 
 /** FR-GC-08: failure before any actual code attempt never fabricates attempt1. */
-it("retains a failed zero-attempt observation without inventing an execution",()=>{
- const p:CodeExecutionBenchmarkPlan={fixture:{id:"f",version:1,sha256:"a".repeat(64),question:"q"},provider:{service:"aiplatform.googleapis.com/AgentEngineSandbox",region:"europe-west4",cpu:"2 vCPU",memory:"1.5 GB"},environment:"test",declaredAt:"2026-11-10T00:00:00.000Z",cohorts:{cold_1u:{repetitions:20,warm:false,concurrency:1},warm_1u:{repetitions:20,warm:true,concurrency:1},cold_2u:{repetitions:20,warm:false,concurrency:2},warm_2u:{repetitions:20,warm:true,concurrency:2}}};
- const o={cohort:"cold_1u" as const,sampleIndex:1,submittedAt:"2026-11-10T00:00:01.000Z",runningCodeAt:null,sandboxCreatedAt:null,executionCompletedAt:null,answerPublishedAt:null,outcome:"failed" as const,attempts:0,retryEndToEndMs:null};
- expect(evaluateCodeExecutionBenchmark(p,[o]).observations[0]!.attempts).toBe(0);
+it("retains a failed zero-attempt observation without inventing an execution", () => {
+  const p: CodeExecutionBenchmarkPlan = {
+    fixture: { id: "f", version: 1, sha256: "a".repeat(64), question: "q" },
+    provider: {
+      service: "aiplatform.googleapis.com/AgentEngineSandbox",
+      region: "europe-west4",
+      cpu: "2 vCPU",
+      memory: "1.5 GB",
+    },
+    environment: "test",
+    declaredAt: "2026-11-10T00:00:00.000Z",
+    cohorts: {
+      cold_1u: { repetitions: 20, warm: false, concurrency: 1 },
+      warm_1u: { repetitions: 20, warm: true, concurrency: 1 },
+      cold_2u: { repetitions: 20, warm: false, concurrency: 2 },
+      warm_2u: { repetitions: 20, warm: true, concurrency: 2 },
+    },
+  };
+  const o = {
+    cohort: "cold_1u" as const,
+    sampleIndex: 1,
+    submittedAt: "2026-11-10T00:00:01.000Z",
+    runningCodeAt: null,
+    sandboxCreatedAt: null,
+    executionCompletedAt: null,
+    answerPublishedAt: null,
+    outcome: "failed" as const,
+    attempts: 0,
+    retryEndToEndMs: null,
+  };
+  expect(evaluateCodeExecutionBenchmark(p, [o]).observations[0]!.attempts).toBe(0);
 });

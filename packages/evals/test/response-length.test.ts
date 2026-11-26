@@ -17,13 +17,25 @@ import {
 
 const sample = releaseSample(buildGoldenDataset(), RELEASE_SAMPLE_SIZE);
 
+function wordsForLength(length: "default" | "shorter" | "longer"): string {
+  if (length === "default") {
+    return "word ".repeat(20);
+  }
+  if (length === "shorter") {
+    return "word ".repeat(8);
+  }
+  return "word ".repeat(40);
+}
+
 describe("response-length release metric (FR-GC-07, FR-012)", () => {
   it("uses only answerable synthesis cases of the fixed 50-case release sample", () => {
     const eligible = responseLengthEligible(sample);
     expect(sample).toHaveLength(50);
     expect(eligible.length).toBeGreaterThan(0);
     expect(eligible.every((c) => c.answerable && c.category === "synthesis")).toBe(true);
-    expect(eligible.map((c) => c.id)).toEqual(sample.filter((c) => c.answerable && c.category === "synthesis").map((c) => c.id));
+    expect(eligible.map((c) => c.id)).toEqual(
+      sample.filter((c) => c.answerable && c.category === "synthesis").map((c) => c.id),
+    );
   });
 
   it("counts word tokens of the answer, ignoring citation badges", () => {
@@ -39,9 +51,15 @@ describe("response-length release metric (FR-GC-07, FR-012)", () => {
     expect(pass).toMatchObject({ status: "pass", passed: true, case_ids: ["SYN-001", "SYN-002"] });
     expect(pass.shorter_ratio).toBeCloseTo(0.5);
     expect(pass.longer_ratio).toBeCloseTo(1.5);
-    const fail = computeResponseLengthMetric([{ case_id: "SYN-003", default_tokens: 100, shorter_tokens: 80, longer_tokens: 200 }]);
+    const fail = computeResponseLengthMetric([
+      { case_id: "SYN-003", default_tokens: 100, shorter_tokens: 80, longer_tokens: 200 },
+    ]);
     expect(fail).toMatchObject({ status: "fail", passed: false });
-    expect(computeResponseLengthMetric([{ case_id: "SYN-004", default_tokens: 0, shorter_tokens: 0, longer_tokens: 0 }])).toMatchObject({ status: "fail", passed: false });
+    expect(
+      computeResponseLengthMetric([
+        { case_id: "SYN-004", default_tokens: 0, shorter_tokens: 0, longer_tokens: 0 },
+      ]),
+    ).toMatchObject({ status: "fail", passed: false });
     expect(computeResponseLengthMetric([])).toMatchObject({ status: "fail", passed: false });
   });
 
@@ -49,38 +67,71 @@ describe("response-length release metric (FR-GC-07, FR-012)", () => {
     const eligible = responseLengthEligible(sample);
     expect(eligible.length).toBeGreaterThan(1);
     const refused = eligible[0]!.id;
-    const answer = vi.fn(async (c: { id: string }, length: "default" | "shorter" | "longer") =>
-      c.id === refused && length === "default" ? null : "word ".repeat(length === "default" ? 20 : length === "shorter" ? 8 : 40));
+    const answer = vi.fn((c: { id: string }, length: "default" | "shorter" | "longer") =>
+      Promise.resolve(c.id === refused && length === "default" ? null : wordsForLength(length)),
+    );
     const metric = await runResponseLengthEval({ answer }, sample);
     expect(metric).toMatchObject({ status: "pass", passed: true, excluded_case_ids: [refused] });
     expect(metric.case_ids).toEqual(eligible.slice(1).map((c) => c.id));
     // No Shorter/Longer calls for an excluded case.
     expect(answer).toHaveBeenCalledTimes(1 + (eligible.length - 1) * 3);
 
-    const allRefused = await runResponseLengthEval({ answer: async () => null }, sample);
-    expect(allRefused).toMatchObject({ status: "fail", passed: false, case_ids: [], excluded_case_ids: eligible.map((c) => c.id) });
+    const allRefused = await runResponseLengthEval({ answer: () => Promise.resolve(null) }, sample);
+    expect(allRefused).toMatchObject({
+      status: "fail",
+      passed: false,
+      case_ids: [],
+      excluded_case_ids: eligible.map((c) => c.id),
+    });
     expect(allRefused.detail).toMatch(/no eligible case/i);
   });
 
   it("fails closed when Shorter or Longer refuses a case whose Default answered (a length preference never changes grounding)", async () => {
-    const metric = await runResponseLengthEval({ answer: async (_c, length) => (length === "longer" ? null : "word ".repeat(length === "default" ? 20 : 8)) }, sample);
+    const metric = await runResponseLengthEval(
+      {
+        answer: (_c, length) =>
+          Promise.resolve(length === "longer" ? null : wordsForLength(length)),
+      },
+      sample,
+    );
     expect(metric).toMatchObject({ status: "fail", passed: false });
     expect(metric.detail).toMatch(/refus/i);
-    expect(computeResponseLengthMetric([{ case_id: "SYN-009", default_tokens: 20, shorter_tokens: 0, longer_tokens: 40, shorter_refused: true }])).toMatchObject({ status: "fail", passed: false });
+    expect(
+      computeResponseLengthMetric([
+        {
+          case_id: "SYN-009",
+          default_tokens: 20,
+          shorter_tokens: 0,
+          longer_tokens: 40,
+          shorter_refused: true,
+        },
+      ]),
+    ).toMatchObject({ status: "fail", passed: false });
   });
 
   it("reports UNAVAILABLE rather than pass when the judged runner or model is not configured", async () => {
     const metric = await runResponseLengthEval(null, sample);
-    expect(metric).toMatchObject({ status: "unavailable", passed: false, shorter_ratio: null, longer_ratio: null });
+    expect(metric).toMatchObject({
+      status: "unavailable",
+      passed: false,
+      shorter_ratio: null,
+      longer_ratio: null,
+    });
     expect(metric.detail).toMatch(/UNAVAILABLE/);
   });
 
   it("runs Default, Shorter and Longer for each eligible case and records sample IDs and generation parameters", async () => {
-    const answer = vi.fn(async (_c: unknown, length: "default" | "shorter" | "longer") => "word ".repeat(length === "default" ? 20 : length === "shorter" ? 8 : 40));
+    const answer = vi.fn((_c: unknown, length: "default" | "shorter" | "longer") =>
+      Promise.resolve(wordsForLength(length)),
+    );
     const metric = await runResponseLengthEval({ answer }, sample);
     const eligible = responseLengthEligible(sample);
     expect(answer).toHaveBeenCalledTimes(eligible.length * 3);
-    expect(metric).toMatchObject({ status: "pass", case_ids: eligible.map((c) => c.id), generation_parameters: RESPONSE_LENGTH_GENERATION_PARAMETERS });
+    expect(metric).toMatchObject({
+      status: "pass",
+      case_ids: eligible.map((c) => c.id),
+      generation_parameters: RESPONSE_LENGTH_GENERATION_PARAMETERS,
+    });
     expect(metric.samples).toHaveLength(eligible.length);
   });
 });

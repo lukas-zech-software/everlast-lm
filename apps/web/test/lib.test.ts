@@ -18,12 +18,16 @@ describe("citation badges (FR-GC-02)", () => {
     ]);
   });
   it("WEB-02: eight supporting chunks show three badges and +5", () => {
-    expect(splitBadgeGroup([1, 2, 3, 4, 5, 6, 7, 8])).toEqual({ shown: [1, 2, 3], hidden: [4, 5, 6, 7, 8] });
+    expect(splitBadgeGroup([1, 2, 3, 4, 5, 6, 7, 8])).toEqual({
+      shown: [1, 2, 3],
+      hidden: [4, 5, 6, 7, 8],
+    });
   });
 });
 
 describe("selection (FR-SI-03)", () => {
-  const sources = (statuses: string[]) => statuses.map((status, i) => ({ id: `s${i}`, status: status as "Ready" }));
+  const sources = (statuses: string[]) =>
+    statuses.map((status, i) => ({ id: `s${i}`, status: status as "Ready" }));
   it("WEB-03: first load selects all Ready sources only; non-Ready are excluded", () => {
     const model = new SelectionModel("nb-1");
     model.sync(sources(["Ready", "Processing", "Ready", "Failed"]), true);
@@ -48,7 +52,11 @@ describe("selection (FR-SI-03)", () => {
     const model = new SelectionModel("nb-3");
     model.sync(sources(["Ready"]), true);
     model.markImported("s1");
-    model.sync([...sources(["Ready"]), { id: "s1", status: "Ready" }, { id: "s2", status: "Ready" }]);
+    model.sync([
+      ...sources(["Ready"]),
+      { id: "s1", status: "Ready" },
+      { id: "s2", status: "Ready" },
+    ]);
     expect(model.ids()).toEqual(["s0", "s1"]);
     model.sync([{ id: "s1", status: "Ready" }]);
     expect(model.ids()).toEqual(["s1"]);
@@ -62,7 +70,10 @@ describe("layout breakpoints (FR-UI-01)", () => {
     expect(breakpointFor(1279)).toBe("compact");
     expect(breakpointFor(1280)).toBe("desktop");
     expect(defaultPreferences("compact")).toEqual({ left_collapsed: false, right_collapsed: true });
-    expect(defaultPreferences("desktop")).toEqual({ left_collapsed: false, right_collapsed: false });
+    expect(defaultPreferences("desktop")).toEqual({
+      left_collapsed: false,
+      right_collapsed: false,
+    });
   });
 });
 

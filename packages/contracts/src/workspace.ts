@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_NOTEBOOK_TITLE } from "./text-limits.ts";
+import { countCodePoints, DEFAULT_NOTEBOOK_TITLE } from "./text-limits.ts";
 
 export { DEFAULT_NOTEBOOK_TITLE };
 
@@ -11,26 +11,26 @@ export { DEFAULT_NOTEBOOK_TITLE };
 export const UUID_V4_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const NotebookTitleSchema = z
-  .string()
-  .refine((val) => {
+export const NotebookTitleSchema = z.string().refine(
+  (val) => {
     const trimmed = val.trim();
-    const codePoints = Array.from(trimmed).length;
+    const codePoints = countCodePoints(trimmed);
     return codePoints >= 1 && codePoints <= 100;
-  }, {
-    message: "Title must be between 1 and 100 Unicode code points after outer whitespace trimming",
-  });
+  },
+  {
+    error: "Title must be between 1 and 100 Unicode code points after outer whitespace trimming",
+  },
+);
 
 export const NotebookSchema = z
   .object({
     id: z.string().regex(UUID_V4_REGEX, "id must be a valid UUID v4"),
     owner_id: z.string().min(1, "owner_id must not be empty"),
     title: NotebookTitleSchema,
-    created_at: z.string().datetime({ message: "created_at must be a valid UTC ISO 8601 timestamp" }),
-    updated_at: z.string().datetime({ message: "updated_at must be a valid UTC ISO 8601 timestamp" }),
-    archived_at: z
-      .string()
-      .datetime({ message: "archived_at must be a valid UTC ISO 8601 timestamp" })
+    created_at: z.iso.datetime({ error: "created_at must be a valid UTC ISO 8601 timestamp" }),
+    updated_at: z.iso.datetime({ error: "updated_at must be a valid UTC ISO 8601 timestamp" }),
+    archived_at: z.iso
+      .datetime({ error: "archived_at must be a valid UTC ISO 8601 timestamp" })
       .nullable()
       .optional(),
   })
@@ -43,8 +43,8 @@ export const NotebookDtoSchema = z
   .object({
     id: z.string().regex(UUID_V4_REGEX, "id must be a valid UUID v4"),
     title: NotebookTitleSchema,
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
   })
   .strict();
 

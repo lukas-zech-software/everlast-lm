@@ -32,18 +32,18 @@ export interface UploadCapability {
 
 export interface ObjectStorage {
   readonly kind: "gcs" | "local";
-  write(name: string, data: Buffer, contentType: string): Promise<ObjectMetadata>;
-  read(name: string, generation?: string): Promise<Buffer>;
+  write: (name: string, data: Buffer, contentType: string) => Promise<ObjectMetadata>;
+  read: (name: string, generation?: string) => Promise<Buffer>;
   /** Byte range [start, end] inclusive of one exact generation (media proxy range requests; specs/009). */
-  readRange?(name: string, generation: string, start: number, end: number): Promise<Buffer>;
-  stat(name: string): Promise<ObjectMetadata | null>;
-  listVersions(prefix: string): Promise<ObjectVersion[]>;
+  readRange?: (name: string, generation: string, start: number, end: number) => Promise<Buffer>;
+  stat: (name: string) => Promise<ObjectMetadata | null>;
+  listVersions: (prefix: string) => Promise<ObjectVersion[]>;
   /** Deletes exactly one generation; an already-absent generation counts as success. */
-  deleteVersion(name: string, generation: string): Promise<void>;
-  createUploadUrl(
+  deleteVersion: (name: string, generation: string) => Promise<void>;
+  createUploadUrl: (
     name: string,
-    options: { contentType: string; maxBytes: number; expiresAt: Date }
-  ): Promise<UploadCapability>;
+    options: { contentType: string; maxBytes: number; expiresAt: Date },
+  ) => Promise<UploadCapability>;
 }
 
 export class RetainedObjectError extends Error {
@@ -60,7 +60,7 @@ export class RetainedObjectError extends Error {
 
 interface LocalIndex {
   live: string | null;
-  versions: { generation: string; size: number; contentType: string; retained?: boolean }[];
+  versions: Array<{ generation: string; size: number; contentType: string; retained?: boolean }>;
 }
 
 export class LocalObjectStorage implements ObjectStorage {
@@ -109,13 +109,15 @@ export class LocalObjectStorage implements ObjectStorage {
   async read(name: string, generation?: string): Promise<Buffer> {
     const index = await this.index(name);
     const target = generation ?? index.live;
-    if (!target || !index.versions.some((v) => v.generation === target)) throw new Error(`Object ${name} not found`);
+    if (!target || !index.versions.some((v) => v.generation === target))
+      throw new Error(`Object ${name} not found`);
     return readFile(join(this.dir(name), target));
   }
 
   async readRange(name: string, generation: string, start: number, end: number): Promise<Buffer> {
     const index = await this.index(name);
-    if (!index.versions.some((v) => v.generation === generation)) throw new Error(`Object ${name} not found`);
+    if (!index.versions.some((v) => v.generation === generation))
+      throw new Error(`Object ${name} not found`);
     const handle = await open(join(this.dir(name), generation), "r");
     try {
       const length = Math.max(0, end - start + 1);
@@ -130,7 +132,9 @@ export class LocalObjectStorage implements ObjectStorage {
   async stat(name: string): Promise<ObjectMetadata | null> {
     const index = await this.index(name);
     const live = index.versions.find((v) => v.generation === index.live);
-    return live ? { name, generation: live.generation, size: live.size, contentType: live.contentType } : null;
+    return live
+      ? { name, generation: live.generation, size: live.size, contentType: live.contentType }
+      : null;
   }
 
   async listVersions(prefix: string): Promise<ObjectVersion[]> {
@@ -146,7 +150,13 @@ export class LocalObjectStorage implements ObjectStorage {
       if (entries.includes("index.json")) {
         const index = await this.index(relative);
         for (const v of index.versions) {
-          out.push({ name: relative, generation: v.generation, size: v.size, live: v.generation === index.live, retained: v.retained === true });
+          out.push({
+            name: relative,
+            generation: v.generation,
+            size: v.size,
+            live: v.generation === index.live,
+            retained: v.retained === true,
+          });
         }
       }
       for (const entry of entries) {
@@ -182,19 +192,24 @@ export class LocalObjectStorage implements ObjectStorage {
     return createHmac("sha256", this.signingKey).update(payload).digest("base64url");
   }
 
-  async createUploadUrl(
+  createUploadUrl(
     name: string,
-    options: { contentType: string; maxBytes: number; expiresAt: Date }
+    options: { contentType: string; maxBytes: number; expiresAt: Date },
   ): Promise<UploadCapability> {
     const payload = Buffer.from(
-      JSON.stringify({ name, ct: options.contentType, max: options.maxBytes, exp: options.expiresAt.getTime() })
+      JSON.stringify({
+        name,
+        ct: options.contentType,
+        max: options.maxBytes,
+        exp: options.expiresAt.getTime(),
+      }),
     ).toString("base64url");
-    return {
+    return Promise.resolve({
       url: `${this.publicBaseUrl}/dev-storage/upload/${payload}.${this.sign(payload)}`,
       method: "PUT",
       headers: { "content-type": options.contentType },
       expires_at: options.expiresAt.toISOString(),
-    };
+    });
   }
 
   /** Verifies a dev upload capability token; returns its claims or null when invalid/expired. */

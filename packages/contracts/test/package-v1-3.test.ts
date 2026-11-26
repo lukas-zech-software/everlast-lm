@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  ChatRoleSchema,
   CitationSchema,
   UserMessageInputSchema,
-  ActiveSourceRevisionRecordSchema,
   ChatMessageSchema,
   ChatThreadSchema,
   type Citation,
@@ -11,6 +9,7 @@ import {
   type ChatThread,
   type UserMessageInput,
 } from "../src/package-v1-3.ts";
+import { countCodePoints } from "../src/text-limits.ts";
 
 describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => {
   const validUuid1 = "11111111-1111-4111-8111-111111111111";
@@ -47,7 +46,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         active_source_ids: [validUuid2],
       };
       const parsed = UserMessageInputSchema.parse(input);
-      expect(Array.from(parsed.message).length).toBe(10000);
+      expect(countCodePoints(parsed.message)).toBe(10000);
     });
 
     it("P13-04: accepts user message with exactly 10,000 multi-byte Unicode code points (emojis)", () => {
@@ -59,7 +58,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         active_source_ids: [validUuid2],
       };
       const parsed = UserMessageInputSchema.parse(input);
-      expect(Array.from(parsed.message).length).toBe(10000);
+      expect(countCodePoints(parsed.message)).toBe(10000);
     });
 
     it("P13-05: rejects message with 0 code points after outer trimming", () => {
@@ -68,7 +67,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: "",
           active_source_ids: [validUuid2],
-        })
+        }),
       ).toThrow();
 
       expect(() =>
@@ -76,7 +75,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: "    \t\n   ",
           active_source_ids: [validUuid2],
-        })
+        }),
       ).toThrow();
     });
 
@@ -86,7 +85,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: "x".repeat(10001),
           active_source_ids: [validUuid2],
-        })
+        }),
       ).toThrow();
     });
 
@@ -97,7 +96,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: overLimitEmojis,
           active_source_ids: [validUuid2],
-        })
+        }),
       ).toThrow();
     });
 
@@ -107,7 +106,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: "Valid question",
           active_source_ids: [],
-        })
+        }),
       ).toThrow();
     });
 
@@ -117,7 +116,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: validUuid1,
           message: "Valid question",
           active_source_ids: ["not-a-uuid"],
-        })
+        }),
       ).toThrow();
     });
 
@@ -127,7 +126,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           notebook_id: "not-a-uuid",
           message: "Valid question",
           active_source_ids: [validUuid2],
-        })
+        }),
       ).toThrow();
     });
 
@@ -138,7 +137,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
           message: "Valid question",
           active_source_ids: [validUuid2],
           extra_prop: "not_allowed",
-        })
+        }),
       ).toThrow();
     });
   });
@@ -188,33 +187,19 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
     });
 
     it("P13-15: rejects non-positive badge_number (0, negative, or float)", () => {
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, badge_number: 0 })
-      ).toThrow();
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, badge_number: -1 })
-      ).toThrow();
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, badge_number: 1.5 })
-      ).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, badge_number: 0 })).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, badge_number: -1 })).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, badge_number: 1.5 })).toThrow();
     });
 
     it("P13-16: rejects non-UUID source_id and chunk_id", () => {
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, source_id: "invalid-id" })
-      ).toThrow();
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, chunk_id: "invalid-chunk" })
-      ).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, source_id: "invalid-id" })).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, chunk_id: "invalid-chunk" })).toThrow();
     });
 
     it("P13-17: rejects empty source_title or snippet", () => {
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, source_title: "" })
-      ).toThrow();
-      expect(() =>
-        CitationSchema.parse({ ...validCitation, snippet: "" })
-      ).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, source_title: "" })).toThrow();
+      expect(() => CitationSchema.parse({ ...validCitation, snippet: "" })).toThrow();
     });
 
     it("P13-18: rejects invalid locator where end_offset < start_offset", () => {
@@ -226,7 +211,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
             start_offset: 200,
             end_offset: 100,
           },
-        })
+        }),
       ).toThrow();
     });
 
@@ -235,7 +220,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         CitationSchema.parse({
           ...validCitation,
           extra_metadata: "forbidden",
-        })
+        }),
       ).toThrow();
     });
   });
@@ -294,23 +279,15 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
     });
 
     it("P13-22: rejects invalid chat role (e.g. system or admin)", () => {
-      expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, role: "system" })
-      ).toThrow();
-      expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, role: "admin" })
-      ).toThrow();
+      expect(() => ChatMessageSchema.parse({ ...validMessage, role: "system" })).toThrow();
+      expect(() => ChatMessageSchema.parse({ ...validMessage, role: "admin" })).toThrow();
     });
 
     it("P13-23: rejects non-UUID IDs (id, thread_id, notebook_id)", () => {
+      expect(() => ChatMessageSchema.parse({ ...validMessage, id: "bad-id" })).toThrow();
+      expect(() => ChatMessageSchema.parse({ ...validMessage, thread_id: "bad-thread" })).toThrow();
       expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, id: "bad-id" })
-      ).toThrow();
-      expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, thread_id: "bad-thread" })
-      ).toThrow();
-      expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, notebook_id: "bad-notebook" })
+        ChatMessageSchema.parse({ ...validMessage, notebook_id: "bad-notebook" }),
       ).toThrow();
     });
 
@@ -318,25 +295,21 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
       expect(() =>
         ChatMessageSchema.parse({
           ...validMessage,
-          active_source_revisions_snapshot: [
-            { source_id: validUuid1, revision: 0 },
-          ],
-        })
+          active_source_revisions_snapshot: [{ source_id: validUuid1, revision: 0 }],
+        }),
       ).toThrow();
 
       expect(() =>
         ChatMessageSchema.parse({
           ...validMessage,
-          active_source_revisions_snapshot: [
-            { source_id: validUuid1, revision: -2 },
-          ],
-        })
+          active_source_revisions_snapshot: [{ source_id: validUuid1, revision: -2 }],
+        }),
       ).toThrow();
     });
 
     it("P13-25: rejects invalid ISO datetime in created_at", () => {
       expect(() =>
-        ChatMessageSchema.parse({ ...validMessage, created_at: "2026-10-18 12:00:00" })
+        ChatMessageSchema.parse({ ...validMessage, created_at: "2026-10-18 12:00:00" }),
       ).toThrow();
     });
 
@@ -345,7 +318,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         ChatMessageSchema.parse({
           ...validMessage,
           unexpected_column: true,
-        })
+        }),
       ).toThrow();
     });
   });
@@ -374,27 +347,19 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
     });
 
     it("P13-29: rejects negative generation_epoch or float", () => {
-      expect(() =>
-        ChatThreadSchema.parse({ ...validThread, generation_epoch: -1 })
-      ).toThrow();
-      expect(() =>
-        ChatThreadSchema.parse({ ...validThread, generation_epoch: 1.5 })
-      ).toThrow();
+      expect(() => ChatThreadSchema.parse({ ...validThread, generation_epoch: -1 })).toThrow();
+      expect(() => ChatThreadSchema.parse({ ...validThread, generation_epoch: 1.5 })).toThrow();
     });
 
     it("P13-30: rejects non-UUID id or notebook_id", () => {
+      expect(() => ChatThreadSchema.parse({ ...validThread, id: "invalid-uuid" })).toThrow();
       expect(() =>
-        ChatThreadSchema.parse({ ...validThread, id: "invalid-uuid" })
-      ).toThrow();
-      expect(() =>
-        ChatThreadSchema.parse({ ...validThread, notebook_id: "invalid-uuid" })
+        ChatThreadSchema.parse({ ...validThread, notebook_id: "invalid-uuid" }),
       ).toThrow();
     });
 
     it("P13-31: rejects empty user_id", () => {
-      expect(() =>
-        ChatThreadSchema.parse({ ...validThread, user_id: "" })
-      ).toThrow();
+      expect(() => ChatThreadSchema.parse({ ...validThread, user_id: "" })).toThrow();
     });
 
     it("P13-32: rejects invalid created_at or updated_at timestamps", () => {
@@ -402,13 +367,13 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         ChatThreadSchema.parse({
           ...validThread,
           created_at: "not-a-timestamp",
-        })
+        }),
       ).toThrow();
       expect(() =>
         ChatThreadSchema.parse({
           ...validThread,
           updated_at: "not-a-timestamp",
-        })
+        }),
       ).toThrow();
     });
 
@@ -417,7 +382,7 @@ describe("FR-GC-01, FR-GC-02, FR-GC-03, FR-GC-06: Package 1.3 Contracts", () => 
         ChatThreadSchema.parse({
           ...validThread,
           unknown_field: 999,
-        })
+        }),
       ).toThrow();
     });
   });

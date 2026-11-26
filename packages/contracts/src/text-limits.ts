@@ -5,6 +5,27 @@
 
 export const DEFAULT_NOTEBOOK_TITLE = "Untitled notebook";
 
+/** Counts Unicode code points (treating surrogate pairs as 1 code point) without array allocation. */
+export function countCodePoints(text: string): number {
+  let count = 0;
+  for (const _cp of text) {
+    count += 1;
+  }
+  return count;
+}
+
+/** Splits a string into Unicode code points (treating surrogate pairs as 1 element). */
+export function toCodePoints(text: string): string[] {
+  const codePoints: string[] = [];
+  for (let i = 0; i < text.length;) {
+    const cp = text.codePointAt(i);
+    const step = cp !== undefined && cp > 0xffff ? 2 : 1;
+    codePoints.push(text.slice(i, i + step));
+    i += step;
+  }
+  return codePoints;
+}
+
 export interface TitleValidationResult {
   valid: boolean;
   codePoints: number;
@@ -42,7 +63,7 @@ export function normalizeTitle(title: string): string {
  */
 export function validateNotebookTitle(title: string): TitleValidationResult {
   const trimmed = title.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
 
   if (codePoints < 1) {
     return {

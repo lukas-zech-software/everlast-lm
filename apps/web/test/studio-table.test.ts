@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DATA_TABLE_MISSING_MARKER, type StudioDataTablePayload } from "@everlast/contracts";
 import { createStudioPanel, type StudioPanel } from "../src/studio/panel.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [011-studio-mindmaps-data-tables] T041 — Studio Data Table browser unit tests:
@@ -102,7 +102,7 @@ describe("[011-studio-mindmaps-data-tables] T041: Studio Data Table tile, modal 
     selection = [SRC_A, SRC_B];
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const q = (sel: string, root: MockElement = body()) => root.querySelector(sel);
   const qa = (sel: string, root: MockElement = body()) => root.querySelectorAll(sel);
   const tid = (id: string, root?: MockElement) => q(`[data-testid=${id}]`, root);
@@ -111,26 +111,68 @@ describe("[011-studio-mindmaps-data-tables] T041: Studio Data Table tile, modal 
   it("opens Data Table configuration modal, submits focus_prompt + schema_id, renders sortable cells with conflict/missing/citations, and exports sorted row permutation", async () => {
     const artifactId = randomUUID();
     const payload = buildSampleDataTablePayload();
-    const calls: { method: string; path: string; body: any }[] = [];
+    interface TableRequestBody {
+      schema_id?: string;
+      focus_prompt?: string;
+      format?: string;
+      [key: string]: unknown;
+    }
+    const calls: Array<{ method: string; path: string; body: TableRequestBody | undefined }> = [];
 
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
-      const reqBody = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+      const reqBody =
+        typeof init.body === "string" ? (JSON.parse(init.body) as TableRequestBody) : undefined;
       calls.push({ method, path: url.pathname, body: reqBody });
 
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(
-          JSON.stringify({
-            artifacts: [
-              {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifacts: [
+                {
+                  id: artifactId,
+                  notebook_id: NB,
+                  plugin_type: "data_table",
+                  subtype: "default",
+                  status: "Completed",
+                  title: "Data Table",
+                  params_json: {
+                    schema_id: "vendor_comparison",
+                    focus_prompt: "Compare pricing and SLA",
+                  },
+                  payload_json: null,
+                  source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
+                  output_language: "en-US",
+                  progress: null,
+                  failure: null,
+                  attempt: 1,
+                  retry_of: null,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      if (url.pathname.endsWith("/artifacts") && method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
                 id: artifactId,
                 notebook_id: NB,
                 plugin_type: "data_table",
                 subtype: "default",
-                status: "Completed",
+                status: "Queued",
                 title: "Data Table",
-                params_json: { schema_id: "vendor_comparison", focus_prompt: "Compare pricing and SLA" },
+                params_json: {
+                  schema_id: reqBody?.schema_id ?? "auto",
+                  focus_prompt: reqBody?.focus_prompt,
+                },
                 payload_json: null,
                 source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
                 output_language: "en-US",
@@ -141,74 +183,60 @@ describe("[011-studio-mindmaps-data-tables] T041: Studio Data Table tile, modal 
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },
-            ],
-          }),
-          { status: 200, headers: { "content-type": "application/json" } }
-        );
-      }
-      if (url.pathname.endsWith("/artifacts") && method === "POST") {
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              id: artifactId,
-              notebook_id: NB,
-              plugin_type: "data_table",
-              subtype: "default",
-              status: "Queued",
-              title: "Data Table",
-              params_json: { schema_id: reqBody.schema_id ?? "auto", focus_prompt: reqBody.focus_prompt },
-              payload_json: null,
-              source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
-              output_language: "en-US",
-              progress: null,
-              failure: null,
-              attempt: 1,
-              retry_of: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          }),
-          { status: 202, headers: { "content-type": "application/json" } }
+            }),
+            { status: 202, headers: { "content-type": "application/json" } },
+          ),
         );
       }
       if (url.pathname.endsWith(`/artifacts/${artifactId}`) && method === "GET") {
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              id: artifactId,
-              notebook_id: NB,
-              plugin_type: "data_table",
-              subtype: "default",
-              status: "Completed",
-              title: "Data Table",
-              params_json: { schema_id: "vendor_comparison", focus_prompt: "Compare pricing and SLA" },
-              payload_json: payload,
-              source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
-              output_language: "en-US",
-              progress: null,
-              failure: null,
-              attempt: 1,
-              retry_of: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                id: artifactId,
+                notebook_id: NB,
+                plugin_type: "data_table",
+                subtype: "default",
+                status: "Completed",
+                title: "Data Table",
+                params_json: {
+                  schema_id: "vendor_comparison",
+                  focus_prompt: "Compare pricing and SLA",
+                },
+                payload_json: payload,
+                source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
+                output_language: "en-US",
+                progress: null,
+                failure: null,
+                attempt: 1,
+                retry_of: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
         );
       }
       if (url.pathname.endsWith(`/artifacts/${artifactId}/export`) && method === "POST") {
-        return new Response("\uFEFFEntity,Pricing,SLA\r\n", {
-          status: 200,
-          headers: {
-            "content-type": reqBody.format === "csv" ? "text/csv; charset=utf-8" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "content-disposition": `attachment; filename="data-table.${reqBody.format}"`,
-          },
-        });
+        const format = reqBody?.format ?? "csv";
+        return Promise.resolve(
+          new Response("\uFEFFEntity,Pricing,SLA\r\n", {
+            status: 200,
+            headers: {
+              "content-type":
+                format === "csv"
+                  ? "text/csv; charset=utf-8"
+                  : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+              "content-disposition": `attachment; filename="data-table.${format}"`,
+            },
+          }),
+        );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
-    const openedCitations: { sourceId: string; chunkId: string }[] = [];
+    const openedCitations: Array<{ sourceId: string; chunkId: string }> = [];
     const panel: StudioPanel = createStudioPanel({
       notebookId: NB,
       fetcher,
@@ -237,7 +265,9 @@ describe("[011-studio-mindmaps-data-tables] T041: Studio Data Table tile, modal 
     schemaSelect.dispatchEvent({ type: "change" });
     generateBtn.click();
 
-    await vi.waitFor(() => expect(calls.some((c) => c.method === "POST" && c.path.endsWith("/artifacts"))).toBe(true));
+    await vi.waitFor(() =>
+      expect(calls.some((c) => c.method === "POST" && c.path.endsWith("/artifacts"))).toBe(true),
+    );
     const createCall = calls.find((c) => c.method === "POST" && c.path.endsWith("/artifacts"))!;
     expect(createCall.body).toMatchObject({
       plugin_type: "data_table",
@@ -290,6 +320,8 @@ describe("[011-studio-mindmaps-data-tables] review: Data Table schema options", 
   it("offers exactly the contract's schema IDs", async () => {
     const { DataTableSchemaIdSchema } = await import("@everlast/contracts");
     const { DATA_TABLE_SCHEMA_OPTIONS } = await import("../src/studio/panel.ts");
-    expect(DATA_TABLE_SCHEMA_OPTIONS.map((o: { value: string }) => o.value)).toEqual(DataTableSchemaIdSchema.options);
+    expect(DATA_TABLE_SCHEMA_OPTIONS.map((o: { value: string }) => o.value)).toEqual(
+      DataTableSchemaIdSchema.options,
+    );
   });
 });

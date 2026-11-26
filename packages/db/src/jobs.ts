@@ -22,13 +22,13 @@ export async function enqueueJob(
   db: Queryable,
   kind: JobKind,
   payload: Record<string, string>,
-  options: { delaySeconds?: number } = {}
+  options: { delaySeconds?: number } = {},
 ): Promise<string> {
   const id = randomUUID();
   await db.query(
     `INSERT INTO jobs (id, kind, payload, status, next_attempt_at)
      VALUES ($1, $2, $3, 'Pending', now() + make_interval(secs => $4))`,
-    [id, kind, JSON.stringify(payload), options.delaySeconds ?? 0]
+    [id, kind, JSON.stringify(payload), options.delaySeconds ?? 0],
   );
   return id;
 }
@@ -41,7 +41,7 @@ export async function claimDueJobs(
   db: Queryable,
   kinds: JobKind[],
   limit = 10,
-  staleAfterSeconds = 300
+  staleAfterSeconds = 300,
 ): Promise<JobRecord[]> {
   const result = await db.query<JobRecord>(
     `UPDATE jobs SET status = 'Running', attempts = attempts + 1, updated_at = now(),
@@ -55,7 +55,7 @@ export async function claimDueJobs(
        LIMIT $2
        FOR UPDATE SKIP LOCKED)
      RETURNING id, kind, payload, attempts`,
-    [kinds, limit, staleAfterSeconds]
+    [kinds, limit, staleAfterSeconds],
   );
   return result.rows;
 }
@@ -65,7 +65,12 @@ export async function completeJob(db: Queryable, jobId: string): Promise<void> {
 }
 
 /** Records a retryable failure with exponential backoff; gives up (Dead, operator-visible) after the cap. */
-export async function failJob(db: Queryable, jobId: string, errorCode: string, retryable = true): Promise<void> {
+export async function failJob(
+  db: Queryable,
+  jobId: string,
+  errorCode: string,
+  retryable = true,
+): Promise<void> {
   await db.query(
     `UPDATE jobs SET
        status = CASE WHEN $3::boolean AND attempts < $4 THEN 'Pending' ELSE 'Dead' END,
@@ -73,7 +78,7 @@ export async function failJob(db: Queryable, jobId: string, errorCode: string, r
        next_attempt_at = now() + make_interval(secs => least(600, power(2, attempts)::int)),
        updated_at = now()
      WHERE id = $1`,
-    [jobId, errorCode, retryable, MAX_JOB_ATTEMPTS]
+    [jobId, errorCode, retryable, MAX_JOB_ATTEMPTS],
   );
 }
 
@@ -83,7 +88,7 @@ export async function deferJob(db: Queryable, jobId: string, delaySeconds: numbe
     `UPDATE jobs SET status = 'Pending', attempts = greatest(attempts - 1, 0),
             next_attempt_at = now() + make_interval(secs => $2), updated_at = now()
      WHERE id = $1`,
-    [jobId, delaySeconds]
+    [jobId, delaySeconds],
   );
 }
 
@@ -91,7 +96,7 @@ export async function countPendingJobs(db: Queryable, kind?: JobKind): Promise<n
   const result = await db.query<{ count: number }>(
     `SELECT count(*)::int AS count FROM jobs WHERE status IN ('Pending', 'Running')
      AND ($1::text IS NULL OR kind = $1)`,
-    [kind ?? null]
+    [kind ?? null],
   );
-  return result.rows[0]!.count;
+  return result.rows[0]?.count ?? 0;
 }

@@ -12,7 +12,11 @@ import {
   makeStudioChunk,
   makeStudioSourceId,
 } from "@everlast/testkit/studio-structure-fixtures";
-import { DeterministicDataTableModel, type DataTableModelClient, type TableObservation } from "../src/studio/tables/model.ts";
+import {
+  DeterministicDataTableModel,
+  type DataTableModelClient,
+  type TableObservation,
+} from "../src/studio/tables/model.ts";
 import { generateDataTable } from "../src/studio/tables/pipeline.ts";
 import { validateDataTablePayload } from "../src/studio/tables/validation.ts";
 
@@ -67,20 +71,23 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
     }
 
     // Vendor Alpha pricing cell has state: "conflict", disagreement: true, and two individually cited values ($10/month and $12/month)
-    const alphaPricing = alphaRow!.cells["pricing"];
+    const alphaPricing = alphaRow!.cells.pricing;
     expect(alphaPricing).toBeDefined();
     expect(alphaPricing!.state).toBe("conflict");
     expect(alphaPricing!.disagreement).toBe(true);
     expect(alphaPricing!.values).toHaveLength(2);
     expect(alphaPricing!.values.map((v) => v.value)).toEqual(
-      expect.arrayContaining([expect.stringMatching(/\$10\/month/), expect.stringMatching(/\$12\/month/)])
+      expect.arrayContaining([
+        expect.stringMatching(/\$10\/month/),
+        expect.stringMatching(/\$12\/month/),
+      ]),
     );
     for (const val of alphaPricing!.values) {
       expect(val.citations.length).toBeGreaterThanOrEqual(1);
     }
 
     // Vendor Beta SLA cell is supported with 1 value and disagreement: false
-    const betaSla = betaRow!.cells["sla"];
+    const betaSla = betaRow!.cells.sla;
     expect(betaSla).toBeDefined();
     expect(betaSla!.state).toBe("supported");
     expect(betaSla!.disagreement).toBe(false);
@@ -88,7 +95,7 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
     expect(betaSla!.values[0]!.value).toContain("99.95%");
 
     // Vendor Gamma SLA cell is missing with literal "N/A (Not in sources)" and zero citations
-    const gammaSla = gammaRow!.cells["sla"];
+    const gammaSla = gammaRow!.cells.sla;
     expect(gammaSla).toBeDefined();
     expect(gammaSla!.state).toBe("missing");
     expect(gammaSla!.display_text).toBe(DATA_TABLE_MISSING_MARKER);
@@ -129,12 +136,12 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
     const chunk: UnifiedDocumentChunk = makeStudioChunk(
       4001,
       sourceId,
-      "Synthetic bounds test chunk with verified evidence snippet."
+      "Synthetic bounds test chunk with verified evidence snippet.",
     );
     const snapshot = [{ source_id: sourceId, revision: 1 }];
 
     const makeSizedModel = (rowsCount: number, colsCount: number): DataTableModelClient => ({
-      async extract() {
+      extract() {
         const obs: TableObservation[] = [];
         for (let r = 1; r <= rowsCount; r++) {
           for (let c = 1; c <= Math.min(colsCount, 2); c++) {
@@ -150,9 +157,9 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
             });
           }
         }
-        return obs;
+        return Promise.resolve(obs);
       },
-      async compose() {
+      compose() {
         const ref = {
           badge_number: 1,
           chunk_id: chunk.chunk_id,
@@ -160,11 +167,14 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
           revision: 1,
           snippet: "Synthetic bounds test chunk",
         };
-        const columns = Array.from({ length: Math.min(colsCount, DATA_TABLE_MAX_COLUMNS) }, (_, idx) => ({
-          id: `col_${idx + 1}`,
-          label: `Column ${idx + 1}`,
-          citations: [ref],
-        }));
+        const columns = Array.from(
+          { length: Math.min(colsCount, DATA_TABLE_MAX_COLUMNS) },
+          (_, idx) => ({
+            id: `col_${idx + 1}`,
+            label: `Column ${idx + 1}`,
+            citations: [ref],
+          }),
+        );
         const rows = Array.from({ length: Math.min(rowsCount, DATA_TABLE_MAX_ROWS) }, (_, idx) => ({
           item_id: `row_${idx + 1}`,
           item_label: `Item ${idx + 1}`,
@@ -185,10 +195,10 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
                     disagreement: false as const,
                     values: [],
                   },
-            ])
+            ]),
           ),
         }));
-        return {
+        return Promise.resolve({
           payload: {
             columns,
             rows,
@@ -196,7 +206,7 @@ describe("[011-studio-mindmaps-data-tables] T038: Data Table extraction, vendor 
           },
           rawRowCount: rowsCount,
           rawColumnCount: colsCount,
-        };
+        });
       },
     });
 

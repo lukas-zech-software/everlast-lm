@@ -16,16 +16,16 @@ export interface InfographicViewerOptions {
   artifactId: string;
   title: string;
   payload: StudioInfographicPayload;
-  onOpenCitation?(ref: StudioEvidenceRef): void;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onExport?(format: InfographicExportFormat): Promise<void> | void;
-  onClose?(): void;
+  onOpenCitation?: (ref: StudioEvidenceRef) => void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onExport?: (format: InfographicExportFormat) => Promise<void> | void;
+  onClose?: () => void;
   actions?: HTMLElement[];
 }
 
 export interface InfographicViewer {
   element: HTMLElement;
-  destroy(): void;
+  destroy: () => void;
 }
 
 const MIN_ZOOM = 40;
@@ -59,7 +59,7 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
     "data-testid": "infographic-zoom-out",
     "aria-label": "Zoom out",
     text: "−",
-  }) as HTMLButtonElement;
+  });
   const zoomValueEl = h("span", {
     class: "studio-infographic-zoom-val muted",
     "data-testid": "infographic-zoom-value",
@@ -71,20 +71,20 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
     "data-testid": "infographic-zoom-in",
     "aria-label": "Zoom in",
     text: "+",
-  }) as HTMLButtonElement;
+  });
   const zoomResetBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "infographic-zoom-reset",
     text: "Reset",
-  }) as HTMLButtonElement;
+  });
 
   const exportSvgBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "infographic-export-svg",
     text: "Export SVG",
-  }) as HTMLButtonElement;
+  });
   exportSvgBtn.addEventListener("click", () => {
     void options.onExport?.("svg");
   });
@@ -94,7 +94,7 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
     type: "button",
     "data-testid": "infographic-export-png",
     text: "Export PNG",
-  }) as HTMLButtonElement;
+  });
   exportPngBtn.addEventListener("click", () => {
     void options.onExport?.("png");
   });
@@ -103,7 +103,11 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
     "div",
     { class: "studio-viewer-head" },
     ...(closeBtn ? [closeBtn] : []),
-    h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }),
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
     h("span", { class: "studio-slide-layout-chip muted", text: payload.style }),
     aiLabel,
     h(
@@ -115,8 +119,8 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
       zoomResetBtn,
       exportSvgBtn,
       exportPngBtn,
-      ...(options.actions ?? [])
-    )
+      ...(options.actions ?? []),
+    ),
   );
 
   const stageInner = h("div", { class: "studio-infographic-stage-inner" });
@@ -130,13 +134,17 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
           "div",
           { class: "studio-infographic-fallback-card" },
           h("strong", { text: block.heading }),
-          h("p", { text: block.body })
-        )
+          h("p", { text: block.body }),
+        ),
       );
     }
   }
 
-  const canvasEl = h("div", { class: "studio-infographic-canvas", "data-testid": "infographic-canvas" }, stageInner);
+  const canvasEl = h(
+    "div",
+    { class: "studio-infographic-canvas", "data-testid": "infographic-canvas" },
+    stageInner,
+  );
 
   function applyZoom(): void {
     zoomValueEl.textContent = `${zoomPercent}%`;
@@ -176,7 +184,7 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
         options.onCitationClick?.(ref.source_id, ref.chunk_id);
       });
       return btn;
-    })
+    }),
   );
 
   applyZoom();
@@ -190,7 +198,7 @@ export function createInfographicViewer(options: InfographicViewerOptions): Info
     },
     headEl,
     canvasEl,
-    citationsEl
+    citationsEl,
   );
 
   return {

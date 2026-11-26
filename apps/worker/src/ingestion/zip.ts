@@ -19,7 +19,10 @@ export interface ZipLimits {
   maxEntries?: number;
 }
 
-export const DEFAULT_ZIP_LIMITS = { maxUncompressedBytes: 512 * 1024 * 1024, maxEntries: 20_000 } as const;
+export const DEFAULT_ZIP_LIMITS = {
+  maxUncompressedBytes: 512 * 1024 * 1024,
+  maxEntries: 20_000,
+} as const;
 
 export interface ZipEntryInfo {
   name: string;
@@ -50,10 +53,12 @@ export class ZipArchive {
     const count = buf.readUInt16LE(eocd + 10);
     const size = buf.readUInt32LE(eocd + 12);
     let offset = buf.readUInt32LE(eocd + 16);
-    if (count > (limits.maxEntries ?? DEFAULT_ZIP_LIMITS.maxEntries)) throw new ZipError("Too many ZIP entries");
+    if (count > (limits.maxEntries ?? DEFAULT_ZIP_LIMITS.maxEntries))
+      throw new ZipError("Too many ZIP entries");
     if (offset + size > buf.length) throw new ZipError("Truncated ZIP central directory");
     for (let i = 0; i < count; i++) {
-      if (offset + 46 > buf.length || buf.readUInt32LE(offset) !== 0x02014b50) throw new ZipError("Corrupt ZIP central directory");
+      if (offset + 46 > buf.length || buf.readUInt32LE(offset) !== 0x02014b50)
+        throw new ZipError("Corrupt ZIP central directory");
       const flags = buf.readUInt16LE(offset + 8);
       const nameLength = buf.readUInt16LE(offset + 28);
       const extraLength = buf.readUInt16LE(offset + 30);
@@ -81,25 +86,31 @@ export class ZipArchive {
     if (!entry) throw new ZipError(`Missing ZIP entry ${name}`);
     if (entry.encrypted) throw new ZipError("Encrypted ZIP entry");
     const local = entry.localOffset;
-    if (local + 30 > this.buf.length || this.buf.readUInt32LE(local) !== 0x04034b50) throw new ZipError("Corrupt ZIP local header");
-    const start = local + 30 + this.buf.readUInt16LE(local + 26) + this.buf.readUInt16LE(local + 28);
+    if (local + 30 > this.buf.length || this.buf.readUInt32LE(local) !== 0x04034b50)
+      throw new ZipError("Corrupt ZIP local header");
+    const start =
+      local + 30 + this.buf.readUInt16LE(local + 26) + this.buf.readUInt16LE(local + 28);
     const end = start + entry.compressedSize;
     if (end > this.buf.length) throw new ZipError("Truncated ZIP entry");
     const remaining = this.budget - this.inflated;
-    if (entry.uncompressedSize > remaining) throw new ZipError("ZIP expands beyond the allowed size");
+    if (entry.uncompressedSize > remaining)
+      throw new ZipError("ZIP expands beyond the allowed size");
     let data: Buffer;
     if (entry.method === 0) {
-      if (entry.compressedSize !== entry.uncompressedSize) throw new ZipError("ZIP stored size mismatch");
+      if (entry.compressedSize !== entry.uncompressedSize)
+        throw new ZipError("ZIP stored size mismatch");
       data = Buffer.from(this.buf.subarray(start, end));
-    }
-    else if (entry.method === 8) {
+    } else if (entry.method === 8) {
       try {
-        data = inflateRawSync(this.buf.subarray(start, end), { maxOutputLength: Math.max(1, entry.uncompressedSize) });
+        data = inflateRawSync(this.buf.subarray(start, end), {
+          maxOutputLength: Math.max(1, entry.uncompressedSize),
+        });
       } catch {
         throw new ZipError("ZIP expands beyond the allowed size or is corrupt");
       }
     } else throw new ZipError("Unsupported ZIP compression");
-    if (data.length !== entry.uncompressedSize || data.length > remaining) throw new ZipError("ZIP size mismatch");
+    if (data.length !== entry.uncompressedSize || data.length > remaining)
+      throw new ZipError("ZIP size mismatch");
     this.inflated += data.length;
     return data;
   }

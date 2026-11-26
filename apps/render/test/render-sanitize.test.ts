@@ -14,11 +14,14 @@ const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const REL = "http://schemas.openxmlformats.org/package/2006/relationships";
 const RT = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x30, 0x30]);
-const ROOT_RELS = { name: "_rels/.rels", data: `<Relationships xmlns="${REL}"><Relationship Id="r0" Type="${RT}/officeDocument" Target="word/document.xml"/></Relationships>` };
+const ROOT_RELS = {
+  name: "_rels/.rels",
+  data: `<Relationships xmlns="${REL}"><Relationship Id="r0" Type="${RT}/officeDocument" Target="word/document.xml"/></Relationships>`,
+};
 const TYPES = (extra = "") =>
   `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>${extra}</Types>`;
 
-function sanitized(entries: { name: string; data: string | Buffer }[]) {
+function sanitized(entries: Array<{ name: string; data: string | Buffer }>) {
   return readZipEntries(sanitizeOoxml(buildZip(entries)));
 }
 
@@ -41,12 +44,17 @@ describe("relationship sanitization is parser-based (NFR-SEC-02)", () => {
     ]);
     const kept = out.get("word/_rels/document.xml.rels")!.toString();
     expect(kept).toContain('Id="rE"');
-    for (const bad of ["rA", "rB", "rC", "rD", "passwd", "169.254", "/etc/hosts"]) expect(kept).not.toContain(bad);
+    for (const bad of ["rA", "rB", "rC", "rD", "passwd", "169.254", "/etc/hosts"])
+      expect(kept).not.toContain(bad);
   });
 
   it("SAN-02: field instructions are removed by namespace URI whatever the prefix; field results stay", () => {
     const doc = `<x:document xmlns:x="${W}"><x:body><x:p><x:r><x:instrText>DDEAUTO cmd "/c calc"</x:instrText></x:r><x:fldSimple x:instr='INCLUDETEXT "http://evil/x"'><x:r><x:t>Cached</x:t></x:r></x:fldSimple></x:p></x:body></x:document>`;
-    const out = sanitized([{ name: "[Content_Types].xml", data: TYPES() }, ROOT_RELS, { name: "word/document.xml", data: doc }]);
+    const out = sanitized([
+      { name: "[Content_Types].xml", data: TYPES() },
+      ROOT_RELS,
+      { name: "word/document.xml", data: doc },
+    ]);
     const text = out.get("word/document.xml")!.toString();
     expect(text).not.toMatch(/DDE|INCLUDETEXT|evil|instrText|fldSimple/);
     expect(text).toContain("Cached");
@@ -56,11 +64,22 @@ describe("relationship sanitization is parser-based (NFR-SEC-02)", () => {
 describe("parts are selected by content type, not file-name case (NFR-SEC-02)", () => {
   it("SAN-03: an upper-case .RELS part and a renamed XML part declared in [Content_Types] are still sanitized", () => {
     const out = sanitized([
-      { name: "[Content_Types].xml", data: TYPES(`<Override PartName="/word/custom.dat" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`) },
+      {
+        name: "[Content_Types].xml",
+        data: TYPES(
+          `<Override PartName="/word/custom.dat" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`,
+        ),
+      },
       ROOT_RELS,
-      { name: "word/_rels/document.xml.RELS", data: `<Relationships xmlns="${REL}"><Relationship Id="r1" Type="t" Target="http://evil/x" TargetMode="External"/><Relationship Id="r2" Type="${RT}/footer" Target="custom.dat"/></Relationships>` },
+      {
+        name: "word/_rels/document.xml.RELS",
+        data: `<Relationships xmlns="${REL}"><Relationship Id="r1" Type="t" Target="http://evil/x" TargetMode="External"/><Relationship Id="r2" Type="${RT}/footer" Target="custom.dat"/></Relationships>`,
+      },
       { name: "word/document.xml", data: `<w:document xmlns:w="${W}"><w:body/></w:document>` },
-      { name: "word/custom.dat", data: `<w:ftr xmlns:w="${W}"><w:p><w:r><w:instrText>INCLUDEPICTURE "http://evil/p.png"</w:instrText></w:r></w:p></w:ftr>` },
+      {
+        name: "word/custom.dat",
+        data: `<w:ftr xmlns:w="${W}"><w:p><w:r><w:instrText>INCLUDEPICTURE "http://evil/p.png"</w:instrText></w:r></w:p></w:ftr>`,
+      },
     ]);
     expect(out.get("word/_rels/document.xml.RELS")!.toString()).not.toContain("evil");
     expect(out.get("word/custom.dat")!.toString()).not.toContain("evil");
@@ -68,27 +87,59 @@ describe("parts are selected by content type, not file-name case (NFR-SEC-02)", 
 
   it("SAN-04: parts with missing or non-allowlisted content types are dropped", () => {
     const out = sanitized([
-      { name: "[Content_Types].xml", data: TYPES(`<Override PartName="/word/x.svg" ContentType="image/svg+xml"/><Override PartName="/word/ole.dat" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>`) },
+      {
+        name: "[Content_Types].xml",
+        data: TYPES(
+          `<Override PartName="/word/x.svg" ContentType="image/svg+xml"/><Override PartName="/word/ole.dat" ContentType="application/vnd.openxmlformats-officedocument.oleObject"/>`,
+        ),
+      },
       ROOT_RELS,
-      { name: "word/_rels/document.xml.rels", data: `<Relationships xmlns="${REL}"><Relationship Id="i1" Type="${RT}/image" Target="media/ok.png"/><Relationship Id="i2" Type="${RT}/image" Target="x.svg"/><Relationship Id="i3" Type="${RT}/oleObject" Target="ole.dat"/></Relationships>` },
+      {
+        name: "word/_rels/document.xml.rels",
+        data: `<Relationships xmlns="${REL}"><Relationship Id="i1" Type="${RT}/image" Target="media/ok.png"/><Relationship Id="i2" Type="${RT}/image" Target="x.svg"/><Relationship Id="i3" Type="${RT}/oleObject" Target="ole.dat"/></Relationships>`,
+      },
       { name: "word/document.xml", data: `<w:document xmlns:w="${W}"><w:body/></w:document>` },
-      { name: "word/x.svg", data: '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://evil/"/></svg>' },
+      {
+        name: "word/x.svg",
+        data: '<svg xmlns="http://www.w3.org/2000/svg"><image href="http://evil/"/></svg>',
+      },
       { name: "word/ole.dat", data: "OLE" },
       { name: "word/unknown.bin2", data: "???" },
       { name: "word/media/ok.png", data: PNG },
     ]);
-    expect([...out.keys()].sort()).toEqual(["[Content_Types].xml", "_rels/.rels", "word/_rels/document.xml.rels", "word/document.xml", "word/media/ok.png"]);
+    expect([...out.keys()].sort()).toEqual([
+      "[Content_Types].xml",
+      "_rels/.rels",
+      "word/_rels/document.xml.rels",
+      "word/document.xml",
+      "word/media/ok.png",
+    ]);
   });
 
   it("SAN-05: malformed XML in a sanitized part aborts the conversion instead of passing it through", () => {
-    expect(() => sanitized([{ name: "[Content_Types].xml", data: TYPES() }, ROOT_RELS, { name: "word/document.xml", data: "<w:document><w:body>" }])).toThrow();
+    expect(() =>
+      sanitized([
+        { name: "[Content_Types].xml", data: TYPES() },
+        ROOT_RELS,
+        { name: "word/document.xml", data: "<w:document><w:body>" },
+      ]),
+    ).toThrow();
   });
 });
 
 describe("round 3: relationships rebuilt, types allowlisted, magic bytes (NFR-SEC-02)", () => {
   it("SAN-08: a .rels root other than Relationships in the package namespace rejects the document", () => {
-    for (const data of [`<Relationships><Relationship Id="r0" Type="${RT}/officeDocument" Target="word/document.xml"/></Relationships>`, `<x:Rels xmlns:x="${REL}"/>`]) {
-      expect(() => sanitized([{ name: "[Content_Types].xml", data: TYPES() }, { name: "_rels/.rels", data }, { name: "word/document.xml", data: `<w:document xmlns:w="${W}"/>` }])).toThrow();
+    for (const data of [
+      `<Relationships><Relationship Id="r0" Type="${RT}/officeDocument" Target="word/document.xml"/></Relationships>`,
+      `<x:Rels xmlns:x="${REL}"/>`,
+    ]) {
+      expect(() =>
+        sanitized([
+          { name: "[Content_Types].xml", data: TYPES() },
+          { name: "_rels/.rels", data },
+          { name: "word/document.xml", data: `<w:document xmlns:w="${W}"/>` },
+        ]),
+      ).toThrow();
     }
   });
 
@@ -110,7 +161,12 @@ describe("round 3: relationships rebuilt, types allowlisted, magic bytes (NFR-SE
 
   it("SAN-10: relationship Types outside the allowlist and dangerous part names are dropped even with spoofed content types", () => {
     const out = sanitized([
-      { name: "[Content_Types].xml", data: TYPES(`<Override PartName="/word/embeddings/payload.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/word/fake.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`) },
+      {
+        name: "[Content_Types].xml",
+        data: TYPES(
+          `<Override PartName="/word/embeddings/payload.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/word/fake.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>`,
+        ),
+      },
       ROOT_RELS,
       {
         name: "word/_rels/document.xml.rels",
@@ -132,10 +188,16 @@ describe("round 3: relationships rebuilt, types allowlisted, magic bytes (NFR-SE
     const out = sanitized([
       { name: "[Content_Types].xml", data: TYPES() },
       ROOT_RELS,
-      { name: "word/_rels/document.xml.rels", data: `<Relationships xmlns="${REL}"><Relationship Id="i1" Type="${RT}/image" Target="media/real.png"/><Relationship Id="i2" Type="${RT}/image" Target="media/fake.png"/></Relationships>` },
+      {
+        name: "word/_rels/document.xml.rels",
+        data: `<Relationships xmlns="${REL}"><Relationship Id="i1" Type="${RT}/image" Target="media/real.png"/><Relationship Id="i2" Type="${RT}/image" Target="media/fake.png"/></Relationships>`,
+      },
       { name: "word/document.xml", data: `<w:document xmlns:w="${W}"/>` },
       { name: "word/media/real.png", data: PNG },
-      { name: "word/media/fake.png", data: '<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///etc/passwd"/></svg>' },
+      {
+        name: "word/media/fake.png",
+        data: '<svg xmlns="http://www.w3.org/2000/svg"><image href="file:///etc/passwd"/></svg>',
+      },
     ]);
     expect(out.has("word/media/real.png")).toBe(true);
     expect(out.has("word/media/fake.png")).toBe(false);
@@ -144,7 +206,11 @@ describe("round 3: relationships rebuilt, types allowlisted, magic bytes (NFR-SE
 });
 
 describe("strict zip reader (zip bombs, NFR-SEC-02)", () => {
-  const archive = () => buildZip([{ name: "a.xml", data: "x".repeat(1000) }, { name: "b.xml", data: "y".repeat(1000) }]);
+  const archive = () =>
+    buildZip([
+      { name: "a.xml", data: "x".repeat(1000) },
+      { name: "b.xml", data: "y".repeat(1000) },
+    ]);
 
   it("SAN-06: the uncompressed budget is checked before inflating and counts stored entries", () => {
     expect(() => readZipEntries(archive(), { maxUncompressed: 1500 })).toThrow(/budget/i);

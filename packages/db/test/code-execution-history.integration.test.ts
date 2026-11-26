@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { chartUrl, uuidv7, type CodeExecutionTrace } from "@everlast/contracts";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "../src/testing.ts";
 import { createNotebook, deleteNotebook } from "../src/notebooks.ts";
 import { captureScopeSnapshot } from "../src/scope-guard.ts";
 import {
@@ -29,7 +34,12 @@ import {
   deleteSource,
   requestSourceSync,
 } from "../src/source-sync.ts";
-import { saveMessageFeedback, saveMessageFollowUps, getMessageFeedback, getMessageFollowUps } from "../src/package-v2-2.ts";
+import {
+  saveMessageFeedback,
+  saveMessageFollowUps,
+  getMessageFeedback,
+  getMessageFollowUps,
+} from "../src/package-v2-2.ts";
 import { configureChatMessageReader } from "../src/poc-bridge.ts";
 import { runWithV2Persistence } from "../src/v2-persistence.ts";
 
@@ -40,12 +50,14 @@ import { runWithV2Persistence } from "../src/v2-persistence.ts";
  */
 
 let db: TestDatabase;
+let dropDb: (() => Promise<void>) | undefined;
 let owner: string;
 const vec = Array.from({ length: 768 }, (_, i) => (i === 0 ? 1 : 0));
-const embed = async (texts: string[]) => texts.map(() => vec);
+const embed = (texts: string[]): Promise<number[][]> => Promise.resolve(texts.map(() => vec));
 
 beforeAll(async () => {
   db = await createTestDatabase();
+  dropDb = () => db.drop();
   owner = await createTestUser(db.pool);
   configureChatMessageReader(async (notebookId, userId) => {
     const thread = await getOrCreateThread(db.pool, userId, notebookId);
@@ -78,14 +90,25 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await dropDb?.();
 });
 
 async function setupTwoSources(user = owner) {
   const notebookId = (await createNotebook(db.pool, user, {})).notebook.id;
-  const s1 = await seedReadySource(db.pool, user, notebookId, { title: "Latency2025.pdf", pages: ["Jan 2025: 1 ms"], embed });
-  const s2 = await seedReadySource(db.pool, user, notebookId, { title: "RND2025.pdf", pages: ["R&D spend 2025: $1.2B"], embed });
-  const snapshot = await captureScopeSnapshot(db.pool, user, notebookId, [s1.sourceId, s2.sourceId]);
+  const s1 = await seedReadySource(db.pool, user, notebookId, {
+    title: "Latency2025.pdf",
+    pages: ["Jan 2025: 1 ms"],
+    embed,
+  });
+  const s2 = await seedReadySource(db.pool, user, notebookId, {
+    title: "RND2025.pdf",
+    pages: ["R&D spend 2025: $1.2B"],
+    embed,
+  });
+  const snapshot = await captureScopeSnapshot(db.pool, user, notebookId, [
+    s1.sourceId,
+    s2.sourceId,
+  ]);
   const thread = await getOrCreateThread(db.pool, user, notebookId);
   return { notebookId, s1, s2, snapshot, thread };
 }
@@ -236,7 +259,14 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
       answer: {
         kind: "answer",
         content: "Ordinary answer[[1]].",
-        citations: [{ badge_number: 1, source_id: ctx.s1.sourceId, chunk_id: ctx.s1.chunkIds[0]!, revision: 1 }],
+        citations: [
+          {
+            badge_number: 1,
+            source_id: ctx.s1.sourceId,
+            chunk_id: ctx.s1.chunkIds[0]!,
+            revision: 1,
+          },
+        ],
       },
     });
     // 2. Clarification turn
@@ -257,9 +287,13 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
 
     const reloaded = visible[5]!;
     expect(reloaded.id).toBe(computed.messageId);
-    expect(reloaded.content).toBe("Population standard deviation: 3.452052529534663 ms (Computed)[[1]][[2]]");
+    expect(reloaded.content).toBe(
+      "Population standard deviation: 3.452052529534663 ms (Computed)[[1]][[2]]",
+    );
     expect(reloaded.code_execution_trace).toEqual(computed.trace);
-    expect(reloaded.code_execution_trace!.attempts.map((a) => [a.ordinal, a.terminal_reason])).toEqual([
+    expect(
+      reloaded.code_execution_trace!.attempts.map((a) => [a.ordinal, a.terminal_reason]),
+    ).toEqual([
       [1, "PythonException"],
       [2, "Succeeded"],
     ]);
@@ -267,7 +301,7 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
     // Only the final attempt's chart is published; the failed attempt's candidate is invalidated.
     const chartStates = await db.pool.query<{ id: string; state: string }>(
       "SELECT id, state FROM chart_artifacts WHERE execution_id = $1",
-      [computed.exec.executionId]
+      [computed.exec.executionId],
     );
     const byId = new Map(chartStates.rows.map((r) => [r.id, r.state]));
     expect(byId.get(computed.artifactId)).toBe("published");
@@ -279,7 +313,10 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
     const computed = await publishComputedTurn(ctx);
 
     // Re-sync s1 to revision 2.
-    await db.pool.query("UPDATE sources SET link_kind = 'web', external_url = 'https://example.test/s1' WHERE id = $1", [ctx.s1.sourceId]);
+    await db.pool.query(
+      "UPDATE sources SET link_kind = 'web', external_url = 'https://example.test/s1' WHERE id = $1",
+      [ctx.s1.sourceId],
+    );
     const { operation } = await requestSourceSync(db.pool, owner, ctx.notebookId, ctx.s1.sourceId, {
       attemptId: randomUUID(),
       trigger: "manual",
@@ -334,7 +371,9 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
     expect(cit2.locator).not.toBeNull();
 
     // Chart provenance remains available for authorized viewers after re-sync, and invalidateChartsOfUnavailableSources leaves it published.
-    expect(await chartProvenanceAvailable(db.pool, ctx.notebookId, ctx.snapshot.sources)).toBe(true);
+    expect(await chartProvenanceAvailable(db.pool, ctx.notebookId, ctx.snapshot.sources)).toBe(
+      true,
+    );
     await invalidateChartsOfUnavailableSources(db.pool);
     const published = await findPublishedChart(db.pool, {
       ownerId: owner,
@@ -376,16 +415,21 @@ describe("T033 history persistence, reload fidelity and provenance projection (F
     expect(await searchThread(db.pool, owner, ctx.notebookId, "Computed")).toEqual([]);
 
     // Chart provenance is immediately false and the chart row is synchronously marked invalidated by deleteSource.
-    expect(await chartProvenanceAvailable(db.pool, ctx.notebookId, ctx.snapshot.sources)).toBe(false);
+    expect(await chartProvenanceAvailable(db.pool, ctx.notebookId, ctx.snapshot.sources)).toBe(
+      false,
+    );
     expect(
       await findPublishedChart(db.pool, {
         ownerId: owner,
         notebookId: ctx.notebookId,
         messageId: computed.messageId,
         artifactId: computed.artifactId,
-      })
+      }),
     ).toBeNull();
-    const stateRow = await db.pool.query<{ state: string }>("SELECT state FROM chart_artifacts WHERE id = $1", [computed.artifactId]);
+    const stateRow = await db.pool.query<{ state: string }>(
+      "SELECT state FROM chart_artifacts WHERE id = $1",
+      [computed.artifactId],
+    );
     expect(stateRow.rows[0]?.state).toBe("invalidated");
   });
 });
@@ -407,7 +451,9 @@ describe("T033 clear-chat hygiene, notebook deletion cascade, and app-pool isola
         user_id: owner,
         message_id: computed.messageId,
         followups: {
-          suggested_followups: [{ text: "Follow-up 1?", supporting_chunk_ids: [ctx.s1.chunkIds[0]!] }],
+          suggested_followups: [
+            { text: "Follow-up 1?", supporting_chunk_ids: [ctx.s1.chunkIds[0]!] },
+          ],
           source_revisions: ctx.snapshot.sources,
           output_language: "en-US",
           generated_at: new Date().toISOString(),
@@ -418,14 +464,27 @@ describe("T033 clear-chat hygiene, notebook deletion cascade, and app-pool isola
     const { generation_epoch } = await clearThread(db.pool, owner, ctx.notebookId);
     expect(generation_epoch).toBe(ctx.thread.generation_epoch + 1);
     expect(await listThreadMessages(db.pool, ctx.thread.id)).toEqual([]);
-    expect((await db.pool.query("SELECT count(*)::int AS n FROM code_executions WHERE thread_id = $1", [ctx.thread.id])).rows[0].n).toBe(0);
     expect(
-      (await db.pool.query("SELECT state FROM chart_artifacts WHERE id = $1", [computed.artifactId])).rows[0].state
+      (
+        await db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM code_executions WHERE thread_id = $1",
+          [ctx.thread.id],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
+    expect(
+      (
+        await db.pool.query<{ state: string }>("SELECT state FROM chart_artifacts WHERE id = $1", [
+          computed.artifactId,
+        ])
+      ).rows[0]?.state,
     ).toBe("invalidated");
 
     await runWithV2Persistence(db.pool, async () => {
       expect(await getMessageFeedback(ctx.notebookId, owner, computed.messageId)).toBeNull();
-      expect(await getMessageFollowUps(ctx.notebookId, owner, computed.messageId, "en-US")).toBeNull();
+      expect(
+        await getMessageFollowUps(ctx.notebookId, owner, computed.messageId, "en-US"),
+      ).toBeNull();
     });
   });
 
@@ -433,15 +492,51 @@ describe("T033 clear-chat hygiene, notebook deletion cascade, and app-pool isola
     const ctx = await setupTwoSources();
     const computed = await publishComputedTurn(ctx);
     const attemptId = randomUUID();
-    await registerSandbox(db.pool, { attemptId, executionId: computed.exec.executionId, notebookId: ctx.notebookId });
-    await markSandboxActive(db.pool, attemptId, "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/nb-del");
+    await registerSandbox(db.pool, {
+      attemptId,
+      executionId: computed.exec.executionId,
+      notebookId: ctx.notebookId,
+    });
+    await markSandboxActive(
+      db.pool,
+      attemptId,
+      "projects/p/locations/europe-west4/reasoningEngines/1/sandboxEnvironments/nb-del",
+    );
 
     await deleteNotebook(db.pool, owner, ctx.notebookId);
 
-    expect((await db.pool.query("SELECT count(*)::int AS n FROM chat_threads WHERE notebook_id = $1", [ctx.notebookId])).rows[0].n).toBe(0);
-    expect((await db.pool.query("SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1", [ctx.notebookId])).rows[0].n).toBe(0);
-    expect((await db.pool.query("SELECT count(*)::int AS n FROM code_executions WHERE notebook_id = $1", [ctx.notebookId])).rows[0].n).toBe(0);
-    expect((await db.pool.query("SELECT count(*)::int AS n FROM chart_artifacts WHERE notebook_id = $1", [ctx.notebookId])).rows[0].n).toBe(0);
+    expect(
+      (
+        await db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM chat_threads WHERE notebook_id = $1",
+          [ctx.notebookId],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
+    expect(
+      (
+        await db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1",
+          [ctx.notebookId],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
+    expect(
+      (
+        await db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM code_executions WHERE notebook_id = $1",
+          [ctx.notebookId],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
+    expect(
+      (
+        await db.pool.query<{ n: number }>(
+          "SELECT count(*)::int AS n FROM chart_artifacts WHERE notebook_id = $1",
+          [ctx.notebookId],
+        )
+      ).rows[0]?.n,
+    ).toBe(0);
     // Sandbox ledger has no FK cascade to notebooks/code_executions so reconciler can destroy the remote sandbox.
     const open = await listSandboxesToDestroy(db.pool, { minAgeMs: 0 });
     expect(open.find((s) => s.attempt_id === attemptId)).toMatchObject({
@@ -466,7 +561,7 @@ describe("T033 clear-chat hygiene, notebook deletion cascade, and app-pool isola
           notebookId: ctx.notebookId,
           messageId: computed.messageId,
           artifactId: computed.artifactId,
-        })
+        }),
       ).toBeNull();
     } finally {
       await otherDb.drop();

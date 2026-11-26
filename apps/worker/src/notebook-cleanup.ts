@@ -25,7 +25,10 @@ export interface CleanupDeps {
   now?: () => Date;
 }
 
-async function purgeAll(storage: ObjectStorage, prefix: string): Promise<{ deleted: number; retained: number }> {
+async function purgeAll(
+  storage: ObjectStorage,
+  prefix: string,
+): Promise<{ deleted: number; retained: number }> {
   let deleted = 0;
   let retained = 0;
   for (const version of await storage.listVersions(prefix)) {
@@ -44,7 +47,10 @@ async function purgeAll(storage: ObjectStorage, prefix: string): Promise<{ delet
   return { deleted, retained };
 }
 
-export async function processNotebookCleanup(deps: CleanupDeps, deletionId: string): Promise<CleanupOutcome> {
+export async function processNotebookCleanup(
+  deps: CleanupDeps,
+  deletionId: string,
+): Promise<CleanupOutcome> {
   const operation = await getCleanupOperation(deps.pool, deletionId);
   if (!operation) return { status: "missing" };
   if (operation.status === "Purged") return { status: "purged", deleted: 0 };
@@ -64,7 +70,11 @@ export async function processNotebookCleanup(deps: CleanupDeps, deletionId: stri
     if (now < quiescentAt) {
       // Signed upload capabilities may still land objects; stay Pending and sweep again after expiry.
       await markCleanupRetry(deps.pool, deletionId, "AwaitingUploadExpiry");
-      return { status: "deferred", retryAfterSeconds: Math.ceil((quiescentAt.getTime() - now.getTime()) / 1000) + 1, deleted };
+      return {
+        status: "deferred",
+        retryAfterSeconds: Math.ceil((quiescentAt.getTime() - now.getTime()) / 1000) + 1,
+        deleted,
+      };
     }
 
     const final = await purgeAll(deps.storage, operation.object_prefix);
@@ -77,7 +87,9 @@ export async function processNotebookCleanup(deps: CleanupDeps, deletionId: stri
     await markCleanupPurged(deps.pool, deletionId);
     return { status: "purged", deleted };
   } catch (err) {
-    const errorCode = (err as { code?: string | number }).code ? `Storage${(err as { code: string | number }).code}` : "StorageError";
+    const errorCode = (err as { code?: string | number }).code
+      ? `Storage${(err as { code: string | number }).code}`
+      : "StorageError";
     await markCleanupRetry(deps.pool, deletionId, errorCode);
     return { status: "retry", errorCode, deleted };
   }

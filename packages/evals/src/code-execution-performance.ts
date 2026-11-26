@@ -70,7 +70,10 @@ export interface CohortBenchmarkResult {
   runningCodeP95Ms: number | null;
   bootExecutionSamplesMs: number[];
   bootExecutionP95Ms: number | null;
-  failedSamples: { sampleIndex: number; outcome: CodeExecutionBenchmarkObservation["outcome"] }[];
+  failedSamples: Array<{
+    sampleIndex: number;
+    outcome: CodeExecutionBenchmarkObservation["outcome"];
+  }>;
   retrySummary: {
     retriedSampleCount: number;
     totalExtraAttempts: number;
@@ -93,93 +96,211 @@ export interface CodeExecutionBenchmarkReport {
 }
 
 export function nearestRankP95(samples: number[]): number {
-  if (samples.length === 0) throw new Error("No samples provided for nearest-rank P95");
+  if (samples.length === 0) {
+    throw new Error("No samples provided for nearest-rank P95");
+  }
   const sorted = [...samples].sort((a, b) => a - b);
-  return sorted[Math.ceil(0.95 * sorted.length) - 1]!;
+  const value = sorted[Math.ceil(0.95 * sorted.length) - 1];
+  if (value === undefined) {
+    throw new Error("No samples provided for nearest-rank P95");
+  }
+  return value;
 }
 
-export function validateCodeExecutionPlan(plan: CodeExecutionBenchmarkPlan): true {
-  if (!plan?.fixture?.id || !Number.isInteger(plan.fixture.version) || plan.fixture.version < 1 || !plan.fixture.question) {
+const EXPECTED_COHORT_SPEC: Record<CohortName, { warm: boolean; concurrency: number }> = {
+  cold_1u: { warm: false, concurrency: 1 },
+  warm_1u: { warm: true, concurrency: 1 },
+  cold_2u: { warm: false, concurrency: 2 },
+  warm_2u: { warm: true, concurrency: 2 },
+};
+
+function validatePlanCohorts(
+  cohorts: Partial<Record<CohortName, CohortDeclaration>> | undefined,
+): void {
+  if (Object.keys(cohorts ?? {}).some((name) => !COHORT_NAMES.includes(name as CohortName))) {
+    throw new Error("Plan contains an undeclared cohort");
+  }
+  for (const name of COHORT_NAMES) {
+    const decl = cohorts?.[name];
+    if (
+      !decl ||
+      !Number.isSafeInteger(decl.repetitions) ||
+      decl.repetitions < DEFAULT_COHORT_REPETITIONS
+    ) {
+      throw new Error(
+        `Cohort ${name} must declare an integer repetitions count of at least ${DEFAULT_COHORT_REPETITIONS}`,
+      );
+    }
+    const spec = EXPECTED_COHORT_SPEC[name];
+    if (decl.warm !== spec.warm || decl.concurrency !== spec.concurrency) {
+      throw new Error(
+        `Cohort ${name} must match warm=${spec.warm} and concurrency=${spec.concurrency}`,
+      );
+    }
+  }
+}
+
+function validatePlanFields(plan: Partial<CodeExecutionBenchmarkPlan> | undefined): void {
+  if (
+    !plan?.fixture?.id ||
+    !Number.isInteger(plan.fixture.version) ||
+    plan.fixture.version < 1 ||
+    !plan.fixture.question
+  ) {
     throw new Error("Plan must declare fixture id, version and question");
   }
   if (!/^[0-9a-f]{64}$/.test(plan.fixture.sha256)) {
     throw new Error("Plan must declare a 64-hex fixture sha256");
   }
-  if (plan.provider?.service !== "aiplatform.googleapis.com/AgentEngineSandbox" || plan.provider.region !== "europe-west4" ||
-      plan.provider.cpu !== "2 vCPU" || plan.provider.memory !== "1.5 GB") {
-    throw new Error("Plan provider must match the accepted AgentEngineSandbox europe-west4 2 vCPU / 1.5 GB profile");
+  if (
+    plan.provider?.service !== "aiplatform.googleapis.com/AgentEngineSandbox" ||
+    plan.provider.region !== "europe-west4" ||
+    plan.provider.cpu !== "2 vCPU" ||
+    plan.provider.memory !== "1.5 GB"
+  ) {
+    throw new Error(
+      "Plan provider must match the accepted AgentEngineSandbox europe-west4 2 vCPU / 1.5 GB profile",
+    );
   }
   if (!plan.environment || !plan.declaredAt) {
     throw new Error("Plan must declare environment and declaredAt timestamp");
   }
   timestamp(plan.declaredAt, "Plan declaredAt");
-  if (Object.keys(plan.cohorts ?? {}).some((name) => !COHORT_NAMES.includes(name as CohortName))) {
-    throw new Error("Plan contains an undeclared cohort");
-  }
-  const expectedSpec: Record<CohortName, { warm: boolean; concurrency: number }> = {
-    cold_1u: { warm: false, concurrency: 1 },
-    warm_1u: { warm: true, concurrency: 1 },
-    cold_2u: { warm: false, concurrency: 2 },
-    warm_2u: { warm: true, concurrency: 2 },
-  };
-  for (const name of COHORT_NAMES) {
-    const decl = plan.cohorts?.[name];
-    if (!decl || !Number.isSafeInteger(decl.repetitions) || decl.repetitions < DEFAULT_COHORT_REPETITIONS) {
-      throw new Error(`Cohort ${name} must declare an integer repetitions count of at least ${DEFAULT_COHORT_REPETITIONS}`);
-    }
-    const spec = expectedSpec[name];
-    if (decl.warm !== spec.warm || decl.concurrency !== spec.concurrency) {
-      throw new Error(`Cohort ${name} must match warm=${spec.warm} and concurrency=${spec.concurrency}`);
-    }
-  }
+  validatePlanCohorts(plan.cohorts);
+}
+
+export function validateCodeExecutionPlan(plan: CodeExecutionBenchmarkPlan): true {
+  validatePlanFields(plan);
   return true;
 }
 
 /** FR-GC-08/NFR-PERF-01: never derive passing timings from malformed or post-hoc evidence. */
 function timestamp(value: string, label: string): number {
   const ms = Date.parse(value);
-  if (typeof value !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value) ||
-      !Number.isFinite(ms) || new Date(ms).toISOString() !== value) {
+  if (
+    typeof value !== "string" ||
+    !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value) ||
+    !Number.isFinite(ms) ||
+    new Date(ms).toISOString() !== value
+  ) {
     throw new Error(`${label} must be a valid UTC timestamp (YYYY-MM-DDTHH:mm:ss.sssZ)`);
   }
   return ms;
 }
 
-function validateObservations(plan: CodeExecutionBenchmarkPlan, observations: CodeExecutionBenchmarkObservation[]): void {
-  if (!Array.isArray(observations)) throw new Error("Observations must be an array of cohort samples");
+const OBSERVATION_CHRONOLOGY_KEYS = [
+  "sandboxCreatedAt",
+  "runningCodeAt",
+  "executionCompletedAt",
+  "answerPublishedAt",
+] as const;
+
+function hasValidRetryMetadata(item: CodeExecutionBenchmarkObservation): boolean {
+  if (item.attempts < 2) {
+    return item.retryEndToEndMs === null;
+  }
+  if (item.retryEndToEndMs === null) {
+    return item.outcome !== "succeeded";
+  }
+  return (
+    typeof item.retryEndToEndMs === "number" &&
+    Number.isFinite(item.retryEndToEndMs) &&
+    item.retryEndToEndMs >= 0
+  );
+}
+
+function validateObservationChronology(
+  plan: CodeExecutionBenchmarkPlan,
+  item: CodeExecutionBenchmarkObservation,
+  identity: string,
+): void {
+  let previous = timestamp(item.submittedAt, `Sample ${identity} submittedAt`);
+  if (previous < timestamp(plan.declaredAt, "Plan declaredAt")) {
+    throw new Error(`Sample ${identity} precedes its plan declaration`);
+  }
+  // Creation is the creation-request boundary; running_code is emitted after creation, before completion.
+  for (const key of OBSERVATION_CHRONOLOGY_KEYS) {
+    const value = item[key];
+    if (value === null && item.outcome !== "succeeded") {
+      continue;
+    }
+    if (value === null) {
+      throw new Error(`Successful sample ${identity} requires all event timestamps`);
+    }
+    const current = timestamp(value, `Sample ${identity} ${key}`);
+    if (current < previous) {
+      throw new Error(`Sample ${identity} has invalid event chronology at ${key}`);
+    }
+    previous = current;
+  }
+}
+
+function validateSingleObservation(
+  plan: CodeExecutionBenchmarkPlan,
+  item: CodeExecutionBenchmarkObservation | undefined,
+  seen: Set<string>,
+): void {
+  if (!item || !COHORT_NAMES.includes(item.cohort)) {
+    throw new Error("Observation has an undeclared cohort");
+  }
+  if (
+    !Number.isSafeInteger(item.sampleIndex) ||
+    item.sampleIndex < 1 ||
+    item.sampleIndex > plan.cohorts[item.cohort].repetitions
+  ) {
+    throw new Error(`Cohort ${item.cohort} sampleIndex is outside its declared range`);
+  }
+  const identity = `${item.cohort}:${item.sampleIndex}`;
+  if (seen.has(identity)) {
+    throw new Error(`Duplicate cohort sample ${identity}`);
+  }
+  seen.add(identity);
+  if (!["succeeded", "failed", "timed_out", "unfinished"].includes(item.outcome)) {
+    throw new Error(`Sample ${identity} has an invalid outcome`);
+  }
+  if (![0, 1, 2].includes(item.attempts) || (item.outcome === "succeeded" && item.attempts === 0)) {
+    throw new Error(`Sample ${identity} has invalid actual attempt count`);
+  }
+  if (
+    item.clientRunningCodeMs !== undefined &&
+    (!Number.isFinite(item.clientRunningCodeMs) || item.clientRunningCodeMs < 0)
+  ) {
+    throw new Error(`Sample ${identity} has invalid client status timing`);
+  }
+  if (!hasValidRetryMetadata(item)) {
+    throw new Error(`Sample ${identity} has invalid retry metadata`);
+  }
+  validateObservationChronology(plan, item, identity);
+}
+
+function validateObservations(
+  plan: CodeExecutionBenchmarkPlan,
+  observations: CodeExecutionBenchmarkObservation[],
+): void {
+  if (!Array.isArray(observations)) {
+    throw new Error("Observations must be an array of cohort samples");
+  }
   const seen = new Set<string>();
   for (const item of observations) {
-    if (!item || !COHORT_NAMES.includes(item.cohort)) throw new Error("Observation has an undeclared cohort");
-    if (!Number.isSafeInteger(item.sampleIndex) || item.sampleIndex < 1 || item.sampleIndex > plan.cohorts[item.cohort].repetitions) {
-      throw new Error(`Cohort ${item.cohort} sampleIndex is outside its declared range`);
-    }
-    const identity = `${item.cohort}:${item.sampleIndex}`;
-    if (seen.has(identity)) throw new Error(`Duplicate cohort sample ${identity}`);
-    seen.add(identity);
-    if (!["succeeded", "failed", "timed_out", "unfinished"].includes(item.outcome)) throw new Error(`Sample ${identity} has an invalid outcome`);
-    if (![0,1,2].includes(item.attempts) || (item.outcome === "succeeded" && item.attempts === 0)) throw new Error(`Sample ${identity} has invalid actual attempt count`);
-    if (item.clientRunningCodeMs !== undefined && (!Number.isFinite(item.clientRunningCodeMs) || item.clientRunningCodeMs < 0)) throw new Error(`Sample ${identity} has invalid client status timing`);
-    if ((item.attempts === 2 && !((item.retryEndToEndMs === null && item.outcome !== "succeeded") || (typeof item.retryEndToEndMs === "number" && Number.isFinite(item.retryEndToEndMs) && item.retryEndToEndMs >= 0))) ||
-        (item.attempts < 2 && item.retryEndToEndMs !== null)) {
-      throw new Error(`Sample ${identity} has invalid retry metadata`);
-    }
-    let previous = timestamp(item.submittedAt, `Sample ${identity} submittedAt`);
-    if (previous < timestamp(plan.declaredAt, "Plan declaredAt")) throw new Error(`Sample ${identity} precedes its plan declaration`);
-    // Creation is the creation-request boundary; running_code is emitted after creation, before completion.
-    for (const key of ["sandboxCreatedAt", "runningCodeAt", "executionCompletedAt", "answerPublishedAt"] as const) {
-      const value = item[key];
-      if (value === null && item.outcome !== "succeeded") continue;
-      if (value === null) throw new Error(`Successful sample ${identity} requires all event timestamps`);
-      const current = timestamp(value, `Sample ${identity} ${key}`);
-      if (current < previous) throw new Error(`Sample ${identity} has invalid event chronology at ${key}`);
-      previous = current;
-    }
+    validateSingleObservation(plan, item, seen);
   }
+}
+
+function resolveOverallReportStatus(
+  statuses: ReadonlySet<"PASS" | "FAIL" | "UNAVAILABLE">,
+): "PASS" | "FAIL" | "UNAVAILABLE" {
+  if (statuses.has("FAIL")) {
+    return "FAIL";
+  }
+  if (statuses.has("UNAVAILABLE")) {
+    return "UNAVAILABLE";
+  }
+  return "PASS";
 }
 
 export function evaluateCodeExecutionBenchmark(
   plan: CodeExecutionBenchmarkPlan,
-  observations: CodeExecutionBenchmarkObservation[]
+  observations: CodeExecutionBenchmarkObservation[],
 ): CodeExecutionBenchmarkReport {
   validateCodeExecutionPlan(plan);
   validateObservations(plan, observations);
@@ -189,7 +310,13 @@ export function evaluateCodeExecutionBenchmark(
     const decl = plan.cohorts[name];
     const items = observations.filter((o) => o.cohort === name);
     const failedSamples = items
-      .filter((o) => o.outcome !== "succeeded" || !o.sandboxCreatedAt || !o.executionCompletedAt || !o.runningCodeAt)
+      .filter(
+        (o) =>
+          o.outcome !== "succeeded" ||
+          !o.sandboxCreatedAt ||
+          !o.executionCompletedAt ||
+          !o.runningCodeAt,
+      )
       .map((o) => ({ sampleIndex: o.sampleIndex, outcome: o.outcome }));
 
     if (items.length !== decl.repetitions) {
@@ -219,7 +346,8 @@ export function evaluateCodeExecutionBenchmark(
     });
 
     const bootExecutionSamplesMs = items.map((o) => {
-      if (o.outcome !== "succeeded" || !o.sandboxCreatedAt || !o.executionCompletedAt) return Infinity;
+      if (o.outcome !== "succeeded" || !o.sandboxCreatedAt || !o.executionCompletedAt)
+        return Infinity;
       const ms = Date.parse(o.executionCompletedAt) - Date.parse(o.sandboxCreatedAt);
       return Number.isFinite(ms) && ms >= 0 ? ms : Infinity;
     });
@@ -256,12 +384,8 @@ export function evaluateCodeExecutionBenchmark(
     };
   }
 
-  const statuses = COHORT_NAMES.map((c) => cohorts[c].status);
-  const status: "PASS" | "FAIL" | "UNAVAILABLE" = statuses.includes("FAIL")
-    ? "FAIL"
-    : statuses.includes("UNAVAILABLE")
-      ? "UNAVAILABLE"
-      : "PASS";
+  const statuses = new Set(COHORT_NAMES.map((c) => cohorts[c].status));
+  const status = resolveOverallReportStatus(statuses);
 
   return {
     plan,

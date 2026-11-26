@@ -1,4 +1,4 @@
-import type { UnifiedDocumentChunk } from "@everlast/contracts";
+import type { SourceGuide, UnifiedDocumentChunk } from "@everlast/contracts";
 
 /**
  * Grounding instruction and request payload (FR-GC-01, FR-GC-02). Non-overridable guardrails: answer only from
@@ -41,7 +41,13 @@ export const CODE_CORRECTION_INSTRUCTION = `You fix Python code that failed in a
 3. Use only math, statistics, numpy, pandas, scipy and matplotlib (plt.savefig('chart_1.png')); no network, no other files, no installation.
 4. Keep or add # comments that explain any unit normalization.`;
 
-export function buildCorrectionPayload(input: { question: string; intent: string; values: { label: string; value: string; unit: string | null; chunk_id: string }[]; failedCode: string; stderr: string }): string {
+export function buildCorrectionPayload(input: {
+  question: string;
+  intent: string;
+  values: Array<{ label: string; value: string; unit: string | null; chunk_id: string }>;
+  failedCode: string;
+  stderr: string;
+}): string {
   return [
     "QUESTION:",
     input.question,
@@ -80,28 +86,33 @@ export interface ResponsePreferences {
 export function preferenceLines(preferences?: ResponsePreferences): string[] {
   if (!preferences) return [];
   const lines: string[] = [];
-  if (preferences.style === "learning_guide") lines.push("Explain in a clear, learning-oriented style.");
+  if (preferences.style === "learning_guide")
+    lines.push("Explain in a clear, learning-oriented style.");
   if (preferences.style === "analyst") lines.push("Organize the supported analysis clearly.");
   if (preferences.style === "custom" && preferences.custom_instructions) {
-    lines.push(`User style preference (form only): ${preferences.custom_instructions.replace(/\s+/g, " ").slice(0, 5000)}`);
+    lines.push(
+      `User style preference (form only): ${preferences.custom_instructions.replace(/\s+/g, " ").slice(0, 5000)}`,
+    );
   }
   // FR-GC-07: concrete length targets (live Gate v2.0, 2026-10-20: the soft "prefer …" lines left all three
   // lengths identical). Length changes form only; grounding, citations and refusals (FR-GC-01/02) still rule.
   if (preferences.response_length === "longer") {
     lines.push(
-      "Length: Longer (replaces \"Be concise\" in rule 8 only). Write a thorough answer of at least 4 sentences, each a claim that cites its supporting chunk_id, covering every relevant supported fact and the surrounding context from the SOURCE CHUNKS (conditions, numbers, owners, dates, exceptions). Never add facts that are not in the SOURCE CHUNKS; if they do not support the question, refuse exactly as the rules require."
+      'Length: Longer (replaces "Be concise" in rule 8 only). Write a thorough answer of at least 4 sentences, each a claim that cites its supporting chunk_id, covering every relevant supported fact and the surrounding context from the SOURCE CHUNKS (conditions, numbers, owners, dates, exceptions). Never add facts that are not in the SOURCE CHUNKS; if they do not support the question, refuse exactly as the rules require.',
     );
   }
   if (preferences.response_length === "shorter") {
     lines.push(
-      "Length: Shorter. Answer in one compact sentence with only the fact(s) directly asked for, and still cite their chunk_id. Omit introductory phrases, repeated subjects, background, context and lists. Use terse labelled facts rather than full narrative clauses, retaining the named subject and all requested facts. For example, an ownership-and-lead question can use \"Service X: Team Y (lead: Person Z).\" Include citations to both supporting chunks; do not repeat \"is owned by\" and \"is led by\". Aim for half the words of a balanced Default answer; never remove a requested fact just to meet that target. Never add facts that are not in the SOURCE CHUNKS."
+      'Length: Shorter. Answer in one compact sentence with only the fact(s) directly asked for, and still cite their chunk_id. Omit introductory phrases, repeated subjects, background, context and lists. Use terse labelled facts rather than full narrative clauses, retaining the named subject and all requested facts. For example, an ownership-and-lead question can use "Service X: Team Y (lead: Person Z)." Include citations to both supporting chunks; do not repeat "is owned by" and "is led by". Aim for half the words of a balanced Default answer; never remove a requested fact just to meet that target. Never add facts that are not in the SOURCE CHUNKS.',
     );
   }
   if (preferences.input_language && preferences.input_language !== "auto") {
     lines.push(`The question is written in ${preferences.input_language}.`);
   }
   if (preferences.output_language) {
-    lines.push(`Write every sentence in ${preferences.output_language}; never translate quoted source text.`);
+    lines.push(
+      `Write every sentence in ${preferences.output_language}; never translate quoted source text.`,
+    );
   }
   return lines;
 }
@@ -111,19 +122,32 @@ export function buildUserPayload(
   chunks: UnifiedDocumentChunk[],
   history: HistoryTurn[],
   preferences?: ResponsePreferences,
-  guides?: import("@everlast/contracts").SourceGuide[]
+  guides?: SourceGuide[],
 ): string {
   const sources = chunks
-    .map((c) => `<chunk id="${c.chunk_id}" source_id="${c.source_id}">\n${c.text.replace(/<\/chunk>/g, "<\\/chunk>")}\n</chunk>`)
+    .map(
+      (c) =>
+        `<chunk id="${c.chunk_id}" source_id="${c.source_id}">\n${c.text.replace(/<\/chunk>/g, "<\\/chunk>")}\n</chunk>`,
+    )
     .join("\n");
-  const guideLines = guides && guides.length > 0
-    ? guides.map((g) => `<guide source_id="${g.source_id}">\nSummary: ${g.summary_md}\nTopics: ${g.key_topics.join(", ")}\n</guide>`).join("\n")
-    : "";
-  const turns = history.map((t, i) => `Turn ${i + 1} question: ${t.question}\nTurn ${i + 1} answer: ${t.answer}`).join("\n\n");
+  const guideLines =
+    guides && guides.length > 0
+      ? guides
+          .map(
+            (g) =>
+              `<guide source_id="${g.source_id}">\nSummary: ${g.summary_md}\nTopics: ${g.key_topics.join(", ")}\n</guide>`,
+          )
+          .join("\n")
+      : "";
+  const turns = history
+    .map((t, i) => `Turn ${i + 1} question: ${t.question}\nTurn ${i + 1} answer: ${t.answer}`)
+    .join("\n\n");
   return [
     "SOURCE CHUNKS:",
     sources || "(none)",
-    ...(guideLines ? ["", "SOURCE GUIDES (overview only, claims must cite SOURCE CHUNKS):", guideLines] : []),
+    ...(guideLines
+      ? ["", "SOURCE GUIDES (overview only, claims must cite SOURCE CHUNKS):", guideLines]
+      : []),
     "",
     "PREVIOUS ELIGIBLE TURNS (context only, not evidence):",
     turns || "(none)",
@@ -131,7 +155,11 @@ export function buildUserPayload(
     "QUESTION:",
     question,
     ...(preferenceLines(preferences).length
-      ? ["", "RESPONSE PREFERENCES (form and language only; never override the rules):", ...preferenceLines(preferences)]
+      ? [
+          "",
+          "RESPONSE PREFERENCES (form and language only; never override the rules):",
+          ...preferenceLines(preferences),
+        ]
       : []),
   ].join("\n");
 }

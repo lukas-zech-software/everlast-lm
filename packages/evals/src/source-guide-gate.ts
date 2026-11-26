@@ -1,6 +1,8 @@
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
 import { resetPackageV22Store } from "@everlast/db";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import { generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient } from "@everlast/worker/package-v2-2";
 import { buildCorpus } from "./corpus.ts";
 
@@ -32,8 +34,19 @@ const words = (text: string) => text.split(/\s+/).filter(Boolean).length;
 export function sourceGuideGateFixture(): ScopedSourceMaterial[] {
   return buildCorpus().map((doc) => {
     const source_id = uuidFrom(`source:${doc.key}`);
-    const chunks = doc.pages.map((text, i) => ({ chunk_id: uuidFrom(`chunk:${doc.key}:${i}`), text, source_id, revision: 1 }));
-    return { source_id, revision: 1, title: doc.title, word_count: chunks.reduce((n, c) => n + words(c.text), 0), chunks };
+    const chunks = doc.pages.map((text, i) => ({
+      chunk_id: uuidFrom(`chunk:${doc.key}:${i}`),
+      text,
+      source_id,
+      revision: 1,
+    }));
+    return {
+      source_id,
+      revision: 1,
+      title: doc.title,
+      word_count: chunks.reduce((n, c) => n + words(c.text), 0),
+      chunks,
+    };
   });
 }
 
@@ -63,6 +76,68 @@ const p95 = (values: number[]) => {
   return sorted[Math.max(0, Math.ceil(0.95 * sorted.length) - 1)] ?? 0;
 };
 
+function resolveGuideProblem(
+  thrown: string | null,
+  guide: Awaited<ReturnType<typeof generateSourceGuide>> | null,
+  supported: boolean,
+): string | null {
+  if (thrown !== null) {
+    return thrown;
+  }
+  if (!guide) {
+    return "GuideFailed";
+  }
+  if (guide.status === "GuideReady") {
+    return supported ? null : "supporting chunk IDs outside the source";
+  }
+  return guide.error ?? guide.status;
+}
+
+async function runSingleSourceGuideCase(options: {
+  source: ScopedSourceMaterial;
+  outputLanguage: string;
+  dispatchDelayMs: number;
+  reader: PackageV22SourceReader;
+  model: StructuredGenerationClient;
+}): Promise<SourceGuideGateCase> {
+  const { source, outputLanguage, dispatchDelayMs, reader, model } = options;
+  const started = performance.now();
+  let guide: Awaited<ReturnType<typeof generateSourceGuide>> | null = null;
+  let thrown: string | null = null;
+  try {
+    guide = await generateSourceGuide({
+      notebook_id: NOTEBOOK,
+      user_id: OWNER,
+      source_id: source.source_id,
+      revision: source.revision,
+      output_language: outputLanguage,
+      ready_at: new Date().toISOString(),
+      reader,
+      model,
+    });
+  } catch (error) {
+    // Our own validation / StructuredGenerationError messages only; upstream text is never in them.
+    thrown = `${(error as Error).name}: ${(error as Error).message}`.slice(0, 200);
+  }
+  const generation_ms = performance.now() - started;
+  const inSource = new Set(source.chunks.map((c) => c.chunk_id));
+  const supported =
+    Boolean(guide) &&
+    (guide?.supporting_chunk_ids.length ?? 0) > 0 &&
+    (guide?.supporting_chunk_ids.every((id) => inSource.has(id)) ?? false);
+  return {
+    source_title: source.title,
+    output_language: outputLanguage,
+    status: guide?.status ?? "GuideFailed",
+    generation_ms,
+    from_ready_ms: generation_ms + dispatchDelayMs,
+    summary_words: guide ? words(guide.summary_md) : 0,
+    key_topics: guide?.key_topics.length ?? 0,
+    supported,
+    problem: resolveGuideProblem(thrown, guide, supported),
+  };
+}
+
 export async function runSourceGuideGate(options: {
   model: StructuredGenerationClient;
   modelId: string;
@@ -73,40 +148,29 @@ export async function runSourceGuideGate(options: {
   const sources = options.maxSources ? allSources.slice(0, options.maxSources) : allSources;
   const reader: PackageV22SourceReader = {
     // C-02 singleton scope: only the requested revision of the requested source is returned.
-    async readReadySources(request) {
-      return sources.filter((s) => request.source_revisions.some((p) => p.source_id === s.source_id && p.revision === s.revision));
+    readReadySources(request) {
+      return Promise.resolve(
+        sources.filter((s) =>
+          request.source_revisions.some(
+            (p) => p.source_id === s.source_id && p.revision === s.revision,
+          ),
+        ),
+      );
     },
   };
   resetPackageV22Store();
   const cases: SourceGuideGateCase[] = [];
-  for (const output_language of SOURCE_GUIDE_GATE_LANGUAGES) {
+  for (const outputLanguage of SOURCE_GUIDE_GATE_LANGUAGES) {
     for (const source of sources) {
-      const started = performance.now();
-      let guide: Awaited<ReturnType<typeof generateSourceGuide>> | null = null;
-      let thrown: string | null = null;
-      try {
-        guide = await generateSourceGuide({
-          notebook_id: NOTEBOOK, user_id: OWNER, source_id: source.source_id, revision: source.revision, output_language,
-          ready_at: new Date().toISOString(), reader, model: options.model,
-        });
-      } catch (error) {
-        // Our own validation / StructuredGenerationError messages only; upstream text is never in them.
-        thrown = `${(error as Error).name}: ${(error as Error).message}`.slice(0, 200);
-      }
-      const generation_ms = performance.now() - started;
-      const inSource = new Set(source.chunks.map((c) => c.chunk_id));
-      const supported = !!guide && guide.supporting_chunk_ids.length > 0 && guide.supporting_chunk_ids.every((id) => inSource.has(id));
-      cases.push({
-        source_title: source.title,
-        output_language,
-        status: guide?.status ?? "GuideFailed",
-        generation_ms,
-        from_ready_ms: generation_ms + options.dispatchDelayMs,
-        summary_words: guide ? words(guide.summary_md) : 0,
-        key_topics: guide?.key_topics.length ?? 0,
-        supported,
-        problem: thrown ?? (guide!.status !== "GuideReady" ? (guide!.error ?? guide!.status) : supported ? null : "supporting chunk IDs outside the source"),
-      });
+      cases.push(
+        await runSingleSourceGuideCase({
+          source,
+          outputLanguage,
+          dispatchDelayMs: options.dispatchDelayMs,
+          reader,
+          model: options.model,
+        }),
+      );
     }
   }
   const ready = cases.filter((c) => c.problem === null).length;
@@ -117,20 +181,29 @@ export async function runSourceGuideGate(options: {
     ready_rate: ready / cases.length,
     p95_from_ready_ms: p95(cases.map((c) => c.from_ready_ms)),
   };
-  return { ...result, passed: result.ready_rate === 1 && result.p95_from_ready_ms < SOURCE_GUIDE_GATE_P95_MS };
+  return {
+    ...result,
+    passed: result.ready_rate === 1 && result.p95_from_ready_ms < SOURCE_GUIDE_GATE_P95_MS,
+  };
 }
 
-export type SourceGuideReleaseGateResult = { status: "unavailable"; reason: string } | { status: "ran"; result: SourceGuideGateResult };
+export type SourceGuideReleaseGateResult =
+  { status: "unavailable"; reason: string } | { status: "ran"; result: SourceGuideGateResult };
 
 /** Release/smoke variant with the Vertex AI Flash-Lite client; never reports a pass it did not run. */
 export async function runSourceGuideReleaseGate(
   env: NodeJS.ProcessEnv,
-  options: { maxSources?: number } = {}
+  options: { maxSources?: number } = {},
 ): Promise<SourceGuideReleaseGateResult> {
   const { createVertexStructuredGenerationFromEnv } = await import("@everlast/cloud");
   const model = createVertexStructuredGenerationFromEnv(env);
-  if (!model) return { status: "unavailable", reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)" };
-  const maxSources = env.EVERLAST_FULL_RELEASE_EVAL === "1" ? options.maxSources : (options.maxSources ?? 2);
+  if (!model)
+    return {
+      status: "unavailable",
+      reason: "Vertex AI is not configured (VERTEX_PROJECT / GCP_PROJECT_ID unset)",
+    };
+  const maxSources =
+    env.EVERLAST_FULL_RELEASE_EVAL === "1" ? options.maxSources : (options.maxSources ?? 2);
   return {
     status: "ran",
     result: await runSourceGuideGate({
@@ -148,6 +221,8 @@ export function renderSourceGuideGate(result: SourceGuideGateResult): string[] {
     `Gate v2.0 #1 Source Guide (${result.model}): ${result.passed ? "PASS" : "FAIL"}`,
     `  GuideReady ${(result.ready_rate * 100).toFixed(0)} % (${result.cases.filter((c) => c.problem === null).length}/${result.cases.length}), P95 from Ready ${result.p95_from_ready_ms.toFixed(0)} ms (< ${SOURCE_GUIDE_GATE_P95_MS} ms; generation P95 ${p95(generation).toFixed(0)} ms + watcher dispatch ≤ ${result.dispatch_delay_ms} ms)`,
     `  summary words ${Math.min(...result.cases.map((c) => c.summary_words))}–${Math.max(...result.cases.map((c) => c.summary_words))}, key topics ${Math.min(...result.cases.map((c) => c.key_topics))}–${Math.max(...result.cases.map((c) => c.key_topics))}`,
-    ...result.cases.filter((c) => c.problem !== null).map((c) => `  ${c.source_title} [${c.output_language}]: ${c.problem}`),
+    ...result.cases
+      .filter((c) => c.problem !== null)
+      .map((c) => `  ${c.source_title} [${c.output_language}]: ${c.problem}`),
   ];
 }

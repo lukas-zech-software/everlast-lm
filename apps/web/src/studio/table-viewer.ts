@@ -1,4 +1,9 @@
-import type { DataTableCell, DataTableRow, StudioDataTablePayload, StudioEvidenceRef } from "@everlast/contracts";
+import type {
+  DataTableCell,
+  DataTableRow,
+  StudioDataTablePayload,
+  StudioEvidenceRef,
+} from "@everlast/contracts";
 import { clear, h } from "../lib/dom.ts";
 
 /**
@@ -17,16 +22,16 @@ export interface DataTableViewerOptions {
   artifactId: string;
   title: string;
   payload: StudioDataTablePayload;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onExport?(format: "csv" | "xlsx", orderedRowIds: string[]): void;
-  onClose?(): void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onExport?: (format: "csv" | "xlsx", orderedRowIds: string[]) => void;
+  onClose?: () => void;
   actions?: HTMLElement[];
 }
 
 export interface DataTableViewer {
   element: HTMLElement;
-  getOrderedRowIds(): string[];
-  destroy(): void;
+  getOrderedRowIds: () => string[];
+  destroy: () => void;
 }
 
 export function createDataTableViewer(options: DataTableViewerOptions): DataTableViewer {
@@ -55,7 +60,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
   exportCsvBtn.addEventListener("click", () => {
     options.onExport?.(
       "csv",
-      orderedRows.map((r) => r.item_id)
+      orderedRows.map((r) => r.item_id),
     );
   });
 
@@ -68,7 +73,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
   exportXlsxBtn.addEventListener("click", () => {
     options.onExport?.(
       "xlsx",
-      orderedRows.map((r) => r.item_id)
+      orderedRows.map((r) => r.item_id),
     );
   });
 
@@ -82,9 +87,19 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
     "div",
     { class: "studio-viewer-head" },
     ...(closeBtn ? [closeBtn] : []),
-    h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }),
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
     aiLabel,
-    h("div", { class: "studio-table-controls" }, exportCsvBtn, exportXlsxBtn, ...(options.actions ?? []))
+    h(
+      "div",
+      { class: "studio-table-controls" },
+      exportCsvBtn,
+      exportXlsxBtn,
+      ...(options.actions ?? []),
+    ),
   );
 
   const tableHost = h("div", { class: "studio-table-scroll" });
@@ -97,7 +112,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
       "aria-label": options.title,
     },
     headEl,
-    tableHost
+    tableHost,
   );
 
   function renderCiteBadges(cites: readonly StudioEvidenceRef[]): HTMLElement[] {
@@ -132,7 +147,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
         { class: "table-cell table-cell-supported", "data-testid": "table-cell-supported" },
         h("span", { class: "table-cell-text", text: entry?.value ?? cell.display_text }),
         " ",
-        ...(entry ? renderCiteBadges(entry.citations) : [])
+        ...(entry ? renderCiteBadges(entry.citations) : []),
       );
     }
     // Conflict cell: explicit disagreement badge + each alternative value with its own citation badge(s)
@@ -142,14 +157,18 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
         { class: "table-conflict-value", "data-testid": "table-conflict-value" },
         h("span", { class: "table-cell-text", text: alt.value }),
         " ",
-        ...renderCiteBadges(alt.citations)
-      )
+        ...renderCiteBadges(alt.citations),
+      ),
     );
     return h(
       "td",
       { class: "table-cell table-cell-conflict", "data-testid": "table-cell-conflict" },
-      h("span", { class: "badge badge-warning", "data-testid": "table-conflict-badge", text: "Conflict" }),
-      ...alternatives
+      h("span", {
+        class: "badge badge-warning",
+        "data-testid": "table-conflict-badge",
+        text: "Conflict",
+      }),
+      ...alternatives,
     );
   }
 
@@ -175,6 +194,11 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
     renderTable();
   }
 
+  function sortIndicator(columnId: string): string {
+    if (sortColumnId !== columnId) return "↕";
+    return sortDirection === "asc" ? "↑" : "↓";
+  }
+
   function renderTable(): void {
     clear(tableHost);
     const hasEntityCol = payload.columns[0]?.id === "entity";
@@ -187,7 +211,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
         "data-testid": "table-sort-column",
         "data-column-id": "__item__",
         "aria-label": "Sort by Entity",
-        text: `Entity ${sortColumnId === "__item__" ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}`,
+        text: `Entity ${sortIndicator("__item__")}`,
       });
       sortBtn.addEventListener("click", () => applySort("__item__"));
       headerCells.push(h("th", { scope: "col" }, sortBtn));
@@ -200,7 +224,7 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
         "data-testid": "table-sort-column",
         "data-column-id": col.id,
         "aria-label": `Sort by ${col.label}`,
-        text: `${col.label} ${sortColumnId === col.id ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}`,
+        text: `${col.label} ${sortIndicator(col.id)}`,
       });
       sortBtn.addEventListener("click", () => applySort(col.id));
       headerCells.push(h("th", { scope: "col" }, sortBtn, " ", ...renderCiteBadges(col.citations)));
@@ -216,8 +240,8 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
             { scope: "row", class: "table-row-item", "data-testid": "table-row-item" },
             h("span", { text: row.item_label }),
             " ",
-            ...renderCiteBadges(row.item_citations)
-          )
+            ...renderCiteBadges(row.item_citations),
+          ),
         );
       }
       for (const col of payload.columns) {
@@ -225,14 +249,22 @@ export function createDataTableViewer(options: DataTableViewerOptions): DataTabl
         cells.push(
           cell
             ? renderCellContent(cell)
-            : h("td", { class: "table-cell table-cell-missing muted", text: DATA_TABLE_MISSING_MARKER })
+            : h("td", {
+                class: "table-cell table-cell-missing muted",
+                text: DATA_TABLE_MISSING_MARKER,
+              }),
         );
       }
       return h("tr", { "data-testid": "table-row", "data-row-id": row.item_id }, ...cells);
     });
 
     const tbody = h("tbody", {}, ...bodyRows);
-    const tableEl = h("table", { class: "studio-data-table", "data-testid": "studio-data-table" }, thead, tbody);
+    const tableEl = h(
+      "table",
+      { class: "studio-data-table", "data-testid": "studio-data-table" },
+      thead,
+      tbody,
+    );
     tableHost.append(tableEl);
   }
 

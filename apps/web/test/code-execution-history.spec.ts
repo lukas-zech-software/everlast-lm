@@ -28,10 +28,15 @@ async function setup(page: Page, prefix: string) {
   return { email, id };
 }
 
-test("CE-HIST-E01: a corrected calculation retains both attempts in order across page reload, marks the second as final, and saves cleanly to notes", async ({ page }) => {
+test("CE-HIST-E01: a corrected calculation retains both attempts in order across page reload, marks the second as final, and saves cleanly to notes", async ({
+  page,
+}) => {
   await setup(page, "ce-hist-e01");
 
-  const answer = await ask(page, "What is the exact population standard deviation of the monthly latency (retry test)?");
+  const answer = await ask(
+    page,
+    "What is the exact population standard deviation of the monthly latency (retry test)?",
+  );
   await expect(answer.locator(".computed-label")).toHaveText(["Computed"]);
   await expect(answer.getByTestId("computed-chart")).toBeVisible();
 
@@ -62,10 +67,15 @@ test("CE-HIST-E01: a corrected calculation retains both attempts in order across
   await expect(attempts.nth(1).getByTestId("code-published")).toBeVisible();
 });
 
-test("CE-HIST-E02: removing a cited source immediately hides the computed answer, code drawer, Computed pill and chart without a manual reload", async ({ page }) => {
+test("CE-HIST-E02: removing a cited source immediately hides the computed answer, code drawer, Computed pill and chart without a manual reload", async ({
+  page,
+}) => {
   await setup(page, "ce-hist-e02");
 
-  const answer = await ask(page, "What is the exact population standard deviation of the monthly latency?");
+  const answer = await ask(
+    page,
+    "What is the exact population standard deviation of the monthly latency?",
+  );
   await expect(answer.locator(".computed-label")).toHaveCount(1);
   await expect(answer.getByTestId("computed-chart")).toBeVisible();
   await expect(answer.getByTestId("code-drawer-toggle")).toBeVisible();
@@ -77,22 +87,31 @@ test("CE-HIST-E02: removing a cited source immediately hides the computed answer
 
   await expect(page.getByTestId("source-row")).toHaveCount(0);
   const redacted = page.getByTestId("message-assistant").first();
-  await expect(redacted).toContainText("This answer is unavailable because a cited source was deleted.");
+  await expect(redacted).toContainText(
+    "This answer is unavailable because a cited source was deleted.",
+  );
   await expect(redacted.locator(".computed-label")).toHaveCount(0);
   await expect(redacted.getByTestId("computed-chart")).toHaveCount(0);
   await expect(redacted.getByTestId("chart-download")).toHaveCount(0);
   await expect(redacted.getByTestId("code-drawer-toggle")).toHaveCount(0);
 });
 
-test("CE-HIST-E03: Send is disabled while a computation is in flight, and Clear chat cancels the active run and removes computed messages and charts", async ({ page }) => {
+test("CE-HIST-E03: Send is disabled while a computation is in flight, and Clear chat cancels the active run and removes computed messages and charts", async ({
+  page,
+}) => {
   await setup(page, "ce-hist-e03");
 
   // First complete one computed turn so there is a message and chart in the thread.
-  const first = await ask(page, "What is the exact sample standard deviation of the monthly latency?");
+  const first = await ask(
+    page,
+    "What is the exact sample standard deviation of the monthly latency?",
+  );
   await expect(first.getByTestId("computed-chart")).toBeVisible();
 
   // Start a second computation (held ~1.2s in e2eSandbox); Send must be disabled while in flight.
-  await page.getByTestId("chat-input").fill("What is the exact population standard deviation of the monthly latency?");
+  await page
+    .getByTestId("chat-input")
+    .fill("What is the exact population standard deviation of the monthly latency?");
   await page.getByTestId("send").click();
   await expect(page.getByTestId("chat-status")).toHaveText("Running code…", { timeout: 2_500 });
   await expect(page.getByTestId("send")).toBeDisabled();

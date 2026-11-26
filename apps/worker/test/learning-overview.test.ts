@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE, validateSafeDeterministicSvg } from "@everlast/contracts";
+import {
+  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
+  validateSafeDeterministicSvg,
+  type StudioLearningOverviewPayload,
+} from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   STUDIO_LEAK_PROBE,
@@ -46,7 +50,7 @@ describe("[014-studio-active-learning-suite] T024: Learning Overview composite m
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const p = outcome.payload as any;
+    const p = outcome.payload as StudioLearningOverviewPayload;
     expect(p.modules.length).toBe(3);
     for (const mod of p.modules) {
       expect(mod.summary_md).toMatch(/\[\d+\]/);
@@ -67,7 +71,8 @@ describe("[014-studio-active-learning-suite] T024: Learning Overview composite m
       async compose(req) {
         const payload = await base.compose(req);
         // Corrupt the first module's required diagram block with forbidden script markup
-        payload.modules[0]!.diagram_svg = '<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>';
+        payload.modules[0]!.diagram_svg =
+          '<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>';
         return payload;
       },
     };

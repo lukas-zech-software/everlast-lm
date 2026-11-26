@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { renderDeterministicConceptDiagramSvg, type StudioLearningOverviewPayload } from "@everlast/contracts";
+import {
+  renderDeterministicConceptDiagramSvg,
+  type StudioLearningOverviewPayload,
+} from "@everlast/contracts";
 import { createLearningOverviewViewer } from "../src/studio/learning-overview-viewer.ts";
 import { setupMockDOM, type MockElement } from "./mock-dom.ts";
 
@@ -29,10 +32,10 @@ describe("[014-studio-active-learning-suite] T026: Learning Overview scrollable 
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const tid = (id: string, root: MockElement = body()) => root.querySelector(`[data-testid=${id}]`);
 
-  it("renders chapter markdown with citations, safe D9 SVG diagram, embedded flip card, and checkpoint quiz widget", async () => {
+  it("renders chapter markdown with citations, safe D9 SVG diagram, embedded flip card, and checkpoint quiz widget", () => {
     const svg = renderDeterministicConceptDiagramSvg({
       title: "Payload Limits",
       nodes: [
@@ -48,7 +51,13 @@ describe("[014-studio-active-learning-suite] T026: Learning Overview scrollable 
           summary_md: "The **maximum payload size** is 200 megabytes [1].",
           diagram_svg: svg,
           flashcards: [
-            { id: CARD_1, front_text: "What is max payload?", back_text: "200 megabytes", source_chunk_ids: [CHUNK_1], citations: [cite] },
+            {
+              id: CARD_1,
+              front_text: "What is max payload?",
+              back_text: "200 megabytes",
+              source_chunk_ids: [CHUNK_1],
+              citations: [cite],
+            },
           ],
           checkpoint_quiz: [
             {
@@ -75,42 +84,52 @@ describe("[014-studio-active-learning-suite] T026: Learning Overview scrollable 
       title: "Learning Overview",
       payload,
       progress: null,
-      onRecordProgress: async (itemId, outcome) => ({
-        user_id: "41000000-0000-4000-8000-000000000002",
-        artifact_id: "41000000-aaaa-4000-8000-000000000003",
-        notebook_id: "41000000-0000-4000-8000-000000000001",
-        item_states_json: {
-          [itemId]: { status: outcome, attempts: 1, last_reviewed_at: new Date().toISOString() },
-        },
-        updated_at: new Date().toISOString(),
-      }),
-      onGrade: async (questionId, answer) => ({
-        question_id: questionId,
-        correct: String(answer).includes("200"),
-        outcome: String(answer).includes("200") ? "mastered" : "needs_review",
-        grading_mode: "semantic",
-        elapsed_ms: 4,
-        explanation: "200 MB [1].",
-        citations: [cite],
-        progress: {
+      onRecordProgress: (itemId, outcome) =>
+        Promise.resolve({
           user_id: "41000000-0000-4000-8000-000000000002",
           artifact_id: "41000000-aaaa-4000-8000-000000000003",
           notebook_id: "41000000-0000-4000-8000-000000000001",
           item_states_json: {
-            [questionId]: { status: "mastered", attempts: 1, last_reviewed_at: new Date().toISOString() },
+            [itemId]: { status: outcome, attempts: 1, last_reviewed_at: new Date().toISOString() },
           },
           updated_at: new Date().toISOString(),
-        },
-      }),
-      onResetProgress: async () => ({
-        user_id: "41000000-0000-4000-8000-000000000002",
-        artifact_id: "41000000-aaaa-4000-8000-000000000003",
-        notebook_id: "41000000-0000-4000-8000-000000000001",
-        item_states_json: {},
-        updated_at: new Date().toISOString(),
-      }),
-      onExplain: async () => undefined,
-      confirmReset: async () => true,
+        }),
+      onGrade: (questionId, answer) => {
+        const answerText = typeof answer === "string" ? answer : answer.join(" ");
+        const isCorrect = answerText.includes("200");
+        return Promise.resolve({
+          question_id: questionId,
+          correct: isCorrect,
+          outcome: isCorrect ? ("mastered" as const) : ("needs_review" as const),
+          grading_mode: "semantic" as const,
+          elapsed_ms: 4,
+          explanation: "200 MB [1].",
+          citations: [cite],
+          progress: {
+            user_id: "41000000-0000-4000-8000-000000000002",
+            artifact_id: "41000000-aaaa-4000-8000-000000000003",
+            notebook_id: "41000000-0000-4000-8000-000000000001",
+            item_states_json: {
+              [questionId]: {
+                status: "mastered" as const,
+                attempts: 1,
+                last_reviewed_at: new Date().toISOString(),
+              },
+            },
+            updated_at: new Date().toISOString(),
+          },
+        });
+      },
+      onResetProgress: () =>
+        Promise.resolve({
+          user_id: "41000000-0000-4000-8000-000000000002",
+          artifact_id: "41000000-aaaa-4000-8000-000000000003",
+          notebook_id: "41000000-0000-4000-8000-000000000001",
+          item_states_json: {},
+          updated_at: new Date().toISOString(),
+        }),
+      onExplain: () => Promise.resolve(undefined),
+      confirmReset: () => Promise.resolve(true),
     });
 
     body().append(viewer.element as unknown as MockElement);

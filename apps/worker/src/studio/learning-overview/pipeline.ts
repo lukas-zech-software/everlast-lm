@@ -6,7 +6,11 @@ import type {
   StudioProgress,
   UnifiedDocumentChunk,
 } from "@everlast/contracts";
-import { processAllOriginalEvidenceBatches, verifyEvidenceCoverage, type EvidenceBatchLimits } from "../evidence.ts";
+import {
+  processAllOriginalEvidenceBatches,
+  verifyEvidenceCoverage,
+  type EvidenceBatchLimits,
+} from "../evidence.ts";
 import type { LearningOverviewFact, LearningOverviewModelClient } from "./model.ts";
 import { validateLearningOverviewPayload } from "./validation.ts";
 
@@ -28,12 +32,12 @@ export interface GenerateLearningOverviewInput {
   output_language?: string | undefined;
   limits?: EvidenceBatchLimits | undefined;
   signal: AbortSignal;
-  reportProgress(stage: StudioProgress["stage"], percent: number): void;
+  reportProgress: (stage: StudioProgress["stage"], percent: number) => void;
 }
 
 const refuse = (
   code: StudioFailureCode,
-  message: string
+  message: string,
 ): StudioGenerationOutcome<StudioLearningOverviewPayload> => ({
   status: "refused",
   code,
@@ -51,7 +55,7 @@ function dedupeFacts(items: LearningOverviewFact[]): LearningOverviewFact[] {
 }
 
 export async function generateLearningOverview(
-  input: GenerateLearningOverviewInput
+  input: GenerateLearningOverviewInput,
 ): Promise<StudioGenerationOutcome<StudioLearningOverviewPayload>> {
   let chunks = [...input.chunks];
   const { snapshot, model, signal, output_language, focus_prompt } = input;
@@ -60,7 +64,7 @@ export async function generateLearningOverview(
   if (chunks.length === 0 && !input.original_chunks) {
     return refuse(
       "InsufficientEvidence",
-      "The selected sources contain no readable content to build a learning overview."
+      "The selected sources contain no readable content to build a learning overview.",
     );
   }
 
@@ -86,7 +90,9 @@ export async function generateLearningOverview(
     },
   });
 
-  const coverageError = input.original_chunks ? null : verifyEvidenceCoverage(coverage, chunks, snapshot);
+  const coverageError = input.original_chunks
+    ? null
+    : verifyEvidenceCoverage(coverage, chunks, snapshot);
   if (coverageError) {
     return refuse("CitationValidationFailed", coverageError);
   }
@@ -95,7 +101,7 @@ export async function generateLearningOverview(
   if (facts.length === 0) {
     return refuse(
       "InsufficientEvidence",
-      "The selected sources do not contain enough supported factual content for a learning overview."
+      "The selected sources do not contain enough supported factual content for a learning overview.",
     );
   }
 
@@ -118,7 +124,7 @@ export async function generateLearningOverview(
   } catch (err) {
     return refuse(
       "GenerationError",
-      err instanceof Error ? err.message : "Composite learning overview block generation failed."
+      err instanceof Error ? err.message : "Composite learning overview block generation failed.",
     );
   }
 

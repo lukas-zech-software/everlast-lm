@@ -15,82 +15,268 @@ export interface StudioBenchmarkPlan {
   active_source_ids: string[];
   poll_interval_ms: number;
   timeout_ms: number;
-  runs: { sample_id: string; stratum: "cold" | "warm" }[];
+  runs: Array<{ sample_id: string; stratum: "cold" | "warm" }>;
+}
+
+const UUID_PATTERN = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
+const TERMINAL_STUDIO_STATUSES = new Set(["Completed", "Failed", "Cancelled"]);
+const IN_FLIGHT_STUDIO_STATUSES = new Set(["Queued", "Running"]);
+const ALLOWED_ERROR_CODE =
+  /^(HTTP_\d+|Timeout|InvalidAdmission|UnavailableArtifact|WrongArtifactKind|InvalidArtifactStatus)$/;
+
+interface StudioApiResponse {
+  artifact?: {
+    id: string;
+    status: MindmapLatencySample["status"];
+    plugin_type?: string;
+    payload_json?: unknown;
+    failure?: { code: string };
+  };
+  unavailable?: unknown;
+}
+
+function validateBenchmarkOrigin(baseUrl: unknown, environmentKind: unknown): void {
+  const url = new URL(typeof baseUrl === "string" ? baseUrl : "");
+  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") {
+    throw new Error("base_url must be an origin without credentials, path or query");
+  }
+  const isLoopbackHttp =
+    environmentKind === "local_fixture" &&
+    url.protocol === "http:" &&
+    ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
+  if (url.protocol !== "https:" && !isLoopbackHttp) {
+    throw new Error("Use HTTPS; local fixture HTTP is loopback-only");
+  }
+}
+
+function validateBenchmarkScopeAndTimings(raw: Record<string, unknown>): void {
+  const notebookId = raw.notebook_id;
+  const activeSourceIds = raw.active_source_ids;
+  if (
+    typeof notebookId !== "string" ||
+    !UUID_PATTERN.test(notebookId) ||
+    !Array.isArray(activeSourceIds) ||
+    activeSourceIds.length === 0 ||
+    activeSourceIds.some((id) => typeof id !== "string" || !UUID_PATTERN.test(id)) ||
+    new Set(activeSourceIds).size !== activeSourceIds.length
+  ) {
+    throw new Error("Declare notebook and unique explicit source IDs");
+  }
+  const pollInterval = raw.poll_interval_ms;
+  const timeoutMs = raw.timeout_ms;
+  if (
+    typeof pollInterval !== "number" ||
+    !Number.isFinite(pollInterval) ||
+    pollInterval <= 0 ||
+    typeof timeoutMs !== "number" ||
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0
+  ) {
+    throw new Error("Declare positive polling and timeout values");
+  }
+}
+
+function validateBenchmarkRuns(runs: unknown): void {
+  if (!Array.isArray(runs) || runs.length < 20) {
+    throw new Error("Declare at least 20 uniquely identified cold/warm runs");
+  }
+  const seenIds = new Set<string>();
+  for (const run of runs) {
+    const entry =
+      typeof run === "object" && run !== null ? (run as Record<string, unknown>) : undefined;
+    const sampleId = entry?.sample_id;
+    const stratum = entry?.stratum;
+    if (
+      typeof sampleId !== "string" ||
+      !sampleId.trim() ||
+      seenIds.has(sampleId) ||
+      (stratum !== "cold" && stratum !== "warm")
+    ) {
+      throw new Error("Declare at least 20 uniquely identified cold/warm runs");
+    }
+    seenIds.add(sampleId);
+  }
 }
 
 export function validateStudioBenchmarkPlan(value: unknown): StudioBenchmarkPlan {
-  const p = value as StudioBenchmarkPlan;
-  if (!p || typeof p !== "object" || !Number.isFinite(Date.parse(p.declared_at)) || Date.parse(p.declared_at) > Date.now()) throw new Error("Plan must be declared before collection");
-  if (!/^[a-f0-9]{64}$/.test(p.fixture_sha256)) throw new Error("Declare the fixture SHA-256");
-  for (const key of ["deployment_revision", "environment", "model"] as const) if (typeof p[key] !== "string" || !p[key].trim()) throw new Error(`Declare ${key}`);
-  if (!["local_fixture", "enterprise_live"].includes(p.environment_kind) || p.region !== "europe-west4") throw new Error("Declare local_fixture or enterprise_live in europe-west4");
-  const url = new URL(p.base_url);
-  if (url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("base_url must be an origin without credentials, path or query");
-  if (url.protocol !== "https:" && !(p.environment_kind === "local_fixture" && url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname))) throw new Error("Use HTTPS; local fixture HTTP is loopback-only");
-  const uuid = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
-  if (!uuid.test(p.notebook_id) || !Array.isArray(p.active_source_ids) || p.active_source_ids.length === 0 || p.active_source_ids.some(id => !uuid.test(id)) || new Set(p.active_source_ids).size !== p.active_source_ids.length) throw new Error("Declare notebook and unique explicit source IDs");
-  if (!Number.isFinite(p.poll_interval_ms) || p.poll_interval_ms <= 0 || !Number.isFinite(p.timeout_ms) || p.timeout_ms <= 0) throw new Error("Declare positive polling and timeout values");
-  if (!Array.isArray(p.runs) || p.runs.length < 20 || new Set(p.runs.map(r => r.sample_id)).size !== p.runs.length || p.runs.some(r => !r.sample_id?.trim() || !["cold", "warm"].includes(r.stratum))) throw new Error("Declare at least 20 uniquely identified cold/warm runs");
-  return p;
+  if (typeof value !== "object" || value === null) {
+    throw new Error("Plan must be declared before collection");
+  }
+  const raw = value as Record<string, unknown>;
+  const declaredAt = typeof raw.declared_at === "string" ? Date.parse(raw.declared_at) : NaN;
+  if (!Number.isFinite(declaredAt) || declaredAt > Date.now()) {
+    throw new Error("Plan must be declared before collection");
+  }
+  if (typeof raw.fixture_sha256 !== "string" || !/^[a-f0-9]{64}$/.test(raw.fixture_sha256)) {
+    throw new Error("Declare the fixture SHA-256");
+  }
+  for (const key of ["deployment_revision", "environment", "model"] as const) {
+    const field = raw[key];
+    if (typeof field !== "string" || !field.trim()) {
+      throw new Error(`Declare ${key}`);
+    }
+  }
+  if (
+    (raw.environment_kind !== "local_fixture" && raw.environment_kind !== "enterprise_live") ||
+    raw.region !== "europe-west4"
+  ) {
+    throw new Error("Declare local_fixture or enterprise_live in europe-west4");
+  }
+  validateBenchmarkOrigin(raw.base_url, raw.environment_kind);
+  validateBenchmarkScopeAndTimings(raw);
+  validateBenchmarkRuns(raw.runs);
+  return value as StudioBenchmarkPlan;
+}
+
+async function callStudioApi(options: {
+  url: string;
+  token: string;
+  started: number;
+  timeoutMs: number;
+  fetcher: typeof fetch;
+  body?: unknown;
+}): Promise<StudioApiResponse> {
+  const remaining = options.timeoutMs - (performance.now() - options.started);
+  if (remaining <= 0) {
+    throw new Error("Timeout");
+  }
+  const res = await options.fetcher(options.url, {
+    method: options.body === undefined ? "GET" : "POST",
+    redirect: "error",
+    headers: { Authorization: `Bearer ${options.token}`, "Content-Type": "application/json" },
+    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+    signal: AbortSignal.timeout(Math.max(1, Math.ceil(remaining))),
+  });
+  if (!res.ok) {
+    throw new Error(`HTTP_${res.status}`);
+  }
+  return (await res.json()) as StudioApiResponse;
+}
+
+function applyTerminalArtifactStatus(
+  sample: MindmapLatencySample,
+  artifact: NonNullable<StudioApiResponse["artifact"]>,
+  started: number,
+): void {
+  if (artifact.status !== "Completed") {
+    sample.error_code = artifact.failure?.code ?? artifact.status;
+    return;
+  }
+  if (artifact.plugin_type !== "mindmap") {
+    throw new Error("WrongArtifactKind");
+  }
+  const payload = StudioMindmapPayloadSchema.parse(artifact.payload_json);
+  sample.duration_ms = performance.now() - started;
+  sample.completed_at_ms = sample.submitted_at_ms + sample.duration_ms;
+  sample.node_count = payload.node_count;
+}
+
+async function pollStudioArtifactUntilTerminal(options: {
+  plan: StudioBenchmarkPlan;
+  endpoint: string;
+  artifactId: string;
+  token: string;
+  started: number;
+  sample: MindmapLatencySample;
+  samples: readonly MindmapLatencySample[];
+  checkpoint: (samples: readonly MindmapLatencySample[]) => void;
+  fetcher: typeof fetch;
+}): Promise<void> {
+  const { plan, endpoint, artifactId, token, started, sample, samples, checkpoint, fetcher } =
+    options;
+  const pollUrl = `${endpoint}/${encodeURIComponent(artifactId)}`;
+  for (;;) {
+    const result = await callStudioApi({
+      url: pollUrl,
+      token,
+      started,
+      timeoutMs: plan.timeout_ms,
+      fetcher,
+    });
+    const artifact = result.artifact;
+    if (artifact?.id !== artifactId || result.unavailable) {
+      throw new Error("UnavailableArtifact");
+    }
+    sample.status = artifact.status;
+    if (TERMINAL_STUDIO_STATUSES.has(artifact.status)) {
+      applyTerminalArtifactStatus(sample, artifact, started);
+      return;
+    }
+    if (!IN_FLIGHT_STUDIO_STATUSES.has(artifact.status)) {
+      throw new Error("InvalidArtifactStatus");
+    }
+    checkpoint(samples);
+    const delayMs = Math.min(
+      plan.poll_interval_ms,
+      Math.max(1, plan.timeout_ms - (performance.now() - started)),
+    );
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
 }
 
 export async function collectStudioLatency(
   plan: StudioBenchmarkPlan,
   token: string,
   checkpoint: (samples: readonly MindmapLatencySample[]) => void,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
 ): Promise<MindmapLatencySample[]> {
   validateStudioBenchmarkPlan(plan);
-  if (!token) throw new Error("STUDIO_BENCHMARK_TOKEN is required");
+  if (!token) {
+    throw new Error("STUDIO_BENCHMARK_TOKEN is required");
+  }
   const samples: MindmapLatencySample[] = [];
   const endpoint = `${new URL(plan.base_url).origin}/api/notebooks/${encodeURIComponent(plan.notebook_id)}/studio/artifacts`;
   for (const run of plan.runs) {
     const started = performance.now();
-    const sample: MindmapLatencySample = { ...run, status: "Queued", submitted_at_ms: Date.now(), completed_at_ms: null, duration_ms: null, node_count: null };
+    const sample: MindmapLatencySample = {
+      ...run,
+      status: "Queued",
+      submitted_at_ms: Date.now(),
+      completed_at_ms: null,
+      duration_ms: null,
+      node_count: null,
+    };
     samples.push(sample);
     checkpoint(samples); // An interrupt leaves this declared attempt visible, never a replacement run.
-    const call = async (url: string, body?: unknown) => {
-      const remaining = plan.timeout_ms - (performance.now() - started);
-      if (remaining <= 0) throw new Error("Timeout");
-      const res = await fetcher(url, {
-        method: body === undefined ? "GET" : "POST", redirect: "error",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(Math.max(1, Math.ceil(remaining))),
-      });
-      if (!res.ok) throw new Error(`HTTP_${res.status}`);
-      return await res.json() as { artifact?: { id: string; status: MindmapLatencySample["status"]; plugin_type?: string; payload_json?: unknown; failure?: { code: string } }; unavailable?: unknown };
-    };
     try {
-      const admitted = await call(endpoint, { plugin_type: "mindmap", subtype: "default", active_source_ids: plan.active_source_ids });
-      if (!admitted.artifact?.id) throw new Error("InvalidAdmission");
+      const admitted = await callStudioApi({
+        url: endpoint,
+        token,
+        started,
+        timeoutMs: plan.timeout_ms,
+        fetcher,
+        body: {
+          plugin_type: "mindmap",
+          subtype: "default",
+          active_source_ids: plan.active_source_ids,
+        },
+      });
+      if (!admitted.artifact?.id) {
+        throw new Error("InvalidAdmission");
+      }
       const artifactId = admitted.artifact.id;
       sample.artifact_id = artifactId;
       checkpoint(samples);
-      for (;;) {
-        const result = await call(`${endpoint}/${encodeURIComponent(artifactId)}`);
-        const artifact = result.artifact;
-        if (!artifact || artifact.id !== artifactId || result.unavailable) throw new Error("UnavailableArtifact");
-        sample.status = artifact.status;
-        if (["Completed", "Failed", "Cancelled"].includes(artifact.status)) {
-          if (artifact.status === "Completed") {
-            if (artifact.plugin_type !== "mindmap") throw new Error("WrongArtifactKind");
-            const payload = StudioMindmapPayloadSchema.parse(artifact.payload_json);
-            sample.duration_ms = performance.now() - started;
-            sample.completed_at_ms = sample.submitted_at_ms + sample.duration_ms;
-            sample.node_count = payload.node_count;
-          } else sample.error_code = artifact.failure?.code ?? artifact.status;
-          break;
-        }
-        if (!["Queued", "Running"].includes(artifact.status)) throw new Error("InvalidArtifactStatus");
-        checkpoint(samples);
-        await new Promise(resolve => setTimeout(resolve, Math.min(plan.poll_interval_ms, Math.max(1, plan.timeout_ms - (performance.now() - started)))));
-      }
+      await pollStudioArtifactUntilTerminal({
+        plan,
+        endpoint,
+        artifactId,
+        token,
+        started,
+        sample,
+        samples,
+        checkpoint,
+        fetcher,
+      });
     } catch (error) {
       sample.status = "Failed";
       sample.completed_at_ms = null;
       sample.duration_ms = null;
       // Never persist provider bodies, tokens or arbitrary error messages.
-      sample.error_code = error instanceof Error && /^(HTTP_\d+|Timeout|InvalidAdmission|UnavailableArtifact|WrongArtifactKind|InvalidArtifactStatus)$/.test(error.message) ? error.message : "CollectionError";
+      sample.error_code =
+        error instanceof Error && ALLOWED_ERROR_CODE.test(error.message)
+          ? error.message
+          : "CollectionError";
     }
     checkpoint(samples);
   }

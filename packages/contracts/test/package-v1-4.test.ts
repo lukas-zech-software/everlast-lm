@@ -8,7 +8,6 @@ import {
   ReleaseGateReportSchema,
   getViewportBreakpoint,
   evaluateGateMetrics,
-  type ViewportBreakpoint,
   type WorkspaceViewState,
   type GoldenCase,
   type EvalMetrics,
@@ -81,25 +80,35 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
     });
 
     it("accepts all valid active tabs", () => {
-      expect(WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "sources" }).active_tab).toBe("sources");
-      expect(WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "chat" }).active_tab).toBe("chat");
-      expect(WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "studio" }).active_tab).toBe("studio");
+      expect(
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "sources" }).active_tab,
+      ).toBe("sources");
+      expect(
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "chat" }).active_tab,
+      ).toBe("chat");
+      expect(
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "studio" }).active_tab,
+      ).toBe("studio");
     });
 
     it("rejects invalid active tabs", () => {
-      expect(() => WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "settings" })).toThrow();
-      expect(() => WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "notes" })).toThrow();
+      expect(() =>
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "settings" }),
+      ).toThrow();
+      expect(() =>
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_tab: "notes" }),
+      ).toThrow();
     });
 
     it("rejects non-UUID strings for notebook, source, and chunk IDs", () => {
       expect(() =>
-        WorkspaceViewStateSchema.parse({ ...validViewState, active_notebook_id: "not-a-uuid" })
+        WorkspaceViewStateSchema.parse({ ...validViewState, active_notebook_id: "not-a-uuid" }),
       ).toThrow();
       expect(() =>
-        WorkspaceViewStateSchema.parse({ ...validViewState, inspector_source_id: "not-a-uuid" })
+        WorkspaceViewStateSchema.parse({ ...validViewState, inspector_source_id: "not-a-uuid" }),
       ).toThrow();
       expect(() =>
-        WorkspaceViewStateSchema.parse({ ...validViewState, highlight_chunk_id: "not-a-uuid" })
+        WorkspaceViewStateSchema.parse({ ...validViewState, highlight_chunk_id: "not-a-uuid" }),
       ).toThrow();
     });
 
@@ -123,9 +132,19 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
 
     it("accepts valid golden case across categories", () => {
       expect(GoldenCaseSchema.parse(validCase)).toEqual(validCase);
-      expect(GoldenCaseSchema.parse({ ...validCase, category: "unanswerable", expected_unanswerable: true }).category).toBe("unanswerable");
-      expect(GoldenCaseSchema.parse({ ...validCase, category: "deselected_source" }).category).toBe("deselected_source");
-      expect(GoldenCaseSchema.parse({ ...validCase, category: "adversarial" }).category).toBe("adversarial");
+      expect(
+        GoldenCaseSchema.parse({
+          ...validCase,
+          category: "unanswerable",
+          expected_unanswerable: true,
+        }).category,
+      ).toBe("unanswerable");
+      expect(GoldenCaseSchema.parse({ ...validCase, category: "deselected_source" }).category).toBe(
+        "deselected_source",
+      );
+      expect(GoldenCaseSchema.parse({ ...validCase, category: "adversarial" }).category).toBe(
+        "adversarial",
+      );
     });
 
     it("rejects invalid categories", () => {
@@ -140,7 +159,9 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
 
     it("rejects invalid UUIDs in notebook_id and active_source_ids", () => {
       expect(() => GoldenCaseSchema.parse({ ...validCase, notebook_id: "invalid-uuid" })).toThrow();
-      expect(() => GoldenCaseSchema.parse({ ...validCase, active_source_ids: ["invalid-uuid"] })).toThrow();
+      expect(() =>
+        GoldenCaseSchema.parse({ ...validCase, active_source_ids: ["invalid-uuid"] }),
+      ).toThrow();
     });
 
     it("rejects empty case ID and empty question", () => {
@@ -167,14 +188,30 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
     });
 
     it("rejects out-of-range rates and negative/fractional leakage counts", () => {
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, hallucination_rate: -0.01 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, hallucination_rate: 1.01 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, citation_precision: -0.1 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, citation_precision: 1.05 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, negative_rejection_rate: -0.05 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, negative_rejection_rate: 1.01 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, scoping_leakage_count: -1 })).toThrow();
-      expect(() => EvalMetricsSchema.parse({ ...passingMetrics, scoping_leakage_count: 2.5 })).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, hallucination_rate: -0.01 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, hallucination_rate: 1.01 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, citation_precision: -0.1 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, citation_precision: 1.05 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, negative_rejection_rate: -0.05 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, negative_rejection_rate: 1.01 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, scoping_leakage_count: -1 }),
+      ).toThrow();
+      expect(() =>
+        EvalMetricsSchema.parse({ ...passingMetrics, scoping_leakage_count: 2.5 }),
+      ).toThrow();
     });
 
     it("rejects unknown extra properties (strict schema)", () => {
@@ -190,7 +227,7 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
       });
 
       it("fails when hallucination_rate >= 0.10 (0.10 fails, 0.099 passes)", () => {
-        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.10 });
+        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, hallucination_rate: 0.1 });
         expect(boundaryFail.passed).toBe(false);
         expect(boundaryFail.failures.some((f) => f.includes("hallucination"))).toBe(true);
 
@@ -205,11 +242,17 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
       });
 
       it("fails when negative_rejection_rate < 0.90 (0.899 fails, 0.90 passes)", () => {
-        const boundaryFail = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.899 });
+        const boundaryFail = evaluateGateMetrics({
+          ...passingMetrics,
+          negative_rejection_rate: 0.899,
+        });
         expect(boundaryFail.passed).toBe(false);
         expect(boundaryFail.failures.some((f) => f.includes("negative_rejection"))).toBe(true);
 
-        const boundaryPass = evaluateGateMetrics({ ...passingMetrics, negative_rejection_rate: 0.90 });
+        const boundaryPass = evaluateGateMetrics({
+          ...passingMetrics,
+          negative_rejection_rate: 0.9,
+        });
         expect(boundaryPass.passed).toBe(true);
       });
 
@@ -290,7 +333,9 @@ describe("Package 1.4 Contracts: UI Skeleton & Quality Gates (FR-UI-01, NFR-EVAL
 
     it("rejects invalid commit_hash, non-ISO timestamp, or extra unknown properties", () => {
       expect(() => ReleaseGateReportSchema.parse({ ...validReport, commit_hash: "" })).toThrow();
-      expect(() => ReleaseGateReportSchema.parse({ ...validReport, timestamp: "invalid-date" })).toThrow();
+      expect(() =>
+        ReleaseGateReportSchema.parse({ ...validReport, timestamp: "invalid-date" }),
+      ).toThrow();
       expect(() => ReleaseGateReportSchema.parse({ ...validReport, extra_data: true })).toThrow();
     });
   });

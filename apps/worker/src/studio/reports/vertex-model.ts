@@ -138,19 +138,35 @@ export function composeGroups(subtype: ReportSubtype): string[][] {
 /** A quote or date that is not a literal substring of its own chunk is not evidence (FR-014, FR-015). */
 const literal = (value: string | undefined, text: string) => value === undefined || text.includes(value);
 
-const sleep = (ms: number, signal: AbortSignal) =>
+const toAbortError = (reason: unknown): Error =>
+  reason instanceof Error ? reason : new Error(typeof reason === "string" ? reason : "Aborted");
+
+const sleep = (ms: number, signal: AbortSignal): Promise<void> =>
   new Promise<void>((resolve, reject) => {
     signal.throwIfAborted();
-    if (ms <= 0) return resolve();
-    const onAbort = () => (clearTimeout(timer), reject(signal.reason));
-    const timer = setTimeout(() => (signal.removeEventListener("abort", onAbort), resolve()), ms);
+    if (ms <= 0) {
+      resolve();
+      return;
+    }
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      reject(toAbortError(signal.reason));
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
     signal.addEventListener("abort", onAbort, { once: true });
   });
 
-const optional = <T extends object>(item: T & { quote?: string | undefined; date?: string | undefined; question?: string | undefined }) => ({
-  ...(item.quote !== undefined ? { quote: item.quote } : {}),
-  ...(item.date !== undefined ? { date: item.date } : {}),
-  ...(item.question !== undefined ? { question: item.question } : {}),
+const optional = (item: {
+  quote?: string | undefined;
+  date?: string | undefined;
+  question?: string | undefined;
+}): { quote?: string; date?: string; question?: string } => ({
+  ...(item.quote === undefined ? {} : { quote: item.quote }),
+  ...(item.date === undefined ? {} : { date: item.date }),
+  ...(item.question === undefined ? {} : { question: item.question }),
 });
 
 const request = (subtype: ReportSubtype, customPrompt: string | undefined) =>
@@ -159,6 +175,15 @@ const request = (subtype: ReportSubtype, customPrompt: string | undefined) =>
 type ReportCallPhase =
   | { phase: "extract"; subtype: ReportSubtype }
   | { phase: "compose"; subtype: ReportSubtype; sections: string[] | undefined };
+
+interface ReportModelCallOptions<T> {
+  operation: ReportCallPhase;
+  contents: Record<string, unknown>;
+  responseSchema: object;
+  schema: { safeParse: (value: unknown) => { success: true; data: T } | { success: false } };
+  signal: AbortSignal;
+  cachedContent?: string | undefined;
+}
 
 export class VertexReportModel implements ReportModelClient {
   contextRuntime?: StudioContextRuntime;
@@ -180,14 +205,8 @@ export class VertexReportModel implements ReportModelClient {
     );
   }
 
-  private async call<T>(
-    operation: ReportCallPhase,
-    contents: Record<string, unknown>,
-    responseSchema: object,
-    schema: { safeParse(value: unknown): { success: true; data: T } | { success: false } },
-    signal: AbortSignal,
-    cachedContent?:string
-  ): Promise<T> {
+  private async call<T>(options: ReportModelCallOptions<T>): Promise<T> {
+    const { operation, contents, responseSchema, schema, signal, cachedContent } = options;
     const envelope = Buffer.byteLength(JSON.stringify(contents)) + Buffer.byteLength(REPORT_SYSTEM_INSTRUCTION);
     if (envelope + REPORT_GENERATION_CONFIG.maxOutputTokens > REPORT_CONTEXT_LIMIT) {
       throw new ReportGenerationError("Complete serialized model envelope exceeds capacity");
@@ -232,20 +251,20 @@ export class VertexReportModel implements ReportModelClient {
   async extract(req: ExtractRequest): Promise<Finding[]> {
     req.signal.throwIfAborted();
     const byId = new Map(req.chunks.map((c) => [c.chunk_id, c]));
-    const out = await this.call(
-      { phase: "extract", subtype: req.subtype },
-      {
+    const out = await this.call({
+      operation: { phase: "extract", subtype: req.subtype },
+      contents: {
         task: EXTRACT_TASK,
         report_type: req.subtype,
         output_language: req.output_language ?? "en-US",
         report_request: request(req.subtype, req.custom_prompt),
-        sources: req.chunks.map((c) => ({ chunk_id: c.chunk_id,...(req.cached_context?{}:{text:c.text}) })),
+        sources: req.chunks.map((c) => ({ chunk_id: c.chunk_id, ...(req.cached_context ? {} : { text: c.text }) })),
       },
-      EXTRACT_RESPONSE_SCHEMA,
-      ReportExtractOutputSchema,
-      req.signal,
-      req.cached_context
-    );
+      responseSchema: EXTRACT_RESPONSE_SCHEMA,
+      schema: ReportExtractOutputSchema,
+      signal: req.signal,
+      cachedContent: req.cached_context,
+    });
     const findings: Finding[] = [];
     for (const f of out.findings) {
       const chunk = byId.get(f.chunk_id);
@@ -267,9 +286,9 @@ export class VertexReportModel implements ReportModelClient {
 
   private async composeGroup(req: ComposeRequest, keys: string[] | undefined): Promise<ReportBlock[]> {
     const allowedChunks = new Set(req.findings.map((f) => f.chunk_id));
-    const out = await this.call(
-      { phase: "compose", subtype: req.subtype, sections: keys },
-      {
+    const out = await this.call({
+      operation: { phase: "compose", subtype: req.subtype, sections: keys },
+      contents: {
         task: COMPOSE_TASK,
         report_type: req.subtype,
         required_sections: keys,
@@ -277,10 +296,10 @@ export class VertexReportModel implements ReportModelClient {
         report_request: request(req.subtype, req.custom_prompt),
         findings: req.findings.map((f, finding) => ({ finding, kind: f.kind, text: f.text, ...optional(f) })),
       },
-      composeResponseSchema(keys),
-      keys ? ComposeGroupOutputSchema : ReportComposeOutputSchema,
-      req.signal
-    );
+      responseSchema: composeResponseSchema(keys),
+      schema: keys ? ComposeGroupOutputSchema : ReportComposeOutputSchema,
+      signal: req.signal,
+    });
     const blocks = out.sections.map((section): ReportBlock => {
       if (keys && !keys.includes(section.key)) throw new ReportGenerationError("The report has an unknown section.");
       const items: ReportItem[] = section.items.map((i) => {
@@ -289,9 +308,9 @@ export class VertexReportModel implements ReportModelClient {
         return {
           text: i.text,
           chunk_id: f.chunk_id,
-          ...(f.quote !== undefined ? { quote: f.quote } : {}),
-          ...(f.date !== undefined ? { date: f.date } : {}),
-          ...(i.question !== undefined ? { question: i.question } : {}),
+          ...(f.quote === undefined ? {} : { quote: f.quote }),
+          ...(f.date === undefined ? {} : { date: f.date }),
+          ...(i.question === undefined ? {} : { question: i.question }),
         };
       });
       const cite = (id: string) => {
@@ -360,7 +379,7 @@ function createVertexStudioContext(route: EnterpriseGeminiConfig<"flash">): Stud
     provider: {
       async create({ chunks, model: requestedModel, ttlSeconds, signal }) {
         if (requestedModel !== model) throw new Error("Studio cache model mismatch");
-        const parts: { text: string }[] = [];
+        const parts: Array<{ text: string }> = [];
         let bytes = 0;
         for await (const page of chunks) {
           signal.throwIfAborted();

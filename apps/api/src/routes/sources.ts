@@ -21,7 +21,7 @@ import {
   type SourceOperationRecord,
   type SourceRecord,
 } from "@everlast/db";
-import { readJson, sendJson, validationError } from "../http.ts";
+import { readJson, requireParam, sendJson, validationError } from "../http.ts";
 import { mediaUrlFor } from "./media.ts";
 import type { Router } from "../router.ts";
 import type { AppDeps } from "../app.ts";
@@ -35,7 +35,10 @@ import type { AppDeps } from "../app.ts";
 export const UPLOAD_TTL_SECONDS = 3600;
 const COPIED_TEXT_BODY_LIMIT = 16 * 1024 * 1024;
 
-export function toSourceDto(record: SourceRecord, activeOperation?: SourceOperationRecord | null): SourceDto {
+export function toSourceDto(
+  record: SourceRecord,
+  activeOperation?: SourceOperationRecord | null,
+): SourceDto {
   return {
     id: record.id,
     notebook_id: record.notebook_id,
@@ -45,7 +48,9 @@ export function toSourceDto(record: SourceRecord, activeOperation?: SourceOperat
     byte_size: record.actual_bytes ?? record.declared_bytes,
     word_count: record.word_count,
     revision: record.active_revision,
-    error: record.failure_code ? { code: record.failure_code, message: record.failure_message ?? "" } : null,
+    error: record.failure_code
+      ? { code: record.failure_code, message: record.failure_message ?? "" }
+      : null,
     created_at: record.created_at,
     updated_at: record.updated_at,
     // v3 (FR-SI-01/05, specs/009): additive linked-source, progress and sync fields; no delegated secrets.
@@ -54,7 +59,10 @@ export function toSourceDto(record: SourceRecord, activeOperation?: SourceOperat
     canonical_url: record.canonical_url,
     progress: record.progress,
     last_synced_at: record.last_synced_at,
-    sync: activeOperation && activeOperation.kind === "sync" ? { operation_id: activeOperation.id, state: activeOperation.state } : null,
+    sync:
+      activeOperation?.kind === "sync"
+        ? { operation_id: activeOperation.id, state: activeOperation.state }
+        : null,
   };
 }
 
@@ -68,19 +76,92 @@ const UploadBody = z
       .array(
         z
           .object({
-            attempt_id: z.string().uuid(),
+            attempt_id: z.uuid(),
             file_name: z.string().min(1).max(1024),
             declared_bytes: z.number().int().nonnegative(),
           })
-          .strict()
+          .strict(),
       )
       .min(1)
       .max(300),
   })
   .strict();
 
-const CompleteBody = z.object({ attempt_id: z.string().uuid() }).strict();
-const TextBody = z.object({ attempt_id: z.string().uuid(), text: z.string() }).strict();
+const CompleteBody = z.object({ attempt_id: z.uuid() }).strict();
+const TextBody = z.object({ attempt_id: z.uuid(), text: z.string() }).strict();
+
+type UploadFileInput = z.infer<typeof UploadBody>["files"][number];
+type ReserveEntry = Parameters<typeof reserveSources>[3][number];
+type ReserveResult = Awaited<ReturnType<typeof reserveSources>>[number];
+
+function partitionUploadFiles(files: UploadFileInput[]): {
+  items: Array<Record<string, unknown>>;
+  admissible: Array<{ index: number; entry: ReserveEntry }>;
+} {
+  const items = new Array<Record<string, unknown>>(files.length);
+  const admissible: Array<{ index: number; entry: ReserveEntry }> = [];
+  for (const [index, file] of files.entries()) {
+    // FR-SI-01 Subset A + B (specs/009): PDF, TXT, MD, DOCX, PPTX, MP3, WAV, M4A; never copied_text/note_markdown.
+    const mediaType = uploadMediaTypeForFileName(file.file_name);
+    if (!mediaType) {
+      items[index] = {
+        attempt_id: file.attempt_id,
+        admitted: false,
+        error: { code: "UnsupportedMediaType", message: UNSUPPORTED_UPLOAD_MESSAGE },
+      };
+    } else if (file.declared_bytes > MAX_SOURCE_BYTES) {
+      // Rejected before any capability is issued (FR-WM-07: <= 200 ms, no slot consumed).
+      items[index] = {
+        attempt_id: file.attempt_id,
+        admitted: false,
+        error: { code: "SourceOversized", message: "File exceeds the 200 MB limit" },
+      };
+    } else {
+      admissible.push({
+        index,
+        entry: {
+          attempt_id: file.attempt_id,
+          title: file.file_name.trim(),
+          media_type: mediaType,
+          declared_bytes: file.declared_bytes,
+        },
+      });
+    }
+  }
+  return { items, admissible };
+}
+
+async function buildUploadResponseItem(
+  storage: () => NonNullable<AppDeps["storage"]>,
+  notebookId: string,
+  result: ReserveResult,
+): Promise<Record<string, unknown>> {
+  const item: Record<string, unknown> = {
+    attempt_id: result.attempt_id,
+    admitted: result.admitted,
+  };
+  if (result.source) item.source = toSourceDto(result.source);
+  if (result.error) item.error = result.error;
+  const source = result.source;
+  if (result.admitted && source?.status === "Uploading") {
+    const expiresAt = source.upload_expires_at
+      ? new Date(source.upload_expires_at)
+      : new Date(Date.now() + UPLOAD_TTL_SECONDS * 1000);
+    if (expiresAt.getTime() > Date.now()) {
+      item.upload = await storage().createUploadUrl(rawObjectName(notebookId, source.id), {
+        contentType: source.media_type,
+        maxBytes: MAX_SOURCE_BYTES,
+        expiresAt,
+      });
+    } else {
+      item.error = {
+        code: "UploadExpired",
+        message: "Upload capability expired; start a new upload",
+      };
+    }
+  }
+  return item;
+}
 
 export function registerSourceRoutes(router: Router, deps: AppDeps): void {
   const storage = () => {
@@ -90,55 +171,40 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
 
   /** Release v2 (FR-WM-02): a source write advances the notebook's modified time. */
   const sourceWritten = async (userId: string, notebookId: string) => {
-    if (deps.v2) await deps.v2.notebookModified(userId, await getNotebook(deps.pool, userId, notebookId));
+    if (deps.v2)
+      await deps.v2.notebookModified(userId, await getNotebook(deps.pool, userId, notebookId));
   };
 
   router.add("GET", "/api/notebooks/:id/sources", async ({ res, user, params }) => {
-    const sources = await listSources(deps.pool, user.userId, params.id!);
+    const notebookId = requireParam(params, "id");
+    const sources = await listSources(deps.pool, user.userId, notebookId);
     if (deps.v2) {
       // Release v2 (D16): Ready counts, Source Guides and the topic icon follow the sources the owner sees.
-      deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, params.id!));
-      deps.v2.syncSources(user.userId, params.id!, sources);
+      deps.v2.syncNotebook(user.userId, await getNotebook(deps.pool, user.userId, notebookId));
+      deps.v2.syncSources(user.userId, notebookId, sources);
     }
-    const active = await listActiveOperations(deps.pool, params.id!);
+    const active = await listActiveOperations(deps.pool, notebookId);
     sendJson(res, 200, { sources: sources.map((s) => toSourceDto(s, active.get(s.id))) });
   });
 
   router.add("GET", "/api/notebooks/:id/sources/:sourceId", async ({ res, user, params }) => {
-    const source = await getSource(deps.pool, user.userId, params.id!, params.sourceId!);
-    sendJson(res, 200, { source: toSourceDto(source, (await listActiveOperations(deps.pool, params.id!)).get(source.id)) });
+    const notebookId = requireParam(params, "id");
+    const sourceId = requireParam(params, "sourceId");
+    const source = await getSource(deps.pool, user.userId, notebookId, sourceId);
+    sendJson(res, 200, {
+      source: toSourceDto(
+        source,
+        (await listActiveOperations(deps.pool, notebookId)).get(source.id),
+      ),
+    });
   });
 
   router.add("POST", "/api/notebooks/:id/sources/uploads", async ({ req, res, user, params }) => {
     const parsed = UploadBody.safeParse(await readJson(req));
-    if (!parsed.success) throw validationError("files must list {attempt_id, file_name, declared_bytes}");
-    const notebookId = params.id!;
-    const items: Record<string, unknown>[] = new Array(parsed.data.files.length);
-    const admissible: { index: number; entry: Parameters<typeof reserveSources>[3][number] }[] = [];
-
-    parsed.data.files.forEach((file, index) => {
-      // FR-SI-01 Subset A + B (specs/009): PDF, TXT, MD, DOCX, PPTX, MP3, WAV, M4A; never copied_text/note_markdown.
-      const mediaType = uploadMediaTypeForFileName(file.file_name);
-      if (!mediaType) {
-        items[index] = {
-          attempt_id: file.attempt_id,
-          admitted: false,
-          error: { code: "UnsupportedMediaType", message: UNSUPPORTED_UPLOAD_MESSAGE },
-        };
-      } else if (file.declared_bytes > MAX_SOURCE_BYTES) {
-        // Rejected before any capability is issued (FR-WM-07: <= 200 ms, no slot consumed).
-        items[index] = {
-          attempt_id: file.attempt_id,
-          admitted: false,
-          error: { code: "SourceOversized", message: "File exceeds the 200 MB limit" },
-        };
-      } else {
-        admissible.push({
-          index,
-          entry: { attempt_id: file.attempt_id, title: file.file_name.trim(), media_type: mediaType, declared_bytes: file.declared_bytes },
-        });
-      }
-    });
+    if (!parsed.success)
+      throw validationError("files must list {attempt_id, file_name, declared_bytes}");
+    const notebookId = requireParam(params, "id");
+    const { items, admissible } = partitionUploadFiles(parsed.data.files);
 
     if (admissible.length > 0) {
       const results = await reserveSources(
@@ -146,88 +212,109 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
         user.userId,
         notebookId,
         admissible.map((a) => a.entry),
-        { sourceLimit: deps.config.sourceLimit, uploadTtlSeconds: UPLOAD_TTL_SECONDS }
+        { sourceLimit: deps.config.sourceLimit, uploadTtlSeconds: UPLOAD_TTL_SECONDS },
       );
-      for (let i = 0; i < results.length; i++) {
-        const result = results[i]!;
-        const item: Record<string, unknown> = { attempt_id: result.attempt_id, admitted: result.admitted };
-        if (result.source) item.source = toSourceDto(result.source);
-        if (result.error) item.error = result.error;
-        const source = result.source;
-        if (result.admitted && source && source.status === "Uploading") {
-          const expiresAt = source.upload_expires_at ? new Date(source.upload_expires_at) : new Date(Date.now() + UPLOAD_TTL_SECONDS * 1000);
-          if (expiresAt.getTime() > Date.now()) {
-            item.upload = await storage().createUploadUrl(rawObjectName(notebookId, source.id), {
-              contentType: source.media_type,
-              maxBytes: MAX_SOURCE_BYTES,
-              expiresAt,
-            });
-          } else {
-            item.error = { code: "UploadExpired", message: "Upload capability expired; start a new upload" };
-          }
-        }
-        items[admissible[i]!.index] = item;
+      for (const [i, result] of results.entries()) {
+        const target = admissible[i];
+        if (!target) continue;
+        items[target.index] = await buildUploadResponseItem(storage, notebookId, result);
       }
     }
     sendJson(res, 200, { items });
   });
 
-  router.add("POST", "/api/notebooks/:id/sources/:sourceId/complete", async ({ req, res, user, params }) => {
-    const parsed = CompleteBody.safeParse(await readJson(req));
-    if (!parsed.success) throw validationError("attempt_id is required");
-    const source = await getSource(deps.pool, user.userId, params.id!, params.sourceId!);
-    if (source.attempt_id !== parsed.data.attempt_id) throw new AppError("ValidationFailed", 409, "attempt_id does not match this source");
-    if (source.status !== "Uploading") {
-      sendJson(res, 200, { source: toSourceDto(source) });
-      return;
-    }
-    const objectName = rawObjectName(source.notebook_id, source.id);
-    const metadata = await storage().stat(objectName);
-    if (!metadata) throw new AppError("ValidationFailed", 409, "Upload has not been received");
-    const outcome = await acceptReceivedSource(deps.pool, {
-      sourceId: source.id,
-      attemptId: source.attempt_id,
-      actualBytes: metadata.size,
-      objectName,
-      objectGeneration: metadata.generation,
-    });
-    if (outcome.outcome === "rejected") {
-      if (outcome.reason === "fenced") throw new AppError("NotebookNotFound", 404, "Notebook no longer exists");
-      sendJson(res, 200, { source: toSourceDto(await getSource(deps.pool, user.userId, params.id!, params.sourceId!)) });
-      return;
-    }
-    if (outcome.outcome === "failed") {
-      for (const version of await storage().listVersions(`notebooks/${source.notebook_id}/sources/${source.id}/`)) {
-        await storage().deleteVersion(version.name, version.generation).catch(() => undefined);
+  router.add(
+    "POST",
+    "/api/notebooks/:id/sources/:sourceId/complete",
+    async ({ req, res, user, params }) => {
+      const notebookId = requireParam(params, "id");
+      const sourceId = requireParam(params, "sourceId");
+      const parsed = CompleteBody.safeParse(await readJson(req));
+      if (!parsed.success) throw validationError("attempt_id is required");
+      const source = await getSource(deps.pool, user.userId, notebookId, sourceId);
+      if (source.attempt_id !== parsed.data.attempt_id)
+        throw new AppError("ValidationFailed", 409, "attempt_id does not match this source");
+      if (source.status !== "Uploading") {
+        sendJson(res, 200, { source: toSourceDto(source) });
+        return;
       }
-    } else {
-      deps.notifyJobs();
-    }
-    await sourceWritten(user.userId, source.notebook_id);
-    sendJson(res, 200, { source: toSourceDto(outcome.source) });
-  });
+      const objectName = rawObjectName(source.notebook_id, source.id);
+      const metadata = await storage().stat(objectName);
+      if (!metadata) throw new AppError("ValidationFailed", 409, "Upload has not been received");
+      const outcome = await acceptReceivedSource(deps.pool, {
+        sourceId: source.id,
+        attemptId: source.attempt_id,
+        actualBytes: metadata.size,
+        objectName,
+        objectGeneration: metadata.generation,
+      });
+      if (outcome.outcome === "rejected") {
+        if (outcome.reason === "fenced")
+          throw new AppError("NotebookNotFound", 404, "Notebook no longer exists");
+        sendJson(res, 200, {
+          source: toSourceDto(await getSource(deps.pool, user.userId, notebookId, sourceId)),
+        });
+        return;
+      }
+      if (outcome.outcome === "failed") {
+        for (const version of await storage().listVersions(
+          `notebooks/${source.notebook_id}/sources/${source.id}/`,
+        )) {
+          await storage()
+            .deleteVersion(version.name, version.generation)
+            .catch(() => undefined);
+        }
+      } else {
+        deps.notifyJobs();
+      }
+      await sourceWritten(user.userId, source.notebook_id);
+      sendJson(res, 200, { source: toSourceDto(outcome.source) });
+    },
+  );
 
   router.add("POST", "/api/notebooks/:id/sources/text", async ({ req, res, user, params }) => {
+    const notebookId = requireParam(params, "id");
     const parsed = TextBody.safeParse(await readJson(req, COPIED_TEXT_BODY_LIMIT));
     if (!parsed.success) throw validationError("Body must be {attempt_id, text}");
     const text = parsed.data.text;
-    if (Array.from(text.trim()).length < 1) throw new AppError("ValidationFailed", 422, "Pasted text must contain at least one character");
+    if (text.trim().length < 1)
+      throw new AppError(
+        "ValidationFailed",
+        422,
+        "Pasted text must contain at least one character",
+      );
     const bytes = Buffer.from(text, "utf8");
-    if (bytes.length > MAX_SOURCE_BYTES) throw new AppError("SourceOversized", 413, "Exceeds 200,000,000 bytes limit");
-    if (countWords(text) > MAX_SOURCE_WORDS) throw new AppError("SourceOversizedWords", 422, "Exceeds 500,000 words limit");
+    if (bytes.length > MAX_SOURCE_BYTES)
+      throw new AppError("SourceOversized", 413, "Exceeds 200,000,000 bytes limit");
+    if (countWords(text) > MAX_SOURCE_WORDS)
+      throw new AppError("SourceOversizedWords", 422, "Exceeds 500,000 words limit");
 
     const [result] = await reserveSources(
       deps.pool,
       user.userId,
-      params.id!,
-      [{ attempt_id: parsed.data.attempt_id, title: DEFAULT_COPIED_TEXT_TITLE, media_type: "copied_text", declared_bytes: bytes.length }],
-      { sourceLimit: deps.config.sourceLimit, uploadTtlSeconds: null }
+      notebookId,
+      [
+        {
+          attempt_id: parsed.data.attempt_id,
+          title: DEFAULT_COPIED_TEXT_TITLE,
+          media_type: "copied_text",
+          declared_bytes: bytes.length,
+        },
+      ],
+      { sourceLimit: deps.config.sourceLimit, uploadTtlSeconds: null },
     );
-    if (!result!.admitted || !result!.source) {
-      const error = result!.error ?? { code: "SourceQuotaExceeded", message: "Source limit reached" };
-      throw new AppError(error.code as never, error.code === "SourceQuotaExceeded" ? 409 : 422, error.message);
+    if (!result?.admitted || !result.source) {
+      const error = result?.error ?? {
+        code: "SourceQuotaExceeded",
+        message: "Source limit reached",
+      };
+      throw new AppError(
+        error.code as never,
+        error.code === "SourceQuotaExceeded" ? 409 : 422,
+        error.message,
+      );
     }
-    let source = result!.source;
+    let source = result.source;
     if (source.status === "Uploading") {
       const objectName = rawObjectName(source.notebook_id, source.id);
       const written = await storage().write(objectName, bytes, "text/plain; charset=utf-8");
@@ -241,21 +328,31 @@ export function registerSourceRoutes(router: Router, deps: AppDeps): void {
       if (outcome.outcome === "processing" || outcome.outcome === "failed") source = outcome.source;
       deps.notifyJobs();
     }
-    await sourceWritten(user.userId, params.id!);
+    await sourceWritten(user.userId, notebookId);
     sendJson(res, 201, { source: toSourceDto(source) });
   });
 
-  router.add("GET", "/api/notebooks/:id/sources/:sourceId/content", async ({ res, url, user, params }) => {
-    const content = await readSourceForInspection(deps.pool, user.userId, params.id!, params.sourceId!, {
-      highlightChunkId: url.searchParams.get("chunk_id") ?? undefined,
-      cursor: url.searchParams.get("cursor") ?? undefined,
-    });
-    // Audio playback goes through the authorized, revision-bound media proxy (specs/009 T030).
-    if (content.player?.type === "audio" || content.player?.type === "video") {
-      content.player = { type: content.player.type, url: mediaUrlFor(deps, user.userId, params.id!, params.sourceId!, content.source.revision), duration_ms: content.source.media_duration_ms };
-    }
-    sendJson(res, 200, content);
-  });
+  router.add(
+    "GET",
+    "/api/notebooks/:id/sources/:sourceId/content",
+    async ({ res, url, user, params }) => {
+      const notebookId = requireParam(params, "id");
+      const sourceId = requireParam(params, "sourceId");
+      const content = await readSourceForInspection(deps.pool, user.userId, notebookId, sourceId, {
+        highlightChunkId: url.searchParams.get("chunk_id") ?? undefined,
+        cursor: url.searchParams.get("cursor") ?? undefined,
+      });
+      // Audio playback goes through the authorized, revision-bound media proxy (specs/009 T030).
+      if (content.player?.type === "audio" || content.player?.type === "video") {
+        content.player = {
+          type: content.player.type,
+          url: mediaUrlFor(deps, user.userId, notebookId, sourceId, content.source.revision),
+          duration_ms: content.source.media_duration_ms,
+        };
+      }
+      sendJson(res, 200, content);
+    },
+  );
 }
 
 export function newAttemptId(): string {

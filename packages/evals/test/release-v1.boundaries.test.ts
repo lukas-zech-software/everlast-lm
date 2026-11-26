@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildGoldenDataset, assertDatasetMinimums, datasetCounts, GoldenCaseV1Schema, datasetHash, corpusHash, releaseSample } from "../src/dataset.ts";
+import {
+  buildGoldenDataset,
+  assertDatasetMinimums,
+  datasetCounts,
+  GoldenCaseV1Schema,
+  datasetHash,
+  corpusHash,
+  releaseSample,
+} from "../src/dataset.ts";
 import { judgeMetric, ratio, containsForbidden } from "../src/metrics.ts";
 import { buildCorpus } from "../src/corpus.ts";
 
@@ -20,11 +28,22 @@ describe("golden dataset (NFR-EVAL-01..04)", () => {
     const cases = buildGoldenDataset();
     const drop = (category: string, keep: number) => {
       let n = 0;
-      return cases.filter((c) => (c.category === category || (category === "deselection" && c.category === "deselected_source") ? n++ < keep : true));
+      return cases.filter((c) =>
+        c.category === category ||
+        (category === "deselection" && c.category === "deselected_source")
+          ? n++ < keep
+          : true,
+      );
     };
     expect(() => assertDatasetMinimums(drop("unanswerable", 99))).toThrow(/unanswerable 99 < 100/);
     expect(() => assertDatasetMinimums(drop("synthesis", 49))).toThrow(/synthesis 49 < 50/);
-    const fewDes = cases.filter((c) => c.category !== "history_carryover").filter((c, i, all) => c.category !== "deselected_source" || all.filter((x) => x.category === "deselected_source").indexOf(c) < 0);
+    const fewDes = cases
+      .filter((c) => c.category !== "history_carryover")
+      .filter(
+        (c, i, all) =>
+          c.category !== "deselected_source" ||
+          !all.filter((x) => x.category === "deselected_source").includes(c),
+      );
     expect(() => assertDatasetMinimums(fewDes)).toThrow(/deselection/);
   });
 
@@ -36,7 +55,8 @@ describe("golden dataset (NFR-EVAL-01..04)", () => {
     const corpus = JSON.stringify(buildCorpus());
     expect(corpus).toContain("Kestrel Vantage");
     for (const c of a.filter((x) => x.category === "unanswerable")) {
-      for (const f of c.forbidden) expect(containsForbidden(corpus, f), `${c.id} answer "${f}" appears in corpus`).toBe(false);
+      for (const f of c.forbidden)
+        expect(containsForbidden(corpus, f), `${c.id} answer "${f}" appears in corpus`).toBe(false);
     }
   });
 });
@@ -48,11 +68,20 @@ describe("judged release sample (Constitution v2.0.0)", () => {
     expect(a).toHaveLength(50);
     expect(releaseSample(buildGoldenDataset()).map((c) => c.id)).toEqual(a.map((c) => c.id));
     expect(new Set(a.map((c) => c.id)).size).toBe(50);
-    expect(datasetCounts(a)).toMatchObject({ unanswerable: 25, synthesis: 14, history: 4, deselection: 11 });
+    expect(datasetCounts(a)).toMatchObject({
+      unanswerable: 25,
+      synthesis: 14,
+      history: 4,
+      deselection: 11,
+    });
     // T038 / NFR-EVAL-01..04: pin the release profile to the candidate's fixture and ordered IDs.
-    expect(datasetHash(cases)).toBe("35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29");
+    expect(datasetHash(cases)).toBe(
+      "35f54e2553cd70f380242ad16e917adde9cd87def9401a9e75def1ec790efe29",
+    );
     expect(corpusHash()).toBe("df229d252d1065c8c52591d3a47aa900563a6e381feec64fa3b6160e289359cd");
-    const sampleHash = createHash("sha256").update(JSON.stringify(a.map((c) => c.id))).digest("hex");
+    const sampleHash = createHash("sha256")
+      .update(JSON.stringify(a.map((c) => c.id)))
+      .digest("hex");
     expect(sampleHash).toBe("c39e6521a2ef4d1695ad95d94a32a1c55aa86471f1a0bbdeb14d0875e7fc9a28");
   });
 });
@@ -60,7 +89,7 @@ describe("judged release sample (Constitution v2.0.0)", () => {
 describe("gate thresholds", () => {
   it("EVB-04: hallucination 0.099 passes, 0.10 and 0.101 fail (strict < 0.10)", () => {
     expect(judgeMetric("hallucination_rate", 0.099, { failing_cases: [] }).passed).toBe(true);
-    expect(judgeMetric("hallucination_rate", 0.10, { failing_cases: [] }).passed).toBe(false);
+    expect(judgeMetric("hallucination_rate", 0.1, { failing_cases: [] }).passed).toBe(false);
     expect(judgeMetric("hallucination_rate", 0.101, { failing_cases: [] }).passed).toBe(false);
   });
 
@@ -71,7 +100,7 @@ describe("gate thresholds", () => {
 
   it("EVB-06: rejection 0.89 fails, 0.90 and 1.0 pass", () => {
     expect(judgeMetric("negative_rejection_rate", 0.89, { failing_cases: [] }).passed).toBe(false);
-    expect(judgeMetric("negative_rejection_rate", 0.90, { failing_cases: [] }).passed).toBe(true);
+    expect(judgeMetric("negative_rejection_rate", 0.9, { failing_cases: [] }).passed).toBe(true);
     expect(judgeMetric("negative_rejection_rate", 1, { failing_cases: [] }).passed).toBe(true);
   });
 
@@ -85,7 +114,10 @@ describe("gate thresholds", () => {
     expect(() => ratio(0, 0, "x")).toThrow(/fails closed/);
     expect(() => ratio(3, 2, "x")).toThrow(/invalid numerator/);
     expect(() => ratio(-1, 2, "x")).toThrow();
-    const missing = judgeMetric("hallucination_rate", null, { failing_cases: [], unavailable: "UNAVAILABLE" });
+    const missing = judgeMetric("hallucination_rate", null, {
+      failing_cases: [],
+      unavailable: "UNAVAILABLE",
+    });
     expect(missing).toMatchObject({ status: "unavailable", passed: false });
   });
 

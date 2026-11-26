@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReportSuggestionsResult } from "@everlast/contracts";
 import { createStudioPanel, type StudioPanel } from "../src/studio/panel.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [008-studio-text-reports] T048 — Studio Right Panel (FR-ST-10, FR-ST-11, FR-001, FR-006, FR-008..FR-012, FR-018,
@@ -35,14 +35,24 @@ interface Row {
   payload_json: unknown;
   unavailable?: { code: string; message: string };
 }
+interface StudioRequestBody {
+  active_source_ids?: string[];
+  subtype?: string;
+  [key: string]: unknown;
+}
 interface Call {
   method: string;
   path: string;
-  body: any;
+  body: StudioRequestBody | undefined;
 }
 
 const json = (body: unknown, status = 200) =>
-  status === 204 ? new Response(null, { status }) : new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  status === 204
+    ? new Response(null, { status })
+    : new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      });
 
 const COMPLETED_PAYLOAD = {
   content_md: [
@@ -58,7 +68,13 @@ const COMPLETED_PAYLOAD = {
     "",
   ].join("\n"),
   citations: [
-    { badge_number: 1, chunk_id: CHUNK_1, source_id: SRC_A, revision: 1, snippet: "The treaty was signed in 1648." },
+    {
+      badge_number: 1,
+      chunk_id: CHUNK_1,
+      source_id: SRC_A,
+      revision: 1,
+      snippet: "The treaty was signed in 1648.",
+    },
     { badge_number: 2, chunk_id: CHUNK_2, source_id: SRC_B, revision: 1, snippet: "quote" },
   ],
   sections: [
@@ -71,13 +87,22 @@ function createFakeStudioApi() {
   const rows: Row[] = [];
   const calls: Call[] = [];
   const state = {
-    suggestions: [{ state: "SuggestionsUnavailable", reason: "x" }] as (ReportSuggestionsResult | number)[],
+    suggestions: [{ state: "SuggestionsUnavailable", reason: "x" }] as Array<
+      ReportSuggestionsResult | number
+    >,
     /** Queued → Running → Completed after this many list reads (a background job). */
     stepsToComplete: 2,
     reads: new Map<string, number>(),
   };
   const add = (fields: Partial<Row> & { subtype: string }): Row => {
-    const row: Row = { id: randomUUID(), status: "Queued", title: TITLES[fields.subtype] ?? "Report", failure: null, payload_json: null, ...fields };
+    const row: Row = {
+      id: randomUUID(),
+      status: "Queued",
+      title: TITLES[fields.subtype] ?? "Report",
+      failure: null,
+      payload_json: null,
+      ...fields,
+    };
     rows.push(row);
     return row;
   };
@@ -108,40 +133,77 @@ function createFakeStudioApi() {
       r.payload_json = COMPLETED_PAYLOAD;
     } else r.status = "Running";
   };
-  const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = new URL(String(input), "http://local");
+  const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+    const url = new URL(requestUrl(input), "http://local");
     const method = (init.method ?? "GET").toUpperCase();
-    const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+    const body =
+      typeof init.body === "string" ? (JSON.parse(init.body) as StudioRequestBody) : undefined;
     calls.push({ method, path: url.pathname, body });
     const base = `/api/notebooks/${NB}/studio`;
-    if (!url.pathname.startsWith(base)) return json({ error: { code: "NotFound", message: "not found" } }, 404);
+    if (!url.pathname.startsWith(base)) {
+      return Promise.resolve(json({ error: { code: "NotFound", message: "not found" } }, 404));
+    }
     const rest = url.pathname.slice(base.length).split("/").filter(Boolean);
     if (rest[0] === "report-suggestions" && method === "POST") {
-      const next = state.suggestions.length > 1 ? state.suggestions.shift()! : state.suggestions[0]!;
-      if (typeof next === "number") return json({ error: { code: "Unavailable", message: "Generation is not configured." } }, next);
-      return json(next);
+      const next =
+        state.suggestions.length > 1 ? state.suggestions.shift()! : state.suggestions[0]!;
+      if (typeof next === "number") {
+        return Promise.resolve(
+          json({ error: { code: "Unavailable", message: "Generation is not configured." } }, next),
+        );
+      }
+      return Promise.resolve(json(next));
     }
-    if (rest[0] !== "artifacts") return json({ error: { code: "NotFound", message: "not found" } }, 404);
+    if (rest[0] !== "artifacts") {
+      return Promise.resolve(json({ error: { code: "NotFound", message: "not found" } }, 404));
+    }
     if (rest.length === 1 && method === "GET") {
       rows.forEach(advance);
-      return json({ artifacts: [...rows].reverse().map(dto) });
+      return Promise.resolve(json({ artifacts: [...rows].reverse().map(dto) }));
     }
     if (rest.length === 1 && method === "POST") {
       if (!Array.isArray(body?.active_source_ids) || body.active_source_ids.length === 0) {
-        return json({ error: { code: "EmptyScopeError", message: "active_source_ids must contain at least one source UUID." } }, 400);
+        return Promise.resolve(
+          json(
+            {
+              error: {
+                code: "EmptyScopeError",
+                message: "active_source_ids must contain at least one source UUID.",
+              },
+            },
+            400,
+          ),
+        );
       }
-      return json({ artifact: dto(add({ subtype: body.subtype })) }, 202);
+      return Promise.resolve(
+        json({ artifact: dto(add({ subtype: body.subtype ?? "custom" })) }, 202),
+      );
     }
     const row = rows.find((r) => r.id === rest[1]);
-    if (!row) return json({ error: { code: "NotFound", message: "Artifact not found." } }, 404);
-    if (rest[2] === "retry" && method === "POST") return json({ artifact: dto(add({ subtype: row.subtype })) }, 202);
-    if (rest[2] === "convert-to-source" && method === "POST") return json({ source_id: "new-source-id" }, 201);
-    if (method === "GET") return json({ artifact: dto(row), ...(row.unavailable ? { unavailable: row.unavailable } : {}) });
+    if (!row) {
+      return Promise.resolve(
+        json({ error: { code: "NotFound", message: "Artifact not found." } }, 404),
+      );
+    }
+    if (rest[2] === "retry" && method === "POST") {
+      return Promise.resolve(json({ artifact: dto(add({ subtype: row.subtype })) }, 202));
+    }
+    if (rest[2] === "convert-to-source" && method === "POST") {
+      return Promise.resolve(json({ source_id: "new-source-id" }, 201));
+    }
+    if (method === "GET") {
+      return Promise.resolve(
+        json({
+          artifact: dto(row),
+          ...(row.unavailable ? { unavailable: row.unavailable } : {}),
+        }),
+      );
+    }
     if (method === "DELETE") {
       rows.splice(rows.indexOf(row), 1);
-      return json(null, 204);
+      return Promise.resolve(json(null, 204));
     }
-    return json({ error: { code: "NotFound", message: "not found" } }, 404);
+    return Promise.resolve(json({ error: { code: "NotFound", message: "not found" } }, 404));
   }) as typeof fetch;
   return { fetcher, rows, calls, state, add };
 }
@@ -149,9 +211,21 @@ function createFakeStudioApi() {
 const READY: ReportSuggestionsResult = {
   state: "SuggestionsReady",
   suggestions: [
-    { title: "Vendor comparison", description: "Compare the three vendor proposals.", prompt_template: "Compare the vendor proposals on cost and risk." },
-    { title: "Risk overview", description: "Summarise the main risks.", prompt_template: "Summarise the main risks of each vendor." },
-    { title: "Decision brief", description: "Brief a decision maker.", prompt_template: "Write a decision brief about the vendors." },
+    {
+      title: "Vendor comparison",
+      description: "Compare the three vendor proposals.",
+      prompt_template: "Compare the vendor proposals on cost and risk.",
+    },
+    {
+      title: "Risk overview",
+      description: "Summarise the main risks.",
+      prompt_template: "Summarise the main risks of each vendor.",
+    },
+    {
+      title: "Decision brief",
+      description: "Brief a decision maker.",
+      prompt_template: "Write a decision brief about the vendors.",
+    },
   ],
 };
 
@@ -159,13 +233,13 @@ let dom: ReturnType<typeof setupMockDOM>;
 let api: ReturnType<typeof createFakeStudioApi>;
 let panel: StudioPanel;
 let selection: string[];
-let opened: [string, string][];
+let opened: Array<[string, string]>;
 let created: string[];
 let copied: string[];
 let confirmAnswer: boolean;
 let confirms: number;
 
-const body = () => dom.document.body as unknown as MockElement;
+const body = () => dom.document.body;
 const q = (sel: string, root: MockElement = body()) => root.querySelector(sel);
 const qa = (sel: string, root: MockElement = body()) => root.querySelectorAll(sel);
 const tid = (id: string, root?: MockElement) => q(`[data-testid=${id}]`, root);
@@ -176,9 +250,10 @@ const type = (el: MockElement | null, value: string) => {
 };
 const posts = () => api.calls.filter((c) => c.method === "POST" && c.path.endsWith("/artifacts"));
 const rowsEl = () => tids("studio-artifact-row");
-const template = (subtype: string) => tids("report-template").find((b) => b.getAttribute("data-subtype") === subtype)!;
+const template = (subtype: string) =>
+  tids("report-template").find((b) => b.getAttribute("data-subtype") === subtype)!;
 
-async function mount(options: { suggestions?: (ReportSuggestionsResult | number)[] } = {}) {
+async function mount(options: { suggestions?: Array<ReportSuggestionsResult | number> } = {}) {
   api = createFakeStudioApi();
   if (options.suggestions) api.state.suggestions = options.suggestions;
   opened = [];
@@ -192,9 +267,17 @@ async function mount(options: { suggestions?: (ReportSuggestionsResult | number)
     selectedSourceIds: () => [...selection],
     openCitation: (sourceId, chunkId) => void opened.push([sourceId, chunkId]),
     onSourceCreated: (sourceId) => void created.push(sourceId),
-    confirm: async () => (confirms++, confirmAnswer),
+    confirm: () => {
+      confirms += 1;
+      return Promise.resolve(confirmAnswer);
+    },
     notify: () => undefined,
-    clipboard: { writeText: async (text) => void copied.push(text) },
+    clipboard: {
+      writeText: (text) => {
+        copied.push(text);
+        return Promise.resolve();
+      },
+    },
     pollMs: 5,
     suggestionPollMs: 5,
     maxSuggestionPolls: 3,
@@ -223,8 +306,18 @@ describe("T048 FR-001 / FR-012: Reports tile and Create report modal", () => {
     await openModal();
     expect(tid("reports-modal")!.textContent).toContain("Create report");
     expect(tid("report-create-own")!.textContent).toContain("Create Your Own");
-    expect(tids("report-template").map((b) => b.textContent)).toEqual(["Briefing doc", "Study guide", "FAQ", "Timeline"]);
-    expect(tids("report-template").map((b) => b.getAttribute("data-subtype"))).toEqual(["briefing_doc", "study_guide", "faq", "timeline"]);
+    expect(tids("report-template").map((b) => b.textContent)).toEqual([
+      "Briefing doc",
+      "Study guide",
+      "FAQ",
+      "Timeline",
+    ]);
+    expect(tids("report-template").map((b) => b.getAttribute("data-subtype"))).toEqual([
+      "briefing_doc",
+      "study_guide",
+      "faq",
+      "timeline",
+    ]);
     for (const b of tids("report-template")) expect(b.disabled).toBe(false);
     expect(tid("report-create-own")!.disabled).toBe(false);
   });
@@ -250,7 +343,11 @@ describe("T048 FR-001 / FR-012: Reports tile and Create report modal", () => {
     panel.updateSourceSelection();
     template("briefing_doc").click();
     await vi.waitFor(() => expect(posts()).toHaveLength(1));
-    expect(posts()[0]!.body).toEqual({ plugin_type: "report", subtype: "briefing_doc", active_source_ids: [SRC_B] });
+    expect(posts()[0]!.body).toEqual({
+      plugin_type: "report",
+      subtype: "briefing_doc",
+      active_source_ids: [SRC_B],
+    });
     await vi.waitFor(() => expect(tid("reports-modal")).toBeNull());
     await vi.waitFor(() => expect(rowsEl()).toHaveLength(1));
   });
@@ -275,30 +372,46 @@ describe("T048 FR-006 / US1/AC3: artifact list lifecycle", () => {
     expect(tid("studio-generating", done)).toBeNull();
     // v2 has no cancel action (card FR-ST-10).
     expect(tid("studio-cancel")).toBeNull();
-    const reads = api.calls.filter((c) => c.method === "GET" && c.path.endsWith("/artifacts")).length;
+    const reads = api.calls.filter(
+      (c) => c.method === "GET" && c.path.endsWith("/artifacts"),
+    ).length;
     await new Promise((r) => setTimeout(r, 30));
-    expect(api.calls.filter((c) => c.method === "GET" && c.path.endsWith("/artifacts")).length).toBe(reads); // polling stops at terminal
+    expect(
+      api.calls.filter((c) => c.method === "GET" && c.path.endsWith("/artifacts")).length,
+    ).toBe(reads); // polling stops at terminal
     panel.destroy();
   });
 
   it("Failed rows show their explanation and Retry sends the current selection", async () => {
     await mount();
-    api.add({ subtype: "timeline", status: "Failed", failure: { code: "SourceChanged", message: "A captured source was deleted." } });
+    api.add({
+      subtype: "timeline",
+      status: "Failed",
+      failure: { code: "SourceChanged", message: "A captured source was deleted." },
+    });
     await panel.refresh();
     const row = rowsEl()[0]!;
     expect(row.getAttribute("data-status")).toBe("Failed");
-    expect(tid("studio-artifact-failure", row)!.textContent).toContain("A captured source was deleted.");
+    expect(tid("studio-artifact-failure", row)!.textContent).toContain(
+      "A captured source was deleted.",
+    );
     selection = [SRC_A];
     tid("studio-retry", row)!.click();
     await vi.waitFor(() => expect(api.calls.some((c) => c.path.endsWith("/retry"))).toBe(true));
-    expect(api.calls.find((c) => c.path.endsWith("/retry"))!.body).toEqual({ active_source_ids: [SRC_A] });
+    expect(api.calls.find((c) => c.path.endsWith("/retry"))!.body).toEqual({
+      active_source_ids: [SRC_A],
+    });
     await vi.waitFor(() => expect(rowsEl()).toHaveLength(2));
     panel.destroy();
   });
 
   it("Retry is disabled while the selection is empty", async () => {
     await mount();
-    api.add({ subtype: "faq", status: "Failed", failure: { code: "InsufficientEvidence", message: "Not enough evidence." } });
+    api.add({
+      subtype: "faq",
+      status: "Failed",
+      failure: { code: "InsufficientEvidence", message: "Not enough evidence." },
+    });
     selection = [];
     await panel.refresh();
     expect(tid("studio-retry")!.disabled).toBe(true);
@@ -313,7 +426,7 @@ describe("T048 FR-008 / US1/AC4: report viewer", () => {
     await mount();
     api.add({ subtype: "briefing_doc", status: "Completed", payload_json: COMPLETED_PAYLOAD });
     await panel.refresh();
-    tid("studio-artifact-open", rowsEl()[0]!)!.click();
+    tid("studio-artifact-open", rowsEl()[0])!.click();
     await vi.waitFor(() => expect(tid("studio-report-content")).not.toBeNull());
     return tid("studio-report-viewer")!;
   }
@@ -323,7 +436,10 @@ describe("T048 FR-008 / US1/AC4: report viewer", () => {
     expect(tid("studio-report-title", viewer)!.textContent).toBe("Briefing doc");
     const content = tid("studio-report-content", viewer)!;
     const headings = qa("h2", content);
-    expect(headings.map((h) => h.getAttribute("data-section-key"))).toEqual(["executive_summary", "quotes"]);
+    expect(headings.map((h) => h.getAttribute("data-section-key"))).toEqual([
+      "executive_summary",
+      "quotes",
+    ]);
     expect(headings.map((h) => h.textContent)).toEqual(["Executive summary", "Quotes"]);
     expect(qa("script", content)).toHaveLength(0);
     expect(content.textContent).toContain("<script>alert(1)</script>");
@@ -367,7 +483,11 @@ describe("T048 FR-008 / US1/AC4: report viewer", () => {
       subtype: "faq",
       status: "Completed",
       payload_json: COMPLETED_PAYLOAD,
-      unavailable: { code: "SourceChanged", message: "This report is unavailable because its sources changed or are no longer accessible." },
+      unavailable: {
+        code: "SourceChanged",
+        message:
+          "This report is unavailable because its sources changed or are no longer accessible.",
+      },
     });
     await panel.refresh();
     tid("studio-artifact-open")!.click();
@@ -386,12 +506,16 @@ describe("T048 FR-ST-11 / FR-009 / FR-018: Suggested Format", () => {
     expect(tid("report-suggestions")!.getAttribute("data-state")).toBe("SuggestionsReady");
     const [first] = tids("report-suggestion");
     expect(tid("report-suggestion-title", first)!.textContent).toBe("Vendor comparison");
-    expect(tid("report-suggestion-description", first)!.textContent).toBe("Compare the three vendor proposals.");
+    expect(tid("report-suggestion-description", first)!.textContent).toBe(
+      "Compare the three vendor proposals.",
+    );
     expect(tid("report-suggestion-edit", first)).not.toBeNull();
     // The suggestions request carries the explicit selection.
-    expect(api.calls.find((c) => c.path.endsWith("/report-suggestions"))!.body).toEqual({ active_source_ids: [SRC_A, SRC_B] });
+    expect(api.calls.find((c) => c.path.endsWith("/report-suggestions"))!.body).toEqual({
+      active_source_ids: [SRC_A, SRC_B],
+    });
 
-    tid("report-suggestion-edit", tids("report-suggestion")[1]!)!.click();
+    tid("report-suggestion-edit", tids("report-suggestion")[1])!.click();
     const prompt = tid("report-prompt")!;
     expect(prompt.value).toBe("Summarise the main risks of each vendor.");
     type(prompt, `${prompt.value} Include a risk matrix`);
@@ -409,13 +533,19 @@ describe("T048 FR-ST-11 / FR-009 / FR-018: Suggested Format", () => {
     await mount({ suggestions: [READY] });
     await openModal();
     await vi.waitFor(() => expect(tids("report-suggestion")).toHaveLength(3));
-    tid("report-suggestion-use", tids("report-suggestion")[2]!)!.click();
+    tid("report-suggestion-use", tids("report-suggestion")[2])!.click();
     await vi.waitFor(() => expect(posts()).toHaveLength(1));
-    expect(posts()[0]!.body).toMatchObject({ subtype: "dynamic", custom_prompt: "Write a decision brief about the vendors.", active_source_ids: [SRC_A, SRC_B] });
+    expect(posts()[0]!.body).toMatchObject({
+      subtype: "dynamic",
+      custom_prompt: "Write a decision brief about the vendors.",
+      active_source_ids: [SRC_A, SRC_B],
+    });
   });
 
   it("while Source Guides are pending shows a loading state, keeps templates usable, then shows the cards", async () => {
-    await mount({ suggestions: [{ state: "SuggestionsLoading" }, { state: "SuggestionsLoading" }, READY] });
+    await mount({
+      suggestions: [{ state: "SuggestionsLoading" }, { state: "SuggestionsLoading" }, READY],
+    });
     await openModal();
     expect(tid("report-suggestions-loading")).not.toBeNull();
     for (const b of tids("report-template")) expect(b.disabled).toBe(false);
@@ -435,19 +565,25 @@ describe("T048 FR-ST-11 / FR-009 / FR-018: Suggested Format", () => {
   });
 
   it.each([
-    ["failed guides (SuggestionsUnavailable)", [{ state: "SuggestionsUnavailable", reason: "Source Guide generation failed." } as ReportSuggestionsResult]],
+    [
+      "failed guides (SuggestionsUnavailable)",
+      [{ state: "SuggestionsUnavailable" as const, reason: "Source Guide generation failed." }],
+    ],
     ["no generation client configured (503)", [503]],
-  ])("explains that suggestions are unavailable for %s while templates and Create Your Own stay usable", async (_label, suggestions) => {
-    await mount({ suggestions });
-    await openModal();
-    await vi.waitFor(() => expect(tid("report-suggestions-unavailable")).not.toBeNull());
-    expect(tid("report-suggestions-unavailable")!.textContent).toContain("unavailable");
-    expect(tids("report-suggestion")).toHaveLength(0);
-    for (const b of tids("report-template")) expect(b.disabled).toBe(false);
-    tid("report-create-own")!.click();
-    type(tid("report-prompt"), "Write for executives.");
-    expect(tid("report-generate")!.disabled).toBe(false);
-  });
+  ])(
+    "explains that suggestions are unavailable for %s while templates and Create Your Own stay usable",
+    async (_label, suggestions) => {
+      await mount({ suggestions });
+      await openModal();
+      await vi.waitFor(() => expect(tid("report-suggestions-unavailable")).not.toBeNull());
+      expect(tid("report-suggestions-unavailable")!.textContent).toContain("unavailable");
+      expect(tids("report-suggestion")).toHaveLength(0);
+      for (const b of tids("report-template")) expect(b.disabled).toBe(false);
+      tid("report-create-own")!.click();
+      type(tid("report-prompt"), "Write for executives.");
+      expect(tid("report-generate")!.disabled).toBe(false);
+    },
+  );
 });
 
 describe("T048 FR-010 / SC-004: Create Your Own", () => {
@@ -467,7 +603,7 @@ describe("T048 FR-010 / SC-004: Create Your Own", () => {
       ["😀".repeat(5001), false],
     ] as const) {
       type(prompt, text);
-      expect(generate.disabled, JSON.stringify(text.slice(0, 8)) + text.length).toBe(!enabled);
+      expect(generate.disabled, `${JSON.stringify(text.slice(0, 8))}${text.length}`).toBe(!enabled);
     }
     expect(tid("report-prompt-count")!.textContent).toContain("5,001");
   });
