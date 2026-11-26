@@ -11,6 +11,17 @@ describe("NFR-PERF-01 FR-SI-02 chat context planning", () => {
     expect(classifyQuery("Explain section 3.2 of source 4")).toBe("detailed");
   });
 
+  it.each([
+    ["COMPARE themes of 12 sources", "broad"],
+    ["Compare\n\n the central themes across 12 sources", "broad"],
+    ["Compare the central themes\nof all sources", "broad"],
+    ["Compare the sources\nthen list themes of all sources", "detailed"],
+    ["Compare the sources\u2028then list themes of all sources", "detailed"],
+    ["List themes of all sources before you compare the examples", "detailed"],
+  ])("preserves comparison classification for %j", (question, expected) => {
+    expect(classifyQuery(question)).toBe(expected);
+  });
+
   it("builds a valid context plan for broad queries with all 40 guides and detail chunks", () => {
     const guideIds = Array.from({ length: 40 }, () => randomUUID());
     const detailIds = [randomUUID(), randomUUID()];
