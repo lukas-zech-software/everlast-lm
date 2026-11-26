@@ -28,7 +28,12 @@ execFileSync(process.execPath, ["scripts/check-spec-integrity.mjs"], { stdio: "i
 console.log("Checking architecture fixtures and boundaries...");
 execFileSync(
   process.execPath,
-  ["--test", "scripts/test/architecture.test.mjs", "scripts/test/architecture-artifacts.test.mjs"],
+  [
+    "--test",
+    "scripts/test/architecture.test.mjs",
+    "scripts/test/architecture-rules.test.mjs",
+    "scripts/test/architecture-artifacts.test.mjs",
+  ],
   { stdio: "inherit" },
 );
 const architectureArgs = process.env.ARCHITECTURE_BASE_REF
