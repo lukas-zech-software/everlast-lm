@@ -26,14 +26,63 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.release_gate && 'judged' || 'ci' }}
   cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' && inputs.release_gate) }}
 
-env:
-  TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
-
 jobs:
-  ci:
-    name: Build, Lint, Test & Deterministic Gates
+  lint-typecheck:
+    name: Lint & Typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm with runtime
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and spec integrity
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+  unit-tests:
+    name: Unit & Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm with runtime
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Roadmap acceptance rules (CC-06)
+        run: node --test scripts/sync-github-project.test.mjs
+
+      - name: Unit and contract tests
+        run: pnpm test:unit
+
+  integration-tests:
+    name: Integration Tests (PostgreSQL + pgvector)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
     services:
       postgres:
         # Same major version as Cloud SQL (D4) with pgvector (D1).
@@ -64,23 +113,91 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint and spec integrity
-        run: pnpm lint
-
-      - name: Roadmap acceptance rules (CC-06)
-        run: node --test scripts/sync-github-project.test.mjs
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Unit and contract tests
-        run: pnpm test:unit
-
       - name: Integration tests (PostgreSQL + pgvector)
         run: pnpm test:integration
 
+  deterministic-evals:
+    name: Deterministic Evals (NFR-EVAL-02/04)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
+    services:
+      postgres:
+        # Same major version as Cloud SQL (D4) with pgvector (D1).
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: everlast
+          POSTGRES_PASSWORD: everlast
+          POSTGRES_DB: everlast
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U everlast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm with runtime
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Deterministic eval suite (NFR-EVAL-02 Precision_ID, NFR-EVAL-04 leakage)
         run: pnpm eval:deterministic
+
+      - name: Upload deterministic eval reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: deterministic-eval-reports
+          path: reports/
+          if-no-files-found: ignore
+
+  e2e-tests:
+    name: E2E Tests (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
+    services:
+      postgres:
+        # Same major version as Cloud SQL (D4) with pgvector (D1).
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: everlast
+          POSTGRES_PASSWORD: everlast
+          POSTGRES_DB: everlast
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U everlast"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm with runtime
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
+        with:
+          runtime: node@26
+          cache: true
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium
@@ -88,11 +205,11 @@ jobs:
       - name: E2E journeys and Gate v1.0 #1/#3 (Playwright)
         run: pnpm test:e2e
 
-      - name: Upload reports
+      - name: Upload E2E reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: gate-v1-reports
+          name: e2e-reports
           path: |
             reports/
             test-results/
@@ -100,7 +217,7 @@ jobs:
 
   judged:
     name: Judged release evaluation (NFR-EVAL-01/02/03, 50-case sample) on Vertex AI
-    needs: [ci]
+    needs: [lint-typecheck, unit-tests, integration-tests, deterministic-evals, e2e-tests]
     # Constitution v2.0.0: judged suites run once per release gate, not per pull request.
     if: github.event_name == 'workflow_dispatch' && inputs.release_gate
     runs-on: ubuntu-latest
@@ -108,6 +225,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    env:
+      TEST_DATABASE_URL: postgres://everlast:everlast@127.0.0.1:5432/everlast
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -128,13 +247,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Node.js 26
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      - name: Setup pnpm with runtime
+        uses: lukas-zech-software/pnpm-setup@a0881977cd8ea73b1ed212236c99ca10dcc80cf4 # v3.1.1
         with:
-          node-version: 26
-
-      - name: Enable pnpm (Corepack, version from package.json)
-        run: corepack enable
+          runtime: node@26
+          cache: true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
