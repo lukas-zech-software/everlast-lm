@@ -208,3 +208,24 @@ This is dependency maintenance evidence, not new feature implementation or relea
 ## D24 / DEV-07 Reconciliation — CC-09 (2026-11-16)
 
 Reconciled `T049`/`T050` with Constitution `v2.3.0` and `D24`/`DEV-07` (`< 10%` hallucination / `>= 90%` rejection, `<= 120.0 s` P95 ASR `N >= 5` cohort calibration, local deterministic FLAC preflight + Playwright `04:15` seek + PostgreSQL verification clearing `Gate v3.0 #1`; paid live Speech V2 / judged cloud campaign retained **UNAVAILABLE** without approved cloud credentials). Documentation-only reconciliation; no dependency graph or `T035` exception changes.
+
+## Architecture Boundary Evidence — OAuth callback cookie (2026-11-26, CC-09)
+
+Scope is the cookie deletion header flagged by CodeQL (FR-SI-01, NFR-SEC-02, D11).
+Manual review of the fix against `a7229a0` by Codex found that the new use of
+`nonceCookie` stays within the existing API dependency on the connections module.
+
+| Actual module path and owner | Responsibility and interface | Regression evidence |
+| --- | --- | --- |
+| `apps/api/src/app.ts` (API HTTP entry point) | Serialize the 302 response and build the deletion header using the connections module's `nonceCookie` helper with an empty value and zero lifetime. | `OFFICE-API-07` verifies the original redirect, cache policy and exact cookie attributes after consent. |
+| `apps/api/src/routes/connections.ts` (Drive delegation) | Return the stored redirect after browser binding, atomic state consumption, token exchange and connection creation. The database and delegation broker retain ownership of persistence and Secret Manager storage. | `OFFICE-API-07` verifies browser and user binding, one-time state, PKCE and the connection returned to the owner. |
+
+The integration test's three existing D21 worker fixture imports retain their
+exact entries in [the architecture policy](../../scripts/architecture-policy.json).
+The callback response change introduces no cross-package dependency and does not
+change quota, dispatch, cancellation or source publication behavior.
+
+Verification on the worktree diff passed the eight Office/Drive PostgreSQL
+integration tests, all 41 architecture fixtures, and the architecture and
+artifact checks both standalone and against `origin/main`. A fresh CodeQL scan
+was unavailable locally.
