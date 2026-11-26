@@ -196,3 +196,9 @@ T073 regression order for NFR-PERF-01/NFR-SEC-02: signed clock-only acquire/inst
 T073/T074 local implementation and verification are complete. T075, live T068 target verification and all live 010/012 acceptance remain open. See [the completion handoff](clock-completion-handoff-20261111.md).
 
 - [x] T076 Implement the local T075 continuity slice and D23 operational cache route (NFR-PERF-01, FR-GC-08, C-02, NFR-SEC-02, CC-09). Write failing regressions for exact boot/calibration checks, permanent clock invalidation, campaign duration refusal, readiness timestamp and SDK routing before code. Connect the acquiring process to collectors and export; leave T075 open until the full approved target campaign fits and is executed. Run focused tests, spec integrity, architecture fixtures, graph and artifacts.
+
+## Chat comparison classification (NFR-PERF-01, FR-SI-02, C-02, CC-09)
+
+- [X] T077 [US2] Address CodeQL alert 30 in `apps/api/src/chat/context-plan.ts` with a linear scan for comparison phrases. Preserve the broad and detailed classifications (FR-002/003). Verify case, source counts and newline handling in `apps/api/test/chat-context-plan.test.ts`, and run the CC-09 checks. Depends on T022 and T027.
+
+Local CodeQL 2.27.6 reported `js/polynomial-redos` in the original file and zero findings in the patched file in a side-by-side scan. The unit tests, chat context scope and scale integration tests, deterministic evaluation, and CC-09 checks against `origin/main` passed.
