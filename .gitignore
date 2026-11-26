@@ -69,3 +69,5 @@ infra/**/tfplan*
 /reports/
 /apps/*/reports/
 /packages/*/reports/
+# Stupid Antigravity or AGy keeps adding.
+/skills/system/
