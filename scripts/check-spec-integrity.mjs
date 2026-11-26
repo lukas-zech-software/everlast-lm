@@ -11,7 +11,12 @@ import { dirname, join, normalize } from "node:path";
 
 const SRS = "spec/System_Requirements_Specification_Gemeni_Notebook.md";
 // Spec Kit manages these paths; they are overwritten on upgrade and not checked here.
-const MANAGED = [/^\.claude\//, /^\.agents\//, /^\.github\/skills\//, /^\.specify\/(extensions|scripts|templates\/[^/]+\.md$)/];
+const MANAGED = [
+  /^\.claude\//,
+  /^\.agents\//,
+  /^\.github\/skills\//,
+  /^\.specify\/(extensions|scripts|templates\/[^/]+\.md$)/,
+];
 
 const files = execFileSync("git", ["ls-files", "*.md"], { encoding: "utf8" })
   .split("\n")
@@ -57,10 +62,13 @@ for (const file of files) {
       findings.push(`${file}: broken link → ${rawTarget}`);
       continue;
     }
-    if (anchor && target.endsWith(".md") && statSync(target).isFile()) {
-      if (!anchorsOf(target).has(decodeURIComponent(anchor).toLowerCase())) {
-        findings.push(`${file}: missing anchor → ${rawTarget}`);
-      }
+    if (
+      anchor &&
+      target.endsWith(".md") &&
+      statSync(target).isFile() &&
+      !anchorsOf(target).has(decodeURIComponent(anchor).toLowerCase())
+    ) {
+      findings.push(`${file}: missing anchor → ${rawTarget}`);
     }
   }
 }
@@ -72,7 +80,8 @@ for (const line of srs.split("\n")) {
   const m = line.match(/^\* \*\*((?:FR|NFR)-[A-Z]+-\d+)/);
   if (!m) continue;
   ids.push(m[1]);
-  if (!/FR-Karten?:.*\]\(requirements\//.test(line)) findings.push(`${SRS}: ${m[1]} has no FR card link`);
+  if (!/FR-Karten?:.*\]\(requirements\//.test(line))
+    findings.push(`${SRS}: ${m[1]} has no FR card link`);
 }
 
 // Validate generated Spec Kit artifacts under specs/<feature>/ (CC-01, CC-02, CC-01..CC-08 gates).
@@ -106,7 +115,9 @@ for (const file of specFiles) {
       if (testIdx === -1) {
         findings.push(`${file}: User Story phase missing '### Tests' subsection (CC-02)`);
       } else if (implIdx !== -1 && testIdx > implIdx) {
-        findings.push(`${file}: '### Tests' must precede '### Implementation' in User Story phase (CC-02)`);
+        findings.push(
+          `${file}: '### Tests' must precede '### Implementation' in User Story phase (CC-02)`,
+        );
       }
     }
   }

@@ -5,7 +5,8 @@
  */
 const role = process.env.SERVICE_ROLE;
 if (role === "api") await import("../apps/api/src/server.ts").then((m) => m.startApiServer());
-else if (role === "worker") await import("../apps/worker/src/server.ts").then((m) => m.startWorker());
+else if (role === "worker")
+  await import("../apps/worker/src/server.ts").then((m) => m.startWorker());
 else {
   console.error(`SERVICE_ROLE must be "api" or "worker", got ${role ?? "unset"}`);
   process.exit(64);

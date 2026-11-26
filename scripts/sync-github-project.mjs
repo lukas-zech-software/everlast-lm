@@ -38,7 +38,7 @@ const RELEASE_OPTIONS = {
 
 // Package Definitions and Mapping
 export const PACKAGES = {
-  "1.1": {
+  1.1: {
     release: "v1.0",
     epic: 2,
     issues: [21, 22, 23, 78, 79, 81],
@@ -46,7 +46,7 @@ export const PACKAGES = {
     initialPr: 114,
     convergePr: 125,
   },
-  "1.2": {
+  1.2: {
     release: "v1.0",
     epic: 3,
     issues: [24, 25, 26],
@@ -54,7 +54,7 @@ export const PACKAGES = {
     initialPr: 114,
     convergePr: 125,
   },
-  "1.3": {
+  1.3: {
     release: "v1.0",
     epic: 4,
     issues: [27, 28, 29, 30],
@@ -62,7 +62,7 @@ export const PACKAGES = {
     initialPr: 114,
     convergePr: 125,
   },
-  "1.4": {
+  1.4: {
     release: "v1.0",
     epic: 5,
     issues: [31, 32, 33, 34, 35, 36],
@@ -71,7 +71,7 @@ export const PACKAGES = {
     initialPr: 114,
     convergePr: 125,
   },
-  "2.1": {
+  2.1: {
     release: "v2.0",
     epic: 6,
     issues: [37, 38, 39],
@@ -79,7 +79,7 @@ export const PACKAGES = {
     initialPr: 119,
     convergePr: 128,
   },
-  "2.2": {
+  2.2: {
     release: "v2.0",
     epic: 7,
     issues: [40, 41, 42, 43, 44, 82],
@@ -87,7 +87,7 @@ export const PACKAGES = {
     initialPr: 120,
     convergePr: 129,
   },
-  "2.3": {
+  2.3: {
     release: "v2.0",
     epic: 8,
     issues: [45, 46, 47, 48],
@@ -95,7 +95,7 @@ export const PACKAGES = {
     initialPr: 121,
     convergePr: 130,
   },
-  "2.4": {
+  2.4: {
     release: "v2.0",
     epic: 9,
     issues: [49, 50, 80],
@@ -105,7 +105,7 @@ export const PACKAGES = {
     // Explicit live acceptance for all four report templates, not implementation alone.
     acceptancePr: 151,
   },
-  "3.1": {
+  3.1: {
     release: "v3.0",
     epic: 10,
     issues: [51, 52, 83],
@@ -114,7 +114,7 @@ export const PACKAGES = {
     convergePr: null,
     acceptancePr: 192,
   },
-  "3.2": {
+  3.2: {
     release: "v3.0",
     epic: 11,
     issues: [53],
@@ -123,7 +123,7 @@ export const PACKAGES = {
     convergePr: null,
     acceptancePr: 192,
   },
-  "3.3": {
+  3.3: {
     release: "v3.0",
     epic: 12,
     issues: [54, 55, 56, 153],
@@ -132,7 +132,7 @@ export const PACKAGES = {
     convergePr: null,
     acceptancePr: 192,
   },
-  "3.4": {
+  3.4: {
     release: "v3.0",
     epic: 13,
     issues: [57],
@@ -141,7 +141,7 @@ export const PACKAGES = {
     convergePr: null,
     acceptancePr: 192,
   },
-  "4.1": {
+  4.1: {
     release: "v4.0",
     epic: 14,
     issues: [58, 59, 60, 61],
@@ -149,7 +149,7 @@ export const PACKAGES = {
     initialPr: 207,
     convergePr: null,
   },
-  "4.2": {
+  4.2: {
     release: "v4.0",
     epic: 15,
     issues: [62, 63],
@@ -157,7 +157,7 @@ export const PACKAGES = {
     initialPr: 208,
     convergePr: null,
   },
-  "5.1": {
+  5.1: {
     release: "v5.0",
     epic: 16,
     issues: [64, 65, 66, 67],
@@ -165,7 +165,7 @@ export const PACKAGES = {
     initialPr: null,
     convergePr: null,
   },
-  "5.2": {
+  5.2: {
     release: "v5.0",
     epic: 17,
     issues: [68, 69, 70],
@@ -173,7 +173,7 @@ export const PACKAGES = {
     initialPr: null,
     convergePr: null,
   },
-  "6.1": {
+  6.1: {
     release: "v6.0",
     epic: 18,
     issues: [71, 72, 73, 74],
@@ -181,7 +181,7 @@ export const PACKAGES = {
     initialPr: null,
     convergePr: null,
   },
-  "6.2": {
+  6.2: {
     release: "v6.0",
     epic: 19,
     issues: [75, 76],
@@ -189,7 +189,7 @@ export const PACKAGES = {
     initialPr: null,
     convergePr: null,
   },
-  "6.3": {
+  6.3: {
     release: "v6.0",
     epic: 20,
     issues: [77],
@@ -234,18 +234,38 @@ function run(cmd) {
 }
 
 function getMergedPrs() {
-  const jsonStr = run("gh pr list --repo lukas-zech-software/everlast-lm --state merged --limit 100 --json number,title,headRefName");
+  const jsonStr = run(
+    "gh pr list --repo lukas-zech-software/everlast-lm --state merged --limit 100 --json number,title,headRefName",
+  );
   return JSON.parse(jsonStr);
 }
 
 function getOpenPrs() {
-  const jsonStr = run("gh pr list --repo lukas-zech-software/everlast-lm --state open --limit 50 --json number,title,headRefName");
+  const jsonStr = run(
+    "gh pr list --repo lukas-zech-software/everlast-lm --state open --limit 50 --json number,title,headRefName",
+  );
   return JSON.parse(jsonStr);
 }
 
 function getProjectItems() {
-  const jsonStr = run(`gh project item-list ${PROJECT_NUMBER} --owner ${OWNER} --format json --limit 150`);
+  const jsonStr = run(
+    `gh project item-list ${PROJECT_NUMBER} --owner ${OWNER} --format json --limit 150`,
+  );
   return JSON.parse(jsonStr).items;
+}
+
+function matchesOpenPr(pkgKey, pkg, pr) {
+  if (pr.number === pkg.initialPr || pr.number === pkg.convergePr) {
+    return true;
+  }
+  const lowerTitle = pr.title.toLowerCase();
+  if (
+    pkg.slug &&
+    (pr.headRefName.includes(pkg.slug) || lowerTitle.includes(pkg.slug.toLowerCase()))
+  ) {
+    return true;
+  }
+  return lowerTitle.includes(`package ${pkgKey}`) || lowerTitle.includes(`paket ${pkgKey}`);
 }
 
 export function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
@@ -267,16 +287,8 @@ export function determinePackageState(pkgKey, pkg, mergedPrNumbers, openPrs) {
   }
 
   // 3. Open PR matching initial or converge PR
-  for (const pr of openPrs) {
-    if (pr.number === pkg.initialPr || pr.number === pkg.convergePr) {
-      return "In Progress";
-    }
-    if (pkg.slug && (pr.headRefName.includes(pkg.slug) || pr.title.toLowerCase().includes(pkg.slug.toLowerCase()))) {
-      return "In Progress";
-    }
-    if (pr.title.toLowerCase().includes(`package ${pkgKey}`) || pr.title.toLowerCase().includes(`paket ${pkgKey}`)) {
-      return "In Progress";
-    }
+  if (openPrs.some((pr) => matchesOpenPr(pkgKey, pkg, pr))) {
+    return "In Progress";
   }
 
   // 4. Local spec directory exists
@@ -293,34 +305,24 @@ export function resolveIssueState(_issueNumber, packageState) {
 }
 
 export function resolveGateState(release) {
-  if (["v1.0", "v2.0", "v3.0"].includes(release)) return "Done";
+  if (["v1.0", "v2.0", "v3.0"].includes(release)) {
+    return "Done";
+  }
   return "Backlog";
 }
 
-async function main() {
-  log(`=== Everlast LM Project & Issues Sync ===`);
-  if (IS_DRY_RUN) log(`[DRY-RUN MODE: No changes will be written]`);
-
-  log(`Fetching PRs and Project items...`);
-  const mergedPrs = getMergedPrs();
-  const openPrs = getOpenPrs();
-  const projectItems = getProjectItems();
-
-  const mergedPrNumbers = new Set(mergedPrs.map((p) => p.number));
-
-  debug(`Merged PRs: ${Array.from(mergedPrNumbers).join(", ")}`);
-  debug(`Open PRs: ${openPrs.map((p) => `#${p.number}`).join(", ")}`);
-
-  // Map Project items by issue / PR number
-  const itemMap = new Map();
-  for (const item of projectItems) {
-    if (item.content && item.content.number) {
-      itemMap.set(item.content.number, item);
-    }
+function resolveDoneComment(issueStatus, issueNum, proof) {
+  if (issueStatus !== "Done") {
+    return undefined;
   }
+  if (issueNum === 80) {
+    return `C-03 contract verification merged in https://github.com/${REPO}/pull/122.`;
+  }
+  return proof;
+}
 
-  // Compute desired state for each issue
-  const desiredIssueState = new Map(); // issueNum -> { status: "Done" | "In Progress" | "Backlog", release: string, comment?: string }
+function buildDesiredIssueStates(mergedPrNumbers, openPrs) {
+  const desiredIssueState = new Map();
 
   // 1. Process Functional Packages
   for (const [pkgKey, pkg] of Object.entries(PACKAGES)) {
@@ -329,52 +331,43 @@ async function main() {
     const proof = `Implementation and acceptance evidence for Package ${pkgKey}: https://github.com/${REPO}/pull/${evidencePr}. See specs/${pkg.slug}/validation.md. Package completion does not independently establish a later release gate (CC-06).`;
     debug(`Package ${pkgKey} state: ${pkgState}`);
 
-    // Set state for Epic
     desiredIssueState.set(pkg.epic, {
       status: resolveIssueState(pkg.epic, pkgState),
       release: pkg.release,
       comment: pkgState === "Done" ? proof : undefined,
     });
 
-    // Set state for child issues
     for (const issueNum of pkg.issues) {
-      // Special check: Contract C-03 (issue 80) is Done with PR 122
       let issueStatus = resolveIssueState(issueNum, pkgState);
       if (issueNum === 80 && mergedPrNumbers.has(122)) {
         issueStatus = "Done";
       }
-
       desiredIssueState.set(issueNum, {
         status: issueStatus,
         release: pkg.release,
-        comment: issueStatus === "Done" ? (issueNum === 80 ? `C-03 contract verification merged in https://github.com/${REPO}/pull/122.` : proof) : undefined,
+        comment: resolveDoneComment(issueStatus, issueNum, proof),
       });
     }
   }
 
   // 2. Process Gates
-  // v1.0 Gate: Passed
   desiredIssueState.set(RELEASE_GATES["v1.0"], {
     status: "Done",
     release: "v1.0",
     comment: "Abgenommen und verifiziert in Release v1.0 (GatePassed, PR #125).",
   });
-
-  // Owner acceptance is distinct from empirical PASS (PR #151).
   desiredIssueState.set(RELEASE_GATES["v2.0"], {
     status: resolveGateState("v2.0"),
     release: "v2.0",
-    comment: "Accepted by explicit owner override, not an empirical pass. See docs/gate-v2-live-evaluation.md and PR #151; live follow-ups #40 and #43 remain open.",
+    comment:
+      "Accepted by explicit owner override, not an empirical pass. See docs/gate-v2-live-evaluation.md and PR #151; live follow-ups #40 and #43 remain open.",
   });
-
-  // v3.0 Gate: Passed under D24/DEV-07 (PR #192)
   desiredIssueState.set(RELEASE_GATES["v3.0"], {
     status: resolveGateState("v3.0"),
     release: "v3.0",
-    comment: "Gate v3.0 cleared under D24/DEV-07 (Constitution v2.3.0). See docs/gate-v3-live-evaluation.md and PR #192.",
+    comment:
+      "Gate v3.0 cleared under D24/DEV-07 (Constitution v2.3.0). See docs/gate-v3-live-evaluation.md and PR #192.",
   });
-
-  // v4.0..v6.0 Gates: Backlog
   for (const rel of ["v4.0", "v5.0", "v6.0"]) {
     desiredIssueState.set(RELEASE_GATES[rel], {
       status: resolveGateState(rel),
@@ -388,87 +381,138 @@ async function main() {
     release: "Releaseübergreifend",
   });
 
-  log(`\nEvaluating project items against desired states...`);
-  let updatedCount = 0;
+  return desiredIssueState;
+}
 
+function syncSingleProjectItem(issueNum, desired, item) {
+  let updatedCount = 0;
+  if (item.status !== desired.status) {
+    log(
+      `[STATUS CHANGE] Issue #${issueNum} (${item.title}): "${item.status}" -> "${desired.status}"`,
+    );
+    if (!IS_DRY_RUN) {
+      run(
+        `gh project item-edit --id ${item.id} --field-id ${STATUS_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${STATUS_OPTIONS[desired.status]}`,
+      );
+    }
+    updatedCount++;
+  }
+  const optionId = desired.release ? RELEASE_OPTIONS[desired.release] : undefined;
+  if (optionId && item.release !== desired.release) {
+    log(`[RELEASE CHANGE] Issue #${issueNum}: "${item.release}" -> "${desired.release}"`);
+    if (!IS_DRY_RUN) {
+      run(
+        `gh project item-edit --id ${item.id} --field-id ${RELEASE_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${optionId}`,
+      );
+    }
+    updatedCount++;
+  }
+  return updatedCount;
+}
+
+function syncProjectItemStates(desiredIssueState, itemMap) {
+  let updatedCount = 0;
   for (const [issueNum, desired] of desiredIssueState.entries()) {
     const item = itemMap.get(issueNum);
     if (!item) {
       debug(`Issue #${issueNum} not in project items.`);
       continue;
     }
-
-    // Check Status
-    if (item.status !== desired.status) {
-      log(`[STATUS CHANGE] Issue #${issueNum} (${item.title}): "${item.status}" -> "${desired.status}"`);
-      if (!IS_DRY_RUN) {
-        run(`gh project item-edit --id ${item.id} --field-id ${STATUS_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${STATUS_OPTIONS[desired.status]}`);
-      }
-      updatedCount++;
-    }
-
-    // Check Release
-    if (desired.release && item.release !== desired.release) {
-      const optionId = RELEASE_OPTIONS[desired.release];
-      if (optionId) {
-        log(`[RELEASE CHANGE] Issue #${issueNum}: "${item.release}" -> "${desired.release}"`);
-        if (!IS_DRY_RUN) {
-          run(`gh project item-edit --id ${item.id} --field-id ${RELEASE_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${optionId}`);
-        }
-        updatedCount++;
-      }
-    }
+    updatedCount += syncSingleProjectItem(issueNum, desired, item);
   }
+  return updatedCount;
+}
 
-  // Check PR items in project (ensure Release is populated)
+function syncPrReleases(projectItems) {
+  let updatedCount = 0;
   for (const item of projectItems) {
-    if (item.content && item.content.type === "PullRequest") {
-      const prNum = item.content.number;
-      if (!item.release) {
-        for (const pkg of Object.values(PACKAGES)) {
-          if (pkg.initialPr === prNum || pkg.convergePr === prNum) {
-            log(`[PR RELEASE] Setting Release "${pkg.release}" for PR #${prNum}`);
-            if (!IS_DRY_RUN) {
-              run(`gh project item-edit --id ${item.id} --field-id ${RELEASE_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${RELEASE_OPTIONS[pkg.release]}`);
-            }
-            updatedCount++;
-            break;
-          }
-        }
-      }
+    if (item.content?.type !== "PullRequest" || item.release) {
+      continue;
     }
+    const prNum = item.content.number;
+    const pkg = Object.values(PACKAGES).find(
+      (candidate) => candidate.initialPr === prNum || candidate.convergePr === prNum,
+    );
+    if (!pkg) {
+      continue;
+    }
+    log(`[PR RELEASE] Setting Release "${pkg.release}" for PR #${prNum}`);
+    if (!IS_DRY_RUN) {
+      run(
+        `gh project item-edit --id ${item.id} --field-id ${RELEASE_FIELD_ID} --project-id ${PROJECT_ID} --single-select-option-id ${RELEASE_OPTIONS[pkg.release]}`,
+      );
+    }
+    updatedCount++;
   }
+  return updatedCount;
+}
 
-  log(`Project card status checks complete (${updatedCount} field updates).`);
-
-  // Check Issue Open / Closed consistency
-  log(`\nChecking GitHub Issue open/closed states...`);
-  const rawOpenIssues = run("gh issue list --repo lukas-zech-software/everlast-lm --state open --limit 150 --json number");
-  const openIssueNumbers = new Set(JSON.parse(rawOpenIssues).map((i) => i.number));
-
+function closeDoneIssues(desiredIssueState, openIssueNumbers) {
   let closedCount = 0;
   for (const [issueNum, desired] of desiredIssueState.entries()) {
-    if (desired.status === "Done" && openIssueNumbers.has(issueNum)) {
-      log(`[CLOSE ISSUE] Closing Issue #${issueNum} (Target: Done)...`);
-      if (!IS_DRY_RUN) {
-        const comment = desired.comment || "Abgenommen und verifiziert.";
-        try {
-          run(`gh issue close ${issueNum} --repo ${REPO} --comment "${comment}"`);
-        } catch (e) {
-          debug(`Issue #${issueNum} could not be closed: ${e.message}`);
-        }
+    if (desired.status !== "Done" || !openIssueNumbers.has(issueNum)) {
+      continue;
+    }
+    log(`[CLOSE ISSUE] Closing Issue #${issueNum} (Target: Done)...`);
+    if (!IS_DRY_RUN) {
+      const comment = desired.comment || "Abgenommen und verifiziert.";
+      try {
+        run(`gh issue close ${issueNum} --repo ${REPO} --comment "${comment}"`);
+      } catch (e) {
+        debug(`Issue #${issueNum} could not be closed: ${e.message}`);
       }
-      closedCount++;
+    }
+    closedCount++;
+  }
+  return closedCount;
+}
+
+function main() {
+  log(`=== Everlast LM Project & Issues Sync ===`);
+  if (IS_DRY_RUN) {
+    log(`[DRY-RUN MODE: No changes will be written]`);
+  }
+
+  log(`Fetching PRs and Project items...`);
+  const mergedPrs = getMergedPrs();
+  const openPrs = getOpenPrs();
+  const projectItems = getProjectItems();
+
+  const mergedPrNumbers = new Set(mergedPrs.map((p) => p.number));
+
+  debug(`Merged PRs: ${[...mergedPrNumbers].join(", ")}`);
+  debug(`Open PRs: ${openPrs.map((p) => `#${p.number}`).join(", ")}`);
+
+  const itemMap = new Map();
+  for (const item of projectItems) {
+    if (item.content?.number) {
+      itemMap.set(item.content.number, item);
     }
   }
 
+  const desiredIssueState = buildDesiredIssueStates(mergedPrNumbers, openPrs);
+
+  log(`\nEvaluating project items against desired states...`);
+  const updatedCount =
+    syncProjectItemStates(desiredIssueState, itemMap) + syncPrReleases(projectItems);
+  log(`Project card status checks complete (${updatedCount} field updates).`);
+
+  log(`\nChecking GitHub Issue open/closed states...`);
+  const rawOpenIssues = run(
+    "gh issue list --repo lukas-zech-software/everlast-lm --state open --limit 150 --json number",
+  );
+  const openIssueNumbers = new Set(JSON.parse(rawOpenIssues).map((i) => i.number));
+
+  const closedCount = closeDoneIssues(desiredIssueState, openIssueNumbers);
   log(`Issue close checks complete (${closedCount} issues closed).`);
   log(`Sync finished successfully!`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => {
+  try {
+    main();
+  } catch (err) {
     console.error("Sync script failed:", err);
     process.exitCode = 1;
-  });
+  }
 }

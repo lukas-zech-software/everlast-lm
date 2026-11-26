@@ -1,6 +1,6 @@
 # TypeScript Clean-Code Conventions (Tier 2)
 
-Everlast LM enforces strict formatting, type safety, and clean-code complexity discipline across all workspace apps and packages (`apps/*`, `packages/*`) via **Prettier** and **ESLint**.
+Everlast LM enforces strict formatting, type safety, and clean-code complexity discipline across all workspace TypeScript sources (`apps/*`, `packages/*`) and all JavaScript files (`.js`, `.mjs`, `.cjs`) in non-hidden, non-`node_modules` subfolders via **Prettier** and **ESLint**.
 
 ## Formatting (Prettier)
 

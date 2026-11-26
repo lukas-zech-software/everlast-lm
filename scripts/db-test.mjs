@@ -11,7 +11,11 @@ const IMAGE = "pgvector/pgvector:pg16";
 const action = process.argv[2] ?? "up";
 
 function docker(args, opts = {}) {
-  return execFileSync("docker", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], ...opts }).trim();
+  return execFileSync("docker", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...opts,
+  }).trim();
 }
 
 function running() {
@@ -25,15 +29,30 @@ function running() {
 if (action === "down") {
   try {
     docker(["rm", "-f", NAME]);
-  } catch {}
+  } catch {
+    // Ignore if container does not exist
+  }
   console.log(`Removed ${NAME}`);
   process.exit(0);
 }
 
 const state = running();
 if (state === null) {
-  docker(["run", "-d", "--name", NAME, "-e", "POSTGRES_USER=everlast", "-e", "POSTGRES_PASSWORD=everlast",
-    "-e", "POSTGRES_DB=everlast", "-p", `127.0.0.1:${PORT}:5432`, IMAGE]);
+  docker([
+    "run",
+    "-d",
+    "--name",
+    NAME,
+    "-e",
+    "POSTGRES_USER=everlast",
+    "-e",
+    "POSTGRES_PASSWORD=everlast",
+    "-e",
+    "POSTGRES_DB=everlast",
+    "-p",
+    `127.0.0.1:${PORT}:5432`,
+    IMAGE,
+  ]);
 } else if (state === false) {
   docker(["start", NAME]);
 }
