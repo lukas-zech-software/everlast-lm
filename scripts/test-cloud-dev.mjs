@@ -8,7 +8,10 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { assertDevOnlyEnvironment, ensureDevEnvironmentForTests } from "../packages/testkit/src/live-fixtures.ts";
+import {
+  assertDevOnlyEnvironment,
+  ensureDevEnvironmentForTests,
+} from "../packages/testkit/src/live-fixtures.ts";
 
 const arg = (name) => {
   const i = process.argv.indexOf(`--${name}`);
@@ -18,7 +21,9 @@ const arg = (name) => {
 try {
   assertDevOnlyEnvironment(process.env);
 } catch (err) {
-  console.error(`[UNAVAILABLE] test:cloud:dev: ${err instanceof Error ? err.message : String(err)}`);
+  console.error(
+    `[UNAVAILABLE] test:cloud:dev: ${err instanceof Error ? err.message : String(err)}`,
+  );
   process.exit(2);
 }
 
@@ -46,7 +51,12 @@ function runStep(name, cmd, args, extraEnv = {}) {
     stdio: "inherit",
     env: { ...env, EVERLAST_START_DEV_APPROVED: "1", ...extraEnv },
   });
-  const status = res.status === 0 ? "PASS" : res.status === 2 ? "UNAVAILABLE" : "FAIL";
+  let status = "FAIL";
+  if (res.status === 0) {
+    status = "PASS";
+  } else if (res.status === 2) {
+    status = "UNAVAILABLE";
+  }
   results.push({ name, status, code: res.status ?? 1 });
 }
 
@@ -56,13 +66,26 @@ try {
     "--",
     "--smoke",
   ]);
-  runStep("2. Vertex Context Cache (eval:v3-scale --smoke)", "node", ["scripts/eval-v3-scale.mjs", "--smoke"]);
-  runStep("3. Studio Mindmap & Data Table Live (eval:v3-studio --smoke)", "node", ["scripts/eval-v3-studio.mjs", "--smoke"]);
+  runStep("2. Vertex Context Cache (eval:v3-scale --smoke)", "node", [
+    "scripts/eval-v3-scale.mjs",
+    "--smoke",
+  ]);
+  runStep("3. Studio Mindmap & Data Table Live (eval:v3-studio --smoke)", "node", [
+    "scripts/eval-v3-studio.mjs",
+    "--smoke",
+  ]);
 
   if (env.CODE_EXECUTION_REASONING_ENGINE) {
-    runStep("4. Agent Engine Code Execution Live (v3.2)", "node", ["scripts/eval-v3-code-execution.mjs", "--smoke"]);
+    runStep("4. Agent Engine Code Execution Live (v3.2)", "node", [
+      "scripts/eval-v3-code-execution.mjs",
+      "--smoke",
+    ]);
   } else {
-    results.push({ name: "4. Agent Engine Code Execution Live (v3.2)", status: "UNAVAILABLE", code: 2 });
+    results.push({
+      name: "4. Agent Engine Code Execution Live (v3.2)",
+      status: "UNAVAILABLE",
+      code: 2,
+    });
   }
 
   if (audioFixture && existsSync(audioFixture)) {
@@ -73,15 +96,23 @@ try {
       audioFixture,
     ]);
   } else {
-    results.push({ name: "5. Speech V2 Audio Transcription Live (v3.1)", status: "UNAVAILABLE", code: 2 });
+    results.push({
+      name: "5. Speech V2 Audio Transcription Live (v3.1)",
+      status: "UNAVAILABLE",
+      code: 2,
+    });
   }
 
-  if (env.WORKSPACE_STORAGE_IT === "1" || ((env.WORKSPACE_IT_BUCKET ?? env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET) && env.TEST_DATABASE_URL)) {
+  if (
+    env.WORKSPACE_STORAGE_IT === "1" ||
+    ((env.WORKSPACE_IT_BUCKET ?? env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET) &&
+      env.TEST_DATABASE_URL)
+  ) {
     runStep(
       "6. GCS Signed PUT & Versioned Cleanup (notebook-cleanup.integration)",
       "pnpm",
       ["vitest", "run", "apps/worker/test/notebook-cleanup.integration.test.ts"],
-      { WORKSPACE_STORAGE_IT: "1" }
+      { WORKSPACE_STORAGE_IT: "1" },
     );
   } else {
     results.push({ name: "6. GCS Signed PUT & Versioned Cleanup", status: "UNAVAILABLE", code: 2 });
@@ -92,10 +123,14 @@ try {
       "7. Identity Platform Sign-In & Revocation (identity.integration)",
       "pnpm",
       ["vitest", "run", "apps/api/test/identity.integration.test.ts"],
-      { WORKSPACE_IDENTITY_IT: "1" }
+      { WORKSPACE_IDENTITY_IT: "1" },
     );
   } else {
-    results.push({ name: "7. Identity Platform Sign-In & Revocation", status: "UNAVAILABLE", code: 2 });
+    results.push({
+      name: "7. Identity Platform Sign-In & Revocation",
+      status: "UNAVAILABLE",
+      code: 2,
+    });
   }
 } finally {
   await lease.restore();

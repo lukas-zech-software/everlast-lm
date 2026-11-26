@@ -31,38 +31,80 @@ const CLI_AND_SERVER_ENTRYPOINTS = [
   "packages/evals/src/cli.ts",
 ];
 
+const SHARED_CLEAN_CODE_RULES = {
+  // --- Core JavaScript / Clean Code Hygiene ---
+  eqeqeq: ["error", "always"],
+  curly: ["error", "all"],
+  "no-var": "error",
+  "prefer-const": "error",
+  "object-shorthand": ["error", "always"],
+  "prefer-template": "error",
+  "no-else-return": ["error", { allowElseIf: false }],
+  "no-lonely-if": "error",
+  "no-nested-ternary": "error",
+  "no-unneeded-ternary": "error",
+  "no-param-reassign": ["error", { props: false }],
+  "no-eval": "error",
+  "no-implied-eval": "error",
+  "no-new-wrappers": "error",
+  "default-case-last": "error",
+  "guard-for-in": "error",
+  "no-useless-rename": "error",
+  "no-useless-return": "error",
+  "no-console": ["error", { allow: ["warn", "error"] }],
+  "max-depth": ["error", 4],
+  "max-params": ["error", 5],
+  complexity: ["error", 20],
+
+  // --- SonarJS Clean Code & Complexity ---
+  "sonarjs/cognitive-complexity": ["error", 15],
+  "sonarjs/no-identical-functions": "error",
+  "sonarjs/no-collapsible-if": "error",
+  "sonarjs/no-duplicated-branches": "error",
+  "sonarjs/no-all-duplicated-branches": "error",
+  "sonarjs/no-redundant-boolean": "error",
+  "sonarjs/no-inverted-boolean-check": "error",
+  "sonarjs/no-unused-collection": "error",
+  "sonarjs/prefer-immediate-return": "error",
+
+  // --- Unicorn Modern Idioms ---
+  "unicorn/prefer-node-protocol": "error",
+  "unicorn/prefer-optional-catch-binding": "error",
+  "unicorn/prefer-string-slice": "error",
+  "unicorn/prefer-array-some": "error",
+  "unicorn/prefer-set-has": "error",
+  "unicorn/no-negated-condition": "error",
+  "unicorn/throw-new-error": "error",
+  "unicorn/error-message": "error",
+  "unicorn/no-instanceof-builtins": "error",
+  "unicorn/prefer-number-properties": "error",
+  "unicorn/prefer-structured-clone": "error",
+  "unicorn/no-useless-spread": "error",
+  "unicorn/no-useless-switch-case": "error",
+  "unicorn/prefer-date-now": "error",
+  "unicorn/prefer-default-parameters": "error",
+  "unicorn/prefer-spread": "error",
+};
+
 export default tseslint.config(
   {
     ignores: [
       "**/node_modules/**",
+      "**/.*/**",
       "**/dist/**",
       "**/build/**",
       "**/coverage/**",
-      "**/.tsbuild/**",
       "reports/**",
       "test-results/**",
       "playwright-report/**",
-      "scripts/**",
-      "infra/**",
-      "docs/**",
-      "spec/**",
-      "specs/**",
-      ".specify/**",
-      ".agents/**",
-      ".claude/**",
-      ".codex/**",
-      ".gemini/**",
-      ".github/**",
-      "eslint.config.mjs",
     ],
   },
 
   eslint.configs.recommended,
-  ...tseslint.configs.strictTypeChecked,
-  ...tseslint.configs.stylisticTypeChecked,
 
   {
     files: ["**/*.{ts,mts,cts}"],
+    extends: [...tseslint.configs.strictTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -117,66 +159,50 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-confusing-void-expression": ["error", { ignoreArrowShorthand: true }],
       "@typescript-eslint/explicit-module-boundary-types": "error",
-
-      // --- Core JavaScript / Clean Code Hygiene ---
-      eqeqeq: ["error", "always"],
-      curly: ["error", "all"],
-      "no-var": "error",
-      "prefer-const": "error",
-      "object-shorthand": ["error", "always"],
-      "prefer-template": "error",
-      "no-else-return": ["error", { allowElseIf: false }],
-      "no-lonely-if": "error",
-      "no-nested-ternary": "error",
-      "no-unneeded-ternary": "error",
-      "no-param-reassign": ["error", { props: false }],
       "no-shadow": "off",
-      "no-eval": "error",
-      "no-implied-eval": "error",
-      "no-new-wrappers": "error",
-      "default-case-last": "error",
-      "guard-for-in": "error",
-      "no-useless-rename": "error",
-      "no-useless-return": "error",
-      "no-console": ["error", { allow: ["warn", "error"] }],
-      "max-depth": ["error", 4],
-      "max-params": ["error", 5],
-      complexity: ["error", 20],
+      ...SHARED_CLEAN_CODE_RULES,
+    },
+  },
 
-      // --- SonarJS Clean Code & Complexity ---
-      "sonarjs/cognitive-complexity": ["error", 15],
-      "sonarjs/no-identical-functions": "error",
-      "sonarjs/no-collapsible-if": "error",
-      "sonarjs/no-duplicated-branches": "error",
-      "sonarjs/no-all-duplicated-branches": "error",
-      "sonarjs/no-redundant-boolean": "error",
-      "sonarjs/no-inverted-boolean-check": "error",
-      "sonarjs/no-unused-collection": "error",
-      "sonarjs/prefer-immediate-return": "error",
+  // JavaScript files (.js, .mjs, .cjs)
+  {
+    files: ["**/*.{js,mjs,cjs}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+      },
+    },
+    plugins: {
+      sonarjs,
+      unicorn,
+    },
+    rules: {
+      ...SHARED_CLEAN_CODE_RULES,
+      "no-shadow": "error",
+      "no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
 
-      // --- Unicorn Modern TypeScript Idioms ---
-      "unicorn/prefer-node-protocol": "error",
-      "unicorn/prefer-optional-catch-binding": "error",
-      "unicorn/prefer-string-slice": "error",
-      "unicorn/prefer-array-some": "error",
-      "unicorn/prefer-set-has": "error",
-      "unicorn/no-negated-condition": "error",
-      "unicorn/throw-new-error": "error",
-      "unicorn/error-message": "error",
-      "unicorn/no-instanceof-builtins": "error",
-      "unicorn/prefer-number-properties": "error",
-      "unicorn/prefer-structured-clone": "error",
-      "unicorn/no-useless-spread": "error",
-      "unicorn/no-useless-switch-case": "error",
-      "unicorn/prefer-date-now": "error",
-      "unicorn/prefer-default-parameters": "error",
-      "unicorn/prefer-spread": "error",
+  // CommonJS files
+  {
+    files: ["**/*.cjs"],
+    languageOptions: {
+      sourceType: "commonjs",
     },
   },
 
   // Browser environment for web SPA source files
   {
-    files: ["apps/web/src/**/*.ts"],
+    files: ["apps/web/src/**/*.{ts,js,mjs,cjs}"],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -186,7 +212,11 @@ export default tseslint.config(
 
   // Intentional CLI & server stdout entrypoints
   {
-    files: CLI_AND_SERVER_ENTRYPOINTS,
+    files: [
+      ...CLI_AND_SERVER_ENTRYPOINTS,
+      "scripts/**/*.{js,mjs,cjs}",
+      "specs/**/evidence/**/*.{js,mjs,cjs}",
+    ],
     rules: {
       "no-console": "off",
     },
@@ -195,9 +225,9 @@ export default tseslint.config(
   // Test files & root config files: preserve strict type safety while relaxing test ergonomics
   {
     files: [
-      "**/*.test.ts",
-      "**/*.spec.ts",
-      "**/test/**/*.ts",
+      "**/*.test.{ts,mts,cts,js,mjs,cjs}",
+      "**/*.spec.{ts,mts,cts,js,mjs,cjs}",
+      "**/test/**/*.{ts,mts,cts,js,mjs,cjs}",
       "vitest.config.ts",
       "playwright.config.ts",
     ],
