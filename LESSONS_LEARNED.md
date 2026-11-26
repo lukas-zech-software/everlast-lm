@@ -154,3 +154,48 @@ Our Constitution had nine rigorous gates (`CC-01`..`CC-09`) enforcing traceabili
    - If an architectural decision switches a pipeline from streaming to full-response buffering (`D13`), any upstream latency metric (`TTFT`) must be recalibrated in the same commit.
 4. **Never Let Auditor Agents Add Infrastructure Ceremony to Enforce an Unrealistic Metric**:
    - When a benchmark or gate task fails repeatedly or requires hundreds of lines of custom cryptographic/cloud-bridge plumbing just to *measure*, the correct engineering response is to **escalate and recalibrate the metric (`DEV-xx` / `Dn`)**, not to build a 1,000-line measurement apparatus around an impossible target.
+
+---
+
+## Entry 2026-11-26 — Retrofitting Tier-2 Clean-Code Conventions Across a Multi-Agent TypeScript 7 Monorepo
+
+**Primary Reference Milestone:** [PR #211](https://github.com/lukas-zech-software/everlast-lm/pull/211) (`d6ebbc4`), Tier-2 Clean-Code Conventions (`eslint.config.mjs`, `.prettierrc.json`, `docs/code-conventions.md`, `scripts/lint.mjs`), and `CC-09` (`D21`).
+
+### 1. What Happened (The Baseline Quality Debt)
+
+Before PR #211, `pnpm lint` enforced spec integrity, architectural module boundaries, and TypeScript `tsc -b --noEmit`, but the repository had **no formatter (Prettier)** and **no linter (ESLint)** checking code hygiene, complexity, or unsafe type escapes. Running our Tier-2 ruleset (`strictTypeChecked`, `stylisticTypeChecked`, `eslint-plugin-sonarjs`, `eslint-plugin-unicorn`, `complexity <= 20`, `sonarjs/cognitive-complexity <= 15`, `max-depth <= 4`, `max-params <= 5`) on the baseline uncovered **7,462 ESLint errors across 448 of 533 TypeScript files** (`2,653` in `src/`, `4,809` in `test/`):
+
+- **Type-Safety & Escape Hatches:** `1,799` `@typescript-eslint/no-unsafe-member-access`, `682` `no-unsafe-assignment`, `440` `no-explicit-any`, `484` `no-non-null-assertion` (`!`), `357` `no-unsafe-call`, `305` `no-unsafe-argument`, and `163` `no-unsafe-return`.
+- **Silent Legacy Drift:** `319` `@typescript-eslint/no-deprecated` calls (mostly Zod v3 APIs left behind after the Zod v4 upgrade: `z.string().uuid()`, `ZodIssueCode`, `.finite()`, `z.string().datetime()`, `{ message }`) and `558` `require-await` async functions with no `await`.
+- **Monolithic Complexity:** `108` `sonarjs/cognitive-complexity` violations (up to cognitive complexity 88), `69` `complexity` violations, `80` `no-nested-ternary`, and `39` `max-depth` violations.
+
+---
+
+### 2. Five Engineering Lessons Learned
+
+#### Lesson 1: TypeScript 7 (`tsgo`) + `typescript-eslint` can run side-by-side cleanly via `registerHooks`
+The repository compiles with TypeScript `7.0.2` (`tsgo`), which does not yet expose the legacy JavaScript compiler API (`ts.createProgram` / `./lib/tsserverlibrary`) that `typescript-eslint` requires. Attempting `pnpm` `overrides` or `packageExtensions` alone left `typescript-eslint` failing on the root `7.0.2` install. Instead of downgrading the application compiler or adding shell wrappers, registering a `node:module` `registerHooks` resolver at the top of `eslint.config.mjs` cleanly routes `typescript` and `typescript/*` imports inside ESLint to the repo's already-pinned `typescript-compiler` (`6.0.2`) while keeping TypeScript 7 untouched for `tsc -b` and `pnpm typecheck`.
+
+#### Lesson 2: A single global `any` escape hatch multiplies across an entire test suite
+Nearly half of the baseline ESLint errors (`~2,470` in `apps/api/test/`) stemmed from one 7-line ambient declaration file (`apps/api/test/studio-fetch-json.d.ts`) that globally augmented `Response.json(): Promise<any>`, combined with untyped `pool.query(...)` calls. Deleting that global override and introducing a single typed `readJson<T = Record<string, unknown>>(res: Response): Promise<T>` helper in `apps/api/test/support.ts` forced every API test to assert concrete response shapes and turned untyped test plumbing into real compile-time contract checks.
+
+#### Lesson 3: Auto-formatters collide with AST token-fingerprinted legacy debt (`D21`)
+[`scripts/check-architecture.mjs`](scripts/check-architecture.mjs) ignores whitespace and comments when fingerprinting the **88** remaining `D21` legacy exceptions in [`scripts/architecture-policy.json`](scripts/architecture-policy.json), but it hashes exact token sequences—including quote style (`'` vs `"`) and trailing commas on multi-line imports. Running `prettier --write .` altered 12 of the 88 excepted imports (triggering `stale-exception` + new violation findings). Adding targeted `// prettier-ignore` comments with an explicit `T035` traceability note preserved all 88 exact legacy fingerprints without weakening or regenerating the policy inventory.
+
+#### Lesson 4: Mechanical lint refactors still require full TS 7, PostgreSQL integration, and Playwright E2E verification
+Even with `tsc -b` and `vitest` unit tests passing, three subtle behavioral regressions only surfaced when running the full verification stack:
+1. **Detached `this` binding (`apps/worker/src/studio/runner.ts`)**: Extracting `const renewLease = this.deps.repo.renewLease;` to satisfy narrowing detached the method from `PostgresStudioArtifactRepository`, causing `this.pool` to be `undefined` inside `renewLease(...)` (masked by `.then(..., () => undefined)`). Only the PostgreSQL integration suite (`apps/worker/test/studio-pr161-review.test.ts`) caught the silent lease-renewal failure; calling `repo.renewLease?.(...)` directly fixed it.
+2. **Playwright runtime AST check (`apps/web/test/gate-v1.spec.ts`)**: Replacing `({}, info)` with `(_fixtures, info)` satisfied ESLint's `no-empty-pattern` rule, but Playwright parses test hook signatures at runtime and requires an object destructuring pattern (`First argument must use the object destructuring pattern: _fixtures`). Destructuring an unused fixture (`({ baseURL: _baseURL }, info)`) satisfied both Playwright and ESLint without suppressions.
+3. **Autofix semantic shift (`packages/evals/src/cli.ts`)**: ESLint's `@typescript-eslint/prefer-optional-chain` autofixed `other && other.value !== null` into `other?.value !== null`, where `undefined !== null` evaluates to `true` and allowed `other` to remain `undefined`. TypeScript 7's strict `TS18048` check caught this immediately.
+
+#### Lesson 5: Zero-suppression discipline + disjoint package slices makes repo-wide cleanup tractable
+Forbidding `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, and `as any` during the cleanup prevented agents from papering over complex or weakly typed modules. Instead, refactoring could be safely parallelized across strictly disjoint workspace slices (`packages/*`, `apps/render`, `apps/web`, `apps/worker`, `apps/api/src`, and 3 slices of `apps/api/test/`) after running Prettier and `eslint --fix` once upfront—reducing 7,462 errors to 0 across all 533 TypeScript files while wiring `prettier --check .` and `eslint .` permanently into `pnpm lint` (`scripts/lint.mjs`).
+
+---
+
+### 3. Key Takeaways for Future Agent-Driven Refactoring
+
+1. **Always check for global `*.d.ts` `any` overrides before refactoring test suites**—fixing the root declaration eliminates thousands of downstream `no-unsafe-*` errors.
+2. **Never detach repository or service methods into local `const fn = obj.method` variables** unless `this` is not used; prefer `obj.method?.(...)` or `.bind(obj)`.
+3. **Guard token-fingerprinted policy exceptions (`D21`) with `// prettier-ignore` before running repo-wide formatters**, and always run `node scripts/check-architecture.mjs --base-ref main` afterward.
+4. **Never rely solely on `eslint` + unit tests after mechanical cleanups**: run `tsc -b --noEmit`, PostgreSQL integration tests, and Playwright E2E tests (`pnpm test:e2e`) before declaring a refactoring PR green.
