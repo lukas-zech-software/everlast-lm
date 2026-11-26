@@ -18,17 +18,52 @@ describe("browser contract copies match packages/contracts", () => {
   });
 
   it.each([
-    ["NotebookViewModeSchema", ["grid", "list", "table", null]],
-    ["NotebookSortOrderSchema", ["recent", "title_asc", "created_desc", "oldest"]],
-    ["NotebookThemeSchema", ["light", "dark", "system", "blue"]],
-    ["InputLanguageSchema", ["auto", "fr-FR", "xx-XX", " de-DE", "", 5]],
-    ["OutputLanguageSchema", ["de-DE", "xx-XX", null]],
-    ["NullableOutputLanguageSchema", ["de-DE", null, "xx-XX"]],
-  ] as const)("%s accepts exactly what the contract accepts", (name, samples) => {
-    for (const value of samples) {
-      expect((local as any)[name].safeParse(value).success, `${name}(${JSON.stringify(value)})`).toBe((contracts as any)[name].safeParse(value).success);
-    }
-  });
+    [
+      "NotebookViewModeSchema",
+      local.NotebookViewModeSchema,
+      contracts.NotebookViewModeSchema,
+      ["grid", "list", "table", null],
+    ],
+    [
+      "NotebookSortOrderSchema",
+      local.NotebookSortOrderSchema,
+      contracts.NotebookSortOrderSchema,
+      ["recent", "title_asc", "created_desc", "oldest"],
+    ],
+    [
+      "NotebookThemeSchema",
+      local.NotebookThemeSchema,
+      contracts.NotebookThemeSchema,
+      ["light", "dark", "system", "blue"],
+    ],
+    [
+      "InputLanguageSchema",
+      local.InputLanguageSchema,
+      contracts.InputLanguageSchema,
+      ["auto", "fr-FR", "xx-XX", " de-DE", "", 5],
+    ],
+    [
+      "OutputLanguageSchema",
+      local.OutputLanguageSchema,
+      contracts.OutputLanguageSchema,
+      ["de-DE", "xx-XX", null],
+    ],
+    [
+      "NullableOutputLanguageSchema",
+      local.NullableOutputLanguageSchema,
+      contracts.NullableOutputLanguageSchema,
+      ["de-DE", null, "xx-XX"],
+    ],
+  ] as const)(
+    "%s accepts exactly what the contract accepts",
+    (name, localSchema, contractSchema, samples) => {
+      for (const value of samples) {
+        expect(localSchema.safeParse(value).success, `${name}(${JSON.stringify(value)})`).toBe(
+          contractSchema.safeParse(value).success,
+        );
+      }
+    },
+  );
 
   it("resolves the output language like resolveOutputLanguage (FR-UI-02, FR-012)", () => {
     const cases = [
@@ -43,7 +78,9 @@ describe("browser contract copies match packages/contracts", () => {
       { userDefault: null, browserLocale: null },
     ];
     for (const input of cases) {
-      expect((local as any).resolveOutputLanguage?.(input), JSON.stringify(input)).toBe(contracts.resolveOutputLanguage(input));
+      expect(local.resolveOutputLanguage(input), JSON.stringify(input)).toBe(
+        contracts.resolveOutputLanguage(input),
+      );
     }
   });
 

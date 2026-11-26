@@ -106,7 +106,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         focus_prompt: "a".repeat(1001),
-      }).success
+      }).success,
     ).toBe(false);
 
     expect(
@@ -116,7 +116,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         active_source_ids: [SRC],
         question_count: 15,
         difficulty: "easy",
-      }).success
+      }).success,
     ).toBe(true);
 
     expect(
@@ -125,7 +125,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         question_count: 4,
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -133,7 +133,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         question_count: 26,
-      }).success
+      }).success,
     ).toBe(false);
 
     expect(
@@ -142,7 +142,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         section_count: 4,
-      }).success
+      }).success,
     ).toBe(true);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -150,7 +150,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         section_count: 2,
-      }).success
+      }).success,
     ).toBe(false);
     expect(
       CreateStudioJobRequestSchema.safeParse({
@@ -158,7 +158,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         section_count: 7,
-      }).success
+      }).success,
     ).toBe(false);
 
     // Existing report/mindmap/data_table remain protected against v4 fields
@@ -168,7 +168,7 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         subtype: "default",
         active_source_ids: [SRC],
         difficulty: "hard",
-      }).success
+      }).success,
     ).toBe(false);
   });
 
@@ -190,7 +190,8 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
     };
     expect(StudioFlashcardsPayloadSchema.safeParse(validCards).success).toBe(true);
     expect(
-      StudioFlashcardsPayloadSchema.safeParse({ ...validCards, insufficient_evidence_note: null }).success
+      StudioFlashcardsPayloadSchema.safeParse({ ...validCards, insufficient_evidence_note: null })
+        .success,
     ).toBe(false);
 
     const validQuiz = {
@@ -269,10 +270,24 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
     expect(svg).toContain("AI-generated");
     expect(validateSafeDeterministicSvg(svg).valid).toBe(true);
 
-    expect(validateSafeDeterministicSvg('<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>').valid).toBe(false);
-    expect(validateSafeDeterministicSvg('<svg viewBox="0 0 100 100" onload="alert(1)"><rect/></svg>').valid).toBe(false);
-    expect(validateSafeDeterministicSvg('<svg viewBox="0 0 100 100"><foreignObject><div/></foreignObject></svg>').valid).toBe(false);
-    expect(validateSafeDeterministicSvg('<svg viewBox="0 0 100 100"><a href="https://evil.test"><rect/></a></svg>').valid).toBe(false);
+    expect(
+      validateSafeDeterministicSvg('<svg viewBox="0 0 100 100"><script>alert(1)</script></svg>')
+        .valid,
+    ).toBe(false);
+    expect(
+      validateSafeDeterministicSvg('<svg viewBox="0 0 100 100" onload="alert(1)"><rect/></svg>')
+        .valid,
+    ).toBe(false);
+    expect(
+      validateSafeDeterministicSvg(
+        '<svg viewBox="0 0 100 100"><foreignObject><div/></foreignObject></svg>',
+      ).valid,
+    ).toBe(false);
+    expect(
+      validateSafeDeterministicSvg(
+        '<svg viewBox="0 0 100 100"><a href="https://evil.test"><rect/></a></svg>',
+      ).valid,
+    ).toBe(false);
 
     const overview = {
       modules: [
@@ -313,7 +328,10 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
   });
 
   it("validates LearningProgress, Grade, and Explain request schemas", () => {
-    expect(RecordLearningProgressRequestSchema.safeParse({ item_id: ITEM_1, outcome: "mastered" }).success).toBe(true);
+    expect(
+      RecordLearningProgressRequestSchema.safeParse({ item_id: ITEM_1, outcome: "mastered" })
+        .success,
+    ).toBe(true);
     expect(ResetLearningProgressRequestSchema.safeParse({ confirm: true }).success).toBe(true);
     expect(ResetLearningProgressRequestSchema.safeParse({ confirm: false }).success).toBe(false);
     expect(
@@ -322,17 +340,24 @@ describe("[014-studio-active-learning-suite] T003: Package 4.1 contracts, limits
         artifact_id: ART,
         notebook_id: NB,
         item_states_json: {
-          [ITEM_1]: { status: "needs_review", attempts: 2, last_reviewed_at: new Date().toISOString() },
+          [ITEM_1]: {
+            status: "needs_review",
+            attempts: 2,
+            last_reviewed_at: new Date().toISOString(),
+          },
         },
         updated_at: new Date().toISOString(),
-      }).success
-    ).toBe(true);
-    expect(GradeQuizQuestionRequestSchema.safeParse({ question_id: ITEM_1, answer: "0.2 GB (200 MB)" }).success).toBe(true);
-    expect(
-      StudioExplainRequestSchema.safeParse({ item_id: ITEM_1, active_source_ids: [SRC] }).success
+      }).success,
     ).toBe(true);
     expect(
-      StudioExplainRequestSchema.safeParse({ item_id: ITEM_1, active_source_ids: [] }).success
+      GradeQuizQuestionRequestSchema.safeParse({ question_id: ITEM_1, answer: "0.2 GB (200 MB)" })
+        .success,
+    ).toBe(true);
+    expect(
+      StudioExplainRequestSchema.safeParse({ item_id: ITEM_1, active_source_ids: [SRC] }).success,
+    ).toBe(true);
+    expect(
+      StudioExplainRequestSchema.safeParse({ item_id: ITEM_1, active_source_ids: [] }).success,
     ).toBe(false);
   });
 });

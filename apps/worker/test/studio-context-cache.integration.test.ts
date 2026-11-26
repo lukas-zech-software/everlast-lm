@@ -1,49 +1,52 @@
-import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { HashingTestEmbedder } from '@everlast/cloud';
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from '@everlast/db/testing';
-import { createNotebook } from '@everlast/db';
-import { captureScopeSnapshot } from '@everlast/db';
-import { StudioContextCache } from '../src/studio/context-cache.ts';
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { HashingTestEmbedder } from "@everlast/cloud";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "@everlast/db/testing";
+import { captureScopeSnapshot, createNotebook } from "@everlast/db";
+import { StudioContextCache } from "../src/studio/context-cache.ts";
 
 let db: TestDatabase;
-const embedder = new HashingTestEmbedder({ NODE_ENV: 'test' });
+const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 
 beforeAll(async () => {
   db = await createTestDatabase();
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
 });
 
-describe('NFR-PERF-01 NFR-SEC-01/02 studio context cache integration', () => {
-  it('manages context cache with real database scope and prevents cross-user access', async () => {
+describe("NFR-PERF-01 NFR-SEC-01/02 studio context cache integration", () => {
+  it("manages context cache with real database scope and prevents cross-user access", async () => {
     const owner1 = await createTestUser(db.pool);
-    const owner2 = await createTestUser(db.pool);
+    await createTestUser(db.pool);
     const { notebook } = await createNotebook(db.pool, owner1, {});
     const s1 = await seedReadySource(db.pool, owner1, notebook.id, {
-      pages: ['Confidential analysis document.'],
-      embed: t => embedder.embed(t),
+      pages: ["Confidential analysis document."],
+      embed: (t) => embedder.embed(t),
     });
 
-    const scope = await captureScopeSnapshot(db.pool, owner1, notebook.id, [s1.sourceId]);
+    await captureScopeSnapshot(db.pool, owner1, notebook.id, [s1.sourceId]);
     const cache = new StudioContextCache();
 
-    const authFingerprint1 = '1'.repeat(64);
-    const authFingerprint2 = '2'.repeat(64);
+    const authFingerprint1 = "1".repeat(64);
+    const authFingerprint2 = "2".repeat(64);
     const entry = await cache.create({
       notebookId: notebook.id,
-      scopeManifestHash: 'a'.repeat(64),
+      scopeManifestHash: "a".repeat(64),
       effectiveAuthorizationFingerprint: authFingerprint1,
-      outputLanguage: 'en',
-      generationParametersHash: 'b'.repeat(64),
-      model: 'gemini-1.5-pro',
-      modelVersion: '002',
-      contentDigest: 'c'.repeat(64),
-      providerHandle: 'handle-owner1',
+      outputLanguage: "en",
+      generationParametersHash: "b".repeat(64),
+      model: "gemini-1.5-pro",
+      modelVersion: "002",
+      contentDigest: "c".repeat(64),
+      providerHandle: "handle-owner1",
       ttlSeconds: 60,
-      providerExpiresAt:Date.now()+60000,
+      providerExpiresAt: Date.now() + 60000,
     });
 
     // Owner 1 has access

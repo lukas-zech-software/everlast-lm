@@ -11,6 +11,7 @@ import {
   type ActiveSourceSelection,
   type SourceInspectorQuery,
 } from "../src/package-v1-2.ts";
+import { countCodePoints } from "../src/text-limits.ts";
 
 describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
   const validSourceId = "11111111-1111-4111-8111-111111111111";
@@ -74,9 +75,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
     });
 
     it("PKG12-04: rejects byte_size > 200,000,000 (Constitution II: 200MB = 200,000,000 bytes)", () => {
-      expect(() =>
-        SourceSchema.parse({ ...validSource, byte_size: 200_000_001 })
-      ).toThrow();
+      expect(() => SourceSchema.parse({ ...validSource, byte_size: 200_000_001 })).toThrow();
     });
 
     it("PKG12-05: rejects negative or non-integer byte_size", () => {
@@ -85,9 +84,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
     });
 
     it("PKG12-06: rejects word_count > 500,000", () => {
-      expect(() =>
-        SourceSchema.parse({ ...validSource, word_count: 500_001 })
-      ).toThrow();
+      expect(() => SourceSchema.parse({ ...validSource, word_count: 500_001 })).toThrow();
     });
 
     it("PKG12-07: rejects negative or non-integer word_count", () => {
@@ -115,7 +112,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
     it("PKG12-11: accepts title with 100 Unicode code points (including multi-byte emoji)", () => {
       // 90 ASCII chars + 10 emoji = 100 code points
       const title100 = "A".repeat(90) + "🔬".repeat(10);
-      expect(Array.from(title100).length).toBe(100);
+      expect(countCodePoints(title100)).toBe(100);
       const parsed = SourceSchema.parse({ ...validSource, title: title100 });
       expect(parsed.title).toBe(title100);
     });
@@ -127,11 +124,9 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
 
     it("PKG12-13: rejects unknown media_type or unknown status", () => {
       expect(() =>
-        SourceSchema.parse({ ...validSource, media_type: "application/msword" as any })
+        SourceSchema.parse({ ...validSource, media_type: "application/msword" }),
       ).toThrow();
-      expect(() =>
-        SourceSchema.parse({ ...validSource, status: "Archived" as any })
-      ).toThrow();
+      expect(() => SourceSchema.parse({ ...validSource, status: "Archived" })).toThrow();
     });
 
     it("PKG12-14: rejects extra unknown fields on Source (strict schema)", () => {
@@ -180,11 +175,9 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
     });
 
     it("PKG12-20: rejects title > 100 code points or whitespace-only title when provided", () => {
+      expect(() => CopiedTextInputSchema.parse({ text: "Content", title: "   " })).toThrow();
       expect(() =>
-        CopiedTextInputSchema.parse({ text: "Content", title: "   " })
-      ).toThrow();
-      expect(() =>
-        CopiedTextInputSchema.parse({ text: "Content", title: "A".repeat(101) })
+        CopiedTextInputSchema.parse({ text: "Content", title: "A".repeat(101) }),
       ).toThrow();
     });
 
@@ -193,7 +186,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
         CopiedTextInputSchema.parse({
           text: "Content",
           extra_param: 123,
-        })
+        }),
       ).toThrow();
     });
   });
@@ -218,7 +211,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
         ActiveSourceSelectionSchema.parse({
           notebook_id: validNotebookId,
           active_source_ids: ["not-a-uuid"],
-        })
+        }),
       ).toThrow();
     });
 
@@ -227,7 +220,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
         ActiveSourceSelectionSchema.parse({
           notebook_id: "invalid-notebook-id",
           active_source_ids: [],
-        })
+        }),
       ).toThrow();
     });
 
@@ -237,7 +230,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
           notebook_id: validNotebookId,
           active_source_ids: [],
           unauthorized_override: true,
-        })
+        }),
       ).toThrow();
     });
   });
@@ -265,15 +258,13 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
     });
 
     it("PKG12-28: rejects non-UUID source_id or invalid highlight_chunk_id", () => {
-      expect(() =>
-        SourceInspectorQuerySchema.parse({ source_id: "invalid-source-id" })
-      ).toThrow();
+      expect(() => SourceInspectorQuerySchema.parse({ source_id: "invalid-source-id" })).toThrow();
 
       expect(() =>
         SourceInspectorQuerySchema.parse({
           source_id: validSourceId,
           highlight_chunk_id: "not-a-valid-uuid",
-        })
+        }),
       ).toThrow();
     });
 
@@ -282,7 +273,7 @@ describe("Package 1.2 Contracts: Text/PDF Ingestion & Inspector", () => {
         SourceInspectorQuerySchema.parse({
           source_id: validSourceId,
           extra_filter: "disallowed",
-        })
+        }),
       ).toThrow();
     });
   });

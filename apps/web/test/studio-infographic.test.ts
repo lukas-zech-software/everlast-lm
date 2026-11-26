@@ -3,7 +3,7 @@ import { makeCodePointString } from "@everlast/testkit/studio-structure-fixtures
 import { renderInfographicSvg, type StudioInfographicPayload } from "@everlast/contracts";
 import { createInfographicViewer } from "../src/studio/infographic-viewer.ts";
 import { createStudioPanel } from "../src/studio/panel.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [015-studio-visuals-presentations] T017 — Visual Infographic UI viewer, zoom controls,
@@ -63,7 +63,7 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const tid = (id: string, root: MockElement = body()) => root.querySelector(`[data-testid=${id}]`);
 
   it("mounts crisp safe SVG via DOM API, updates zoom controls, fires citation & SVG/PNG exports", async () => {
@@ -75,8 +75,9 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
       title: "Incident Response Pipeline",
       payload: makeInfographicPayload(),
       onOpenCitation: (ref) => openedCites.push(ref.badge_number),
-      onExport: async (format) => {
+      onExport: (format) => {
         exported.push(format);
+        return Promise.resolve();
       },
     });
     body().append(viewer.element as unknown as MockElement);
@@ -98,15 +99,15 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
     tid("infographic-citation-1")!.click();
     expect(openedCites).toEqual([1]);
 
-    await (tid("infographic-export-svg") as any).click();
-    await (tid("infographic-export-png") as any).click();
+    tid("infographic-export-svg")!.click();
+    tid("infographic-export-png")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(exported).toEqual(["svg", "png"]);
   });
 
   it("validates 5 styles and 1,000-codepoint focus_prompt without truncation in modal, and hides export on Failed row", async () => {
     let selection = [SRC_A];
-    const posts: any[] = [];
+    const posts: Array<Record<string, unknown>> = [];
     const artifacts = [
       {
         id: "42000000-ffff-4000-8000-000000000010",
@@ -128,23 +129,32 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
       },
     ];
 
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(JSON.stringify({ artifacts }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ artifacts }), { status: 200 }));
       }
       if (url.pathname.endsWith("/artifacts") && method === "POST") {
-        const parsed = JSON.parse(String(init.body));
+        const parsed =
+          typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
         posts.push(parsed);
-        return new Response(
-          JSON.stringify({
-            artifact: { ...artifacts[0], id: ART, status: "Queued", failure: null, params_json: parsed },
-          }),
-          { status: 202 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                ...artifacts[0],
+                id: ART,
+                status: "Queued",
+                failure: null,
+                params_json: parsed,
+              },
+            }),
+            { status: 202 },
+          ),
         );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
     const panel = createStudioPanel({
@@ -159,7 +169,7 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
     await panel.refresh();
 
     // Failed infographic shows Retry without SVG/PNG export
-    expect(body().textContent ?? "").toContain("Retry");
+    expect(body().textContent).toContain("Retry");
     expect(tid("infographic-export-svg")).toBeNull();
     expect(tid("infographic-export-png")).toBeNull();
 
@@ -175,11 +185,11 @@ describe("[015-studio-visuals-presentations] T017: Infographic UI viewer, zoom, 
     const modal = tid("infographic-modal")!;
     expect(modal).not.toBeNull();
 
-    const styleSelect = tid("infographic-style-select", modal) as any;
+    const styleSelect = tid("infographic-style-select", modal)!;
     expect(styleSelect.value).toBe("auto");
     styleSelect.value = "process_flow";
 
-    const promptInput = tid("infographic-focus-prompt", modal) as any;
+    const promptInput = tid("infographic-focus-prompt", modal)!;
     promptInput.value = makeCodePointString(1001);
     promptInput.dispatchEvent({ type: "input" });
     expect(tid("infographic-generate", modal)!.disabled).toBe(true);

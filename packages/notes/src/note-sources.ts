@@ -46,7 +46,11 @@ export interface PostgresNoteSourcesOptions {
   sourceLimit: number;
 }
 
-function toNoteSource(source: SourceRecord, origin_notes: NoteSourceOrigin[], origin_citations: Citation[]): NoteSource {
+function toNoteSource(
+  source: SourceRecord,
+  origin_notes: NoteSourceOrigin[],
+  origin_citations: Citation[],
+): NoteSource {
   return {
     id: source.id,
     notebook_id: source.notebook_id,
@@ -70,25 +74,47 @@ export function createPostgresNoteSources(options: PostgresNoteSourcesOptions): 
     },
 
     async findReusable(ownerId, notebookId, origins) {
-      const id = await findReusableNoteSource(pool, ownerId, notebookId, noteSourceOriginKey(origins));
+      const id = await findReusableNoteSource(
+        pool,
+        ownerId,
+        notebookId,
+        noteSourceOriginKey(origins),
+      );
       if (!id) return null;
       const provenance = (await getNoteSourceProvenance(pool, notebookId, [id])).get(id);
-      return toNoteSource(await getSource(pool, ownerId, notebookId, id), provenance?.origin_notes ?? origins, provenance?.origin_citations ?? []);
+      return toNoteSource(
+        await getSource(pool, ownerId, notebookId, id),
+        provenance?.origin_notes ?? origins,
+        provenance?.origin_citations ?? [],
+      );
     },
 
     async create(ownerId, notebookId, input) {
-      if (!options.storage || !options.embedder) throw new AppError("RetryableFailure", 503, "Source ingestion is not configured");
+      if (!options.storage || !options.embedder)
+        throw new AppError("RetryableFailure", 503, "Source ingestion is not configured");
       const bytes = Buffer.byteLength(input.markdown, "utf8");
       const [admission] = await reserveSources(
         pool,
         ownerId,
         notebookId,
-        [{ attempt_id: randomUUID(), title: input.title, media_type: NOTE_SOURCE_MEDIA_TYPE, declared_bytes: bytes }],
-        { sourceLimit: options.sourceLimit, uploadTtlSeconds: null }
+        [
+          {
+            attempt_id: randomUUID(),
+            title: input.title,
+            media_type: NOTE_SOURCE_MEDIA_TYPE,
+            declared_bytes: bytes,
+          },
+        ],
+        { sourceLimit: options.sourceLimit, uploadTtlSeconds: null },
       );
       if (!admission?.admitted || !admission.source) {
-        if (admission?.error?.code === "SourceQuotaExceeded") throw new SourceQuotaExceededError(admission.error.message);
-        throw new AppError("ValidationFailed", 422, admission?.error?.message ?? "The note-source was not admitted");
+        if (admission?.error?.code === "SourceQuotaExceeded")
+          throw new SourceQuotaExceededError(admission.error.message);
+        throw new AppError(
+          "ValidationFailed",
+          422,
+          admission?.error?.message ?? "The note-source was not admitted",
+        );
       }
       const reserved = admission.source;
       await recordNoteSourceProvenance(pool, {
@@ -99,20 +125,34 @@ export function createPostgresNoteSources(options: PostgresNoteSourcesOptions): 
       });
       let outcome;
       try {
-        outcome = await ingestNoteSource({ pool, storage: options.storage, embedder: options.embedder }, { source: reserved, markdown: input.markdown });
+        outcome = await ingestNoteSource(
+          { pool, storage: options.storage, embedder: options.embedder },
+          { source: reserved, markdown: input.markdown },
+        );
       } catch {
         outcome = null;
       }
       if (outcome?.status !== "ready") {
         // Release the slot if the ingest job did not settle the source (storage or receipt failure).
-        await failSource(pool, { sourceId: reserved.id, attemptId: reserved.attempt_id, code: "ProcessingError", message: "Processing failed" });
+        await failSource(pool, {
+          sourceId: reserved.id,
+          attemptId: reserved.attempt_id,
+          code: "ProcessingError",
+          message: "Processing failed",
+        });
         const storage = options.storage;
-        for (const version of await storage.listVersions(`notebooks/${notebookId}/sources/${reserved.id}/`).catch(() => [])) {
+        for (const version of await storage
+          .listVersions(`notebooks/${notebookId}/sources/${reserved.id}/`)
+          .catch(() => [])) {
           await storage.deleteVersion(version.name, version.generation).catch(() => undefined);
         }
         throw new NoteSourceIngestionError();
       }
-      return toNoteSource(await getSource(pool, ownerId, notebookId, reserved.id), input.origin_notes, input.origin_citations);
+      return toNoteSource(
+        await getSource(pool, ownerId, notebookId, reserved.id),
+        input.origin_notes,
+        input.origin_citations,
+      );
     },
   };
 }

@@ -1,18 +1,23 @@
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setupMockDOM } from "./mock-dom.ts";
+import { SUPPORTED_OUTPUT_LANGUAGES } from "@everlast/contracts";
+import type { SourceDto } from "../src/lib/types.ts";
+import { renderHome, renderIconPicker } from "../src/home.ts";
+import { createWorkspaceFeatures } from "../src/v2/workspace-features.ts";
 import {
+  applyTheme,
+  hydrateWorkspaceSettings,
+  initializeTheme,
   loadWorkspacePreferences,
+  renderWorkspaceSettings,
   resolveTheme,
   saveWorkspacePreferences,
   sortNotebookRows,
   WORKSPACE_PREFS_KEY,
+  type LocalWorkspacePreferences,
+  type WorkspaceSettingsState,
 } from "../src/workspace-preferences.ts";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { SUPPORTED_OUTPUT_LANGUAGES } from "@everlast/contracts";
-import { applyTheme, hydrateWorkspaceSettings, initializeTheme, renderWorkspaceSettings } from "../src/workspace-preferences.ts";
-import { renderHome, renderIconPicker } from "../src/home.ts";
-import { createWorkspaceFeatures } from "../src/v2/workspace-features.ts";
+import { asMockElement, requestUrl, setupMockDOM } from "./mock-dom.ts";
 
 const base = {
   owner_id: "owner",
@@ -28,21 +33,38 @@ const base = {
 
 const originalFetch = globalThis.fetch;
 beforeEach(() => setupMockDOM());
-afterEach(() => { globalThis.fetch = originalFetch; });
+afterEach(() => {
+  globalThis.fetch = originalFetch;
+});
 
 describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
   it("restores and validates view/sort/theme preferences, falling back on corrupt data", () => {
     const { localStorage } = setupMockDOM();
-    localStorage.setItem(WORKSPACE_PREFS_KEY, JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "dark" }));
-    expect(loadWorkspacePreferences()).toEqual({ view_mode: "list", sort_order: "title_asc", theme: "dark" });
+    localStorage.setItem(
+      WORKSPACE_PREFS_KEY,
+      JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "dark" }),
+    );
+    expect(loadWorkspacePreferences()).toEqual({
+      view_mode: "list",
+      sort_order: "title_asc",
+      theme: "dark",
+    });
     localStorage.setItem(WORKSPACE_PREFS_KEY, "{bad");
-    expect(loadWorkspacePreferences()).toEqual({ view_mode: "grid", sort_order: "recent", theme: "system" });
+    expect(loadWorkspacePreferences()).toEqual({
+      view_mode: "grid",
+      sort_order: "recent",
+      theme: "system",
+    });
   });
 
   it("persists only validated local view/sort/theme values", () => {
     const { localStorage } = setupMockDOM();
     saveWorkspacePreferences({ view_mode: "list", sort_order: "created_desc", theme: "dark" });
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({ view_mode: "list", sort_order: "created_desc", theme: "dark" });
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({
+      view_mode: "list",
+      sort_order: "created_desc",
+      theme: "dark",
+    });
   });
 
   it("resolves System to the browser color preference", () => {
@@ -73,8 +95,11 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
   it("applies the saved theme before first paint and handles System preference", () => {
     const { document, localStorage } = setupMockDOM();
     const root = document.createElement("html");
-    localStorage.setItem(WORKSPACE_PREFS_KEY, JSON.stringify({ view_mode: "grid", sort_order: "recent", theme: "dark" }));
-    initializeTheme(root as unknown as HTMLElement, localStorage as unknown as Storage, false);
+    localStorage.setItem(
+      WORKSPACE_PREFS_KEY,
+      JSON.stringify({ view_mode: "grid", sort_order: "recent", theme: "dark" }),
+    );
+    initializeTheme(root as unknown as HTMLElement, localStorage, false);
     expect(root.getAttribute("data-theme")).toBe("dark");
     applyTheme("system", root as unknown as HTMLElement, true);
     expect(root.getAttribute("data-theme")).toBe("dark");
@@ -86,13 +111,19 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     const { document, localStorage } = setupMockDOM();
     const root = document.createElement("html");
     const panel = document.createElement("div");
-    let updated: any;
-    renderWorkspaceSettings(panel as unknown as HTMLElement, { theme: "system", input_language: "auto", output_language: "en-US" }, {
-      root: root as unknown as HTMLElement,
-      storage: localStorage,
-      prefersDark: false,
-      onUpdate: (preferences: any) => { updated = preferences; },
-    });
+    let updated: WorkspaceSettingsState | undefined;
+    renderWorkspaceSettings(
+      panel as unknown as HTMLElement,
+      { theme: "system", input_language: "auto", output_language: "en-US" },
+      {
+        root: root as unknown as HTMLElement,
+        storage: localStorage,
+        prefersDark: false,
+        onUpdate: (preferences) => {
+          updated = preferences;
+        },
+      },
+    );
     const input = panel.querySelector("#input-language-select");
     const output = panel.querySelector("#output-language-select");
     const theme = panel.querySelector("#theme-select");
@@ -102,25 +133,50 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     theme!.value = "dark";
     theme!.dispatchEvent({ type: "change", target: theme });
     expect(root.getAttribute("data-theme")).toBe("dark");
-    expect(updated.theme).toBe("dark");
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!).theme).toBe("dark");
+    expect(updated?.theme).toBe("dark");
+    expect(
+      (JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!) as LocalWorkspacePreferences).theme,
+    ).toBe("dark");
   });
 
   it("hydrates global and notebook language settings and reports each change with its key", async () => {
-    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+    const fetcher = vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
       const body = url.endsWith("/api/preferences")
-        ? { owner_id: "owner", view_mode: "grid", sort_order: "recent", theme: "system", input_language: "fr-FR", output_language: "de-DE" }
-        : { owner_id: "owner", notebook_id: "notebook-1", notebook_input_language: "ja-JP", notebook_output_language: "zh-TW" };
-      return { ok: true, json: async () => body } as Response;
+        ? {
+            owner_id: "owner",
+            view_mode: "grid",
+            sort_order: "recent",
+            theme: "system",
+            input_language: "fr-FR",
+            output_language: "de-DE",
+          }
+        : {
+            owner_id: "owner",
+            notebook_id: "notebook-1",
+            notebook_input_language: "ja-JP",
+            notebook_output_language: "zh-TW",
+          };
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(body) } as Response);
     }) as unknown as typeof fetch;
     const initial = { theme: "system", input_language: "auto", output_language: null } as const;
-    const loaded = await hydrateWorkspaceSettings({ ...initial }, { notebookId: "notebook-1", fetcher });
-    expect(loaded).toMatchObject({ input_language: "fr-FR", output_language: "de-DE", notebook_input_language: "ja-JP", notebook_output_language: "zh-TW" });
+    const loaded = await hydrateWorkspaceSettings(
+      { ...initial },
+      { notebookId: "notebook-1", fetcher },
+    );
+    expect(loaded).toMatchObject({
+      input_language: "fr-FR",
+      output_language: "de-DE",
+      notebook_input_language: "ja-JP",
+      notebook_output_language: "zh-TW",
+    });
     const { document } = setupMockDOM();
     const host = document.createElement("div");
-    const updates: [string, unknown][] = [];
-    renderWorkspaceSettings(host as unknown as HTMLElement, loaded, { notebookId: "notebook-1", onUpdate: (next, key) => void updates.push([key, next[key]]) });
+    const updates: Array<[string, unknown]> = [];
+    renderWorkspaceSettings(host as unknown as HTMLElement, loaded, {
+      notebookId: "notebook-1",
+      onUpdate: (next, key) => void updates.push([key, next[key]]),
+    });
     const notebookOutput = host.querySelector("#notebook-output-language-select")!;
     expect(notebookOutput.value).toBe("zh-TW");
     notebookOutput.value = "it-IT";
@@ -132,12 +188,14 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     let changeListener: ((event: { matches: boolean }) => void) | undefined;
     const mediaQuery = {
       matches: false,
-      addEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => { changeListener = listener; },
+      addEventListener: (_type: string, listener: (event: { matches: boolean }) => void) => {
+        changeListener = listener;
+      },
       removeEventListener: () => undefined,
     };
-    (window as any).matchMedia = () => mediaQuery;
+    Object.assign(window, { matchMedia: () => mediaQuery });
     const root = document.createElement("html");
-    initializeTheme(root as unknown as HTMLElement, localStorage as unknown as Storage);
+    initializeTheme(root as unknown as HTMLElement, localStorage);
     expect(root.getAttribute("data-theme")).toBe("light");
     mediaQuery.matches = true;
     changeListener?.({ matches: true });
@@ -153,52 +211,135 @@ describe("Workspace overview preferences (FR-WM-03, FR-UI-02)", () => {
     expect(themeScript).toBeLessThan(headEnd);
     expect(headEnd).toBeLessThan(bodyStart);
   });
-
 });
 
 // ---- Convergence tests (specs/005 Phase 7) ------------------------------------------------------------
 
-type Call = { url: string; method: string; body: any };
+interface FakeRequestBody {
+  icon_emoji?: string;
+  output_language?: string;
+  theme?: string;
+  [key: string]: unknown;
+}
+
+interface FakeNotebookRow {
+  id: string;
+  title: string;
+  owner_id: string;
+  created_at: string;
+  updated_at: string;
+  icon_emoji: string;
+  icon_source: string;
+  ready_source_count: number;
+  is_pinned: boolean;
+  last_opened_at: string | null;
+  owner_role: string;
+  [key: string]: unknown;
+}
+
+interface Call {
+  url: string;
+  method: string;
+  body: FakeRequestBody | undefined;
+}
 
 function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 /** Minimal fake API for the home overview and workspace settings; records every request. */
-function fakeApi(options: {
-  notebooks?: any[];
-  preferences?: Record<string, unknown>;
-  rejectIcon?: boolean;
-} = {}) {
+function fakeApi(
+  options: {
+    notebooks?: FakeNotebookRow[];
+    preferences?: Record<string, unknown>;
+    rejectIcon?: boolean;
+  } = {},
+) {
   const calls: Call[] = [];
   const notebooks = options.notebooks ?? [];
-  const preferences = { owner_id: "owner", theme: "system", input_language: "auto", output_language: null, ...options.preferences };
-  const fetcher = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = String(input);
+  const preferences = {
+    owner_id: "owner",
+    theme: "system",
+    input_language: "auto",
+    output_language: null,
+    ...options.preferences,
+  };
+  const fetcher = vi.fn((input: RequestInfo | URL, init: RequestInit = {}) => {
+    const url = requestUrl(input);
     const method = (init.method ?? "GET").toUpperCase();
-    const body = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+    const body =
+      typeof init.body === "string" ? (JSON.parse(init.body) as FakeRequestBody) : undefined;
     calls.push({ url, method, body });
-    if (url === "/api/notebooks" && method === "GET") return json({ notebooks, notebooks_used: notebooks.length, notebook_limit: 100 });
-    if (url === "/api/notebooks" && method === "POST") return json({ notebook: { id: "nb-new", title: "Untitled notebook", created_at: base.created_at, updated_at: base.updated_at } }, 201);
-    if (url === "/api/preferences" && method === "GET") return json(preferences);
-    if (url === "/api/preferences" && method === "PATCH") return json({ ...preferences, ...body });
-    const icon = url.match(/^\/api\/notebooks\/([^/]+)\/icon$/);
-    if (icon && method === "PATCH") {
-      if (options.rejectIcon) return json({ error: { code: "InvalidEmoji", message: "Icon must be one valid emoji grapheme" } }, 400);
-      const nb = notebooks.find((n) => n.id === icon[1]);
-      if (nb) Object.assign(nb, { icon_emoji: body.icon_emoji, icon_source: "custom" });
-      return json({ notebook: nb });
+    if (url === "/api/notebooks" && method === "GET") {
+      return Promise.resolve(
+        json({ notebooks, notebooks_used: notebooks.length, notebook_limit: 100 }),
+      );
     }
-    if (url.endsWith("/preferences") && method === "GET") return json({ notebook_input_language: null, notebook_output_language: null, is_pinned: false });
-    if (url.endsWith("/overview") && method === "POST") return json({ overview_md: "Overview", starter_prompts: [] });
-    return json({}, 404);
+    if (url === "/api/notebooks" && method === "POST") {
+      return Promise.resolve(
+        json(
+          {
+            notebook: {
+              id: "nb-new",
+              title: "Untitled notebook",
+              created_at: base.created_at,
+              updated_at: base.updated_at,
+            },
+          },
+          201,
+        ),
+      );
+    }
+    if (url === "/api/preferences" && method === "GET") {
+      return Promise.resolve(json(preferences));
+    }
+    if (url === "/api/preferences" && method === "PATCH") {
+      return Promise.resolve(json({ ...preferences, ...body }));
+    }
+    const icon = /^\/api\/notebooks\/([^/]+)\/icon$/.exec(url);
+    if (icon && method === "PATCH") {
+      if (options.rejectIcon) {
+        return Promise.resolve(
+          json(
+            { error: { code: "InvalidEmoji", message: "Icon must be one valid emoji grapheme" } },
+            400,
+          ),
+        );
+      }
+      const nb = notebooks.find((n) => n.id === icon[1]);
+      if (nb && body?.icon_emoji) {
+        Object.assign(nb, { icon_emoji: body.icon_emoji, icon_source: "custom" });
+      }
+      return Promise.resolve(json({ notebook: nb }));
+    }
+    if (url.endsWith("/preferences") && method === "GET") {
+      return Promise.resolve(
+        json({
+          notebook_input_language: null,
+          notebook_output_language: null,
+          is_pinned: false,
+        }),
+      );
+    }
+    if (url.endsWith("/overview") && method === "POST") {
+      return Promise.resolve(json({ overview_md: "Overview", starter_prompts: [] }));
+    }
+    return Promise.resolve(json({}, 404));
   });
-  globalThis.fetch = fetcher as unknown as typeof fetch;
+  globalThis.fetch = fetcher;
   return { calls, notebooks, fetcher };
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-const row = (id: string, title: string, extra: Record<string, unknown> = {}) => ({ ...base, id, title, ...extra });
+const row = (id: string, title: string, extra: Record<string, unknown> = {}): FakeNotebookRow => ({
+  ...base,
+  id,
+  title,
+  ...extra,
+});
 
 describe("Home empty state (FR-WM-03, FR-009, US1 Scenario 5)", () => {
   it("shows a Create your first notebook call to action that creates a notebook, with sorting disabled", async () => {
@@ -210,9 +351,11 @@ describe("Home empty state (FR-WM-03, FR-009, US1 Scenario 5)", () => {
     const cta = root.querySelector("[data-testid=empty-home]");
     expect(cta?.tagName).toBe("BUTTON");
     expect(cta?.textContent).toBe("Create your first notebook");
-    expect((root.querySelector("[data-testid=notebook-sort]") as any).disabled).toBe(true);
+    expect(root.querySelector("[data-testid=notebook-sort]")!.disabled).toBe(true);
     cta!.click();
-    await vi.waitFor(() => expect(nav.go).toHaveBeenCalledWith("/notebook/nb-new", { addSources: true }));
+    await vi.waitFor(() =>
+      expect(nav.go).toHaveBeenCalledWith("/notebook/nb-new", { addSources: true }),
+    );
     expect(calls.filter((c) => c.url === "/api/notebooks" && c.method === "POST")).toHaveLength(1);
   });
 
@@ -222,7 +365,7 @@ describe("Home empty state (FR-WM-03, FR-009, US1 Scenario 5)", () => {
     const root = document.createElement("div");
     await renderHome(root as unknown as HTMLElement, { go: vi.fn() });
     expect(root.querySelector("[data-testid=empty-home]")).toBeNull();
-    expect((root.querySelector("[data-testid=notebook-sort]") as any).disabled).toBe(false);
+    expect(root.querySelector("[data-testid=notebook-sort]")!.disabled).toBe(false);
     expect(root.querySelectorAll("[data-testid=notebook-card]")).toHaveLength(1);
   });
 });
@@ -232,15 +375,23 @@ describe("Notebook icon picker shared by home cards and the workspace header (FR
     const { document } = setupMockDOM();
     const api = fakeApi({ notebooks: [row("nb-1", "Genetics")] });
     const shown: string[] = [];
-    const picker = renderIconPicker({ id: "nb-1", title: "Genetics", icon_emoji: "📓" }, (patch) => void shown.push(patch.icon_emoji!), "workspace-notebook-icon");
+    const picker = renderIconPicker(
+      { id: "nb-1", title: "Genetics", icon_emoji: "📓" },
+      (patch) => void shown.push(patch.icon_emoji),
+      "workspace-notebook-icon",
+    );
     expect(picker.tagName).toBe("SELECT");
     expect(picker.getAttribute("data-testid")).toBe("workspace-notebook-icon");
     expect(picker.value).toBe("📓");
     expect(picker.querySelectorAll("option").length).toBeGreaterThan(1);
     picker.value = "🧬";
-    (picker as any).dispatchEvent({ type: "change", target: picker });
+    asMockElement(picker).dispatchEvent({ type: "change", target: picker });
     await vi.waitFor(() => expect(shown).toContain("🧬"));
-    expect(api.calls).toContainEqual({ url: "/api/notebooks/nb-1/icon", method: "PATCH", body: { icon_emoji: "🧬" } });
+    expect(api.calls).toContainEqual({
+      url: "/api/notebooks/nb-1/icon",
+      method: "PATCH",
+      body: { icon_emoji: "🧬" },
+    });
     expect(picker.value).toBe("🧬");
 
     const home = document.createElement("div");
@@ -253,9 +404,13 @@ describe("Notebook icon picker shared by home cards and the workspace header (FR
     setupMockDOM();
     fakeApi({ notebooks: [row("nb-1", "Genetics")], rejectIcon: true });
     const shown: string[] = [];
-    const picker = renderIconPicker({ id: "nb-1", title: "Genetics", icon_emoji: "📓" }, (patch) => void shown.push(patch.icon_emoji!), "workspace-notebook-icon");
+    const picker = renderIconPicker(
+      { id: "nb-1", title: "Genetics", icon_emoji: "📓" },
+      (patch) => void shown.push(patch.icon_emoji),
+      "workspace-notebook-icon",
+    );
     picker.value = "🧬";
-    (picker as any).dispatchEvent({ type: "change", target: picker });
+    asMockElement(picker).dispatchEvent({ type: "change", target: picker });
     await vi.waitFor(() => expect(picker.value).toBe("📓"));
     expect(shown).toEqual([]);
   });
@@ -273,46 +428,95 @@ describe("View mode and sort order live only in localStorage (FR-WM-03, FR-008, 
     sort.dispatchEvent({ type: "change", target: sort });
     await flush();
     expect(calls.filter((c) => c.url === "/api/preferences" && c.method === "PATCH")).toEqual([]);
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toMatchObject({ view_mode: "list", sort_order: "title_asc" });
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toMatchObject({
+      view_mode: "list",
+      sort_order: "title_asc",
+    });
   });
 
   it("never overwrites the local view/sort with server values on hydration or a theme change", async () => {
     const { document, localStorage } = setupMockDOM();
-    localStorage.setItem(WORKSPACE_PREFS_KEY, JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "light" }));
-    const fetcher = vi.fn(async () => json({ owner_id: "owner", view_mode: "grid", sort_order: "created_desc", theme: "system", input_language: "auto", output_language: null })) as unknown as typeof fetch;
-    const loaded = await hydrateWorkspaceSettings({ theme: "light", input_language: "auto", output_language: null }, { fetcher });
+    localStorage.setItem(
+      WORKSPACE_PREFS_KEY,
+      JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "light" }),
+    );
+    const fetcher = vi.fn(() =>
+      Promise.resolve(
+        json({
+          owner_id: "owner",
+          view_mode: "grid",
+          sort_order: "created_desc",
+          theme: "system",
+          input_language: "auto",
+          output_language: null,
+        }),
+      ),
+    ) as unknown as typeof fetch;
+    const loaded = await hydrateWorkspaceSettings(
+      { theme: "light", input_language: "auto", output_language: null },
+      { fetcher },
+    );
     expect(loaded).not.toHaveProperty("view_mode");
     expect(loaded).not.toHaveProperty("sort_order");
     const panel = document.createElement("div");
-    renderWorkspaceSettings(panel as unknown as HTMLElement, { ...loaded, view_mode: "grid", sort_order: "created_desc" } as any, { root: document.createElement("html") as unknown as HTMLElement, storage: localStorage, prefersDark: false });
+    const extraLoaded: WorkspaceSettingsState & { view_mode: string; sort_order: string } = {
+      ...loaded,
+      view_mode: "grid",
+      sort_order: "created_desc",
+    };
+    renderWorkspaceSettings(panel as unknown as HTMLElement, extraLoaded, {
+      root: document.createElement("html") as unknown as HTMLElement,
+      storage: localStorage,
+      prefersDark: false,
+    });
     const theme = panel.querySelector("#theme-select")!;
     theme.value = "dark";
     theme.dispatchEvent({ type: "change", target: theme });
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({ view_mode: "list", sort_order: "title_asc", theme: "dark" });
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({
+      view_mode: "list",
+      sort_order: "title_asc",
+      theme: "dark",
+    });
   });
 });
 
 describe("Server theme replaces the local one after first paint (FR-UI-02, FR-010, SC-003)", () => {
   it("home applies the server theme and writes it to localStorage for the next pre-paint", async () => {
     const { document, localStorage } = setupMockDOM();
-    localStorage.setItem(WORKSPACE_PREFS_KEY, JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "light" }));
+    localStorage.setItem(
+      WORKSPACE_PREFS_KEY,
+      JSON.stringify({ view_mode: "list", sort_order: "title_asc", theme: "light" }),
+    );
     fakeApi({ notebooks: [row("nb-1", "Alpha")], preferences: { theme: "dark" } });
     const root = document.createElement("div");
     await renderHome(root as unknown as HTMLElement, { go: vi.fn() });
-    await vi.waitFor(() => expect(document.documentElement.getAttribute("data-theme")).toBe("dark"));
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({ view_mode: "list", sort_order: "title_asc", theme: "dark" });
+    await vi.waitFor(() =>
+      expect(document.documentElement.getAttribute("data-theme")).toBe("dark"),
+    );
+    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!)).toEqual({
+      view_mode: "list",
+      sort_order: "title_asc",
+      theme: "dark",
+    });
     const nextLoad = document.createElement("html");
-    initializeTheme(nextLoad as unknown as HTMLElement, localStorage as unknown as Storage, false);
+    initializeTheme(nextLoad as unknown as HTMLElement, localStorage, false);
     expect(nextLoad.getAttribute("data-theme")).toBe("dark");
   });
 
   it("the workspace applies the server theme and writes it to localStorage", async () => {
     const { document, localStorage } = setupMockDOM();
-    localStorage.setItem(WORKSPACE_PREFS_KEY, JSON.stringify({ view_mode: "grid", sort_order: "recent", theme: "dark" }));
+    localStorage.setItem(
+      WORKSPACE_PREFS_KEY,
+      JSON.stringify({ view_mode: "grid", sort_order: "recent", theme: "dark" }),
+    );
     fakeApi({ preferences: { theme: "light" } });
     createWorkspaceFeatures({ notebookId: "nb-1", notebookTitle: "Alpha" });
-    await vi.waitFor(() => expect(document.documentElement.getAttribute("data-theme")).toBe("light"));
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!).theme).toBe("light");
+    await vi.waitFor(() =>
+      expect(document.documentElement.getAttribute("data-theme")).toBe("light"),
+    );
+    expect(
+      (JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!) as LocalWorkspacePreferences).theme,
+    ).toBe("light");
   });
 
   it("a theme change from Settings writes localStorage and PATCH /api/preferences", async () => {
@@ -325,8 +529,16 @@ describe("Server theme replaces the local one after first paint (FR-UI-02, FR-01
     const theme = root.querySelector("#theme-select")!;
     theme.value = "dark";
     theme.dispatchEvent({ type: "change", target: theme });
-    await vi.waitFor(() => expect(calls).toContainEqual({ url: "/api/preferences", method: "PATCH", body: { theme: "dark" } }));
-    expect(JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!).theme).toBe("dark");
+    await vi.waitFor(() =>
+      expect(calls).toContainEqual({
+        url: "/api/preferences",
+        method: "PATCH",
+        body: { theme: "dark" },
+      }),
+    );
+    expect(
+      (JSON.parse(localStorage.getItem(WORKSPACE_PREFS_KEY)!) as LocalWorkspacePreferences).theme,
+    ).toBe("dark");
   });
 });
 
@@ -338,13 +550,24 @@ describe("Title sort uses Intl.Collator for the UI locale with a created_at tie-
       row("m-beta", "beta", { created_at: "2026-01-02T00:00:00.000Z" }),
       row("p-zeta", "Zeta", { created_at: "2026-01-02T00:00:00.000Z", is_pinned: true }),
     ];
-    expect(sortNotebookRows(rows, "title_asc").map((r) => r.id)).toEqual(["p-zeta", "z-late", "a-early", "m-beta"]);
+    expect(sortNotebookRows(rows, "title_asc").map((r) => r.id)).toEqual([
+      "p-zeta",
+      "z-late",
+      "a-early",
+      "m-beta",
+    ]);
   });
 
   it("follows the collation of the given UI locale", () => {
     const rows = [row("1", "Äpfel"), row("2", "Zebra")];
-    expect(sortNotebookRows(rows, "title_asc", "de-DE").map((r) => r.title)).toEqual(["Äpfel", "Zebra"]);
-    expect(sortNotebookRows(rows, "title_asc", "sv-SE").map((r) => r.title)).toEqual(["Zebra", "Äpfel"]);
+    expect(sortNotebookRows(rows, "title_asc", "de-DE").map((r) => r.title)).toEqual([
+      "Äpfel",
+      "Zebra",
+    ]);
+    expect(sortNotebookRows(rows, "title_asc", "sv-SE").map((r) => r.title)).toEqual([
+      "Zebra",
+      "Äpfel",
+    ]);
   });
 });
 
@@ -352,10 +575,18 @@ describe("Client default output language (FR-UI-02, FR-012, US2 Scenario 6)", ()
   it("shows the supported browser locale, or en-US when it is unsupported, when no user language is saved", () => {
     const { document } = setupMockDOM();
     const supported = document.createElement("div");
-    renderWorkspaceSettings(supported as unknown as HTMLElement, { theme: "system", input_language: "auto", output_language: null }, { browserLocale: "de-DE" } as any);
+    renderWorkspaceSettings(
+      supported as unknown as HTMLElement,
+      { theme: "system", input_language: "auto", output_language: null },
+      { browserLocale: "de-DE" },
+    );
     expect(supported.querySelector("#output-language-select")?.value).toBe("de-DE");
     const unsupported = document.createElement("div");
-    renderWorkspaceSettings(unsupported as unknown as HTMLElement, { theme: "system", input_language: "auto", output_language: null }, { browserLocale: "pt-PT" } as any);
+    renderWorkspaceSettings(
+      unsupported as unknown as HTMLElement,
+      { theme: "system", input_language: "auto", output_language: null },
+      { browserLocale: "pt-PT" },
+    );
     expect(unsupported.querySelector("#output-language-select")?.value).toBe("en-US");
   });
 
@@ -365,9 +596,24 @@ describe("Client default output language (FR-UI-02, FR-012, US2 Scenario 6)", ()
     vi.stubGlobal("navigator", { language: "pt-PT" });
     try {
       const features = createWorkspaceFeatures({ notebookId: "nb-1", notebookTitle: "Alpha" });
-      features.onSelectionChange([{ id: "s-1", status: "Ready", revision: 1 } as any], ["s-1"]);
-      await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith("/overview"))).toBe(true), { timeout: 2000 });
-      expect(calls.find((c) => c.url.endsWith("/overview"))!.body.output_language).toBe("en-US");
+      const readySource: SourceDto = {
+        id: "s-1",
+        notebook_id: "nb-1",
+        title: "Source 1",
+        media_type: "text/plain",
+        status: "Ready",
+        byte_size: 100,
+        word_count: 10,
+        revision: 1,
+        error: null,
+        created_at: base.created_at,
+        updated_at: base.updated_at,
+      };
+      features.onSelectionChange([readySource], ["s-1"]);
+      await vi.waitFor(() => expect(calls.some((c) => c.url.endsWith("/overview"))).toBe(true), {
+        timeout: 2000,
+      });
+      expect(calls.find((c) => c.url.endsWith("/overview"))!.body?.output_language).toBe("en-US");
     } finally {
       vi.unstubAllGlobals();
     }

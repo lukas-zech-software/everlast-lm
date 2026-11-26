@@ -26,7 +26,10 @@ export class MindmapGeneratorPlugin implements StudioGeneratorPlugin {
   private readonly model: MindmapModelClient;
   private readonly limits?: EvidenceBatchLimits | undefined;
 
-  constructor(model: MindmapModelClient = new DeterministicMindmapModel(), limits?: EvidenceBatchLimits) {
+  constructor(
+    model: MindmapModelClient = new DeterministicMindmapModel(),
+    limits?: EvidenceBatchLimits,
+  ) {
     this.model = model;
     this.limits = limits;
   }
@@ -46,10 +49,10 @@ export class MindmapGeneratorPlugin implements StudioGeneratorPlugin {
     MindmapSubtypeSchema.parse(ctx.subtype);
     return generateMindmap({
       chunks: ctx.chunks,
-      original_chunks:ctx.original_chunks,
-      cached_context:ctx.cached_context,
-      before_model_call:ctx.before_model_call,
-      load_cited_chunks:ctx.load_cited_chunks,
+      original_chunks: ctx.original_chunks,
+      cached_context: ctx.cached_context,
+      before_model_call: ctx.before_model_call,
+      load_cited_chunks: ctx.load_cited_chunks,
       snapshot: ctx.snapshot,
       model: this.model,
       output_language: ctx.output_language,

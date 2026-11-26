@@ -37,10 +37,10 @@ describe("[011-studio-mindmaps-data-tables] T016: Mindmap submission->Completed 
 
     // If 2 runs fail or remain unfinished, the 19th sorted value is +Infinity -> fails!
     const withFailures: MindmapLatencySample[] = samples.map((s, idx) =>
-      idx >= 18 ? { ...s, status: "Failed", completed_at_ms: null, duration_ms: null } : s
+      idx >= 18 ? { ...s, status: "Failed", completed_at_ms: null, duration_ms: null } : s,
     );
     const failedReport = aggregateMindmapLatencyCohort(withFailures);
-    expect(failedReport.p95_ms).toBe( Number.POSITIVE_INFINITY );
+    expect(failedReport.p95_ms).toBe(Number.POSITIVE_INFINITY);
     expect(failedReport.passed).toBe(false);
 
     // Fewer than 5 predeclared runs is rejected as invalid cohort
@@ -48,15 +48,25 @@ describe("[011-studio-mindmaps-data-tables] T016: Mindmap submission->Completed 
   });
 });
 
-
 describe("[011-studio-mindmaps-data-tables] T057: declared latency evidence (FR-ST-08, SC-002)", () => {
-  const cohort = (): MindmapLatencySample[] => Array.from({ length: 20 }, (_, i) => ({ sample_id: `run-${i}`, stratum: "warm", status: "Completed", submitted_at_ms: 1000, completed_at_ms: 2000, duration_ms: 1000, node_count: 24 }));
+  const cohort = (): MindmapLatencySample[] =>
+    Array.from({ length: 20 }, (_, i) => ({
+      sample_id: `run-${i}`,
+      stratum: "warm",
+      status: "Completed",
+      submitted_at_ms: 1000,
+      completed_at_ms: 2000,
+      duration_ms: 1000,
+      node_count: 24,
+    }));
   it("rejects duplicate attempt identities rather than counting one observation twenty times", () => {
-    const samples = cohort(); samples[1]!.sample_id = samples[0]!.sample_id;
+    const samples = cohort();
+    samples[1]!.sample_id = samples[0]!.sample_id;
     expect(() => aggregateMindmapLatencyCohort(samples)).toThrow(/unique|duplicate/i);
   });
   it("rejects a small declared duration inconsistent with the submission-to-Completed clocks", () => {
-    const samples = cohort(); samples[0]!.completed_at_ms = 31_000;
+    const samples = cohort();
+    samples[0]!.completed_at_ms = 31_000;
     expect(() => aggregateMindmapLatencyCohort(samples)).toThrow(/clock|duration|timestamp/i);
   });
 });

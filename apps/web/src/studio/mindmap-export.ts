@@ -51,7 +51,9 @@ export interface SvgExportScene {
 /**
  * Rasterizes a validated self-contained SVG scene to a 2x resolution PNG Blob using the browser Canvas API.
  */
-export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene | SvgExportScene): Promise<Blob> {
+export async function rasterizeSvgSceneToPng(
+  scene: StudioMindmapExportScene | SvgExportScene,
+): Promise<Blob> {
   const scale = scene.scale ?? 2;
   const targetWidth = Math.round(scene.width * scale);
   const targetHeight = Math.round(scene.height * scale);
@@ -79,13 +81,15 @@ export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene | S
     ctx.fillRect(0, 0, targetWidth, targetHeight);
     ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
-    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+    return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((blob) => {
-        if (!blob) reject(new Error("Canvas PNG encoding failed."));
-        else resolve(blob);
+        if (blob) {
+          resolve(blob);
+        } else {
+          reject(new Error("Canvas PNG encoding failed."));
+        }
       }, "image/png");
     });
-    return pngBlob;
   } finally {
     try {
       URL.revokeObjectURL(svgUrl);
@@ -96,12 +100,20 @@ export async function rasterizeSvgSceneToPng(scene: StudioMindmapExportScene | S
   }
 }
 
-export async function downloadMindmapScene(scene: StudioMindmapExportScene | SvgExportScene): Promise<void> {
+export async function downloadMindmapScene(
+  scene: StudioMindmapExportScene | SvgExportScene,
+): Promise<void> {
   if (scene.format === "svg") {
     const blob = new Blob([scene.svg], { type: "image/svg+xml;charset=utf-8" });
-    triggerBlobDownload(blob, scene.filename.endsWith(".svg") ? scene.filename : `${scene.filename}.svg`);
+    triggerBlobDownload(
+      blob,
+      scene.filename.endsWith(".svg") ? scene.filename : `${scene.filename}.svg`,
+    );
     return;
   }
   const pngBlob = await rasterizeSvgSceneToPng(scene);
-  triggerBlobDownload(pngBlob, scene.filename.endsWith(".png") ? scene.filename : `${scene.filename}.png`);
+  triggerBlobDownload(
+    pngBlob,
+    scene.filename.endsWith(".png") ? scene.filename : `${scene.filename}.png`,
+  );
 }

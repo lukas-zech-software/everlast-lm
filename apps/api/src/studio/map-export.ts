@@ -56,7 +56,10 @@ interface PlacedEdge {
   path: string;
 }
 
-function layoutTree(root: MindmapNode, visibleSet: ReadonlySet<string>): {
+function layoutTree(
+  root: MindmapNode,
+  visibleSet: ReadonlySet<string>,
+): {
   nodes: PlacedNode[];
   edges: PlacedEdge[];
   width: number;
@@ -79,7 +82,9 @@ function layoutTree(root: MindmapNode, visibleSet: ReadonlySet<string>): {
       for (const child of visibleChildren) {
         placedChildren.push(place(child, depth + 1));
       }
-      y = Math.round((placedChildren[0]!.y + placedChildren[placedChildren.length - 1]!.y) / 2);
+      const firstChild = placedChildren[0];
+      const lastChild = placedChildren.at(-1);
+      y = firstChild && lastChild ? Math.round((firstChild.y + lastChild.y) / 2) : PADDING;
     }
 
     const placed: PlacedNode = {
@@ -118,10 +123,35 @@ function layoutTree(root: MindmapNode, visibleSet: ReadonlySet<string>): {
   return { nodes, edges, width, height };
 }
 
+function nodeFillColor(depth: number): string {
+  if (depth === 0) {
+    return "#1e293b";
+  }
+  if (depth === 1) {
+    return "#334155";
+  }
+  return "#f8fafc";
+}
+
+function truncateLabel(label: string): string {
+  let count = 0;
+  let cutEnd = 0;
+  for (const ch of label) {
+    if (count < MAX_LABEL_CHARS - 1) {
+      cutEnd += ch.length;
+    }
+    count += 1;
+  }
+  if (count <= MAX_LABEL_CHARS) {
+    return label;
+  }
+  return `${label.slice(0, cutEnd).trimEnd()}…`;
+}
+
 export function buildMindmapExportScene(
   title: string,
   payload: StudioMindmapPayload,
-  rawRequest: unknown
+  rawRequest: unknown,
 ): StudioMindmapExportScene {
   const req = MindmapExportRequestSchema.parse(rawRequest);
   const check = validateExpandedNodeIds(payload.root_node, req.expanded_node_ids);
@@ -141,20 +171,22 @@ export function buildMindmapExportScene(
   const scale = req.format === "png" ? (2 as const) : (1 as const);
 
   const edgeElements = edges
-    .map((e) => `    <path class="mm-edge" d="${escapeXml(e.path)}" fill="none" stroke="#64748b" stroke-width="2" />`)
+    .map(
+      (e) =>
+        `    <path class="mm-edge" d="${escapeXml(e.path)}" fill="none" stroke="#64748b" stroke-width="2" />`,
+    )
     .join("\n");
 
   const nodeElements = nodes
     .map((n) => {
-      const fill = n.depth === 0 ? "#1e293b" : n.depth === 1 ? "#334155" : "#f8fafc";
+      const fill = nodeFillColor(n.depth);
       const textFill = n.depth <= 1 ? "#f8fafc" : "#0f172a";
       const stroke = n.depth <= 1 ? "#0f172a" : "#94a3b8";
       const textX = n.x + 14;
       const textY = n.y + 29;
       // Labels stay inside their fixed-width box: shortened with an ellipsis and kept whole in a <title>
       // (PR #161 review, FR-ST-09). No clipPath: exports must not contain url() references.
-      const chars = [...n.label];
-      const shown = chars.length > MAX_LABEL_CHARS ? `${chars.slice(0, MAX_LABEL_CHARS - 1).join("").trimEnd()}…` : n.label;
+      const shown = truncateLabel(n.label);
       return [
         `    <g class="mm-node" data-node-id="${escapeXml(n.id)}" data-depth="${n.depth}">`,
         `      <title>${escapeXml(n.label)}</title>`,

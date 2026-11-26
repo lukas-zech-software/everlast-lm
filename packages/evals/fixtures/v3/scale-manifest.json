@@ -48,11 +48,7 @@
   "minimum_active_tokens": 105000,
   "expected_fact": "142.8 bar",
   "forbidden_fact": "155.0 bar",
-  "boundaries": [
-    99999,
-    100000,
-    100001
-  ],
+  "boundaries": [99999, 100000, 100001],
   "quota_source_count": 300,
   "sample_count": 20,
   "percentile_method": "nearest_rank",

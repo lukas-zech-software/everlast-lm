@@ -21,8 +21,37 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
+
+interface StudioArtifactPayload {
+  slides?: unknown[];
+  target_count?: number;
+  style?: string;
+  rendered_svg?: string;
+}
+
+interface StudioArtifactView {
+  id: string;
+  status: string;
+  attempt?: number;
+  retry_of?: string;
+  payload_json: StudioArtifactPayload | null;
+}
+
+interface StudioArtifactEnvelope {
+  artifact: StudioArtifactView;
+}
+
+interface StudioErrorEnvelope {
+  error: { code: string };
+}
+
+interface StudioExportSceneResponse {
+  format: string;
+  scale: number;
+  svg: string;
+}
 
 const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
 
@@ -36,9 +65,9 @@ async function seed(nb: string, title: string, pages: string[]) {
   });
 }
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+async function waitTerminal(nb: string, id: string): Promise<StudioArtifactEnvelope> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<StudioArtifactEnvelope>(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -85,7 +114,7 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     ]);
 
     // Empty scope -> 400 EmptyScopeError
-    const emptyRes = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
+    const emptyRes = await n.call<StudioErrorEnvelope>(OWNER, "POST", `${studio(nb)}/artifacts`, {
       plugin_type: "slide_deck",
       subtype: "default",
       active_source_ids: [],
@@ -141,7 +170,7 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
       "Automated schema migrations run under PostgreSQL advisory locks before traffic cutover.",
     ]);
 
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
+    const created = await n.call<StudioArtifactEnvelope>(OWNER, "POST", `${studio(nb)}/artifacts`, {
       plugin_type: "slide_deck",
       subtype: "default",
       active_source_ids: [s1.sourceId, s2.sourceId],
@@ -151,8 +180,8 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     expect(created.status).toBe(202);
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
-    expect(done.artifact.payload_json.slides).toHaveLength(8);
-    expect(done.artifact.payload_json.target_count).toBe(8);
+    expect(done.artifact.payload_json?.slides).toHaveLength(8);
+    expect(done.artifact.payload_json?.target_count).toBe(8);
 
     const artifactId = done.artifact.id;
 
@@ -164,7 +193,7 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     });
     expect(pptxRes.status).toBe(200);
     expect(pptxRes.headers.get("content-type")).toBe(
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     );
     expect(pptxRes.headers.get("cache-control")).toBe("private, no-store");
     expect(pptxRes.headers.get("content-disposition")).toContain(".pptx");
@@ -186,7 +215,12 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     expect(pdfRes.headers.get("content-type")).toBe("application/pdf");
     expect(pdfRes.headers.get("cache-control")).toBe("private, no-store");
     const pdfBytes = new Uint8Array(await pdfRes.arrayBuffer());
-    const task = getDocument({ data: pdfBytes, useSystemFonts: false, disableFontFace: true, verbosity: 0 });
+    const task = getDocument({
+      data: pdfBytes,
+      useSystemFonts: false,
+      disableFontFace: true,
+      verbosity: 0,
+    });
     const pdfDoc = await task.promise;
     try {
       expect(pdfDoc.numPages).toBe(8);
@@ -209,26 +243,42 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot, failure_json)
        VALUES ($1, $2, $3, 'slide_deck', 'default', 'Failed', 'Slide Deck', '{"slide_count":8}'::jsonb, $4, '{"code":"ModelUnavailable","message":"Upstream model timed out."}'::jsonb)`,
-      [failedId, nb, owner, JSON.stringify([{ source_id: s1.sourceId, revision: 1 }])]
+      [failedId, nb, owner, JSON.stringify([{ source_id: s1.sourceId, revision: 1 }])],
     );
-    const failedExport = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${failedId}/export`, { format: "pptx" });
+    const failedExport = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${failedId}/export`, {
+      format: "pptx",
+    });
     expect(failedExport.status).toBe(409);
 
-    const retried = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${failedId}/retry`, {
-      active_source_ids: [s1.sourceId, s2.sourceId],
-    });
+    const retried = await n.call<StudioArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${failedId}/retry`,
+      {
+        active_source_ids: [s1.sourceId, s2.sourceId],
+      },
+    );
     expect(retried.status).toBe(202);
     expect(retried.json.artifact.attempt).toBe(2);
     expect(retried.json.artifact.retry_of).toBe(failedId);
 
     // 5. Non-owner cannot export -> 403/404
     expect([403, 404]).toContain(
-      (await n.call(OTHER, "POST", `${studio(nb)}/artifacts/${artifactId}/export`, { format: "pptx" })).status
+      (
+        await n.call(OTHER, "POST", `${studio(nb)}/artifacts/${artifactId}/export`, {
+          format: "pptx",
+        })
+      ).status,
     );
 
     // 6. Source deletion immediately blocks export and hides payload -> 409
     await n.api.db.pool.query("DELETE FROM sources WHERE id = $1", [s1.sourceId]);
-    const staleExport = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${artifactId}/export`, { format: "pptx" });
+    const staleExport = await n.call(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${artifactId}/export`,
+      { format: "pptx" },
+    );
     expect(staleExport.status).toBe(409);
   });
 
@@ -242,7 +292,7 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
       "Stage 4 Recovery shifts 100 percent of production traffic safely.",
     ]);
 
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
+    const created = await n.call<StudioArtifactEnvelope>(OWNER, "POST", `${studio(nb)}/artifacts`, {
       plugin_type: "infographic",
       subtype: "default",
       active_source_ids: [src.sourceId],
@@ -252,22 +302,32 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     expect(created.status).toBe(202);
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
-    expect(done.artifact.payload_json.style).toBe("process_flow");
-    expect(done.artifact.payload_json.rendered_svg).toContain("<svg");
-    expect(done.artifact.payload_json.rendered_svg).toContain("AI-generated");
+    expect(done.artifact.payload_json?.style).toBe("process_flow");
+    expect(done.artifact.payload_json?.rendered_svg).toContain("<svg");
+    expect(done.artifact.payload_json?.rendered_svg).toContain("AI-generated");
 
-    const svgScene = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${done.artifact.id}/export`, {
-      format: "svg",
-    });
+    const svgScene = await n.call<StudioExportSceneResponse>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${done.artifact.id}/export`,
+      {
+        format: "svg",
+      },
+    );
     expect(svgScene.status).toBe(200);
     expect(svgScene.json.format).toBe("svg");
     expect(svgScene.json.scale).toBe(1);
     expect(svgScene.json.svg).toContain("<svg");
     expect(svgScene.json.svg).not.toMatch(/<script|foreignObject|onload/i);
 
-    const pngScene = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${done.artifact.id}/export`, {
-      format: "png",
-    });
+    const pngScene = await n.call<StudioExportSceneResponse>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${done.artifact.id}/export`,
+      {
+        format: "png",
+      },
+    );
     expect(pngScene.status).toBe(200);
     expect(pngScene.json.format).toBe("png");
     expect(pngScene.json.scale).toBe(2);
@@ -277,9 +337,14 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot)
        VALUES ($1, $2, $3, 'infographic', 'default', 'Queued', 'Infographic', '{"style":"auto"}'::jsonb, $4)`,
-      [queuedId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])]
+      [queuedId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])],
     );
-    const cancelled = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${queuedId}/cancel`, {});
+    const cancelled = await n.call<StudioArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${queuedId}/cancel`,
+      {},
+    );
     expect(cancelled.status).toBe(200);
     expect(cancelled.json.artifact.status).toBe("Cancelled");
 
@@ -288,16 +353,23 @@ describe("[015-studio-visuals-presentations] T008/T016: Slide Deck & Infographic
     await n.api.db.pool.query(
       `INSERT INTO studio_artifacts (id, notebook_id, owner_id, plugin_type, subtype, status, title, params_json, source_revisions_snapshot, failure_json)
        VALUES ($1, $2, $3, 'infographic', 'default', 'Failed', 'Infographic', '{"style":"auto"}'::jsonb, $4, '{"code":"SvgFailed","message":"Layout failed."}'::jsonb)`,
-      [failedInfoId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])]
+      [failedInfoId, nb, owner, JSON.stringify([{ source_id: src.sourceId, revision: 1 }])],
     );
-    const blocked = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${failedInfoId}/export`, { format: "png" });
+    const blocked = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${failedInfoId}/export`, {
+      format: "png",
+    });
     expect(blocked.status).toBe(409);
 
     // Delete source -> 409 on export
     await n.api.db.pool.query("DELETE FROM sources WHERE id = $1", [src.sourceId]);
-    const deletedExport = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${done.artifact.id}/export`, {
-      format: "svg",
-    });
+    const deletedExport = await n.call(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${done.artifact.id}/export`,
+      {
+        format: "svg",
+      },
+    );
     expect(deletedExport.status).toBe(409);
   });
 });

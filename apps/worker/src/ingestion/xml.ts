@@ -20,9 +20,22 @@ export function decodeXmlText(text: string): string {
     if (ref === "gt") return ">";
     if (ref === "quot") return '"';
     if (ref === "apos") return "'";
-    const code = ref.startsWith("#x") ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10);
+    const code = ref.startsWith("#x")
+      ? Number.parseInt(ref.slice(2), 16)
+      : parseInt(ref.slice(1), 10);
     return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : "";
   });
+}
+
+function parseXmlAttributes(raw: string): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  for (const attr of raw.matchAll(ATTR)) {
+    const key = attr[1];
+    if (key !== undefined) {
+      attrs[key] = decodeXmlText(attr[2] ?? attr[3] ?? "");
+    }
+  }
+  return attrs;
 }
 
 export function* xmlEvents(xml: string): Generator<XmlEvent> {
@@ -33,10 +46,13 @@ export function* xmlEvents(xml: string): Generator<XmlEvent> {
       if (m[2] === "/") {
         yield { type: "close", name: m[3] };
       } else {
-        const attrs: Record<string, string> = {};
-        for (const a of (m[4] ?? "").matchAll(ATTR)) attrs[a[1]!] = decodeXmlText(a[2] ?? a[3] ?? "");
         const selfClosing = m[5] === "/";
-        yield { type: "open", name: m[3], attrs, selfClosing };
+        yield {
+          type: "open",
+          name: m[3],
+          attrs: parseXmlAttributes(m[4] ?? ""),
+          selfClosing,
+        };
         if (selfClosing) yield { type: "close", name: m[3] };
       }
     } else if (m[6] !== undefined) {

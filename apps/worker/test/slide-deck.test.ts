@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STUDIO_SLIDE_DECK_PLUGIN_TYPE } from "@everlast/contracts";
+import { STUDIO_SLIDE_DECK_PLUGIN_TYPE, StudioSlideDeckPayloadSchema } from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   makeStudioChunk,
@@ -46,7 +46,7 @@ describe("[015-studio-visuals-presentations] T007: Slide Deck worker pipeline, b
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const payload = outcome.payload as any;
+    const payload = StudioSlideDeckPayloadSchema.parse(outcome.payload);
     expect(payload.target_count).toBe(8);
     expect(payload.slides).toHaveLength(8);
     const seenLayouts = new Set<string>();
@@ -72,7 +72,7 @@ describe("[015-studio-visuals-presentations] T007: Slide Deck worker pipeline, b
       makeStudioChunk(
         71,
         src,
-        "The regional execution cluster processes every incoming enterprise payload securely inside europe-west4 using strict stateless container isolation and ephemeral request scoping without retaining customer keys."
+        "The regional execution cluster processes every incoming enterprise payload securely inside europe-west4 using strict stateless container isolation and ephemeral request scoping without retaining customer keys.",
       ),
     ];
     const snapshot = [{ source_id: src, revision: 1 }];
@@ -88,7 +88,7 @@ describe("[015-studio-visuals-presentations] T007: Slide Deck worker pipeline, b
     });
     expect(brief.status).toBe("completed");
     if (brief.status === "completed") {
-      const p = brief.payload as any;
+      const p = brief.payload;
       expect(p.slides.length).toBeLessThan(10);
       expect(p.insufficient_evidence_note).toBeTruthy();
       for (const slide of p.slides) {
@@ -127,7 +127,7 @@ describe("[015-studio-visuals-presentations] T007: Slide Deck worker pipeline, b
     });
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const forged = structuredClone(outcome.payload) as any;
+    const forged = StudioSlideDeckPayloadSchema.parse(structuredClone(outcome.payload));
     const out = fixture.unselectedChunks[0]!;
     forged.citations.push({
       badge_number: 99,

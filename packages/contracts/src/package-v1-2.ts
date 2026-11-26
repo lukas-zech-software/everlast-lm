@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { UnifiedDocumentChunkSchema } from "./document-chunk.ts";
 import {
   MAX_SOURCE_TITLE_CODE_POINTS,
   SourceLinkKindSchema,
@@ -7,6 +6,7 @@ import {
   SourceSyncStateSchema,
   V3_MEDIA_TYPES,
 } from "./package-v3-1.ts";
+import { countCodePoints } from "./text-limits.ts";
 
 /**
  * Package 1.2 DTOs and Schemas (Text/PDF Ingestion & Inspector)
@@ -23,18 +23,16 @@ export const MAX_SOURCE_WORD_COUNT = 500_000;
 export const DEFAULT_COPIED_TEXT_TITLE = "Pasted text";
 
 /** Validates title is between 1 and 100 Unicode code points after trimming outer whitespace */
-export const SourceTitleSchema = z
-  .string()
-  .refine(
-    (val) => {
-      const trimmed = val.trim();
-      const codePoints = Array.from(trimmed).length;
-      return codePoints >= 1 && codePoints <= 100;
-    },
-    {
-      message: "Title must be between 1 and 100 Unicode code points after trimming outer whitespace",
-    }
-  );
+export const SourceTitleSchema = z.string().refine(
+  (val) => {
+    const trimmed = val.trim();
+    const codePoints = countCodePoints(trimmed);
+    return codePoints >= 1 && codePoints <= 100;
+  },
+  {
+    error: "Title must be between 1 and 100 Unicode code points after trimming outer whitespace",
+  },
+);
 
 export const SourceMediaTypeSchema = z.enum([
   "application/pdf",
@@ -48,27 +46,22 @@ export const SourceMediaTypeSchema = z.enum([
 ]);
 export type SourceMediaType = z.infer<typeof SourceMediaTypeSchema>;
 
-export const SourceStatusSchema = z.enum([
-  "Uploading",
-  "Processing",
-  "Ready",
-  "Failed",
-]);
+export const SourceStatusSchema = z.enum(["Uploading", "Processing", "Ready", "Failed"]);
 export type SourceStatus = z.infer<typeof SourceStatusSchema>;
 
 export const SourceSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
     title: SourceTitleSchema,
     media_type: SourceMediaTypeSchema,
     status: SourceStatusSchema,
     byte_size: z.number().int().nonnegative().max(MAX_SOURCE_BYTE_SIZE),
     word_count: z.number().int().nonnegative().max(MAX_SOURCE_WORD_COUNT),
     revision_id: z.number().int().positive(),
-    attempt_id: z.string().uuid(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    attempt_id: z.uuid(),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
   })
   .strict();
 export type Source = z.infer<typeof SourceSchema>;
@@ -77,8 +70,8 @@ export const CopiedTextInputSchema = z
   .object({
     text: z
       .string()
-      .refine((val) => Array.from(val.trim()).length >= 1, {
-        message: "Text must have at least 1 character after trimming outer whitespace",
+      .refine((val) => countCodePoints(val.trim()) >= 1, {
+        error: "Text must have at least 1 character after trimming outer whitespace",
       })
       .refine(
         (val) => {
@@ -88,20 +81,21 @@ export const CopiedTextInputSchema = z
           return words <= MAX_SOURCE_WORD_COUNT;
         },
         {
-          message: `Text must not exceed ${MAX_SOURCE_WORD_COUNT} words`,
-        }
+          error: `Text must not exceed ${MAX_SOURCE_WORD_COUNT} words`,
+        },
       ),
     title: z
       .string()
       .refine(
         (val) => {
           const trimmed = val.trim();
-          const codePoints = Array.from(trimmed).length;
+          const codePoints = countCodePoints(trimmed);
           return codePoints >= 1 && codePoints <= 100;
         },
         {
-          message: "Title must be between 1 and 100 Unicode code points after trimming outer whitespace",
-        }
+          error:
+            "Title must be between 1 and 100 Unicode code points after trimming outer whitespace",
+        },
       )
       .default(DEFAULT_COPIED_TEXT_TITLE),
   })
@@ -110,16 +104,16 @@ export type CopiedTextInput = z.infer<typeof CopiedTextInputSchema>;
 
 export const ActiveSourceSelectionSchema = z
   .object({
-    notebook_id: z.string().uuid(),
-    active_source_ids: z.array(z.string().uuid()),
+    notebook_id: z.uuid(),
+    active_source_ids: z.array(z.uuid()),
   })
   .strict();
 export type ActiveSourceSelection = z.infer<typeof ActiveSourceSelectionSchema>;
 
 export const SourceInspectorQuerySchema = z
   .object({
-    source_id: z.string().uuid(),
-    highlight_chunk_id: z.string().uuid().nullable().optional(),
+    source_id: z.uuid(),
+    highlight_chunk_id: z.uuid().nullable().optional(),
   })
   .strict();
 export type SourceInspectorQuery = z.infer<typeof SourceInspectorQuerySchema>;
@@ -131,29 +125,37 @@ export type SourceInspectorQuery = z.infer<typeof SourceInspectorQuerySchema>;
  */
 export const SourceDtoSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
-    title: z.string().min(1).refine((t) => Array.from(t).length <= MAX_SOURCE_TITLE_CODE_POINTS, "title exceeds 200 code points"),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
+    title: z
+      .string()
+      .min(1)
+      .refine(
+        (t) => countCodePoints(t) <= MAX_SOURCE_TITLE_CODE_POINTS,
+        "title exceeds 200 code points",
+      ),
     media_type: SourceMediaTypeSchema,
     status: SourceStatusSchema,
     byte_size: z.number().int().nonnegative(),
     word_count: z.number().int().nonnegative().nullable(),
     revision: z.number().int().positive().nullable(),
     error: z.object({ code: z.string(), message: z.string() }).strict().nullable(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
     link_kind: SourceLinkKindSchema.nullable().optional(),
     external_url: z.string().nullable().optional(),
     canonical_url: z.string().nullable().optional(),
     progress: SourceProgressSchema.nullable().optional(),
-    last_synced_at: z.string().datetime().nullable().optional(),
+    last_synced_at: z.iso.datetime().nullable().optional(),
     sync: SourceSyncStateSchema.nullable().optional(),
   })
   .strict();
 export type SourceDto = z.infer<typeof SourceDtoSchema>;
 
 /** Maps an upload file name to a supported media type, or null when unsupported (FR-SI-01 Subset A). */
-export function mediaTypeForFileName(fileName: string): "application/pdf" | "text/plain" | "text/markdown" | null {
+export function mediaTypeForFileName(
+  fileName: string,
+): "application/pdf" | "text/plain" | "text/markdown" | null {
   const ext = /\.([^.]+)$/.exec(fileName.trim().toLowerCase())?.[1];
   if (ext === "pdf") return "application/pdf";
   if (ext === "txt") return "text/plain";

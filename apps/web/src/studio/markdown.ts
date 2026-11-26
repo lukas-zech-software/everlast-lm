@@ -4,7 +4,10 @@
  * never parses HTML). Inline parsing is a linear scanner, so no backtracking regex runs over report text.
  */
 
-export type MarkdownInline = { type: "text"; text: string } | { type: "strong" | "em"; text: string } | { type: "badge"; number: number };
+export type MarkdownInline =
+  | { type: "text"; text: string }
+  | { type: "strong" | "em"; text: string }
+  | { type: "badge"; number: number };
 
 export type MarkdownBlock =
   | { type: "heading"; level: number; text: string }
@@ -19,6 +22,41 @@ const escapeHtml = (s: string): string =>
 const isDigit = (c: string | undefined): boolean => c !== undefined && c >= "0" && c <= "9";
 const isWordChar = (c: string | undefined): boolean => c !== undefined && /[\p{L}\p{N}]/u.test(c);
 
+interface InlineMatch {
+  token: MarkdownInline;
+  next: number;
+}
+
+function matchStrongToken(line: string, i: number): InlineMatch | null {
+  if (line[i + 1] !== "*") return null;
+  const end = line.indexOf("**", i + 2);
+  if (end <= i + 2) return null;
+  return { token: { type: "strong", text: line.slice(i + 2, end) }, next: end + 2 };
+}
+
+function matchEmphasisToken(line: string, i: number): InlineMatch | null {
+  if (isWordChar(line[i - 1])) return null;
+  const end = line.indexOf("_", i + 1);
+  if (end <= i + 1 || isWordChar(line[end + 1])) return null;
+  return { token: { type: "em", text: line.slice(i + 1, end) }, next: end + 1 };
+}
+
+function matchBadgeToken(line: string, i: number): InlineMatch | null {
+  if (!isDigit(line[i + 1])) return null;
+  let j = i + 1;
+  while (j < line.length && j - i <= 6 && isDigit(line[j])) j++;
+  if (line[j] !== "]") return null;
+  return { token: { type: "badge", number: Number(line.slice(i + 1, j)) }, next: j + 1 };
+}
+
+function matchInlineToken(line: string, i: number): InlineMatch | null {
+  const c = line.charAt(i);
+  if (c === "*") return matchStrongToken(line, i);
+  if (c === "_") return matchEmphasisToken(line, i);
+  if (c === "[") return matchBadgeToken(line, i);
+  return null;
+}
+
 /** Splits one line into text, **strong**, _em_ and [n] badge tokens. */
 export function parseInline(line: string): MarkdownInline[] {
   const out: MarkdownInline[] = [];
@@ -29,36 +67,14 @@ export function parseInline(line: string): MarkdownInline[] {
   };
   let i = 0;
   while (i < line.length) {
-    const c = line[i]!;
-    if (c === "*" && line[i + 1] === "*") {
-      const end = line.indexOf("**", i + 2);
-      if (end > i + 2) {
-        flush();
-        out.push({ type: "strong", text: line.slice(i + 2, end) });
-        i = end + 2;
-        continue;
-      }
+    const matched = matchInlineToken(line, i);
+    if (matched) {
+      flush();
+      out.push(matched.token);
+      i = matched.next;
+      continue;
     }
-    if (c === "_" && !isWordChar(line[i - 1])) {
-      const end = line.indexOf("_", i + 1);
-      if (end > i + 1 && !isWordChar(line[end + 1])) {
-        flush();
-        out.push({ type: "em", text: line.slice(i + 1, end) });
-        i = end + 1;
-        continue;
-      }
-    }
-    if (c === "[" && isDigit(line[i + 1])) {
-      let j = i + 1;
-      while (j < line.length && j - i <= 6 && isDigit(line[j])) j++;
-      if (line[j] === "]") {
-        flush();
-        out.push({ type: "badge", number: Number(line.slice(i + 1, j)) });
-        i = j + 1;
-        continue;
-      }
-    }
-    text += c;
+    text += line.charAt(i);
     i++;
   }
   flush();
@@ -73,14 +89,17 @@ function splitRow(line: string): string[] {
   const cells: string[] = [];
   let cell = "";
   for (let i = 0; i < body.length; i++) {
-    const c = body[i]!;
-    if (c === "\\" && (body[i + 1] === "|" || body[i + 1] === "\\")) {
-      cell += body[i + 1];
+    const c = body.charAt(i);
+    const next = body[i + 1];
+    if (c === "\\" && (next === "|" || next === "\\")) {
+      cell += next;
       i++;
     } else if (c === "|") {
       cells.push(cell.trim());
       cell = "";
-    } else cell += c;
+    } else {
+      cell += c;
+    }
   }
   cells.push(cell.trim());
   return cells;
@@ -102,12 +121,45 @@ function listItem(line: string): { ordered: boolean; text: string } | null {
   return null;
 }
 
+function consumeTable(lines: string[], start: number): { block: MarkdownBlock; next: number } {
+  const rows: string[] = [];
+  let i = start;
+  while (i < lines.length) {
+    const row = lines[i];
+    if (!row?.startsWith("|")) break;
+    rows.push(row);
+    i++;
+  }
+  const [head = "", , ...body] = rows;
+  return {
+    block: { type: "table", head: splitRow(head), rows: body.map(splitRow) },
+    next: i,
+  };
+}
+
+function consumeList(
+  lines: string[],
+  start: number,
+  first: { ordered: boolean; text: string },
+): { block: MarkdownBlock; next: number } {
+  const items: string[] = [];
+  let i = start;
+  let item: ReturnType<typeof listItem> = first;
+  while (item) {
+    items.push(item.text);
+    i++;
+    const nextLine = lines[i];
+    item = nextLine === undefined ? null : listItem(nextLine);
+  }
+  return { block: { type: "list", ordered: first.ordered, items }, next: i };
+}
+
 export function parseMarkdown(md: string): MarkdownBlock[] {
   const lines = md.split("\n");
   const blocks: MarkdownBlock[] = [];
   let i = 0;
   while (i < lines.length) {
-    const line = lines[i]!;
+    const line = lines[i] ?? "";
     const heading = headingOf(line);
     const first = listItem(line);
     if (line.trim() === "") {
@@ -116,20 +168,16 @@ export function parseMarkdown(md: string): MarkdownBlock[] {
       blocks.push({ type: "heading", ...heading });
       i++;
     } else if (line.startsWith("|")) {
-      const rows: string[] = [];
-      while (i < lines.length && lines[i]!.startsWith("|")) rows.push(lines[i++]!);
-      const [head, , ...body] = rows;
-      blocks.push({ type: "table", head: splitRow(head ?? ""), rows: body.map(splitRow) });
+      const table = consumeTable(lines, i);
+      blocks.push(table.block);
+      i = table.next;
     } else if (line.startsWith("> ")) {
       blocks.push({ type: "quote", text: line.slice(2) });
       i++;
     } else if (first) {
-      const items: string[] = [];
-      for (let item: ReturnType<typeof listItem> = first; item; item = i < lines.length ? listItem(lines[i]!) : null) {
-        items.push(item.text);
-        i++;
-      }
-      blocks.push({ type: "list", ordered: first.ordered, items });
+      const list = consumeList(lines, i, first);
+      blocks.push(list.block);
+      i = list.next;
     } else {
       blocks.push({ type: "paragraph", text: line });
       i++;
@@ -138,16 +186,15 @@ export function parseMarkdown(md: string): MarkdownBlock[] {
   return blocks;
 }
 
-const inlineHtml = (s: string): string =>
-  parseInline(s)
-    .map((t) =>
-      t.type === "text"
-        ? escapeHtml(t.text)
-        : t.type === "badge"
-          ? `<sup class="citation-badge" data-badge="${t.number}">[${t.number}]</sup>`
-          : `<${t.type}>${escapeHtml(t.text)}</${t.type}>`
-    )
-    .join("");
+function formatInlineTokenHtml(token: MarkdownInline): string {
+  if (token.type === "text") return escapeHtml(token.text);
+  if (token.type === "badge") {
+    return `<sup class="citation-badge" data-badge="${token.number}">[${token.number}]</sup>`;
+  }
+  return `<${token.type}>${escapeHtml(token.text)}</${token.type}>`;
+}
+
+const inlineHtml = (s: string): string => parseInline(s).map(formatInlineTokenHtml).join("");
 
 /** HTML string rendering; every character of the input is escaped. */
 export function renderMarkdown(md: string): string {
@@ -158,7 +205,9 @@ export function renderMarkdown(md: string): string {
           return `<h${b.level}>${inlineHtml(b.text)}</h${b.level}>`;
         case "table": {
           const th = b.head.map((c) => `<th>${inlineHtml(c)}</th>`).join("");
-          const tr = b.rows.map((r) => `<tr>${r.map((c) => `<td>${inlineHtml(c)}</td>`).join("")}</tr>`).join("");
+          const tr = b.rows
+            .map((r) => `<tr>${r.map((c) => `<td>${inlineHtml(c)}</td>`).join("")}</tr>`)
+            .join("");
           return `<table><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`;
         }
         case "quote":
@@ -167,7 +216,7 @@ export function renderMarkdown(md: string): string {
           const tag = b.ordered ? "ol" : "ul";
           return `<${tag}>${b.items.map((x) => `<li>${inlineHtml(x)}</li>`).join("")}</${tag}>`;
         }
-        default:
+        case "paragraph":
           return `<p>${inlineHtml(b.text)}</p>`;
       }
     })
@@ -176,9 +225,9 @@ export function renderMarkdown(md: string): string {
 
 export interface MarkdownDomOptions {
   /** A badge element for a verified citation number, or null to keep the marker as text. */
-  badge(number: number): Node | null;
+  badge: (number: number) => Node | null;
   /** Stable section key for a `##` heading (FR-005a), if any. */
-  sectionKey?(heading: string): string | undefined;
+  sectionKey?: (heading: string) => string | undefined;
 }
 
 /** DOM rendering through createElement/createTextNode only (no HTML parsing, FR-008). */
@@ -191,7 +240,8 @@ export function renderMarkdownNodes(md: string, options: MarkdownDomOptions): No
   const inline = (s: string): Node[] =>
     parseInline(s).map((t) => {
       if (t.type === "text") return document.createTextNode(t.text);
-      if (t.type === "badge") return options.badge(t.number) ?? document.createTextNode(`[${t.number}]`);
+      if (t.type === "badge")
+        return options.badge(t.number) ?? document.createTextNode(`[${t.number}]`);
       return el(t.type, [document.createTextNode(t.text)]);
     });
   return parseMarkdown(md).map((b) => {
@@ -204,14 +254,30 @@ export function renderMarkdownNodes(md: string, options: MarkdownDomOptions): No
       }
       case "table":
         return el("table", [
-          el("thead", [el("tr", b.head.map((c) => el("th", inline(c))))]),
-          el("tbody", b.rows.map((r) => el("tr", r.map((c) => el("td", inline(c)))))),
+          el("thead", [
+            el(
+              "tr",
+              b.head.map((c) => el("th", inline(c))),
+            ),
+          ]),
+          el(
+            "tbody",
+            b.rows.map((r) =>
+              el(
+                "tr",
+                r.map((c) => el("td", inline(c))),
+              ),
+            ),
+          ),
         ]);
       case "quote":
         return el("blockquote", inline(b.text));
       case "list":
-        return el(b.ordered ? "ol" : "ul", b.items.map((x) => el("li", inline(x))));
-      default:
+        return el(
+          b.ordered ? "ol" : "ul",
+          b.items.map((x) => el("li", inline(x))),
+        );
+      case "paragraph":
         return el("p", inline(b.text));
     }
   });

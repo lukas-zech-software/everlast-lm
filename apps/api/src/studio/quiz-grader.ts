@@ -47,7 +47,9 @@ const SEMANTIC_GRADER_INSTRUCTION = [
   "Mark correct=true only if user_answer is factually equivalent to expected_answer and satisfies the rubric.",
 ].join(" ");
 
-export async function gradeQuizQuestion(input: GradeQuizQuestionInput): Promise<GradeQuizQuestionResult> {
+export async function gradeQuizQuestion(
+  input: GradeQuizQuestionInput,
+): Promise<GradeQuizQuestionResult> {
   const started = performance.now();
   const { question } = input;
   const det = gradeQuizQuestionDeterministic(question, input.answer);
@@ -60,7 +62,10 @@ export async function gradeQuizQuestion(input: GradeQuizQuestionInput): Promise<
   const normalizedAnswer = det.normalizedAnswer ?? "";
 
   if (!isPromptInjectionAttempt(normalizedAnswer) && input.generator) {
-    const remainingBudgetMs = Math.max(100, SHORT_ANSWER_GRADING_MAX_ELAPSED_MS - (performance.now() - started) - 50);
+    const remainingBudgetMs = Math.max(
+      100,
+      SHORT_ANSWER_GRADING_MAX_ELAPSED_MS - (performance.now() - started) - 50,
+    );
     try {
       const llmOutcome = await Promise.race([
         input.generator.generateStructured({

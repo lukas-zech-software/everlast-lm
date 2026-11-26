@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ChunkLocatorSchema } from "./document-chunk.ts";
 import { CodeExecutionTraceSchema } from "./package-v3-2.ts";
+import { countCodePoints } from "./text-limits.ts";
 
 /**
  * Package 1.3 DTOs and Schemas (Grounded Chat & Citation Engine)
@@ -13,9 +14,9 @@ export type ChatRole = z.infer<typeof ChatRoleSchema>;
 export const CitationSchema = z
   .object({
     badge_number: z.number().int().positive("badge_number must be a positive integer"),
-    source_id: z.string().uuid("source_id must be a valid UUID"),
+    source_id: z.uuid("source_id must be a valid UUID"),
     source_title: z.string().min(1, "source_title must be non-empty"),
-    chunk_id: z.string().uuid("chunk_id must be a valid UUID"),
+    chunk_id: z.uuid("chunk_id must be a valid UUID"),
     snippet: z.string().min(1, "snippet must be non-empty"),
     locator: ChunkLocatorSchema,
   })
@@ -24,22 +25,22 @@ export type Citation = z.infer<typeof CitationSchema>;
 
 export const UserMessageInputSchema = z
   .object({
-    notebook_id: z.string().uuid("notebook_id must be a valid UUID"),
+    notebook_id: z.uuid("notebook_id must be a valid UUID"),
     message: z
       .string()
       .transform((val) => val.trim())
       .refine(
         (val) => {
-          const codePoints = Array.from(val).length;
+          const codePoints = countCodePoints(val);
           return codePoints >= 1 && codePoints <= 10000;
         },
         {
-          message:
+          error:
             "message must be between 1 and 10,000 Unicode code points after outer whitespace trimming",
-        }
+        },
       ),
     active_source_ids: z
-      .array(z.string().uuid("active_source_id must be a valid UUID"))
+      .array(z.uuid("active_source_id must be a valid UUID"))
       .min(1, "active_source_ids must contain at least one source UUID"),
   })
   .strict();
@@ -47,7 +48,7 @@ export type UserMessageInput = z.infer<typeof UserMessageInputSchema>;
 
 export const ActiveSourceRevisionRecordSchema = z
   .object({
-    source_id: z.string().uuid("source_id must be a valid UUID"),
+    source_id: z.uuid("source_id must be a valid UUID"),
     revision: z.number().int().positive("revision must be a positive integer"),
   })
   .strict();
@@ -55,9 +56,9 @@ export type ActiveSourceRevisionRecord = z.infer<typeof ActiveSourceRevisionReco
 
 export const ChatMessageSchema = z
   .object({
-    id: z.string().uuid("id must be a valid UUID"),
-    thread_id: z.string().uuid("thread_id must be a valid UUID"),
-    notebook_id: z.string().uuid("notebook_id must be a valid UUID"),
+    id: z.uuid("id must be a valid UUID"),
+    thread_id: z.uuid("thread_id must be a valid UUID"),
+    notebook_id: z.uuid("notebook_id must be a valid UUID"),
     user_id: z.string().min(1, "user_id must be non-empty"),
     role: ChatRoleSchema,
     content: z.string(),
@@ -65,19 +66,22 @@ export const ChatMessageSchema = z
     citations: z.array(CitationSchema).optional().default([]),
     /** FR-GC-08 (specs/010): ordered execution attempts; absent/null for legacy and clarification-only messages. */
     code_execution_trace: CodeExecutionTraceSchema.nullable().optional(),
-    created_at: z.string().datetime("created_at must be a valid ISO datetime"),
+    created_at: z.iso.datetime("created_at must be a valid ISO datetime"),
   })
   .strict();
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const ChatThreadSchema = z
   .object({
-    id: z.string().uuid("id must be a valid UUID"),
-    notebook_id: z.string().uuid("notebook_id must be a valid UUID"),
+    id: z.uuid("id must be a valid UUID"),
+    notebook_id: z.uuid("notebook_id must be a valid UUID"),
     user_id: z.string().min(1, "user_id must be non-empty"),
-    generation_epoch: z.number().int().nonnegative("generation_epoch must be a non-negative integer"),
-    created_at: z.string().datetime("created_at must be a valid ISO datetime"),
-    updated_at: z.string().datetime("updated_at must be a valid ISO datetime"),
+    generation_epoch: z
+      .number()
+      .int()
+      .nonnegative("generation_epoch must be a non-negative integer"),
+    created_at: z.iso.datetime("created_at must be a valid ISO datetime"),
+    updated_at: z.iso.datetime("updated_at must be a valid ISO datetime"),
   })
   .strict();
 export type ChatThread = z.infer<typeof ChatThreadSchema>;

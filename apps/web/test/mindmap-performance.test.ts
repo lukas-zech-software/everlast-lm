@@ -32,7 +32,7 @@ describe("[011-studio-mindmaps-data-tables] T029: 120-node mindmap interaction f
 
     // Slow/dropped frames are retained and fail the 33.3ms gate
     const slowSamples: MindmapFrameSample[] = samples.map((s, idx) =>
-      idx >= 36 ? { ...s, duration_ms: 45, dropped: true } : s
+      idx >= 36 ? { ...s, duration_ms: 45, dropped: true } : s,
     );
     const failedReport = evaluateMindmapFrameSamples(slowSamples);
     expect(failedReport.p95_frame_ms).toBe(45);
@@ -40,13 +40,24 @@ describe("[011-studio-mindmaps-data-tables] T029: 120-node mindmap interaction f
   });
 });
 
-
 describe("[011-studio-mindmaps-data-tables] T057: frame evidence integrity (FR-ST-09, SC-003)", () => {
-  const frames = (): MindmapFrameSample[] => Array.from({ length: 20 }, (_, i) => ({ frame_index: i + 1, operation: (["pan", "zoom", "expand", "collapse"] as const)[i % 4]!, node_count: 120, duration_ms: 10, dropped: false }));
+  const frames = (): MindmapFrameSample[] =>
+    Array.from({ length: 20 }, (_, i) => ({
+      frame_index: i + 1,
+      operation: (["pan", "zoom", "expand", "collapse"] as const)[i % 4]!,
+      node_count: 120,
+      duration_ms: 10,
+      dropped: false,
+    }));
   it("rejects duplicate identities, wrong node counts and missing operations", () => {
-    const duplicates = frames(); duplicates[1]!.frame_index = duplicates[0]!.frame_index;
+    const duplicates = frames();
+    duplicates[1]!.frame_index = duplicates[0]!.frame_index;
     expect(() => evaluateMindmapFrameSamples(duplicates)).toThrow(/unique|duplicate/i);
-    expect(() => evaluateMindmapFrameSamples(frames().map(s => ({ ...s, node_count: 12 })))).toThrow(/120/);
-    expect(() => evaluateMindmapFrameSamples(frames().map(s => ({ ...s, operation: "pan" })))).toThrow(/operation/i);
+    expect(() =>
+      evaluateMindmapFrameSamples(frames().map((s) => ({ ...s, node_count: 12 }))),
+    ).toThrow(/120/);
+    expect(() =>
+      evaluateMindmapFrameSamples(frames().map((s) => ({ ...s, operation: "pan" }))),
+    ).toThrow(/operation/i);
   });
 });

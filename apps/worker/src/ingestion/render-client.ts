@@ -33,42 +33,64 @@ export class RenderJobError extends Error {
   }
 }
 
-export function renderJobConfigFromEnv(env: NodeJS.ProcessEnv, storage: ObjectStorage): RenderJobConfig | null {
+export function renderJobConfigFromEnv(
+  env: NodeJS.ProcessEnv,
+  storage: ObjectStorage,
+): RenderJobConfig | null {
   const jobName = env.RENDER_JOB_NAME;
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   if (!jobName || !projectId) return null;
-  return { projectId, location: env.RENDER_JOB_LOCATION ?? env.GCP_REGION ?? "europe-west4", jobName, storage };
+  return {
+    projectId,
+    location: env.RENDER_JOB_LOCATION ?? env.GCP_REGION ?? "europe-west4",
+    jobName,
+    storage,
+  };
 }
 
 export class CloudRunJobRenderer implements OfficeRenderer {
   readonly name = "everlast-render";
   private readonly config: RenderJobConfig;
-  private readonly auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  private readonly auth = new GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
 
   constructor(config: RenderJobConfig) {
     this.config = config;
   }
 
   private async call(url: string, method: "GET" | "POST", data?: unknown): Promise<unknown> {
-    if (this.config.request) return this.config.request({ url, method, ...(data !== undefined ? { data } : {}) });
+    if (this.config.request)
+      return this.config.request({ url, method, ...(data === undefined ? {} : { data }) });
     const client = await this.auth.getClient();
-    const res = await client.request({ url, method, ...(data !== undefined ? { data } : {}) });
+    const res = await client.request({ url, method, ...(data === undefined ? {} : { data }) });
     return res.data;
   }
 
   /** Runs one conversion and returns the output object's bytes. */
-  async run(command: "office-to-pdf" | "audio-to-flac", input: { name: string; generation: string }, format: string | null): Promise<Buffer> {
+  async run(
+    command: "office-to-pdf" | "audio-to-flac",
+    input: { name: string; generation: string },
+    format: string | null,
+  ): Promise<Buffer> {
     const output = await this.runToObject(command, input, format);
     return this.config.storage.read(output.name, output.generation);
   }
 
   /** Audio preprocessing for Speech V2: returns the private FLAC object (FR-SI-01). */
-  async audioToFlac(input: { name: string; generation: string }, format: "mp3" | "wav" | "m4a"): Promise<{ name: string; generation: string }> {
+  async audioToFlac(
+    input: { name: string; generation: string },
+    format: "mp3" | "wav" | "m4a",
+  ): Promise<{ name: string; generation: string }> {
     return this.runToObject("audio-to-flac", input, format);
   }
 
   /** Runs one conversion (`office-to-pdf` | `audio-to-flac`) and returns the output object reference. */
-  async runToObject(command: "office-to-pdf" | "audio-to-flac", input: { name: string; generation: string }, format: string | null): Promise<{ name: string; generation: string }> {
+  async runToObject(
+    command: "office-to-pdf" | "audio-to-flac",
+    input: { name: string; generation: string },
+    format: string | null,
+  ): Promise<{ name: string; generation: string }> {
     const operationId = randomUUID();
     const dir = /^(notebooks\/[^/]+\/sources\/[^/]+)\//.exec(input.name)?.[1];
     if (!dir) throw new RenderJobError("Render input is not a source object");
@@ -82,12 +104,17 @@ export class CloudRunJobRenderer implements OfficeRenderer {
       { name: "RENDER_OPERATION_ID", value: operationId },
       ...(format ? [{ name: "RENDER_INPUT_FORMAT", value: format }] : []),
     ];
-    let op = (await this.call(`https://run.googleapis.com/v2/projects/${projectId}/locations/${location}/jobs/${jobName}:run`, "POST", {
-      overrides: { containerOverrides: [{ env }], taskCount: 1 },
-    })) as Operation;
+    let op = (await this.call(
+      `https://run.googleapis.com/v2/projects/${projectId}/locations/${location}/jobs/${jobName}:run`,
+      "POST",
+      {
+        overrides: { containerOverrides: [{ env }], taskCount: 1 },
+      },
+    )) as Operation;
     const deadline = Date.now() + (this.config.timeoutMs ?? 600_000);
     while (!op.done) {
-      if (Date.now() > deadline || !op.name) throw new RenderJobError("Render job did not finish in time");
+      if (Date.now() > deadline || !op.name)
+        throw new RenderJobError("Render job did not finish in time");
       await new Promise((r) => setTimeout(r, this.config.pollMs ?? 2000));
       op = (await this.call(`https://run.googleapis.com/v2/${op.name}`, "GET")) as Operation;
     }

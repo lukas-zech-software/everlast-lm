@@ -82,7 +82,7 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const q = (sel: string, root: MockElement = body()) => root.querySelector(sel);
   const qa = (sel: string, root: MockElement = body()) => root.querySelectorAll(sel);
   const tid = (id: string, root?: MockElement) => q(`[data-testid=${id}]`, root);
@@ -108,7 +108,7 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
   it("separates branch chevron toggle from node body drilldown action and supports pan, zoom, fit-to-screen, and keyboard navigation", () => {
     const payload = buildTree120();
     const drilldowns: string[] = [];
-    const citationsOpened: [string, string][] = [];
+    const citationsOpened: Array<[string, string]> = [];
 
     const viewer = createMindmapViewer({
       artifactId: "33000000-aaaa-4000-8000-000000000001",
@@ -125,7 +125,7 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
 
     // Clicking chevron on sub_1_1 expands its 3 leaf children without triggering drilldown!
     const sub11 = tids("mindmap-node", viewer.element as unknown as MockElement).find(
-      (n) => n.getAttribute("data-node-id") === "sub_1_1"
+      (n) => n.getAttribute("data-node-id") === "sub_1_1",
     )!;
     const chevron = tid("mindmap-node-toggle", sub11);
     expect(chevron).not.toBeNull();
@@ -136,14 +136,14 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
 
     // Clicking chevron again collapses sub_1_1's children
     const sub11After = tids("mindmap-node", viewer.element as unknown as MockElement).find(
-      (n) => n.getAttribute("data-node-id") === "sub_1_1"
+      (n) => n.getAttribute("data-node-id") === "sub_1_1",
     )!;
     tid("mindmap-node-toggle", sub11After)!.click();
     expect(tids("mindmap-node", viewer.element as unknown as MockElement)).toHaveLength(36);
 
     // Clicking node body triggers drilldown for that node_id
     const branch1 = tids("mindmap-node", viewer.element as unknown as MockElement).find(
-      (n) => n.getAttribute("data-node-id") === "branch_1"
+      (n) => n.getAttribute("data-node-id") === "branch_1",
     )!;
     tid("mindmap-node-body", branch1)!.click();
     expect(drilldowns).toEqual(["branch_1"]);
@@ -159,21 +159,47 @@ describe("[011-studio-mindmaps-data-tables] T025: Native SVG mindmap viewer and 
   });
 });
 
-
 describe("[011-studio-mindmaps-data-tables] T057: real pointer pan (FR-ST-09, FR-004)", () => {
   it("moves the scene on background drag, stops on pointer cancellation and keeps node controls out of pan", () => {
     const dom = setupMockDOM(1440);
-    const viewer = createMindmapViewer({ artifactId: "pan", title: "Pan", payload: buildTree120() });
+    const viewer = createMindmapViewer({
+      artifactId: "pan",
+      title: "Pan",
+      payload: buildTree120(),
+    });
     dom.document.body.append(viewer.element as unknown as MockElement);
-    const canvas = (viewer.element as unknown as MockElement).querySelector('[data-testid=mindmap-canvas]')!;
-    canvas.dispatchEvent({ type: "pointerdown", target: canvas, pointerId: 1, button: 0, clientX: 10, clientY: 20, preventDefault() {} });
-    canvas.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: 60, clientY: 50, preventDefault() {} });
+    const canvas = (viewer.element as unknown as MockElement).querySelector(
+      "[data-testid=mindmap-canvas]",
+    )!;
+    canvas.dispatchEvent({
+      type: "pointerdown",
+      target: canvas,
+      pointerId: 1,
+      button: 0,
+      clientX: 10,
+      clientY: 20,
+      preventDefault: () => undefined,
+    });
+    canvas.dispatchEvent({
+      type: "pointermove",
+      pointerId: 1,
+      clientX: 60,
+      clientY: 50,
+      preventDefault: () => undefined,
+    });
     expect(viewer.getTransform()).toEqual({ x: 50, y: 30, scale: 1 });
     canvas.dispatchEvent({ type: "pointercancel", pointerId: 1 });
     canvas.dispatchEvent({ type: "pointermove", pointerId: 1, clientX: 90, clientY: 90 });
     expect(viewer.getTransform().x).toBe(50);
-    const node = canvas.querySelector('[data-testid=mindmap-node-body]')!;
-    canvas.dispatchEvent({ type: "pointerdown", target: node, pointerId: 2, button: 0, clientX: 0, clientY: 0 });
+    const node = canvas.querySelector("[data-testid=mindmap-node-body]")!;
+    canvas.dispatchEvent({
+      type: "pointerdown",
+      target: node,
+      pointerId: 2,
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+    });
     canvas.dispatchEvent({ type: "pointermove", pointerId: 2, clientX: 100, clientY: 100 });
     expect(viewer.getTransform().x).toBe(50);
   });

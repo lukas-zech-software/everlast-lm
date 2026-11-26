@@ -1,24 +1,57 @@
 import { describe, it, expect } from "vitest";
 import { renderMarkdown } from "../src/studio/markdown.ts";
 import { StudioArtifactListController } from "../src/studio/artifact-list.ts";
-import { createStudioApi, type StudioApi, type ArtifactDto } from "../src/studio/api.ts";
+import type { StudioApi, ArtifactDto } from "../src/studio/api.ts";
 
-const base = { notebook_id: "n", plugin_type: "report", payload_json: null, progress: null, failure: null, attempt: 1, retry_of: null } as const;
-const mk = (o: Partial<ArtifactDto> & { id: string; status: ArtifactDto["status"] }): ArtifactDto => ({ ...base, subtype: "briefing_doc", title: "Briefing doc", ...o } as ArtifactDto);
+const base = {
+  notebook_id: "n",
+  plugin_type: "report",
+  payload_json: null,
+  progress: null,
+  failure: null,
+  attempt: 1,
+  retry_of: null,
+} as const;
+const mk = (o: Partial<ArtifactDto> & { id: string; status: ArtifactDto["status"] }): ArtifactDto =>
+  ({ ...base, subtype: "briefing_doc", title: "Briefing doc", ...o }) as ArtifactDto;
 
 function setup(artifacts: ArtifactDto[]) {
   const calls: string[] = [];
   const api: StudioApi = {
-    list: async () => artifacts,
-    get: async (id) => ({ artifact: { ...mk({ id, status: "Completed" }), payload_json: { content_md: "# T\n\n- <script>x</script> [1]", citations: [], sections: [{ key: "report", heading: "T" }] } } }),
-    create: async () => mk({ id: "new", status: "Queued" }),
-    retry: async () => mk({ id: "r", status: "Queued" }),
-    convert: async (id) => (calls.push("convert:" + id), { source_id: "s" }),
-    remove: async (id) => void calls.push("delete:" + id),
-    suggestions: async () => ({ state: "SuggestionsLoading" }),
+    list: () => Promise.resolve(artifacts),
+    get: (id) =>
+      Promise.resolve({
+        artifact: {
+          ...mk({ id, status: "Completed" }),
+          payload_json: {
+            content_md: "# T\n\n- <script>x</script> [1]",
+            citations: [],
+            sections: [{ key: "report", heading: "T" }],
+          },
+        },
+      }),
+    create: () => Promise.resolve(mk({ id: "new", status: "Queued" })),
+    retry: () => Promise.resolve(mk({ id: "r", status: "Queued" })),
+    convert: (id) => {
+      calls.push(`convert:${id}`);
+      return Promise.resolve({ source_id: "s" });
+    },
+    remove: (id) => {
+      calls.push(`delete:${id}`);
+      return Promise.resolve(undefined);
+    },
+    suggestions: () => Promise.resolve({ state: "SuggestionsLoading" }),
   };
   const copied: string[] = [];
-  const ctl = new StudioArtifactListController({ api, clipboard: { writeText: async (t) => void copied.push(t) } });
+  const ctl = new StudioArtifactListController({
+    api,
+    clipboard: {
+      writeText: (t) => {
+        copied.push(t);
+        return Promise.resolve();
+      },
+    },
+  });
   return { ctl, calls, copied };
 }
 
@@ -32,10 +65,18 @@ describe("StudioArtifactListController (FR-ST-10, FR-008)", () => {
     const { ctl } = setup([
       mk({ id: "1", status: "Queued" }),
       mk({ id: "2", status: "Running" }),
-      mk({ id: "3", status: "Failed", failure: { code: "SourceChanged", message: "Source was replaced." } }),
+      mk({
+        id: "3",
+        status: "Failed",
+        failure: { code: "SourceChanged", message: "Source was replaced." },
+      }),
     ]);
     await ctl.refresh();
-    expect(ctl.rows().map((r) => r.label)).toEqual(["Generating Briefing doc...", "Generating Briefing doc...", "Briefing doc — Source was replaced."]);
+    expect(ctl.rows().map((r) => r.label)).toEqual([
+      "Generating Briefing doc...",
+      "Generating Briefing doc...",
+      "Briefing doc — Source was replaced.",
+    ]);
   });
   it("opens completed artifacts as escaped Markdown HTML, copies, converts and deletes", async () => {
     const { ctl, calls, copied } = setup([mk({ id: "1", status: "Completed" })]);

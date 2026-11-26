@@ -1,10 +1,15 @@
 packages:
-  - 'packages/*'
-  - 'apps/*'
+  - "packages/*"
+  - "apps/*"
 # Dependency install scripts stay disabled (supply-chain policy); the app, tests and image work without them.
 allowBuilds:
-  '@google/genai': false
+  "@google/genai": false
   cpu-features: false
   esbuild: false
   protobufjs: false
   ssh2: false
+# TypeScript 7 (tsgo) remains the application compiler; eslint.config.mjs routes typescript-eslint
+# to the pinned `typescript-compiler` (TS 6.0.2) at runtime via node:module registerHooks.
+peerDependencyRules:
+  allowedVersions:
+    typescript: "7"

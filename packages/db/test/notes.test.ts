@@ -54,10 +54,14 @@ describe("FR-NM-01: manual note lifecycle", () => {
   it("detects stale base_revision and isolates owners/notebooks", async () => {
     const a = await createNote(nb, owner, {});
     await updateNote(nb, owner, a.id, { title: "x" });
-    await expect(updateNote(nb, owner, a.id, { title: "y", base_revision: 1 })).rejects.toBeInstanceOf(RevisionConflictError);
+    await expect(
+      updateNote(nb, owner, a.id, { title: "y", base_revision: 1 }),
+    ).rejects.toBeInstanceOf(RevisionConflictError);
     expect(await getNote(nb, "usr_bob", a.id)).toBeNull();
     expect(await getNote(nb2, owner, a.id)).toBeNull();
-    await expect(updateNote(nb2, owner, a.id, { title: "z" })).rejects.toBeInstanceOf(NoteNotFoundError);
+    await expect(updateNote(nb2, owner, a.id, { title: "z" })).rejects.toBeInstanceOf(
+      NoteNotFoundError,
+    );
   });
 
   it("permanently deletes and cascades with the notebook", async () => {
@@ -72,7 +76,11 @@ describe("FR-NM-01: manual note lifecycle", () => {
 
 describe("FR-NM-02 / FR-GC-09: saved responses", () => {
   const save = () =>
-    saveResponseAsNote(nb, owner, { message_id: msg, content: "Port 8080 requires mTLS [1]", citations: [citation] });
+    saveResponseAsNote(nb, owner, {
+      message_id: msg,
+      content: "Port 8080 requires mTLS [1]",
+      citations: [citation],
+    });
 
   it("is idempotent per (notebook, owner, message) and read-only", async () => {
     const first = await save();
@@ -81,7 +89,9 @@ describe("FR-NM-02 / FR-GC-09: saved responses", () => {
     expect(second.created).toBe(false);
     expect(second.note.id).toBe(first.note.id);
     expect((await listNotes(nb, owner)).length).toBe(1);
-    await expect(updateNote(nb, owner, first.note.id, { title: "t" })).rejects.toBeInstanceOf(NoteReadOnlyError);
+    await expect(updateNote(nb, owner, first.note.id, { title: "t" })).rejects.toBeInstanceOf(
+      NoteReadOnlyError,
+    );
   });
 
   it("survives clearing chat", async () => {
@@ -100,34 +110,53 @@ describe("FR-NM-02 / FR-GC-09: saved responses", () => {
     expect(copy.content_md).toBe("Port 8080 requires mTLS");
     expect(copy.citations_json).toEqual([]);
     expect((await getNote(nb, owner, note.id))?.content_md).toContain("[1]");
-    await expect(convertToEditable(nb, owner, copy.id)).rejects.toBeInstanceOf(NotSavedResponseError);
+    await expect(convertToEditable(nb, owner, copy.id)).rejects.toBeInstanceOf(
+      NotSavedResponseError,
+    );
   });
 });
 
 describe("[007] T038 FR-NM-02 FR-006: saved-response title rule", () => {
   it("uses the given title clamped to 200 code points, else Saved response (never the first content line)", async () => {
-    const titled = await saveResponseAsNote(nb, owner, { message_id: msg, content: "# Heading line\nBody", citations: [], title: `  ${"🌱".repeat(205)}  ` });
+    const titled = await saveResponseAsNote(nb, owner, {
+      message_id: msg,
+      content: "# Heading line\nBody",
+      citations: [],
+      title: `  ${"🌱".repeat(205)}  `,
+    });
     expect(titled.note.title).toBe("🌱".repeat(200));
-    const untitled = await saveResponseAsNote(nb, owner, { message_id: "55555555-5555-4555-8555-555555555555", content: "# Heading line\nBody", citations: [] });
+    const untitled = await saveResponseAsNote(nb, owner, {
+      message_id: "55555555-5555-4555-8555-555555555555",
+      content: "# Heading line\nBody",
+      citations: [],
+    });
     expect(untitled.note.title).toBe("Saved response");
   });
 });
 
 describe("[007] T043 FR-NM-01 FR-002: every note write path stores sanitized Markdown", () => {
-  const unsafe = 'Intro <script>alert(1)</script><b onclick="x()">bold</b> [x](javascript:alert) end';
-  const safe = "## Heading\n\n- item **bold** _it_\n1. one\n[site](https://example.test) [mail](mailto:a@example.test)";
+  const unsafe =
+    'Intro <script>alert(1)</script><b onclick="x()">bold</b> [x](javascript:alert) end';
+  const safe =
+    "## Heading\n\n- item **bold** _it_\n1. one\n[site](https://example.test) [mail](mailto:a@example.test)";
 
   it("createNote and updateNote remove raw HTML and unsafe links and keep safe Markdown", async () => {
     const a = await createNote(nb, owner, { title: "T", content_md: unsafe });
     expect(a.content_md).toBe("Intro bold x end");
-    const b = await updateNote(nb, owner, a.id, { content_md: `${safe}<img src=x onerror=alert(1)>` });
+    const b = await updateNote(nb, owner, a.id, {
+      content_md: `${safe}<img src=x onerror=alert(1)>`,
+    });
     expect(b.content_md).toBe(safe);
     const c = await createNote(nb, owner, { title: "Safe", content_md: safe });
     expect(c.content_md).toBe(safe);
   });
 
   it("saveResponseAsNote and convertToEditable sanitize assistant content", async () => {
-    const { note } = await saveResponseAsNote(nb, owner, { message_id: msg, content: `Claim [[1]] ${unsafe}`, citations: [citation] });
+    const { note } = await saveResponseAsNote(nb, owner, {
+      message_id: msg,
+      content: `Claim [[1]] ${unsafe}`,
+      citations: [citation],
+    });
     expect(note.content_md).not.toContain("<script>");
     expect(note.content_md).not.toContain("javascript:");
     expect(note.content_md).toContain("[[1]]");
@@ -136,7 +165,10 @@ describe("[007] T043 FR-NM-01 FR-002: every note write path stores sanitized Mar
   });
 
   it("the repository call used by the Studio convert path (createNote) sanitizes too", async () => {
-    const studio = await createNote(nb, owner, { title: "Briefing doc", content_md: "Report <iframe src=//evil></iframe>[a](JaVaScRiPt:void)" });
+    const studio = await createNote(nb, owner, {
+      title: "Briefing doc",
+      content_md: "Report <iframe src=//evil></iframe>[a](JaVaScRiPt:void)",
+    });
     expect(studio.content_md).toBe("Report a");
   });
 });

@@ -26,12 +26,14 @@ export async function ensureUser(db: Queryable, principal: VerifiedPrincipal): P
      DO UPDATE SET email = EXCLUDED.email, updated_at = now()
        WHERE users.email IS DISTINCT FROM EXCLUDED.email
      RETURNING id, issuer, subject`,
-    [randomUUID(), principal.issuer, principal.subject, principal.email ?? null]
+    [randomUUID(), principal.issuer, principal.subject, principal.email ?? null],
   );
   if (result.rows[0]) return result.rows[0];
   const existing = await db.query<UserRecord>(
     "SELECT id, issuer, subject FROM users WHERE issuer = $1 AND subject = $2",
-    [principal.issuer, principal.subject]
+    [principal.issuer, principal.subject],
   );
-  return existing.rows[0]!;
+  const row = existing.rows[0];
+  if (!row) throw new Error("Failed to resolve ensured user");
+  return row;
 }

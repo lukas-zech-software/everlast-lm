@@ -24,6 +24,6 @@ export * from "./package-v2-2.ts";
 export * from "./notes.ts";
 export * from "./studio-artifacts.ts";
 export * from "./learning-progress.ts";
-export * from './scoped-corpus.ts';
+export * from "./scoped-corpus.ts";
 
 export * from "./guide-admission.ts";

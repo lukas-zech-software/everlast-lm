@@ -8,7 +8,14 @@ const userId = "owner-one";
 const messageId = "33333333-3333-4333-8333-333333333333";
 const chunkId = "018f6b40-0001-7000-8000-000000000001";
 const timestamp = "2026-10-19T00:00:00.000Z";
-const citation = { badge_number: 1, source_id: sourceId, source_title: "Brief", chunk_id: chunkId, snippet: "claim", locator: { page_number: 1, start_offset: 0, end_offset: 5 } };
+const citation = {
+  badge_number: 1,
+  source_id: sourceId,
+  source_title: "Brief",
+  chunk_id: chunkId,
+  snippet: "claim",
+  locator: { page_number: 1, start_offset: 0, end_offset: 5 },
+};
 
 beforeEach(() => {
   repo.resetPackageV22Store();
@@ -17,14 +24,35 @@ beforeEach(() => {
 
 describe("Package 2.2 in-memory repository (FR-GC-09, FR-NM-02, NFR-EVAL-04)", () => {
   it("exports reset and repository operations; saved responses live only in the 2.3 notes store (FR-NM-02)", () => {
-    for (const retired of ["saveResponseNote", "getSavedResponseNote", "deleteSavedResponseNote"]) expect((repo as Record<string, unknown>)[retired], retired).toBeUndefined();
-    for (const name of ["resetPackageV22Store", "getSourceGuide", "saveSourceGuide", "getOverview", "saveOverview", "getChatConfiguration", "saveChatConfiguration", "saveMessageFeedback"]) {
+    for (const retired of ["saveResponseNote", "getSavedResponseNote", "deleteSavedResponseNote"])
+      expect((repo as Record<string, unknown>)[retired], retired).toBeUndefined();
+    for (const name of [
+      "resetPackageV22Store",
+      "getSourceGuide",
+      "saveSourceGuide",
+      "getOverview",
+      "saveOverview",
+      "getChatConfiguration",
+      "saveChatConfiguration",
+      "saveMessageFeedback",
+    ]) {
       expect((repo as Record<string, unknown>)[name], name).toBeDefined();
     }
   });
 
   it("isolates records and cache by notebook, owner, exact scope and revisions", async () => {
-    const overview = { notebook_id: notebookId, source_revisions: [{ source_id: sourceId, revision: 1 }], authorization_key: userId, output_language: "en-US", generation_parameters: {}, cache_key: "scope-one", overview_md: "Overview", starter_prompts: ["a", "b", "c"], supporting_chunk_ids: [chunkId], generated_at: timestamp };
+    const overview = {
+      notebook_id: notebookId,
+      source_revisions: [{ source_id: sourceId, revision: 1 }],
+      authorization_key: userId,
+      output_language: "en-US",
+      generation_parameters: {},
+      cache_key: "scope-one",
+      overview_md: "Overview",
+      starter_prompts: ["a", "b", "c"],
+      supporting_chunk_ids: [chunkId],
+      generated_at: timestamp,
+    };
     await repo.saveOverview(overview);
     expect(await repo.getOverview("scope-one")).toEqual(overview);
     expect(await repo.getOverview("scope-two")).toBeNull();
@@ -32,44 +60,150 @@ describe("Package 2.2 in-memory repository (FR-GC-09, FR-NM-02, NFR-EVAL-04)", (
   });
 
   it("rejects user messages and stores feedback isolated per user and message", async () => {
-    await persistChatMessage(undefined, { id: messageId, thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "user", content: "question", created_at: timestamp });
-    await expect(repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: messageId, rating: "up" })).rejects.toThrow();
-    await persistChatMessage(undefined, { id: "44444444-4444-4444-8444-444444444444", thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "assistant", content: "Answer", created_at: timestamp });
-    const feedback = await repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: "44444444-4444-4444-8444-444444444444", rating: "down", category: "wrong_citation", comment: "Needs review" });
+    await persistChatMessage(undefined, {
+      id: messageId,
+      thread_id: notebookId,
+      notebook_id: notebookId,
+      user_id: userId,
+      role: "user",
+      content: "question",
+      created_at: timestamp,
+    });
+    await expect(
+      repo.saveMessageFeedback({
+        notebook_id: notebookId,
+        user_id: userId,
+        message_id: messageId,
+        rating: "up",
+      }),
+    ).rejects.toThrow();
+    await persistChatMessage(undefined, {
+      id: "44444444-4444-4444-8444-444444444444",
+      thread_id: notebookId,
+      notebook_id: notebookId,
+      user_id: userId,
+      role: "assistant",
+      content: "Answer",
+      created_at: timestamp,
+    });
+    const feedback = await repo.saveMessageFeedback({
+      notebook_id: notebookId,
+      user_id: userId,
+      message_id: "44444444-4444-4444-8444-444444444444",
+      rating: "down",
+      category: "wrong_citation",
+      comment: "Needs review",
+    });
     expect(feedback.rating).toBe("down");
-    expect(await repo.getMessageFeedback(notebookId, userId, feedback.message_id)).toEqual(feedback);
+    expect(await repo.getMessageFeedback(notebookId, userId, feedback.message_id)).toEqual(
+      feedback,
+    );
     expect(await repo.getMessageFeedback(notebookId, "owner-two", feedback.message_id)).toBeNull();
   });
 });
 
 it("persists follow-ups against the assistant message's exact snapshot and isolates owners (FR-GC-05, C-02)", async () => {
   const assistantId = "55555555-5555-4555-8555-555555555555";
-  const followups = { suggested_followups: [{ text: "What does the claim mean?", supporting_chunk_ids: [chunkId] }], source_revisions: [{ source_id: sourceId, revision: 1 }], output_language: "en-US", generated_at: timestamp };
-  await persistChatMessage(undefined, { id: assistantId, thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "assistant", content: "Claim", active_source_revisions_snapshot: [{ source_id: sourceId, revision: 1 }], citations: [citation], created_at: timestamp });
-  await expect(repo.saveMessageFollowUps({ notebook_id: notebookId, user_id: userId, message_id: assistantId, followups })).resolves.toEqual(followups);
-  expect(await repo.getMessageFollowUps(notebookId, userId, assistantId, "en-US")).toEqual(followups);
+  const followups = {
+    suggested_followups: [{ text: "What does the claim mean?", supporting_chunk_ids: [chunkId] }],
+    source_revisions: [{ source_id: sourceId, revision: 1 }],
+    output_language: "en-US",
+    generated_at: timestamp,
+  };
+  await persistChatMessage(undefined, {
+    id: assistantId,
+    thread_id: notebookId,
+    notebook_id: notebookId,
+    user_id: userId,
+    role: "assistant",
+    content: "Claim",
+    active_source_revisions_snapshot: [{ source_id: sourceId, revision: 1 }],
+    citations: [citation],
+    created_at: timestamp,
+  });
+  await expect(
+    repo.saveMessageFollowUps({
+      notebook_id: notebookId,
+      user_id: userId,
+      message_id: assistantId,
+      followups,
+    }),
+  ).resolves.toEqual(followups);
+  expect(await repo.getMessageFollowUps(notebookId, userId, assistantId, "en-US")).toEqual(
+    followups,
+  );
   expect(await repo.getMessageFollowUps(notebookId, userId, assistantId, "de-DE")).toBeNull();
   expect(await repo.getMessageFollowUps(notebookId, "owner-two", assistantId, "en-US")).toBeNull();
-  await expect(repo.saveMessageFollowUps({ notebook_id: notebookId, user_id: userId, message_id: assistantId, followups: { ...followups, source_revisions: [{ source_id: sourceId, revision: 2 }] } })).rejects.toThrow(/snapshot/);
+  await expect(
+    repo.saveMessageFollowUps({
+      notebook_id: notebookId,
+      user_id: userId,
+      message_id: assistantId,
+      followups: { ...followups, source_revisions: [{ source_id: sourceId, revision: 2 }] },
+    }),
+  ).rejects.toThrow(/snapshot/);
 });
 
 it("keys Source Guides by notebook, source, revision and output language; another language is a miss (FR-SI-02, FR-UI-02)", async () => {
-  const guide = { notebook_id: notebookId, source_id: sourceId, revision: 2, output_language: "de-DE", status: "GuideReady" as const, source_word_count: 30, summary_md: "Eine Zusammenfassung.", key_topics: ["Thema"], supporting_chunk_ids: [chunkId] };
+  const guide = {
+    notebook_id: notebookId,
+    source_id: sourceId,
+    revision: 2,
+    output_language: "de-DE",
+    status: "GuideReady" as const,
+    source_word_count: 30,
+    summary_md: "Eine Zusammenfassung.",
+    key_topics: ["Thema"],
+    supporting_chunk_ids: [chunkId],
+  };
   await repo.saveSourceGuide(guide);
-  expect(await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE")).toMatchObject({ output_language: "de-DE", summary_md: "Eine Zusammenfassung." });
+  expect(await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE")).toMatchObject({
+    output_language: "de-DE",
+    summary_md: "Eine Zusammenfassung.",
+  });
   expect(await repo.getSourceGuide(notebookId, sourceId, 2, "en-US")).toBeNull();
   expect(await repo.getSourceGuide(notebookId, sourceId, 3, "de-DE")).toBeNull();
-  await repo.saveSourceGuide({ ...guide, output_language: "en-US", summary_md: "An English summary." });
-  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE"))?.summary_md).toBe("Eine Zusammenfassung.");
-  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "en-US"))?.summary_md).toBe("An English summary.");
+  await repo.saveSourceGuide({
+    ...guide,
+    output_language: "en-US",
+    summary_md: "An English summary.",
+  });
+  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "de-DE"))?.summary_md).toBe(
+    "Eine Zusammenfassung.",
+  );
+  expect((await repo.getSourceGuide(notebookId, sourceId, 2, "en-US"))?.summary_md).toBe(
+    "An English summary.",
+  );
 });
 
 it("keeps one feedback record per user and message: re-rating replaces it, clearing removes it (FR-GC-09, FR-014)", async () => {
   const assistantId = "66666666-6666-4666-8666-666666666666";
-  await persistChatMessage(undefined, { id: assistantId, thread_id: notebookId, notebook_id: notebookId, user_id: userId, role: "assistant", content: "Answer", created_at: timestamp });
-  await repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: assistantId, rating: "up" });
-  await repo.saveMessageFeedback({ notebook_id: notebookId, user_id: userId, message_id: assistantId, rating: "down", category: "incomplete" });
-  expect(await repo.getMessageFeedback(notebookId, userId, assistantId)).toMatchObject({ rating: "down", category: "incomplete" });
+  await persistChatMessage(undefined, {
+    id: assistantId,
+    thread_id: notebookId,
+    notebook_id: notebookId,
+    user_id: userId,
+    role: "assistant",
+    content: "Answer",
+    created_at: timestamp,
+  });
+  await repo.saveMessageFeedback({
+    notebook_id: notebookId,
+    user_id: userId,
+    message_id: assistantId,
+    rating: "up",
+  });
+  await repo.saveMessageFeedback({
+    notebook_id: notebookId,
+    user_id: userId,
+    message_id: assistantId,
+    rating: "down",
+    category: "incomplete",
+  });
+  expect(await repo.getMessageFeedback(notebookId, userId, assistantId)).toMatchObject({
+    rating: "down",
+    category: "incomplete",
+  });
   expect(await repo.clearMessageFeedback(notebookId, userId, assistantId)).toBe(true);
   expect(await repo.getMessageFeedback(notebookId, userId, assistantId)).toBeNull();
   expect(await repo.clearMessageFeedback(notebookId, userId, assistantId)).toBe(false);

@@ -13,7 +13,6 @@ import {
   EmptyScopeError,
   InvalidScopeError,
   type ScopedContextProvider,
-  type ScopedContextRequest,
 } from "../src/scoped-context.ts";
 
 describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
@@ -24,9 +23,9 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
 
   it("C02-01: enforces public two-argument getScopedContext signature", () => {
     const mockProvider: ScopedContextProvider = {
-      async getScopedContext(notebook_id: string, active_source_ids: string[]) {
+      getScopedContext(_notebook_id: string, _active_source_ids: string[]) {
         expect(arguments.length).toBe(2);
-        return [];
+        return Promise.resolve([]);
       },
     };
 
@@ -40,14 +39,14 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
         notebook_id: validNotebookId,
         active_source_ids: [],
         principal,
-      })
+      }),
     ).toThrow(EmptyScopeError);
 
     expect(() =>
       ScopedContextRequestSchema.parse({
         notebook_id: validNotebookId,
         active_source_ids: [],
-      })
+      }),
     ).toThrow();
   });
 
@@ -55,14 +54,14 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
     expect(() =>
       ScopedContextRequestSchema.parse({
         notebook_id: validNotebookId,
-      })
+      }),
     ).toThrow();
 
     expect(() =>
       ScopedContextRequestSchema.parse({
         notebook_id: validNotebookId,
         active_source_ids: "not-an-array",
-      })
+      }),
     ).toThrow();
   });
 
@@ -83,7 +82,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
         notebook_id: "not-a-uuid",
         active_source_ids: [validSourceId1],
         principal,
-      })
+      }),
     ).toThrow();
 
     expect(() =>
@@ -91,7 +90,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
         notebook_id: validNotebookId,
         active_source_ids: ["not-a-uuid"],
         principal,
-      })
+      }),
     ).toThrow();
   });
 
@@ -134,7 +133,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
 
     // Rejects non-positive revisions in snapshot
     expect(() =>
-      SourceRevisionPairSchema.parse({ source_id: validSourceId1, revision: 0 })
+      SourceRevisionPairSchema.parse({ source_id: validSourceId1, revision: 0 }),
     ).toThrow();
   });
 
@@ -180,7 +179,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
           subject: "usr_alpha",
           language: "en",
           generation_parameters: {},
-        })
+        }),
       )
       .digest("hex");
     expect(key1).toBe(expectedHash);
@@ -193,28 +192,18 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
     ];
 
     // Eligible turn: uses source 1 revision 1
-    const eligibleTurnProvenance = [
-      { source_id: validSourceId1, revision: 1 },
-    ];
-    expect(
-      isTurnProvenanceEligible(eligibleTurnProvenance, activeSnapshot)
-    ).toBe(true);
+    const eligibleTurnProvenance = [{ source_id: validSourceId1, revision: 1 }];
+    expect(isTurnProvenanceEligible(eligibleTurnProvenance, activeSnapshot)).toBe(true);
 
     // Ineligible turn: uses source 1 revision 2 (stale revision)
-    const staleTurnProvenance = [
-      { source_id: validSourceId1, revision: 2 },
-    ];
-    expect(
-      isTurnProvenanceEligible(staleTurnProvenance, activeSnapshot)
-    ).toBe(false);
+    const staleTurnProvenance = [{ source_id: validSourceId1, revision: 2 }];
+    expect(isTurnProvenanceEligible(staleTurnProvenance, activeSnapshot)).toBe(false);
 
     // Ineligible turn: uses deselected source (source 3)
     const deselectedTurnProvenance = [
       { source_id: "b2000000-0000-4000-8000-000000000001", revision: 1 },
     ];
-    expect(
-      isTurnProvenanceEligible(deselectedTurnProvenance, activeSnapshot)
-    ).toBe(false);
+    expect(isTurnProvenanceEligible(deselectedTurnProvenance, activeSnapshot)).toBe(false);
 
     // Ineligible: empty or missing provenance cannot be eligible
     expect(isTurnProvenanceEligible([], activeSnapshot)).toBe(false);
@@ -237,7 +226,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
         validateScopeSourceOwnership(validNotebookId, [validSourceId1, foreignNotebookSourceId], {
           [validSourceId1]: validNotebookId,
           [foreignNotebookSourceId]: "b2222222-2222-4222-8222-222222222222",
-        })
+        }),
       ).toThrow(InvalidScopeError);
     });
 
@@ -246,7 +235,7 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
       expect(() =>
         validateScopeSourceOwnership(validNotebookId, [unknownSourceId], {
           [validSourceId1]: validNotebookId,
-        })
+        }),
       ).toThrow(InvalidScopeError);
     });
 
@@ -254,13 +243,13 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
       expect(() =>
         validateSourceStatusReady([validSourceId1], {
           [validSourceId1]: "Processing",
-        })
+        }),
       ).toThrow(InvalidScopeError);
 
       expect(() =>
         validateSourceStatusReady([validSourceId1], {
           [validSourceId1]: "Failed",
-        })
+        }),
       ).toThrow(InvalidScopeError);
     });
 
@@ -276,9 +265,14 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
       const snapshot = [{ source_id: validSourceId1, revision: 1 }];
       expect(filterScopedChunks(snapshot, [chunk(validSourceId1, 1)])).toHaveLength(1);
       expect(() =>
-        filterScopedChunks(snapshot, [chunk(validSourceId1, 1), chunk("b2000000-0000-4000-8000-000000000001", 1)])
+        filterScopedChunks(snapshot, [
+          chunk(validSourceId1, 1),
+          chunk("b2000000-0000-4000-8000-000000000001", 1),
+        ]),
       ).toThrow(InvalidScopeError);
-      expect(() => filterScopedChunks(snapshot, [chunk(validSourceId1, 2)])).toThrow(InvalidScopeError);
+      expect(() => filterScopedChunks(snapshot, [chunk(validSourceId1, 2)])).toThrow(
+        InvalidScopeError,
+      );
       expect(() => filterScopedChunks([], [])).toThrow(EmptyScopeError);
     });
 
@@ -288,8 +282,8 @@ describe("Contract C-02: ScopedContextProvider Request-Bound Envelope", () => {
 
       const before = assertInspectionIsolation(activeGenerationSet, inspectedSourceId);
       // Active generation set must remain unchanged
-      expect(Array.from(activeGenerationSet)).toEqual([validSourceId1]);
-      expect(Array.from(before)).toEqual([validSourceId1]);
+      expect([...activeGenerationSet]).toEqual([validSourceId1]);
+      expect([...before]).toEqual([validSourceId1]);
     });
   });
 });

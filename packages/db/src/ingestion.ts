@@ -1,6 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
-import { AppError, DELEGATED_ACCESS_DENIED_MESSAGE, MAX_SOURCE_BYTES, MAX_SOURCE_WORDS, UnifiedDocumentChunkSchema, type UnifiedDocumentChunk } from "@everlast/contracts";
+import {
+  AppError,
+  clampCodePoints,
+  DELEGATED_ACCESS_DENIED_MESSAGE,
+  MAX_SOURCE_BYTES,
+  MAX_SOURCE_WORDS,
+  sourceTitleCodePoints,
+  UnifiedDocumentChunkSchema,
+  type UnifiedDocumentChunk,
+} from "@everlast/contracts";
 import { withTransaction, type Queryable } from "./transaction.ts";
 import { lockSourceForTransition, type SourceRecord } from "./quota.ts";
 
@@ -62,7 +71,10 @@ export interface PublishInput {
 
 export type PublishOutcome =
   | { published: true; revision: number }
-  | { published: false; reason: "fenced" | "attempt_mismatch" | "not_processing" | "revision_changed" | "stale_token" };
+  | {
+      published: false;
+      reason: "fenced" | "attempt_mismatch" | "not_processing" | "revision_changed" | "stale_token";
+    };
 
 const CHUNK_BATCH = 200;
 
@@ -71,11 +83,20 @@ export function toVectorLiteral(vector: number[]): string {
 }
 
 /** Shared validation of a complete staged revision (inclusive limits, C-01 schema, provenance). */
-export function validateRevisionContent(input: { sourceId: string; revision: number; byteSize: number; wordCount: number; chunks: PublishChunk[] }): void {
+export function validateRevisionContent(input: {
+  sourceId: string;
+  revision: number;
+  byteSize: number;
+  wordCount: number;
+  chunks: PublishChunk[];
+}): void {
   if (input.byteSize > MAX_SOURCE_BYTES || input.wordCount > MAX_SOURCE_WORDS) {
-    throw new Error("Revision content exceeds the inclusive 200,000,000-byte / 500,000-word source limit");
+    throw new Error(
+      "Revision content exceeds the inclusive 200,000,000-byte / 500,000-word source limit",
+    );
   }
-  if (input.chunks.length === 0) throw new Error("A published revision requires at least one chunk");
+  if (input.chunks.length === 0)
+    throw new Error("A published revision requires at least one chunk");
   for (const { chunk } of input.chunks) {
     UnifiedDocumentChunkSchema.parse(chunk);
     if (chunk.source_id !== input.sourceId || chunk.revision !== input.revision) {
@@ -94,7 +115,18 @@ function anchorPageOf(entry: PublishChunk): number | null {
 export async function insertRevisionContent(
   tx: Queryable,
   notebookId: string,
-  input: Pick<PublishInput, "sourceId" | "revision" | "byteSize" | "wordCount" | "pageCount" | "embeddingModel" | "pages" | "chunks" | "manifest">
+  input: Pick<
+    PublishInput,
+    | "sourceId"
+    | "revision"
+    | "byteSize"
+    | "wordCount"
+    | "pageCount"
+    | "embeddingModel"
+    | "pages"
+    | "chunks"
+    | "manifest"
+  >,
 ): Promise<void> {
   const m = input.manifest ?? {};
   await tx.query(
@@ -117,13 +149,23 @@ export async function insertRevisionContent(
       m.player ? JSON.stringify(m.player) : null,
       m.canonicalUrl ?? null,
       m.upstreamVersion ?? null,
-    ]
+    ],
   );
   for (const page of input.pages) {
     await tx.query(
       `INSERT INTO source_pages (notebook_id, source_id, revision, page_number, physical_page, text, dom_selector, start_ms, end_ms)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [notebookId, input.sourceId, input.revision, page.page_number, page.physical_page ?? null, page.text, page.dom_selector ?? null, page.start_ms ?? null, page.end_ms ?? null]
+      [
+        notebookId,
+        input.sourceId,
+        input.revision,
+        page.page_number,
+        page.physical_page ?? null,
+        page.text,
+        page.dom_selector ?? null,
+        page.start_ms ?? null,
+        page.end_ms ?? null,
+      ],
     );
   }
   for (let i = 0; i < input.chunks.length; i += CHUNK_BATCH) {
@@ -144,35 +186,43 @@ export async function insertRevisionContent(
         batch.map((c) => JSON.stringify(c.chunk.locator)),
         batch.map((c) => toVectorLiteral(c.embedding)),
         batch.map(anchorPageOf),
-      ]
+      ],
     );
   }
 }
 
 /** Durable publication event for the exact committed revision (Source Guide trigger, FR-SI-02, D16). */
-export async function recordPublicationEvent(tx: Queryable, notebookId: string, sourceId: string, revision: number): Promise<void> {
+export async function recordPublicationEvent(
+  tx: Queryable,
+  notebookId: string,
+  sourceId: string,
+  revision: number,
+): Promise<void> {
   await tx.query(
     "INSERT INTO source_publication_events (id, notebook_id, source_id, revision, status) VALUES ($1, $2, $3, $4, 'Pending')",
-    [randomUUID(), notebookId, sourceId, revision]
+    [randomUUID(), notebookId, sourceId, revision],
   );
 }
 
 /** System-generated default titles are shortened (never user input) so they fit the 200-code-point limit. */
 export function fitDefaultTitle(title: string): string {
   const trimmed = title.replace(/\s+/g, " ").trim();
-  const cps = Array.from(trimmed);
-  return cps.length <= 200 ? trimmed : `${cps.slice(0, 199).join("")}…`;
+  return sourceTitleCodePoints(trimmed) <= 200 ? trimmed : `${clampCodePoints(trimmed, 199)}…`;
 }
 
 /** FR-SI-01/05, NFR-SEC-02: serialize publication with local delegation revocation. */
-export async function requirePublicationDelegation(tx: Queryable, source: SourceRecord): Promise<void> {
+export async function requirePublicationDelegation(
+  tx: Queryable,
+  source: SourceRecord,
+): Promise<void> {
   if (source.link_kind !== "drive") return;
   const grant = await tx.query(
     `SELECT c.id FROM delegated_connections c JOIN notebooks n ON n.owner_id = c.user_id
       WHERE n.id = $1 AND c.id = $2 AND c.revoked_at IS NULL FOR SHARE OF c`,
-    [source.notebook_id, source.delegated_connection_id]
+    [source.notebook_id, source.delegated_connection_id],
   );
-  if (grant.rowCount !== 1) throw new AppError("DelegatedAccessDenied", 403, DELEGATED_ACCESS_DENIED_MESSAGE);
+  if (grant.rowCount !== 1)
+    throw new AppError("DelegatedAccessDenied", 403, DELEGATED_ACCESS_DENIED_MESSAGE);
 }
 
 export async function publishReadySource(pool: Pool, input: PublishInput): Promise<PublishOutcome> {
@@ -181,17 +231,20 @@ export async function publishReadySource(pool: Pool, input: PublishInput): Promi
   return withTransaction(pool, async (tx) => {
     const source = await lockSourceForTransition(tx, input.sourceId);
     if (!source) return { published: false, reason: "fenced" };
-    if (source.attempt_id !== input.attemptId) return { published: false, reason: "attempt_mismatch" };
+    if (source.attempt_id !== input.attemptId)
+      return { published: false, reason: "attempt_mismatch" };
     if (source.status !== "Processing") return { published: false, reason: "not_processing" };
-    if ((source.active_revision ?? 0) + 1 !== input.revision) return { published: false, reason: "revision_changed" };
+    if ((source.active_revision ?? 0) + 1 !== input.revision)
+      return { published: false, reason: "revision_changed" };
     if (input.operation) {
       const op = await tx.query<{ state: string; fencing_token: string | number }>(
         "SELECT state, fencing_token FROM source_operations WHERE id = $1 AND source_id = $2 FOR UPDATE",
-        [input.operation.id, input.sourceId]
+        [input.operation.id, input.sourceId],
       );
       const row = op.rows[0];
       if (!row) return { published: false, reason: "fenced" };
-      if (row.state !== "Running" || Number(row.fencing_token) !== input.operation.fencingToken) return { published: false, reason: "stale_token" };
+      if (row.state !== "Running" || Number(row.fencing_token) !== input.operation.fencingToken)
+        return { published: false, reason: "stale_token" };
     }
 
     await requirePublicationDelegation(tx, source);
@@ -207,13 +260,21 @@ export async function publishReadySource(pool: Pool, input: PublishInput): Promi
               last_synced_at = CASE WHEN link_kind IS NULL THEN last_synced_at ELSE now() END,
               updated_at = now()
        WHERE id = $1`,
-      [input.sourceId, input.wordCount, input.byteSize, input.revision, m.contentHash ?? null, m.canonicalUrl ?? null, title]
+      [
+        input.sourceId,
+        input.wordCount,
+        input.byteSize,
+        input.revision,
+        m.contentHash ?? null,
+        m.canonicalUrl ?? null,
+        title,
+      ],
     );
     if (input.operation) {
       await tx.query(
         `UPDATE source_operations SET state = 'Succeeded', progress = NULL, committed_revision = $2, lease_expires_at = NULL,
                 finished_at = now(), updated_at = now() WHERE id = $1`,
-        [input.operation.id, input.revision]
+        [input.operation.id, input.revision],
       );
     }
     await recordPublicationEvent(tx, notebookId, input.sourceId, input.revision);

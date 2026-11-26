@@ -12,7 +12,10 @@ import {
   type SlideItem,
   type StudioEvidenceRef,
 } from "@everlast/contracts";
-import { buildThreeSourceStudioFixture, STUDIO_LEAK_PROBE } from "@everlast/testkit/studio-structure-fixtures";
+import {
+  buildThreeSourceStudioFixture,
+  STUDIO_LEAK_PROBE,
+} from "@everlast/testkit/studio-structure-fixtures";
 
 /**
  * [015-studio-visuals-presentations] T021 — Deterministic Gate v4.0 #3 quality, citation-grounding,
@@ -33,26 +36,36 @@ export interface StudioVisualsDeterministicReport {
   passed: boolean;
 }
 
-export async function runStudioVisualsDeterministicEval(): Promise<StudioVisualsDeterministicReport> {
-  const fixture = buildThreeSourceStudioFixture();
-  const sampleChunks = fixture.chunks.slice(0, 8);
+const SLIDE_LAYOUTS = [
+  "title",
+  "two_column",
+  "key_metric_callout",
+  "comparison_table",
+  "diagram_chart",
+] as const;
 
-  const citations: StudioEvidenceRef[] = sampleChunks.map((c, idx) => ({
-    badge_number: idx + 1,
-    chunk_id: c.chunk_id,
-    source_id: c.source_id,
-    revision: c.revision,
-    snippet: c.text.slice(0, 160),
-  }));
+type StudioVisualsFixture = ReturnType<typeof buildThreeSourceStudioFixture>;
 
-  const layouts = ["title", "two_column", "key_metric_callout", "comparison_table", "diagram_chart"] as const;
-  const slides: SlideItem[] = sampleChunks.map((chunk, idx) => {
-    const layout = layouts[idx % layouts.length]!;
-    const cite = citations[idx]!;
+function requireItem<T>(items: readonly T[], index: number, label: string): T {
+  const item = items[index];
+  if (item === undefined) {
+    throw new Error(`Missing ${label} at index ${index}`);
+  }
+  return item;
+}
+
+function buildEvalSlides(
+  sampleChunks: StudioVisualsFixture["chunks"],
+  citations: readonly StudioEvidenceRef[],
+): SlideItem[] {
+  return sampleChunks.map((chunk, idx) => {
+    const layout = requireItem(SLIDE_LAYOUTS, idx % SLIDE_LAYOUTS.length, "slide layout");
+    const cite = requireItem(citations, idx, "slide citation");
     const { bullets, speaker_notes } = enforceSlideBulletLimit(
       [chunk.text],
-      `${chunk.text} [ref ${cite.badge_number}]`
+      `${chunk.text} [ref ${cite.badge_number}]`,
     );
+    const firstBullet = bullets[0] ?? "";
     return {
       slide_number: idx + 1,
       layout,
@@ -61,7 +74,9 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
       visual_spec: {
         layout,
         subtitle: `Grounded section ${idx + 1}`,
-        ...(layout === "key_metric_callout" ? { callout: { value: `${99 + (idx % 2)}%`, label: "Regional SLA" } } : {}),
+        ...(layout === "key_metric_callout"
+          ? { callout: { value: `${99 + (idx % 2)}%`, label: "Regional SLA" } }
+          : {}),
         ...(layout === "two_column"
           ? {
               columns: {
@@ -76,7 +91,7 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
           ? {
               table: {
                 headers: ["Topic", "Detail", "Cite"],
-                rows: [[`Slide ${idx + 1}`, bullets[0]!, `[${cite.badge_number}]`]],
+                rows: [[`Slide ${idx + 1}`, firstBullet, `[${cite.badge_number}]`]],
               },
             }
           : {}),
@@ -89,47 +104,16 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
       citations: [cite],
     };
   });
+}
 
-  const deckPayload = StudioSlideDeckPayloadSchema.parse({
-    slides,
-    target_count: 8,
-    insufficient_evidence_note: null,
-    citations,
-  });
-
-  // 1. Grounded validation & zero-leakage check
-  const deckValidationErr = validateSlideDeckPayload(deckPayload, fixture.chunks, fixture.snapshot);
-  const deckSerialized = JSON.stringify(deckPayload);
-  let leakageCount = deckSerialized.includes(STUDIO_LEAK_PROBE) ? 1 : 0;
-
-  // 2. Bullet overflow routing check (> 15 words truncated cleanly with full clause in speaker_notes)
-  const verbose =
-    "One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen overflowTokenOmega.";
-  const capped = enforceSlideBulletLimit([verbose], "Base notes.");
-  const bulletOverflowRouted =
-    capped.bullets.length === 1 &&
-    capped.bullets[0]!.split(/\s+/).length <= 15 &&
-    capped.speaker_notes.includes("overflowTokenOmega");
-
-  // 3. Invalid / unselected citation rejection check (NFR-EVAL-02 / NFR-EVAL-04)
-  const forgedDeck = structuredClone(deckPayload) as Record<string, unknown> & {
-    citations: StudioEvidenceRef[];
-  };
-  const outChunk = fixture.unselectedChunks[0]!;
-  forgedDeck.citations.push({
-    badge_number: 99,
-    chunk_id: outChunk.chunk_id,
-    source_id: outChunk.source_id,
-    revision: 1,
-    snippet: outChunk.text,
-  });
-  const invalidCitationRejected =
-    validateSlideDeckPayload(forgedDeck, fixture.chunks, fixture.snapshot) !== null;
-
-  // 4. OOXML .pptx PresentationML entry verification
+function verifyOoxmlEntries(
+  deckPayload: ReturnType<typeof StudioSlideDeckPayloadSchema.parse>,
+): boolean {
   const entries = buildSlideDeckOoxmlEntries("Architecture Eval Deck", deckPayload);
   const byName = new Map(entries.map((e) => [e.name, e.content]));
-  let ooxmlVerified = byName.has("[Content_Types].xml") && byName.has("ppt/presentation.xml");
+  if (!byName.has("[Content_Types].xml") || !byName.has("ppt/presentation.xml")) {
+    return false;
+  }
   for (let k = 1; k <= 8; k++) {
     const slideXml = byName.get(`ppt/slides/slide${k}.xml`) ?? "";
     const notesXml = byName.get(`ppt/notesSlides/notesSlide${k}.xml`) ?? "";
@@ -138,37 +122,60 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
       !slideXml.includes("<p:sp>") ||
       !slideXml.includes(`Architecture Slide ${k}`) ||
       !notesXml.includes(`[ref ${k}]`) ||
-      !slideRels.includes(`notesSlide${k}.xml`)
+      !slideRels.includes(`notesSlide${k}.xml`) ||
+      /vba|activeX|TargetMode="External"/i.test(slideXml + slideRels)
     ) {
-      ooxmlVerified = false;
-    }
-    if (/vba|activeX|TargetMode="External"/i.test(slideXml + slideRels)) {
-      ooxmlVerified = false;
+      return false;
     }
   }
+  return true;
+}
 
-  // 5. 16:9 multi-page .pdf generation verified via pdfjs-dist
+function extractPdfText(items: readonly object[]): string {
+  return items
+    .map((item) => ("str" in item && typeof item.str === "string" ? item.str : ""))
+    .join(" ");
+}
+
+async function verifySlideDeckPdf(
+  deckPayload: ReturnType<typeof StudioSlideDeckPayloadSchema.parse>,
+): Promise<boolean> {
   const pdfBytes = buildSlideDeckPdfBytes("Architecture Eval Deck", deckPayload);
-  let pdfVerified = false;
-  const task = getDocument({ data: pdfBytes, useSystemFonts: false, disableFontFace: true, verbosity: 0 });
+  const task = getDocument({
+    data: pdfBytes,
+    useSystemFonts: false,
+    disableFontFace: true,
+    verbosity: 0,
+  });
   const doc = await task.promise;
   try {
     const p1 = await doc.getPage(1);
     const vp1 = p1.getViewport({ scale: 1 });
-    const p1Text = (await p1.getTextContent()).items.map((x: any) => x.str).join(" ");
+    const p1Text = extractPdfText((await p1.getTextContent()).items);
     const p8 = await doc.getPage(8);
-    const p8Text = (await p8.getTextContent()).items.map((x: any) => x.str).join(" ");
-    pdfVerified =
+    const p8Text = extractPdfText((await p8.getTextContent()).items);
+    return (
       doc.numPages === 8 &&
       Math.round(vp1.width) === 960 &&
       Math.round(vp1.height) === 540 &&
       p1Text.includes("Architecture Slide 1") &&
-      p8Text.includes("Architecture Slide 8");
+      p8Text.includes("Architecture Slide 8")
+    );
   } finally {
     await task.destroy();
   }
+}
 
-  // 6. Infographic D9 SVG dynamic height expansion + XSS rejection
+function verifyInfographicEval(
+  sampleChunks: StudioVisualsFixture["chunks"],
+  citations: readonly StudioEvidenceRef[],
+  fixture: StudioVisualsFixture,
+): {
+  infographicErr: string | null;
+  leaked: boolean;
+  dynamicWrapVerified: boolean;
+  xssRejected: boolean;
+} {
   const shortRender = renderInfographicSvg({
     style: "process_flow",
     title: "Incident Response",
@@ -195,18 +202,22 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
     blocks: longBlocks,
     citations: [{ badge_number: 1, label: "Runbook Source" }],
   });
+  const firstChunk = requireItem(sampleChunks, 0, "sample chunk");
+  const firstCitation = requireItem(citations, 0, "sample citation");
   const infographicPayload = StudioInfographicPayloadSchema.parse({
     style: "process_flow",
     title: "Incident Response Workflow",
     structured_blocks: longBlocks,
     rendered_svg: longRender.svg,
-    source_chunk_ids: [sampleChunks[0]!.chunk_id],
-    citations: [citations[0]!],
+    source_chunk_ids: [firstChunk.chunk_id],
+    citations: [firstCitation],
   });
-  const infographicErr = validateInfographicPayload(infographicPayload, fixture.chunks, fixture.snapshot);
-  if (JSON.stringify(infographicPayload).includes(STUDIO_LEAK_PROBE)) {
-    leakageCount++;
-  }
+  const infographicErr = validateInfographicPayload(
+    infographicPayload,
+    fixture.chunks,
+    fixture.snapshot,
+  );
+  const leaked = JSON.stringify(infographicPayload).includes(STUDIO_LEAK_PROBE);
   const dynamicWrapVerified =
     infographicErr === null &&
     validateSafeDeterministicSvg(longRender.svg).valid &&
@@ -217,9 +228,70 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
     ...infographicPayload,
     rendered_svg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><script>alert(1)</script></svg>`,
   };
-  const xssRejected = validateInfographicPayload(xssAttempt, fixture.chunks, fixture.snapshot) !== null;
+  const xssRejected =
+    validateInfographicPayload(xssAttempt, fixture.chunks, fixture.snapshot) !== null;
+  return { infographicErr, leaked, dynamicWrapVerified, xssRejected };
+}
 
-  const citationPrecision = deckValidationErr === null && infographicErr === null ? 1 : 0;
+export async function runStudioVisualsDeterministicEval(): Promise<StudioVisualsDeterministicReport> {
+  const fixture = buildThreeSourceStudioFixture();
+  const sampleChunks = fixture.chunks.slice(0, 8);
+  const citations: StudioEvidenceRef[] = sampleChunks.map((c, idx) => ({
+    badge_number: idx + 1,
+    chunk_id: c.chunk_id,
+    source_id: c.source_id,
+    revision: c.revision,
+    snippet: c.text.slice(0, 160),
+  }));
+
+  const deckPayload = StudioSlideDeckPayloadSchema.parse({
+    slides: buildEvalSlides(sampleChunks, citations),
+    target_count: 8,
+    insufficient_evidence_note: null,
+    citations,
+  });
+
+  // 1. Grounded validation & zero-leakage check
+  const deckValidationErr = validateSlideDeckPayload(deckPayload, fixture.chunks, fixture.snapshot);
+  let leakageCount = JSON.stringify(deckPayload).includes(STUDIO_LEAK_PROBE) ? 1 : 0;
+
+  // 2. Bullet overflow routing check (> 15 words truncated cleanly with full clause in speaker_notes)
+  const verbose =
+    "One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen overflowTokenOmega.";
+  const capped = enforceSlideBulletLimit([verbose], "Base notes.");
+  const cappedBullet = capped.bullets[0] ?? "";
+  const bulletOverflowRouted =
+    capped.bullets.length === 1 &&
+    cappedBullet.split(/\s+/).length <= 15 &&
+    capped.speaker_notes.includes("overflowTokenOmega");
+
+  // 3. Invalid / unselected citation rejection check (NFR-EVAL-02 / NFR-EVAL-04)
+  const forgedDeck = structuredClone(deckPayload) as Record<string, unknown> & {
+    citations: StudioEvidenceRef[];
+  };
+  const outChunk = requireItem(fixture.unselectedChunks, 0, "unselected chunk");
+  forgedDeck.citations.push({
+    badge_number: 99,
+    chunk_id: outChunk.chunk_id,
+    source_id: outChunk.source_id,
+    revision: 1,
+    snippet: outChunk.text,
+  });
+  const invalidCitationRejected =
+    validateSlideDeckPayload(forgedDeck, fixture.chunks, fixture.snapshot) !== null;
+
+  // 4 & 5. OOXML .pptx and 16:9 multi-page .pdf verification
+  const ooxmlVerified = verifyOoxmlEntries(deckPayload);
+  const pdfVerified = await verifySlideDeckPdf(deckPayload);
+
+  // 6. Infographic D9 SVG dynamic height expansion + XSS rejection
+  const infographic = verifyInfographicEval(sampleChunks, citations, fixture);
+  if (infographic.leaked) {
+    leakageCount++;
+  }
+
+  const citationPrecision =
+    deckValidationErr === null && infographic.infographicErr === null ? 1 : 0;
   const passed =
     citationPrecision === 1 &&
     leakageCount === 0 &&
@@ -227,9 +299,9 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
     bulletOverflowRouted &&
     ooxmlVerified &&
     pdfVerified &&
-    dynamicWrapVerified &&
+    infographic.dynamicWrapVerified &&
     invalidCitationRejected &&
-    xssRejected;
+    infographic.xssRejected;
 
   return {
     citation_precision: citationPrecision,
@@ -238,9 +310,9 @@ export async function runStudioVisualsDeterministicEval(): Promise<StudioVisuals
     bullet_overflow_routed_to_notes: bulletOverflowRouted,
     ooxml_pptx_verified: ooxmlVerified,
     pdf_16x9_verified: pdfVerified,
-    infographic_dynamic_wrap_verified: dynamicWrapVerified,
+    infographic_dynamic_wrap_verified: infographic.dynamicWrapVerified,
     invalid_citation_rejected: invalidCitationRejected,
-    xss_svg_rejected: xssRejected,
+    xss_svg_rejected: infographic.xssRejected,
     passed,
   };
 }

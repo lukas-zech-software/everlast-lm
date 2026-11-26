@@ -13,7 +13,11 @@ export type EmbeddingTask = "RETRIEVAL_DOCUMENT" | "RETRIEVAL_QUERY";
 export interface Embedder {
   /** Pinned model identifier stored with every revision so re-embedding is a planned job. */
   readonly model: string;
-  embed(texts: string[], task: EmbeddingTask, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]>;
+  embed: (
+    texts: string[],
+    task: EmbeddingTask,
+    options?: { signal?: AbortSignal | undefined; maxAttempts?: number | undefined },
+  ) => Promise<number[][]>;
 }
 
 export interface VertexConfig {
@@ -46,19 +50,34 @@ export class VertexEmbedder implements Embedder {
     this.batchSize = options.batchSize ?? 1;
   }
 
-  async embed(texts: string[], task: EmbeddingTask, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]> {
-    if(options?.maxAttempts!==undefined&&(!Number.isSafeInteger(options.maxAttempts)||options.maxAttempts<1||options.maxAttempts>5))throw new Error("Invalid embedding attempt budget");
+  async embed(
+    texts: string[],
+    task: EmbeddingTask,
+    options?: { signal?: AbortSignal | undefined; maxAttempts?: number | undefined },
+  ): Promise<number[][]> {
+    if (
+      options?.maxAttempts !== undefined &&
+      (!Number.isSafeInteger(options.maxAttempts) ||
+        options.maxAttempts < 1 ||
+        options.maxAttempts > 5)
+    )
+      throw new Error("Invalid embedding attempt budget");
     options?.signal?.throwIfAborted();
     const out: number[][] = [];
     const concurrency = 8;
     const batches: string[][] = [];
-    for (let i = 0; i < texts.length; i += this.batchSize) batches.push(texts.slice(i, i + this.batchSize));
-    const results: number[][][] = new Array(batches.length);
+    for (let i = 0; i < texts.length; i += this.batchSize)
+      batches.push(texts.slice(i, i + this.batchSize));
+    const results = new Array<number[][]>(batches.length);
     let next = 0;
     const workers = Array.from({ length: Math.min(concurrency, batches.length) }, async () => {
       while (next < batches.length) {
         const index = next++;
-        results[index] = await this.embedBatch(batches[index]!, task, 0, options);
+        const batch = batches[index];
+        if (!batch) {
+          break;
+        }
+        results[index] = await this.embedBatch(batch, task, 0, options);
       }
     });
     await Promise.all(workers);
@@ -66,22 +85,44 @@ export class VertexEmbedder implements Embedder {
     return out;
   }
 
-  private async embedBatch(texts: string[], task: EmbeddingTask, attempt = 0, options?:{signal?:AbortSignal|undefined;maxAttempts?:number|undefined}): Promise<number[][]> {
+  private async embedBatch(
+    texts: string[],
+    task: EmbeddingTask,
+    attempt = 0,
+    options?: { signal?: AbortSignal | undefined; maxAttempts?: number | undefined },
+  ): Promise<number[][]> {
     options?.signal?.throwIfAborted();
     try {
       const response = await this.client.models.embedContent({
         model: this.model,
         contents: texts,
-        config: { taskType: task, outputDimensionality: EMBEDDING_DIMENSIONS, autoTruncate: false, ...(options?{httpOptions:{retryOptions:{attempts:1}},...(options.signal?{abortSignal:options.signal}:{})}:{}) },
+        config: {
+          taskType: task,
+          outputDimensionality: EMBEDDING_DIMENSIONS,
+          autoTruncate: false,
+          ...(options
+            ? {
+                httpOptions: { retryOptions: { attempts: 1 } },
+                ...(options.signal ? { abortSignal: options.signal } : {}),
+              }
+            : {}),
+        },
       });
       const vectors = (response.embeddings ?? []).map((e) => e.values ?? []);
-      if (vectors.length !== texts.length || vectors.some((v) => v.length !== EMBEDDING_DIMENSIONS)) {
+      if (
+        vectors.length !== texts.length ||
+        vectors.some((v) => v.length !== EMBEDDING_DIMENSIONS)
+      ) {
         throw new Error("Embedding response shape mismatch");
       }
       return vectors.map(normalize);
     } catch (err) {
       const status = (err as { status?: number }).status;
-      if (!options?.signal?.aborted && attempt < (options?.maxAttempts??5)-1 && (status === 429 || (status !== undefined && status >= 500))) {
+      if (
+        !options?.signal?.aborted &&
+        attempt < (options?.maxAttempts ?? 5) - 1 &&
+        (status === 429 || (status !== undefined && status >= 500))
+      ) {
         await new Promise((resolve) => setTimeout(resolve, 500 * 2 ** attempt));
         return this.embedBatch(texts, task, attempt + 1, options);
       }
@@ -108,16 +149,19 @@ export class HashingTestEmbedder implements Embedder {
     }
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
-    return texts.map((text) => {
-      const vector = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
-      const tokens = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
-      for (const token of tokens) {
-        const digest = createHash("sha256").update(token).digest();
-        const index = digest.readUInt32BE(0) % EMBEDDING_DIMENSIONS;
-        vector[index]! += digest[4]! & 1 ? 1 : -1;
-      }
-      return normalize(vector);
-    });
+  embed(texts: string[]): Promise<number[][]> {
+    return Promise.resolve(
+      texts.map((text) => {
+        const vector = new Array<number>(EMBEDDING_DIMENSIONS).fill(0);
+        const tokens = text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+        for (const token of tokens) {
+          const digest = createHash("sha256").update(token).digest();
+          const index = digest.readUInt32BE(0) % EMBEDDING_DIMENSIONS;
+          const signByte = digest[4] ?? 0;
+          vector[index] = (vector[index] ?? 0) + (signByte & 1 ? 1 : -1);
+        }
+        return normalize(vector);
+      }),
+    );
   }
 }

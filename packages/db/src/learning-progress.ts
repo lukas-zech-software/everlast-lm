@@ -21,49 +21,46 @@ export interface RecordLearningProgressInput {
 }
 
 export interface LearningProgressRepository {
-  get(userId: string, artifactId: string): Promise<LearningProgressDto | null>;
-  recordAttempt(input: RecordLearningProgressInput): Promise<LearningProgressDto>;
-  reset(userId: string, artifactId: string): Promise<LearningProgressDto>;
+  get: (userId: string, artifactId: string) => Promise<LearningProgressDto | null>;
+  recordAttempt: (input: RecordLearningProgressInput) => Promise<LearningProgressDto>;
+  reset: (userId: string, artifactId: string) => Promise<LearningProgressDto>;
+}
+
+function collectItemIds(items: unknown, target: Set<string>): void {
+  if (!Array.isArray(items)) return;
+  for (const item of items) {
+    if (item && typeof item === "object" && typeof (item as { id?: unknown }).id === "string") {
+      target.add((item as { id: string }).id);
+    }
+  }
+}
+
+function collectModuleLearningItemIds(modules: unknown, target: Set<string>): void {
+  if (!Array.isArray(modules)) return;
+  for (const mod of modules) {
+    if (!mod || typeof mod !== "object") continue;
+    const m = mod as { flashcards?: unknown; checkpoint_quiz?: unknown };
+    collectItemIds(m.flashcards, target);
+    collectItemIds(m.checkpoint_quiz, target);
+  }
 }
 
 /**
  * Extracts all valid UUID item IDs (flashcards + quiz questions) belonging to a Completed Studio artifact.
  */
-export function extractArtifactLearningItemIds(pluginType: StudioPluginType, payload: unknown): Set<string> {
+export function extractArtifactLearningItemIds(
+  pluginType: StudioPluginType,
+  payload: unknown,
+): Set<string> {
   const ids = new Set<string>();
   if (!payload || typeof payload !== "object") return ids;
   const record = payload as Record<string, unknown>;
-  if (pluginType === "flashcards" && Array.isArray(record.cards)) {
-    for (const card of record.cards) {
-      if (card && typeof card === "object" && typeof (card as { id?: unknown }).id === "string") {
-        ids.add((card as { id: string }).id);
-      }
-    }
-  } else if (pluginType === "quiz" && Array.isArray(record.questions)) {
-    for (const q of record.questions) {
-      if (q && typeof q === "object" && typeof (q as { id?: unknown }).id === "string") {
-        ids.add((q as { id: string }).id);
-      }
-    }
-  } else if (pluginType === "learning_overview" && Array.isArray(record.modules)) {
-    for (const mod of record.modules) {
-      if (!mod || typeof mod !== "object") continue;
-      const m = mod as { flashcards?: unknown; checkpoint_quiz?: unknown };
-      if (Array.isArray(m.flashcards)) {
-        for (const card of m.flashcards) {
-          if (card && typeof card === "object" && typeof (card as { id?: unknown }).id === "string") {
-            ids.add((card as { id: string }).id);
-          }
-        }
-      }
-      if (Array.isArray(m.checkpoint_quiz)) {
-        for (const q of m.checkpoint_quiz) {
-          if (q && typeof q === "object" && typeof (q as { id?: unknown }).id === "string") {
-            ids.add((q as { id: string }).id);
-          }
-        }
-      }
-    }
+  if (pluginType === "flashcards") {
+    collectItemIds(record.cards, ids);
+  } else if (pluginType === "quiz") {
+    collectItemIds(record.questions, ids);
+  } else if (pluginType === "learning_overview") {
+    collectModuleLearningItemIds(record.modules, ids);
   }
   return ids;
 }
@@ -75,16 +72,18 @@ export class InMemoryLearningProgressRepository implements LearningProgressRepos
     return `${userId}|${artifactId}`;
   }
 
-  async get(userId: string, artifactId: string): Promise<LearningProgressDto | null> {
+  get(userId: string, artifactId: string): Promise<LearningProgressDto | null> {
     const found = this.store.get(this.key(userId, artifactId));
-    return found ? structuredClone(found) : null;
+    return Promise.resolve(found ? structuredClone(found) : null);
   }
 
-  async recordAttempt(input: RecordLearningProgressInput): Promise<LearningProgressDto> {
+  recordAttempt(input: RecordLearningProgressInput): Promise<LearningProgressDto> {
     const k = this.key(input.userId, input.artifactId);
     const now = new Date().toISOString();
     const existing = this.store.get(k);
-    const states: Record<string, LearningItemState> = existing ? { ...existing.item_states_json } : {};
+    const states: Record<string, LearningItemState> = existing
+      ? { ...existing.item_states_json }
+      : {};
     const prev = states[input.itemId];
     states[input.itemId] = {
       status: input.outcome,
@@ -99,10 +98,10 @@ export class InMemoryLearningProgressRepository implements LearningProgressRepos
       updated_at: now,
     };
     this.store.set(k, next);
-    return structuredClone(next);
+    return Promise.resolve(structuredClone(next));
   }
 
-  async reset(userId: string, artifactId: string): Promise<LearningProgressDto> {
+  reset(userId: string, artifactId: string): Promise<LearningProgressDto> {
     const k = this.key(userId, artifactId);
     const now = new Date().toISOString();
     const existing = this.store.get(k);
@@ -116,7 +115,7 @@ export class InMemoryLearningProgressRepository implements LearningProgressRepos
     if (existing) {
       this.store.set(k, next);
     }
-    return structuredClone(next);
+    return Promise.resolve(structuredClone(next));
   }
 }
 
@@ -124,7 +123,7 @@ interface LearningProgressRow {
   user_id: string;
   artifact_id: string;
   notebook_id: string;
-  item_states_json: Record<string, LearningItemState>;
+  item_states_json: Record<string, LearningItemState> | null;
   updated_at: Date;
 }
 
@@ -150,7 +149,7 @@ export class PostgresLearningProgressRepository implements LearningProgressRepos
       `SELECT user_id, artifact_id, notebook_id, item_states_json, updated_at
          FROM learning_progress
         WHERE user_id = $1 AND artifact_id = $2`,
-      [userId, artifactId]
+      [userId, artifactId],
     );
     return rows[0] ? toDto(rows[0]) : null;
   }
@@ -164,7 +163,7 @@ export class PostgresLearningProgressRepository implements LearningProgressRepos
              FROM learning_progress
             WHERE user_id = $1 AND artifact_id = $2
             FOR UPDATE`,
-          [input.userId, input.artifactId]
+          [input.userId, input.artifactId],
         );
         const now = new Date().toISOString();
         const prevStates = existing.rows[0]?.item_states_json ?? {};
@@ -184,11 +183,13 @@ export class PostgresLearningProgressRepository implements LearningProgressRepos
              SET item_states_json = EXCLUDED.item_states_json,
                  updated_at = EXCLUDED.updated_at
            RETURNING user_id, artifact_id, notebook_id, item_states_json, updated_at`,
-          [input.userId, input.artifactId, input.notebookId, JSON.stringify(nextStates), now]
+          [input.userId, input.artifactId, input.notebookId, JSON.stringify(nextStates), now],
         );
-        return toDto(rows[0]!);
+        const inserted = rows[0];
+        if (!inserted) throw new Error("Failed to upsert learning progress");
+        return toDto(inserted);
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 
@@ -202,12 +203,12 @@ export class PostgresLearningProgressRepository implements LearningProgressRepos
                   updated_at = now()
             WHERE user_id = $1 AND artifact_id = $2
             RETURNING user_id, artifact_id, notebook_id, item_states_json, updated_at`,
-          [userId, artifactId]
+          [userId, artifactId],
         );
         if (rows[0]) return toDto(rows[0]);
         const art = await client.query<{ notebook_id: string }>(
           `SELECT notebook_id FROM studio_artifacts WHERE id = $1`,
-          [artifactId]
+          [artifactId],
         );
         const notebookId = art.rows[0]?.notebook_id ?? "00000000-0000-0000-0000-000000000000";
         return {
@@ -218,7 +219,7 @@ export class PostgresLearningProgressRepository implements LearningProgressRepos
           updated_at: new Date().toISOString(),
         };
       },
-      { retries: 0 }
+      { retries: 0 },
     );
   }
 }

@@ -11,7 +11,7 @@ import { ReportGenerationError, type ReportSuggestionModel } from "./model.ts";
 
 /** FR-SI-02 consumer port: Source Guide states of a snapshot, for the effective output language when given. */
 export interface SourceGuideProvider {
-  getGuides(notebookId: string, snapshot: SourceRevisionPair[], outputLanguage?: string): Promise<SourceGuideState[]>;
+  getGuides: (notebookId: string, snapshot: SourceRevisionPair[], outputLanguage?: string) => Promise<SourceGuideState[]>;
 }
 
 export interface SuggestionRequest {
@@ -27,7 +27,7 @@ const SUGGESTIONS_FAILED = "Suggested formats are unavailable right now.";
 
 /** The Package 2.2 structured-generation client, or anything exposing its report-suggestion method. */
 export interface ReportSuggestionClient {
-  generateReportSuggestions?(input: ReportSuggestionInput): Promise<unknown>;
+  generateReportSuggestions?: (input: ReportSuggestionInput) => Promise<unknown>;
 }
 
 /**
@@ -35,11 +35,14 @@ export interface ReportSuggestionClient {
  * client): only guide summaries and key topics are sent; 3–4 cards are validated. Undefined when the client has
  * no suggestion method (not configured).
  */
-export function structuredSuggestionModel(client: ReportSuggestionClient | undefined): ReportSuggestionModel | undefined {
-  if (!client?.generateReportSuggestions) return undefined;
+export function structuredSuggestionModel(
+  client: ReportSuggestionClient | undefined,
+): ReportSuggestionModel | undefined {
+  const generate = client?.generateReportSuggestions?.bind(client);
+  if (!generate) return undefined;
   return {
     async suggest(req): Promise<ReportSuggestion[]> {
-      const out = await client.generateReportSuggestions!({
+      const out = await generate({
         guides: req.guides.map((g) => ({ source_id: g.source_id, summary: g.summary ?? "", key_topics: g.key_topics ?? [] })),
         output_language: req.output_language ?? "en-US",
       });

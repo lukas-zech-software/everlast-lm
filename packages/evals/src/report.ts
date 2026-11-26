@@ -47,7 +47,95 @@ export interface GateReport {
   release_metrics?: { response_length: ResponseLengthMetric };
   judge_attempts?: readonly JudgeAttempt[];
   failures: string[];
-  cases: { id: string; category: string; kind: string; response: string; citations: number; leakage: number; judged?: unknown; turns?: unknown; error?: string }[];
+  cases: Array<{
+    id: string;
+    category: string;
+    kind: string;
+    response: string;
+    citations: number;
+    leakage: number;
+    judged?: unknown;
+    turns?: unknown;
+    error?: string;
+  }>;
+}
+
+function evaluateGate2Criteria(run: EvalRunResult, failures: string[]): CriterionStatus {
+  const metricFailures = run.metrics.filter((m) => m.status === "fail");
+  for (const m of metricFailures) {
+    failures.push(
+      `${m.name}=${m.value} failed (cases: ${m.failing_cases.slice(0, 20).join(", ") || "n/a"})`,
+    );
+  }
+  if (run.errored.length) {
+    failures.push(`errored cases: ${run.errored.join(", ")}`);
+  }
+  if (metricFailures.length || run.errored.length) {
+    return "fail";
+  }
+  return run.metrics.some((m) => m.status === "unavailable") ? "unavailable" : "pass";
+}
+
+function evaluateUploadGate(
+  uploadPassed: boolean,
+  ui1: UiGateEvidence["gate1_upload_schema"],
+  failures: string[],
+): CriterionStatus {
+  if (!uploadPassed) {
+    failures.push("corpus ingestion produced invalid or missing C-01 chunks");
+  }
+  if (ui1?.status === "fail") {
+    failures.push(`UI upload/schema check failed: ${ui1.detail}`);
+  }
+  if (!uploadPassed || ui1?.status === "fail") {
+    return "fail";
+  }
+  return ui1?.status === "pass" ? "pass" : "pending";
+}
+
+function resolveGateState(options: {
+  mode: "release" | "deterministic";
+  diagnostic?: boolean | undefined;
+  preflight: PreflightReport | null;
+  evalStatus: CriterionStatus;
+  gate1: CriterionStatus;
+  gate3: CriterionStatus;
+  failures: string[];
+}): GateState {
+  if (options.failures.length > 0) {
+    return "GateFailed";
+  }
+  const preflightOk = options.mode === "deterministic" || (options.preflight?.passed ?? false);
+  if (
+    options.mode === "release" &&
+    !options.diagnostic &&
+    options.evalStatus === "pass" &&
+    options.gate1 === "pass" &&
+    options.gate3 === "pass" &&
+    preflightOk
+  ) {
+    return "GatePassed";
+  }
+  return "GatePending";
+}
+
+function serializeGateCases(cases: EvalRunResult["cases"]): GateReport["cases"] {
+  return cases.map((c) => ({
+    id: c.id,
+    category: c.category,
+    kind: c.kind,
+    response: c.response.slice(0, 500),
+    citations: c.citations.length,
+    leakage: c.leakage.retrieved + c.leakage.prompt + c.leakage.response,
+    ...(c.judged ? { judged: c.judged } : {}),
+    turns: c.turns.map((t) => ({
+      kind: t.result.kind,
+      content: t.result.kind === "compute" ? "" : t.result.content.slice(0, 600),
+      history_turns: t.modelInput?.history.length ?? 0,
+      retrieved: t.retrieved.length,
+    })),
+    ...(c.error ? { error: c.error } : {}),
+  }));
 }
 
 export function buildGateReport(input: {
@@ -63,31 +151,31 @@ export function buildGateReport(input: {
 }): GateReport {
   const failures: string[] = [];
   const { run } = input;
-
-  const metricFailures = run.metrics.filter((m) => m.status === "fail");
-  for (const m of metricFailures) failures.push(`${m.name}=${m.value} failed (cases: ${m.failing_cases.slice(0, 20).join(", ") || "n/a"})`);
-  if (run.errored.length) failures.push(`errored cases: ${run.errored.join(", ")}`);
-  const unavailable = run.metrics.filter((m) => m.status === "unavailable");
-  const evalStatus: CriterionStatus =
-    metricFailures.length || run.errored.length ? "fail" : unavailable.length ? "unavailable" : "pass";
+  const evalStatus = evaluateGate2Criteria(run, failures);
 
   if (input.preflight && !input.preflight.passed) {
-    for (const c of input.preflight.checks.filter((x) => x.status !== "pass")) failures.push(`preflight ${c.id} ${c.status}: ${c.detail}`);
+    for (const c of input.preflight.checks.filter((x) => x.status !== "pass")) {
+      failures.push(`preflight ${c.id} ${c.status}: ${c.detail}`);
+    }
   }
 
-  const uploadFromRun = run.upload.passed;
   const ui1 = input.ui.gate1_upload_schema;
-  const gate1: CriterionStatus = !uploadFromRun || ui1?.status === "fail" ? "fail" : ui1?.status === "pass" ? "pass" : "pending";
-  if (!uploadFromRun) failures.push("corpus ingestion produced invalid or missing C-01 chunks");
-  if (ui1?.status === "fail") failures.push(`UI upload/schema check failed: ${ui1.detail}`);
+  const gate1 = evaluateUploadGate(run.upload.passed, ui1, failures);
   const ui3 = input.ui.gate3_citation_navigation;
   const gate3: CriterionStatus = ui3 ? ui3.status : "pending";
-  if (ui3?.status === "fail") failures.push(`citation navigation failed: ${ui3.detail}`);
+  if (ui3?.status === "fail") {
+    failures.push(`citation navigation failed: ${ui3.detail}`);
+  }
 
-  const preflightOk = input.mode === "deterministic" || (input.preflight?.passed ?? false);
-  let state: GateState = "GatePending";
-  if (failures.length > 0) state = "GateFailed";
-  else if (input.mode === "release" && !input.diagnostic && evalStatus === "pass" && gate1 === "pass" && gate3 === "pass" && preflightOk) state = "GatePassed";
+  const state = resolveGateState({
+    mode: input.mode,
+    diagnostic: input.diagnostic,
+    preflight: input.preflight,
+    evalStatus,
+    gate1,
+    gate3,
+    failures,
+  });
 
   return {
     schema: "everlast.gate-v1-report/1",
@@ -99,25 +187,21 @@ export function buildGateReport(input: {
     dataset: input.dataset,
     models: input.models,
     criteria: {
-      gate1_upload_schema: { status: gate1, detail: `${run.upload.documents.length} corpus documents ingested; UI evidence: ${ui1 ? ui1.detail : "missing"}` },
+      gate1_upload_schema: {
+        status: gate1,
+        detail: `${run.upload.documents.length} corpus documents ingested; UI evidence: ${ui1 ? ui1.detail : "missing"}`,
+      },
       gate2_evaluation: { status: evalStatus, metrics: run.metrics, errored_cases: run.errored },
-      gate3_citation_navigation: { status: gate3, detail: ui3?.detail ?? "missing UI evidence (run pnpm test:e2e)" },
+      gate3_citation_navigation: {
+        status: gate3,
+        detail: ui3?.detail ?? "missing UI evidence (run pnpm test:e2e)",
+      },
     },
     security_preflight: input.preflight,
     ...(input.responseLength ? { release_metrics: { response_length: input.responseLength } } : {}),
     ...(run.judge_attempts ? { judge_attempts: run.judge_attempts } : {}),
     failures,
-    cases: run.cases.map((c) => ({
-      id: c.id,
-      category: c.category,
-      kind: c.kind,
-      response: c.response.slice(0, 500),
-      citations: c.citations.length,
-      leakage: c.leakage.retrieved + c.leakage.prompt + c.leakage.response,
-      ...(c.judged ? { judged: c.judged } : {}),
-      turns: c.turns.map((t) => ({ kind: t.result.kind, content: t.result.kind === "compute" ? "" : t.result.content.slice(0, 600), history_turns: t.modelInput?.history.length ?? 0, retrieved: t.retrieved.length })),
-      ...(c.error ? { error: c.error } : {}),
-    })),
+    cases: serializeGateCases(run.cases),
   };
 }
 
@@ -130,7 +214,9 @@ export function renderMarkdown(report: GateReport): string {
     `- **Timestamp:** ${report.timestamp}`,
     `- **Dataset:** ${report.dataset.version} (${report.dataset.hash.slice(0, 12)}), counts ${JSON.stringify(report.dataset.counts)}`,
     `- **Judged sample:** ${report.dataset.sample ? `${report.dataset.sample.size} cases (${report.dataset.sample.method}): ${report.dataset.sample.case_ids.join(", ")}` : "no qualifying release sample"}`,
-    `- **Models:** ${Object.entries(report.models).map(([k, v]) => `${k}=${v}`).join(", ")}`,
+    `- **Models:** ${Object.entries(report.models)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ")}`,
     "",
     "| Criterion | Status | Detail |",
     "| :-- | :-- | :-- |",
@@ -140,13 +226,22 @@ export function renderMarkdown(report: GateReport): string {
     "",
     "| Metric | Value | Status | Numerator/Denominator | Failing cases |",
     "| :-- | :-- | :-- | :-- | :-- |",
-    ...report.criteria.gate2_evaluation.metrics.map(
-      (m) => `| ${m.name} | ${m.value ?? "—"} | ${m.status} | ${m.numerator ?? "—"}/${m.denominator ?? "—"} | ${m.failing_cases.slice(0, 12).join(", ") || m.detail || ""} |`
-    ),
+    ...report.criteria.gate2_evaluation.metrics.map((m) => {
+      const failing = m.failing_cases.slice(0, 12).join(", ");
+      const notes = failing.length > 0 ? failing : (m.detail ?? "");
+      return `| ${m.name} | ${m.value ?? "—"} | ${m.status} | ${m.numerator ?? "—"}/${m.denominator ?? "—"} | ${notes} |`;
+    }),
   ];
   if (report.security_preflight) {
-    lines.push("", "## NFR-SEC-01 preflight", "", "| Check | Status | Detail |", "| :-- | :-- | :-- |");
-    for (const c of report.security_preflight.checks) lines.push(`| ${c.id} ${c.description} | ${c.status} | ${c.detail} |`);
+    lines.push(
+      "",
+      "## NFR-SEC-01 preflight",
+      "",
+      "| Check | Status | Detail |",
+      "| :-- | :-- | :-- |",
+    );
+    for (const c of report.security_preflight.checks)
+      lines.push(`| ${c.id} ${c.description} | ${c.status} | ${c.detail} |`);
   }
   const length = report.release_metrics?.response_length;
   if (length) {
@@ -158,11 +253,12 @@ export function renderMarkdown(report: GateReport): string {
       `- **Status:** ${length.status}${length.detail ? ` (${length.detail})` : ""}`,
       `- **Shorter / Default:** ${pct(length.shorter_ratio)} (≤ 75 %) · **Longer / Default:** ${pct(length.longer_ratio)} (≥ 125 %)`,
       `- **Sample case IDs:** ${length.case_ids.join(", ") || "—"}`,
-      `- **Excluded (Default refusal):** ${length.excluded_case_ids?.join(", ") || "—"}`,
-      `- **Generation parameters:** ${JSON.stringify(length.generation_parameters)}`
+      `- **Excluded (Default refusal):** ${length.excluded_case_ids.join(", ") || "—"}`,
+      `- **Generation parameters:** ${JSON.stringify(length.generation_parameters)}`,
     );
   }
-  if (report.failures.length) lines.push("", "## Failures", "", ...report.failures.map((f) => `- ${f}`));
+  if (report.failures.length)
+    lines.push("", "## Failures", "", ...report.failures.map((f) => `- ${f}`));
   return `${lines.join("\n")}\n`;
 }
 
@@ -170,8 +266,8 @@ import type { BenchmarkObservation } from "@everlast/contracts";
 import { aggregateScaleLatency, aggregateScaleConcurrency } from "./latency.ts";
 
 export interface ScaleBenchmarkReport {
-  evidence_kind:"aggregation-diagnostic"|"imported-diagnostic"|"ordinary-api-collected";
-  release_eligible:false;
+  evidence_kind: "aggregation-diagnostic" | "imported-diagnostic" | "ordinary-api-collected";
+  release_eligible: false;
   schema: "everlast.scale-v3-report/1";
   benchmark_id: string;
   manifest_hash: string;
@@ -187,26 +283,33 @@ export interface ScaleBenchmarkReport {
 }
 
 export function buildScaleBenchmarkReport(input: {
-  evidence_kind?:ScaleBenchmarkReport["evidence_kind"];
+  evidence_kind?: ScaleBenchmarkReport["evidence_kind"];
   benchmark_id: string;
   manifest_hash: string;
   coreObservations: readonly BenchmarkObservation[];
   concurrencyObservations?: readonly BenchmarkObservation[] | undefined;
-  restartEvidence?: {
-    ready_guides_survived: boolean;
-    orphaned_pending_regenerated: boolean;
-    interrupted_reports_failed_explicit_retry: boolean;
-  } | undefined;
+  restartEvidence?:
+    | {
+        ready_guides_survived: boolean;
+        orphaned_pending_regenerated: boolean;
+        interrupted_reports_failed_explicit_retry: boolean;
+      }
+    | undefined;
 }): ScaleBenchmarkReport {
-  if (input.coreObservations.some(o => o.manifest_hash !== input.manifest_hash)) throw new Error("Observation/report manifest mismatch");
+  if (input.coreObservations.some((o) => o.manifest_hash !== input.manifest_hash))
+    throw new Error("Observation/report manifest mismatch");
   const core = aggregateScaleLatency(input.coreObservations);
-  const concurrency = input.concurrencyObservations ? aggregateScaleConcurrency(input.concurrencyObservations) : null;
+  const concurrency = input.concurrencyObservations
+    ? aggregateScaleConcurrency(input.concurrencyObservations)
+    : null;
   let result: "PASS" | "FAIL" | "UNAVAILABLE" = "PASS";
   if (core.result === "FAIL" || concurrency?.result === "FAIL") result = "FAIL";
-  else if (core.result === "UNAVAILABLE" || concurrency?.result === "UNAVAILABLE") result = "UNAVAILABLE";
+  else if (core.result === "UNAVAILABLE" || concurrency?.result === "UNAVAILABLE")
+    result = "UNAVAILABLE";
   return {
     schema: "everlast.scale-v3-report/1",
-    evidence_kind:input.evidence_kind??"aggregation-diagnostic",release_eligible:false,
+    evidence_kind: input.evidence_kind ?? "aggregation-diagnostic",
+    release_eligible: false,
     benchmark_id: input.benchmark_id,
     manifest_hash: input.manifest_hash,
     timestamp: new Date().toISOString(),
@@ -231,7 +334,7 @@ export async function writeGateReport(report: GateReport, outDir: string): Promi
   await mkdir(dirname(audit), { recursive: true });
   await appendFile(
     audit,
-    `${JSON.stringify({ at: report.timestamp, commit: report.commit, mode: report.mode, state: report.state, evidence_path: evidencePath, metrics: Object.fromEntries(report.criteria.gate2_evaluation.metrics.map((m) => [m.name, m.value])), failures: report.failures.length })}\n`
+    `${JSON.stringify({ at: report.timestamp, commit: report.commit, mode: report.mode, state: report.state, evidence_path: evidencePath, metrics: Object.fromEntries(report.criteria.gate2_evaluation.metrics.map((m) => [m.name, m.value])), failures: report.failures.length })}\n`,
   );
   await writeFile(`${outDir}/${base}.json`, json);
   await writeFile(`${outDir}/${base}.md`, renderMarkdown(report));

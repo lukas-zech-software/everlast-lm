@@ -15,6 +15,8 @@ version for humans.
    ([Constitution, Principle II](.specify/memory/constitution.md)).
 4. **Record changes before acting on them.** New scope is an SRS amendment, removed or deferred scope is an
    architecture decision (`Dn`), and a deliberate difference from the reference product is a `DEV-xx` entry plus a `Dn`.
+5. **Clean-code conventions.** Follow the Tier-2 TypeScript conventions in
+   [`docs/code-conventions.md`](docs/code-conventions.md) and pass `pnpm lint` before opening a pull request.
 
 ## Workflow
 

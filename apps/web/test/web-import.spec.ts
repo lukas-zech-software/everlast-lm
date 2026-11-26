@@ -7,7 +7,9 @@ import { createNotebook, signIn, uniqueEmail } from "./helpers.ts";
  * FR-008). The page fetch goes through the real SSRF guard with a labelled resolver/transport double.
  */
 
-test("WEB-E01: Website import shows progress, then a Ready row with the globe icon and the article in the Inspector", async ({ page }) => {
+test("WEB-E01: Website import shows progress, then a Ready row with the globe icon and the article in the Inspector", async ({
+  page,
+}) => {
   const email = uniqueEmail("web-e01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -26,7 +28,9 @@ test("WEB-E01: Website import shows progress, then a Ready row with the globe ic
   await expect(page.getByTestId("inspector-scroll")).not.toContainText(WEB_GOLDEN.advert);
 });
 
-test("WEB-E02: a 403 page becomes a dismissible error row with the exact message", async ({ page }) => {
+test("WEB-E02: a 403 page becomes a dismissible error row with the exact message", async ({
+  page,
+}) => {
   const email = uniqueEmail("web-e02");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
@@ -35,6 +39,8 @@ test("WEB-E02: a 403 page becomes a dismissible error row with the exact message
   await page.getByTestId("add-website").click();
   await page.getByTestId("url-input").fill("https://news.example.test/forbidden");
   await page.getByTestId("url-import").click();
-  await expect(page.getByTestId("source-error")).toHaveText("Unable to extract content from URL", { timeout: 30_000 });
+  await expect(page.getByTestId("source-error")).toHaveText("Unable to extract content from URL", {
+    timeout: 30_000,
+  });
   await expect(page.getByTestId("source-quota")).toHaveText("0 / 50 sources");
 });

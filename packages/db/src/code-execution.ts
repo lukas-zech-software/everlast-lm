@@ -1,4 +1,4 @@
-import { verifyScopeSnapshot } from './scope-guard.ts';
+import { verifyScopeSnapshot } from "./scope-guard.ts";
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import {
@@ -25,7 +25,9 @@ import type { ChatThreadRecord } from "./chat-history.ts";
 export const EXECUTION_LEASE_MS = 60_000;
 
 export class ExecutionInProgressError extends AppError {
-  constructor(message = "A calculation is already running in this notebook. Wait for it to finish, then send again.") {
+  constructor(
+    message = "A calculation is already running in this notebook. Wait for it to finish, then send again.",
+  ) {
     super("ExecutionInProgress", 409, message);
     this.name = "ExecutionInProgressError";
   }
@@ -58,7 +60,10 @@ function isUniqueViolation(err: unknown): err is { code: string; constraint?: st
  * Admission (plan "durable per-user/notebook active-request fence"). The thread must belong to its stated user,
  * checked in SQL, so a forged thread record cannot admit work for another principal.
  */
-export async function admitCodeExecution(pool: Pool, input: AdmitCodeExecutionInput): Promise<AdmittedExecution> {
+export async function admitCodeExecution(
+  pool: Pool,
+  input: AdmitCodeExecutionInput,
+): Promise<AdmittedExecution> {
   const executionId = randomUUID();
   const leaseToken = randomUUID();
   const emptyTrace: CodeExecutionTrace = {
@@ -88,13 +93,18 @@ export async function admitCodeExecution(pool: Pool, input: AdmitCodeExecutionIn
         input.thread.user_id,
         input.thread.notebook_id,
         input.thread.generation_epoch,
-      ]
+      ],
     );
-    if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError("The chat changed before the calculation started");
+    if ((result.rowCount ?? 0) === 0)
+      throw new ExecutionFencedError("The chat changed before the calculation started");
   } catch (err) {
     if (isUniqueViolation(err) && err.constraint === "code_executions_thread_request_key") {
       // The permanent (thread, request) key: this request already ran and ended without an answer (PR #159 review).
-      throw new AppError("RequestAlreadyHandled", 409, "This request already ended without an answer. Send the question again.");
+      throw new AppError(
+        "RequestAlreadyHandled",
+        409,
+        "This request already ended without an answer. Send the question again.",
+      );
     }
     if (isUniqueViolation(err)) throw new ExecutionInProgressError();
     throw err;
@@ -111,7 +121,12 @@ export interface ExecutionProgress {
 }
 
 /** Fenced progress write; renews the lease. A lost lease (cleared, reconciled, terminal) → GenerationCancelled. */
-export async function recordCodeExecutionProgress(db: Queryable, executionId: string, leaseToken: string, progress: ExecutionProgress): Promise<void> {
+export async function recordCodeExecutionProgress(
+  db: Queryable,
+  executionId: string,
+  leaseToken: string,
+  progress: ExecutionProgress,
+): Promise<void> {
   const result = await db.query(
     `UPDATE code_executions
         SET state = $3,
@@ -129,17 +144,22 @@ export async function recordCodeExecutionProgress(db: Queryable, executionId: st
       progress.trace ? JSON.stringify(progress.trace) : null,
       progress.runtimeMetadata ? JSON.stringify(progress.runtimeMetadata) : null,
       progress.leaseMs ?? EXECUTION_LEASE_MS,
-    ]
+    ],
   );
   if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError();
 }
 
 /** Fenced lease renewal without a state change (heartbeat while the model or the provider is slow). */
-export async function renewCodeExecutionLease(db: Queryable, executionId: string, leaseToken: string, leaseMs: number = EXECUTION_LEASE_MS): Promise<boolean> {
+export async function renewCodeExecutionLease(
+  db: Queryable,
+  executionId: string,
+  leaseToken: string,
+  leaseMs: number = EXECUTION_LEASE_MS,
+): Promise<boolean> {
   const result = await db.query(
     `UPDATE code_executions SET lease_expires_at = now() + ($3::int * interval '1 millisecond')
       WHERE id = $1 AND lease_token = $2 AND state IN ('CodeGenerating', 'SandboxRunning')`,
-    [executionId, leaseToken, leaseMs]
+    [executionId, leaseToken, leaseMs],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -152,23 +172,42 @@ export interface ExecutionTerminal {
 }
 
 /** Fenced terminal write (used for unpublished terminal outcomes; publication uses `publishTurn`). */
-export async function finishCodeExecution(db: Queryable, executionId: string, leaseToken: string, terminal: ExecutionTerminal): Promise<void> {
+export async function finishCodeExecution(
+  db: Queryable,
+  executionId: string,
+  leaseToken: string,
+  terminal: ExecutionTerminal,
+): Promise<void> {
   const result = await db.query(
     `UPDATE code_executions
         SET state = $3, failure_code = $4, trace = $5, message_id = COALESCE($6, message_id), finished_at = now(), updated_at = now()
       WHERE id = $1 AND lease_token = $2 AND state IN ('CodeGenerating', 'SandboxRunning')`,
-    [executionId, leaseToken, terminal.state, terminal.failureCode, JSON.stringify(terminal.trace), terminal.messageId ?? null]
+    [
+      executionId,
+      leaseToken,
+      terminal.state,
+      terminal.failureCode,
+      JSON.stringify(terminal.trace),
+      terminal.messageId ?? null,
+    ],
   );
   if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError();
   // Unpublished terminal outcome: its private candidates can never be published and are purged.
-  await db.query(`UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`, [executionId]);
+  await db.query(
+    `UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`,
+    [executionId],
+  );
 }
 
 /** Locks the execution for publication inside the publishing transaction; lost lease → GenerationCancelled. */
-export async function lockExecutionForPublication(tx: Queryable, executionId: string, leaseToken: string): Promise<void> {
+export async function lockExecutionForPublication(
+  tx: Queryable,
+  executionId: string,
+  leaseToken: string,
+): Promise<void> {
   const result = await tx.query(
     "SELECT id FROM code_executions WHERE id = $1 AND lease_token = $2 AND state IN ('CodeGenerating', 'SandboxRunning') FOR UPDATE",
-    [executionId, leaseToken]
+    [executionId, leaseToken],
   );
   if ((result.rowCount ?? 0) === 0) throw new ExecutionFencedError();
 }
@@ -176,56 +215,79 @@ export async function lockExecutionForPublication(tx: Queryable, executionId: st
 /** Inside `publishTurn`: terminal state, message link and chart publication commit with the answer. */
 export async function completeExecutionPublication(
   tx: Queryable,
-  input: { executionId: string; messageId: string; trace: CodeExecutionTrace; publishArtifactIds: string[] }
+  input: {
+    executionId: string;
+    messageId: string;
+    trace: CodeExecutionTrace;
+    publishArtifactIds: string[];
+  },
 ): Promise<void> {
   await tx.query(
     `UPDATE code_executions SET state = $2, failure_code = $3, trace = $4, message_id = $5, finished_at = now(), updated_at = now() WHERE id = $1`,
-    [input.executionId, input.trace.state, input.trace.failure_code, JSON.stringify(input.trace), input.messageId]
+    [
+      input.executionId,
+      input.trace.state,
+      input.trace.failure_code,
+      JSON.stringify(input.trace),
+      input.messageId,
+    ],
   );
   if (input.publishArtifactIds.length > 0) {
     const published = await tx.query(
       `UPDATE chart_artifacts SET state = 'published', message_id = $2, updated_at = now()
         WHERE execution_id = $1 AND id = ANY($3::uuid[]) AND state = 'candidate'`,
-      [input.executionId, input.messageId, input.publishArtifactIds]
+      [input.executionId, input.messageId, input.publishArtifactIds],
     );
-    if ((published.rowCount ?? 0) !== input.publishArtifactIds.length) throw new ExecutionFencedError("Chart artifacts changed before publication");
+    if ((published.rowCount ?? 0) !== input.publishArtifactIds.length)
+      throw new ExecutionFencedError("Chart artifacts changed before publication");
   }
   // Candidates that were not selected for publication (e.g. a failed attempt's) stay private and are purged.
   await tx.query(
     `UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`,
-    [input.executionId]
+    [input.executionId],
   );
 }
 
 // ---- Sandbox cleanup ledger (FR-006, FR-011) ---------------------------------------------------------------
 
-export async function registerSandbox(db: Queryable, input: { attemptId: string; executionId: string | null; notebookId: string }): Promise<void> {
+export async function registerSandbox(
+  db: Queryable,
+  input: { attemptId: string; executionId: string | null; notebookId: string },
+): Promise<void> {
   await db.query(
     `INSERT INTO code_execution_sandboxes (attempt_id, execution_id, notebook_id, state) VALUES ($1, $2, $3, 'Creating')`,
-    [input.attemptId, input.executionId, input.notebookId]
+    [input.attemptId, input.executionId, input.notebookId],
   );
 }
 
-export async function markSandboxActive(db: Queryable, attemptId: string, providerHandle: string): Promise<void> {
+export async function markSandboxActive(
+  db: Queryable,
+  attemptId: string,
+  providerHandle: string,
+): Promise<void> {
   await db.query(
     `UPDATE code_execution_sandboxes SET provider_handle = $2, state = CASE WHEN state = 'Creating' THEN 'Active' ELSE state END, updated_at = now()
       WHERE attempt_id = $1 AND state <> 'Destroyed'`,
-    [attemptId, providerHandle]
+    [attemptId, providerHandle],
   );
 }
 
-export async function markSandboxDestroyPending(db: Queryable, attemptId: string, errorCode: string): Promise<void> {
+export async function markSandboxDestroyPending(
+  db: Queryable,
+  attemptId: string,
+  errorCode: string,
+): Promise<void> {
   await db.query(
     `UPDATE code_execution_sandboxes SET state = 'DestroyPending', destroy_attempts = destroy_attempts + 1, last_error_code = $2, updated_at = now()
       WHERE attempt_id = $1 AND state <> 'Destroyed'`,
-    [attemptId, errorCode.slice(0, 64)]
+    [attemptId, errorCode.slice(0, 64)],
   );
 }
 
 export async function markSandboxDestroyed(db: Queryable, attemptId: string): Promise<void> {
   await db.query(
     `UPDATE code_execution_sandboxes SET state = 'Destroyed', destroyed_at = now(), updated_at = now() WHERE attempt_id = $1`,
-    [attemptId]
+    [attemptId],
   );
 }
 
@@ -242,7 +304,10 @@ export interface OpenSandbox {
  * Sandboxes still to delete: any not confirmed Destroyed whose execution is no longer live (terminal, cleared or
  * lease-expired), or older than `minAgeMs`. Live attempts are owned by their controller.
  */
-export async function listSandboxesToDestroy(db: Queryable, options: { minAgeMs?: number; limit?: number } = {}): Promise<OpenSandbox[]> {
+export async function listSandboxesToDestroy(
+  db: Queryable,
+  options: { minAgeMs?: number; limit?: number } = {},
+): Promise<OpenSandbox[]> {
   const result = await db.query<OpenSandbox>(
     `SELECT s.attempt_id, s.execution_id, s.notebook_id, s.provider_handle, s.state, s.destroy_attempts
        FROM code_execution_sandboxes s
@@ -252,7 +317,7 @@ export async function listSandboxesToDestroy(db: Queryable, options: { minAgeMs?
              OR s.updated_at < now() - ($1::int * interval '1 millisecond'))
       ORDER BY s.updated_at
       LIMIT $2`,
-    [options.minAgeMs ?? 5 * 60_000, options.limit ?? 100]
+    [options.minAgeMs ?? 5 * 60_000, options.limit ?? 100],
   );
   return result.rows;
 }
@@ -269,15 +334,25 @@ export async function reconcileExpiredExecutions(pool: Pool): Promise<string[]> 
     const rows = await tx.query<{ id: string; trace: CodeExecutionTrace }>(
       `SELECT id, trace FROM code_executions
         WHERE state IN ('CodeGenerating', 'SandboxRunning') AND lease_expires_at < now()
-        ORDER BY lease_expires_at LIMIT 100 FOR UPDATE SKIP LOCKED`
+        ORDER BY lease_expires_at LIMIT 100 FOR UPDATE SKIP LOCKED`,
     );
     const now = new Date().toISOString();
     for (const row of rows.rows) {
-      const attempts = (row.trace.attempts ?? []).map((a) =>
-        a.terminal_reason === null ? { ...a, exit_code: null, ended_at: now, terminal_reason: "ExecutionOutcomeUnknown" as const, artifacts: [] } : a
+      const attempts = row.trace.attempts.map((a) =>
+        a.terminal_reason === null
+          ? {
+              ...a,
+              exit_code: null,
+              ended_at: now,
+              terminal_reason: "ExecutionOutcomeUnknown" as const,
+              artifacts: [],
+            }
+          : a,
       );
       const unknown = attempts.some((a) => a.terminal_reason === "ExecutionOutcomeUnknown");
-      const failure: CodeExecutionFailureCode = unknown ? "ExecutionOutcomeUnknown" : "GenerationCancelled";
+      const failure: CodeExecutionFailureCode = unknown
+        ? "ExecutionOutcomeUnknown"
+        : "GenerationCancelled";
       const trace: CodeExecutionTrace = {
         ...row.trace,
         state: "Failed",
@@ -289,9 +364,12 @@ export async function reconcileExpiredExecutions(pool: Pool): Promise<string[]> 
       };
       await tx.query(
         `UPDATE code_executions SET state = 'Failed', failure_code = $2, trace = $3, lease_token = $4, finished_at = now(), updated_at = now() WHERE id = $1`,
-        [row.id, failure, JSON.stringify(trace), randomUUID()]
+        [row.id, failure, JSON.stringify(trace), randomUUID()],
       );
-      await tx.query(`UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`, [row.id]);
+      await tx.query(
+        `UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE execution_id = $1 AND state = 'candidate'`,
+        [row.id],
+      );
     }
     return rows.rows.map((r) => r.id);
   });
@@ -303,7 +381,10 @@ export interface ChartArtifactInsert extends ChartArtifactRecord {
   user_id: string;
 }
 
-export async function insertChartCandidate(db: Queryable, record: ChartArtifactInsert): Promise<void> {
+export async function insertChartCandidate(
+  db: Queryable,
+  record: ChartArtifactInsert,
+): Promise<void> {
   await db.query(
     `INSERT INTO chart_artifacts (id, execution_id, attempt_id, notebook_id, user_id, message_id, object_key, object_generation, mime_type, digest, byte_size, source_snapshot, citation_chunk_ids, state)
      VALUES ($1, $2, $3, $4, $5, NULL, $6, $7, $8, $9, $10, $11, $12, 'candidate')`,
@@ -320,7 +401,7 @@ export async function insertChartCandidate(db: Queryable, record: ChartArtifactI
       record.byte_size,
       JSON.stringify(record.source_snapshot),
       JSON.stringify(record.citation_chunk_ids),
-    ]
+    ],
   );
 }
 
@@ -342,7 +423,7 @@ export interface PublishedChart {
  */
 export async function findPublishedChart(
   db: Queryable,
-  input: { ownerId: string; notebookId: string; messageId: string; artifactId: string }
+  input: { ownerId: string; notebookId: string; messageId: string; artifactId: string },
 ): Promise<PublishedChart | null> {
   const result = await db.query<PublishedChart>(
     `SELECT a.id AS artifact_id, a.message_id, a.notebook_id, a.object_key, a.object_generation, a.mime_type, a.digest, a.byte_size, a.source_snapshot
@@ -350,16 +431,19 @@ export async function findPublishedChart(
        JOIN chat_messages m ON m.id = a.message_id
       WHERE a.id = $1 AND a.message_id = $2 AND a.notebook_id = $3 AND a.state = 'published'
         AND m.notebook_id = $3 AND m.user_id = $4 AND a.user_id = $4 AND a.object_deleted_at IS NULL`,
-    [input.artifactId, input.messageId, input.notebookId, input.ownerId]
+    [input.artifactId, input.messageId, input.notebookId, input.ownerId],
   );
   return result.rows[0] ?? null;
 }
 
 /** Clear chat (FR-GC-06): synchronously revokes chart delivery for the thread before messages are removed. */
-export async function invalidateThreadCodeExecutions(tx: Queryable, input: { threadId: string; notebookId: string; userId: string }): Promise<void> {
+export async function invalidateThreadCodeExecutions(
+  tx: Queryable,
+  input: { threadId: string; notebookId: string; userId: string },
+): Promise<void> {
   await tx.query(
     `UPDATE chart_artifacts SET state = 'invalidated', updated_at = now() WHERE notebook_id = $1 AND user_id = $2 AND state <> 'invalidated'`,
-    [input.notebookId, input.userId]
+    [input.notebookId, input.userId],
   );
   // Executions (with code/stdout) are removed; any in-flight controller loses its lease and is fenced.
   await tx.query("DELETE FROM code_executions WHERE thread_id = $1", [input.threadId]);
@@ -376,7 +460,7 @@ export async function invalidateChartsOfUnavailableSources(db: Queryable): Promi
       WHERE a.state <> 'invalidated' AND EXISTS (
         SELECT 1 FROM jsonb_array_elements(a.source_snapshot) p
         LEFT JOIN sources s ON s.id = (p ->> 'source_id')::uuid AND s.notebook_id = a.notebook_id
-        WHERE s.id IS NULL OR s.status <> 'Ready' OR s.active_revision IS NULL OR s.active_revision < (p ->> 'revision')::int)`
+        WHERE s.id IS NULL OR s.status <> 'Ready' OR s.active_revision IS NULL OR s.active_revision < (p ->> 'revision')::int)`,
   );
   return result.rowCount ?? 0;
 }
@@ -388,7 +472,10 @@ export interface ArtifactToPurge {
 }
 
 /** Invalidated artifacts and stale unpublished candidates whose object generation still exists. */
-export async function listArtifactsToPurge(db: Queryable, options: { candidateAgeMs?: number; limit?: number } = {}): Promise<ArtifactToPurge[]> {
+export async function listArtifactsToPurge(
+  db: Queryable,
+  options: { candidateAgeMs?: number; limit?: number } = {},
+): Promise<ArtifactToPurge[]> {
   const result = await db.query<ArtifactToPurge>(
     `SELECT a.id AS artifact_id, a.object_key, a.object_generation FROM chart_artifacts a
        LEFT JOIN code_executions e ON e.id = a.execution_id
@@ -397,7 +484,7 @@ export async function listArtifactsToPurge(db: Queryable, options: { candidateAg
              OR (a.state = 'candidate' AND (e.id IS NULL OR e.state NOT IN ('CodeGenerating', 'SandboxRunning'))
                  AND a.created_at < now() - ($1::int * interval '1 millisecond')))
       ORDER BY a.updated_at LIMIT $2`,
-    [options.candidateAgeMs ?? 0, options.limit ?? 100]
+    [options.candidateAgeMs ?? 0, options.limit ?? 100],
   );
   return result.rows;
 }
@@ -405,7 +492,7 @@ export async function listArtifactsToPurge(db: Queryable, options: { candidateAg
 export async function markArtifactObjectDeleted(db: Queryable, artifactId: string): Promise<void> {
   await db.query(
     "UPDATE chart_artifacts SET state = 'invalidated', object_deleted_at = now(), updated_at = now() WHERE id = $1",
-    [artifactId]
+    [artifactId],
   );
 }
 
@@ -419,10 +506,13 @@ export interface CodeExecutionRow {
   updated_at: string;
 }
 
-export async function getCodeExecution(db: Queryable, executionId: string): Promise<CodeExecutionRow | null> {
+export async function getCodeExecution(
+  db: Queryable,
+  executionId: string,
+): Promise<CodeExecutionRow | null> {
   const result = await db.query<Omit<CodeExecutionRow, "updated_at"> & { updated_at: Date }>(
     "SELECT id, state, failure_code, attempt_ordinal, trace, message_id, updated_at FROM code_executions WHERE id = $1",
-    [executionId]
+    [executionId],
   );
   const row = result.rows[0];
   return row ? { ...row, updated_at: toIso(row.updated_at) } : null;
@@ -433,22 +523,42 @@ export async function getCodeExecution(db: Queryable, executionId: string): Prom
  * be a Ready source of the notebook at that revision or a newer re-synced one (same rule as the history projection:
  * deleted/revoked hides, merely deselected or updated stays viewable). Rechecked on every request, including ranges.
  */
-export async function chartProvenanceAvailable(db: Queryable, notebookId: string, snapshot: SourceRevisionPair[]): Promise<boolean> {
+export async function chartProvenanceAvailable(
+  db: Queryable,
+  notebookId: string,
+  snapshot: SourceRevisionPair[],
+): Promise<boolean> {
   if (snapshot.length === 0) return false;
   const result = await db.query<{ ok: boolean }>(
     `SELECT bool_and(s.id IS NOT NULL AND s.status = 'Ready' AND s.active_revision IS NOT NULL AND s.active_revision >= p.revision) AS ok
        FROM unnest($2::uuid[], $3::int[]) AS p(source_id, revision)
        LEFT JOIN sources s ON s.id = p.source_id AND s.notebook_id = $1`,
-    [notebookId, snapshot.map((p) => p.source_id), snapshot.map((p) => p.revision)]
+    [notebookId, snapshot.map((p) => p.source_id), snapshot.map((p) => p.revision)],
   );
   return result.rows[0]?.ok === true;
 }
 
 /** FR-GC-08 / NFR-PERF-01: readonly canonical runtime observation, never a new sandbox. */
-export async function hasOperationalExecutionEvidence(db:Pool,input:{owner_id:string;notebook_id:string;sources:SourceRevisionPair[];instance_boot_id:string;candidate_commit:string;runtime_config_sha256:string;observed_after:number}):Promise<boolean>{
- if(!Number.isFinite(input.observed_after)||input.observed_after>Date.now())return false;
- try{await verifyScopeSnapshot(db,input);}catch{return false;}
- const result=await db.query<{id:string;trace:unknown;profile:unknown}>(`
+export async function hasOperationalExecutionEvidence(
+  db: Pool,
+  input: {
+    owner_id: string;
+    notebook_id: string;
+    sources: SourceRevisionPair[];
+    instance_boot_id: string;
+    candidate_commit: string;
+    runtime_config_sha256: string;
+    observed_after: number;
+  },
+): Promise<boolean> {
+  if (!Number.isFinite(input.observed_after) || input.observed_after > Date.now()) return false;
+  try {
+    await verifyScopeSnapshot(db, input);
+  } catch {
+    return false;
+  }
+  const result = await db.query<{ id: string; trace: unknown; profile: unknown }>(
+    `
  SELECT e.id,e.trace,e.runtime_metadata->'profile_observation' AS profile FROM code_executions e
  WHERE e.user_id=$1 AND e.notebook_id=$2 AND e.source_snapshot=$3::jsonb
  AND e.state='Succeeded' AND e.failure_code IS NULL AND e.message_id IS NOT NULL
@@ -461,11 +571,35 @@ export async function hasOperationalExecutionEvidence(db:Pool,input:{owner_id:st
  AND (SELECT count(*) FROM code_execution_sandboxes s WHERE s.execution_id=e.id)=jsonb_array_length(e.trace->'attempts')
  AND NOT EXISTS(SELECT 1 FROM code_execution_sandboxes s WHERE s.execution_id=e.id AND s.state<>'Destroyed')
  AND NOT EXISTS(SELECT 1 FROM jsonb_array_elements(e.trace->'attempts') a WHERE NOT EXISTS(SELECT 1 FROM code_execution_sandboxes s WHERE s.execution_id=e.id AND s.attempt_id::text=a->>'attempt_id' AND s.state='Destroyed'))
- ORDER BY e.finished_at DESC LIMIT 1`,[input.owner_id,input.notebook_id,JSON.stringify(input.sources),input.observed_after,input.instance_boot_id,input.candidate_commit,input.runtime_config_sha256]);
- const row=result.rows[0];if(!row)return false;
- const trace=CodeExecutionTraceSchema.safeParse(row.trace),profile=row.profile as {observed_at?:unknown};
- if(!trace.success||trace.data.execution_id!==row.id||trace.data.state!=='Succeeded'||!trace.data.attempts.every(a=>a.ended_at!==null&&a.terminal_reason!==null))return false;
- const observed=typeof profile?.observed_at==='string'?Date.parse(profile.observed_at):NaN;
- if(!Number.isFinite(observed)||observed<input.observed_after||observed>Date.now())return false;
- try{await verifyScopeSnapshot(db,input);return true;}catch{return false;}
+ ORDER BY e.finished_at DESC LIMIT 1`,
+    [
+      input.owner_id,
+      input.notebook_id,
+      JSON.stringify(input.sources),
+      input.observed_after,
+      input.instance_boot_id,
+      input.candidate_commit,
+      input.runtime_config_sha256,
+    ],
+  );
+  const row = result.rows[0];
+  if (!row) return false;
+  const trace = CodeExecutionTraceSchema.safeParse(row.trace);
+  const profile = row.profile as { observed_at?: unknown } | null | undefined;
+  if (
+    !trace.success ||
+    trace.data.execution_id !== row.id ||
+    trace.data.state !== "Succeeded" ||
+    !trace.data.attempts.every((a) => a.ended_at !== null && a.terminal_reason !== null)
+  )
+    return false;
+  const observed = typeof profile?.observed_at === "string" ? Date.parse(profile.observed_at) : NaN;
+  if (!Number.isFinite(observed) || observed < input.observed_after || observed > Date.now())
+    return false;
+  try {
+    await verifyScopeSnapshot(db, input);
+    return true;
+  } catch {
+    return false;
+  }
 }

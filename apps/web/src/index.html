@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -13,7 +13,9 @@
           const saved = JSON.parse(localStorage.getItem("everlast.v2.workspace") || "null");
           if (["light", "dark", "system"].includes(saved?.theme)) theme = saved.theme;
         } catch {}
-        const dark = theme === "dark" || (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
+        const dark =
+          theme === "dark" ||
+          (theme === "system" && window.matchMedia?.("(prefers-color-scheme: dark)").matches);
         document.documentElement.dataset.theme = dark ? "dark" : "light";
         document.documentElement.dataset.themeMode = theme;
         document.documentElement.style.colorScheme = dark ? "dark" : "light";

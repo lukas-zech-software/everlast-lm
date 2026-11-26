@@ -66,14 +66,24 @@ function nextOrder(notebookId: string): number {
   return next;
 }
 
-function scoped(notebookId: string, ownerId: string, noteId: string): Note | undefined {
-  const n = noteStore.get(noteId);
-  return n && n.notebook_id === notebookId && n.owner_id === ownerId ? n : undefined;
+function requireFirstRow<T>(rows: T[], context: string): T {
+  const row = rows[0];
+  if (!row) throw new Error(`Expected row for ${context}`);
+  return row;
 }
 
-function insert(notebookId: string, ownerId: string, fields: Partial<Note> & Pick<Note, "title" | "content_md">): Note {
+function scoped(notebookId: string, ownerId: string, noteId: string): Note | undefined {
+  const n = noteStore.get(noteId);
+  return n?.notebook_id === notebookId && n.owner_id === ownerId ? n : undefined;
+}
+
+function insert(
+  notebookId: string,
+  ownerId: string,
+  fields: Partial<Note> & Pick<Note, "title" | "content_md">,
+): Note {
   const now = new Date().toISOString();
-  fields = { ...fields, content_md: sanitizeNoteMarkdown(fields.content_md) };
+  const sanitizedFields = { ...fields, content_md: sanitizeNoteMarkdown(fields.content_md) };
   const note: Note = {
     id: randomUUID(),
     notebook_id: notebookId,
@@ -86,7 +96,7 @@ function insert(notebookId: string, ownerId: string, fields: Partial<Note> & Pic
     display_order: nextOrder(notebookId),
     created_at: now,
     updated_at: now,
-    ...fields,
+    ...sanitizedFields,
   };
   noteStore.set(note.id, note);
   return structuredClone(note);
@@ -112,9 +122,18 @@ interface NoteRow {
 const NOTE_COLUMNS =
   "id, notebook_id, owner_id, title, content_md, origin_type, source_message_id, citations_json, origin_note_id, revision, display_order, created_at, updated_at";
 
-const toNote = (r: NoteRow): Note => ({ ...r, created_at: r.created_at.toISOString(), updated_at: r.updated_at.toISOString() });
+const toNote = (r: NoteRow): Note => ({
+  ...r,
+  created_at: r.created_at.toISOString(),
+  updated_at: r.updated_at.toISOString(),
+});
 
-async function pgInsert(db: Pool | PoolClient, notebookId: string, ownerId: string, fields: Partial<Note> & Pick<Note, "title" | "content_md">): Promise<Note> {
+async function pgInsert(
+  db: Pool | PoolClient,
+  notebookId: string,
+  ownerId: string,
+  fields: Partial<Note> & Pick<Note, "title" | "content_md">,
+): Promise<Note> {
   // Display order: per-notebook counter, never reused after a delete (same as the memory store).
   const { rows } = await db.query<NoteRow>(
     `WITH next AS (
@@ -135,31 +154,48 @@ async function pgInsert(db: Pool | PoolClient, notebookId: string, ownerId: stri
       fields.source_message_id ?? null,
       JSON.stringify(fields.citations_json ?? []),
       fields.origin_note_id ?? null,
-    ]
+    ],
   );
-  return toNote(rows[0]!);
+  return toNote(requireFirstRow(rows, "pgInsert note"));
 }
 
-async function pgLocked(client: PoolClient, notebookId: string, ownerId: string, noteId: string): Promise<NoteRow | undefined> {
+async function pgLocked(
+  client: PoolClient,
+  notebookId: string,
+  ownerId: string,
+  noteId: string,
+): Promise<NoteRow | undefined> {
   const { rows } = await client.query<NoteRow>(
     `SELECT ${NOTE_COLUMNS} FROM notes WHERE id = $1 AND notebook_id = $2 AND owner_id = $3 FOR UPDATE`,
-    [noteId, notebookId, ownerId]
+    [noteId, notebookId, ownerId],
   );
   return rows[0];
 }
 
-async function pgGet(pool: Pool, notebookId: string, ownerId: string, noteId: string): Promise<Note | null> {
-  const { rows } = await pool.query<NoteRow>(`SELECT ${NOTE_COLUMNS} FROM notes WHERE id = $1 AND notebook_id = $2 AND owner_id = $3`, [noteId, notebookId, ownerId]);
+async function pgGet(
+  pool: Pool,
+  notebookId: string,
+  ownerId: string,
+  noteId: string,
+): Promise<Note | null> {
+  const { rows } = await pool.query<NoteRow>(
+    `SELECT ${NOTE_COLUMNS} FROM notes WHERE id = $1 AND notebook_id = $2 AND owner_id = $3`,
+    [noteId, notebookId, ownerId],
+  );
   return rows[0] ? toNote(rows[0]) : null;
 }
 
 export async function createNote(
   notebookId: string,
   ownerId: string,
-  input: Partial<CreateNoteInput>
+  input: Partial<CreateNoteInput>,
 ): Promise<Note> {
   const pool = v2Pool();
-  if (pool) return pgInsert(pool, notebookId, ownerId, { title: input.title ?? DEFAULT_NOTE_TITLE, content_md: input.content_md ?? "" });
+  if (pool)
+    return pgInsert(pool, notebookId, ownerId, {
+      title: input.title ?? DEFAULT_NOTE_TITLE,
+      content_md: input.content_md ?? "",
+    });
   return insert(notebookId, ownerId, {
     title: input.title ?? DEFAULT_NOTE_TITLE,
     content_md: input.content_md ?? "",
@@ -171,7 +207,7 @@ export async function listNotes(notebookId: string, ownerId: string): Promise<No
   if (pool) {
     const { rows } = await pool.query<NoteRow>(
       `SELECT ${NOTE_COLUMNS} FROM notes WHERE notebook_id = $1 AND owner_id = $2 ORDER BY display_order, created_at, id`,
-      [notebookId, ownerId]
+      [notebookId, ownerId],
     );
     return rows.map(toNote);
   }
@@ -181,7 +217,11 @@ export async function listNotes(notebookId: string, ownerId: string): Promise<No
     .map((n) => structuredClone(n));
 }
 
-export async function getNote(notebookId: string, ownerId: string, noteId: string): Promise<Note | null> {
+export async function getNote(
+  notebookId: string,
+  ownerId: string,
+  noteId: string,
+): Promise<Note | null> {
   const pool = v2Pool();
   if (pool) return pgGet(pool, notebookId, ownerId, noteId);
   const n = scoped(notebookId, ownerId, noteId);
@@ -192,24 +232,35 @@ export async function updateNote(
   notebookId: string,
   ownerId: string,
   noteId: string,
-  patch: PatchNoteInput
+  patch: PatchNoteInput,
 ): Promise<Note> {
   const pool = v2Pool();
   if (pool) {
     // FR-009: the row lock serializes concurrent edits; the second sees the new revision and conflicts.
-    return withTransaction(pool, async (client) => {
-      const row = await pgLocked(client, notebookId, ownerId, noteId);
-      if (!row) throw new NoteNotFoundError();
-      if (row.origin_type === "saved_response") throw new NoteReadOnlyError();
-      if (patch.base_revision !== undefined && patch.base_revision !== row.revision) throw new RevisionConflictError();
-      if (patch.title === undefined && patch.content_md === undefined) return toNote(row);
-      const { rows } = await client.query<NoteRow>(
-        `UPDATE notes SET title = $2, content_md = $3, revision = revision + 1, updated_at = greatest(now(), updated_at)
+    return withTransaction(
+      pool,
+      async (client) => {
+        const row = await pgLocked(client, notebookId, ownerId, noteId);
+        if (!row) throw new NoteNotFoundError();
+        if (row.origin_type === "saved_response") throw new NoteReadOnlyError();
+        if (patch.base_revision !== undefined && patch.base_revision !== row.revision)
+          throw new RevisionConflictError();
+        if (patch.title === undefined && patch.content_md === undefined) return toNote(row);
+        const { rows } = await client.query<NoteRow>(
+          `UPDATE notes SET title = $2, content_md = $3, revision = revision + 1, updated_at = greatest(now(), updated_at)
          WHERE id = $1 RETURNING ${NOTE_COLUMNS}`,
-        [noteId, patch.title ?? row.title, patch.content_md !== undefined ? sanitizeNoteMarkdown(patch.content_md) : row.content_md]
-      );
-      return toNote(rows[0]!);
-    }, { retries: 0 });
+          [
+            noteId,
+            patch.title ?? row.title,
+            patch.content_md === undefined
+              ? row.content_md
+              : sanitizeNoteMarkdown(patch.content_md),
+          ],
+        );
+        return toNote(requireFirstRow(rows, "pgInsert note"));
+      },
+      { retries: 0 },
+    );
   }
   const n = scoped(notebookId, ownerId, noteId);
   if (!n) throw new NoteNotFoundError();
@@ -225,18 +276,25 @@ export async function updateNote(
   return structuredClone(n);
 }
 
-export async function deleteNote(notebookId: string, ownerId: string, noteId: string): Promise<boolean> {
+export async function deleteNote(
+  notebookId: string,
+  ownerId: string,
+  noteId: string,
+): Promise<boolean> {
   const pool = v2Pool();
   if (pool) {
-    const { rowCount } = await pool.query("DELETE FROM notes WHERE id = $1 AND notebook_id = $2 AND owner_id = $3", [noteId, notebookId, ownerId]);
+    const { rowCount } = await pool.query(
+      "DELETE FROM notes WHERE id = $1 AND notebook_id = $2 AND owner_id = $3",
+      [noteId, notebookId, ownerId],
+    );
     return (rowCount ?? 0) > 0;
   }
   return scoped(notebookId, ownerId, noteId) ? noteStore.delete(noteId) : false;
 }
 
 /** Shared save-note title rule (FR-NM-02 FR-006): the given title (the preceding user question) trimmed and clamped. */
-function savedResponseTitle(title: string | undefined): string {
-  const clamped = clampCodePoints((title ?? "").trim(), NOTE_TITLE_MAX_CODE_POINTS).trim();
+function savedResponseTitle(title = ""): string {
+  const clamped = clampCodePoints(title.trim(), NOTE_TITLE_MAX_CODE_POINTS).trim();
   return clamped || SAVED_RESPONSE_DEFAULT_TITLE;
 }
 
@@ -244,12 +302,17 @@ function savedResponseTitle(title: string | undefined): string {
 export async function saveResponseAsNote(
   notebookId: string,
   ownerId: string,
-  input: { message_id: string; content: string; citations: Citation[]; title?: string | undefined }
+  input: { message_id: string; content: string; citations: Citation[]; title?: string | undefined },
 ): Promise<{ note: Note; created: boolean }> {
   const pool = v2Pool();
   if (pool) {
     const existing = async () =>
-      (await pool.query<NoteRow>(`SELECT ${NOTE_COLUMNS} FROM notes WHERE notebook_id = $1 AND owner_id = $2 AND source_message_id = $3`, [notebookId, ownerId, input.message_id])).rows[0];
+      (
+        await pool.query<NoteRow>(
+          `SELECT ${NOTE_COLUMNS} FROM notes WHERE notebook_id = $1 AND owner_id = $2 AND source_message_id = $3`,
+          [notebookId, ownerId, input.message_id],
+        )
+      ).rows[0];
     const found = await existing();
     if (found) return { note: toNote(found), created: false };
     try {
@@ -264,11 +327,17 @@ export async function saveResponseAsNote(
     } catch (err) {
       // FR-009: a concurrent save of the same message won the unique key; return its note.
       if ((err as { code?: string }).code !== "23505") throw err;
-      return { note: toNote((await existing())!), created: false };
+      const concurrent = await existing();
+      if (!concurrent) throw err;
+      return { note: toNote(concurrent), created: false };
     }
   }
   for (const n of noteStore.values()) {
-    if (n.notebook_id === notebookId && n.owner_id === ownerId && n.source_message_id === input.message_id) {
+    if (
+      n.notebook_id === notebookId &&
+      n.owner_id === ownerId &&
+      n.source_message_id === input.message_id
+    ) {
       return { note: structuredClone(n), created: false };
     }
   }
@@ -283,19 +352,34 @@ export async function saveResponseAsNote(
 }
 
 /** FR-NM-02: separate manual copy; verified badges removed; original unchanged. */
-export async function convertToEditable(notebookId: string, ownerId: string, noteId: string): Promise<Note> {
+export async function convertToEditable(
+  notebookId: string,
+  ownerId: string,
+  noteId: string,
+): Promise<Note> {
   const pool = v2Pool();
   if (pool) {
     const original = await pgGet(pool, notebookId, ownerId, noteId);
     if (!original) throw new NoteNotFoundError();
     if (original.origin_type !== "saved_response") throw new NotSavedResponseError();
-    const content = stripCitationMarkers(original.content_md, new Set(original.citations_json.map((c) => c.badge_number))).trim();
-    return pgInsert(pool, notebookId, ownerId, { title: original.title, content_md: content, origin_note_id: original.id, source_message_id: null });
+    const content = stripCitationMarkers(
+      original.content_md,
+      new Set(original.citations_json.map((c) => c.badge_number)),
+    ).trim();
+    return pgInsert(pool, notebookId, ownerId, {
+      title: original.title,
+      content_md: content,
+      origin_note_id: original.id,
+      source_message_id: null,
+    });
   }
   const n = scoped(notebookId, ownerId, noteId);
   if (!n) throw new NoteNotFoundError();
   if (n.origin_type !== "saved_response") throw new NotSavedResponseError();
-  const content = stripCitationMarkers(n.content_md, new Set(n.citations_json.map((c) => c.badge_number))).trim();
+  const content = stripCitationMarkers(
+    n.content_md,
+    new Set(n.citations_json.map((c) => c.badge_number)),
+  ).trim();
   return insert(notebookId, ownerId, {
     title: n.title,
     content_md: content,

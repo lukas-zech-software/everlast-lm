@@ -8,30 +8,18 @@ import {
   StudioMindmapPayloadSchema,
   validateMindmapLabel,
   type SourceRevisionPair,
+  type MindmapNode,
   type StudioEvidenceRef,
   type StudioMindmapPayload,
   type UnifiedDocumentChunk,
 } from "@everlast/contracts";
 
-/**
- * [011-studio-mindmaps-data-tables] T011, T017 — Mindmap graph and factual-field citation validator
- * (FR-ST-08, FR-GC-02, C-03; FR-002, FR-003, FR-011, FR-013, FR-014, SC-001, SC-008).
- *
- * Returns `null` when valid, or a descriptive validation failure string (resulting in
- * `CitationValidationFailed` with zero published payload and no silent retry).
- */
-export function validateMindmapPayload(
-  payload: unknown,
-  chunks: readonly UnifiedDocumentChunk[],
-  snapshot: readonly SourceRevisionPair[]
-): string | null {
-  const parsed = StudioMindmapPayloadSchema.safeParse(payload);
-  if (!parsed.success) {
-    return parsed.error.issues.map((i) => i.message).join("; ");
-  }
-  const map: StudioMindmapPayload = parsed.data;
-  const metrics = inspectMindmapTree(map.root_node);
+type CitationVerifier = (cite: StudioEvidenceRef, context: string) => string | null;
 
+function validateTreeShape(
+  map: StudioMindmapPayload,
+  metrics: ReturnType<typeof inspectMindmapTree>,
+): string | null {
   if (metrics.duplicateIds.length > 0) {
     return `Mindmap contains duplicate node ID(s): ${metrics.duplicateIds.join(", ")}`;
   }
@@ -44,18 +32,27 @@ export function validateMindmapPayload(
   if (metrics.nodeCount < MINDMAP_TARGET_MIN_NODES && !map.insufficient_evidence_note) {
     return `Mindmap with ${metrics.nodeCount} nodes (< ${MINDMAP_TARGET_MIN_NODES}) requires insufficient_evidence_note`;
   }
+  return null;
+}
 
+function createCitationVerifier(
+  chunks: readonly UnifiedDocumentChunk[],
+  snapshot: readonly SourceRevisionPair[],
+): CitationVerifier {
   const revisions = new Map(snapshot.map((p) => [p.source_id, p.revision]));
   const chunkById = new Map(chunks.map((c) => [c.chunk_id, c]));
-  const badgeMap = new Map<number, StudioEvidenceRef>();
 
-  const verifyCitation = (cite: StudioEvidenceRef, context: string): string | null => {
+  return (cite, context) => {
     const chunk = chunkById.get(cite.chunk_id);
     if (!chunk) {
       return `${context}: citation ${cite.badge_number} (${cite.chunk_id}) does not resolve to a scoped chunk`;
     }
     const expectedRevision = revisions.get(cite.source_id);
-    if (expectedRevision !== cite.revision || chunk.source_id !== cite.source_id || chunk.revision !== cite.revision) {
+    if (
+      expectedRevision !== cite.revision ||
+      chunk.source_id !== cite.source_id ||
+      chunk.revision !== cite.revision
+    ) {
       return `${context}: citation ${cite.badge_number} does not match the captured source revision snapshot`;
     }
     if (!chunk.text.includes(cite.snippet)) {
@@ -63,8 +60,26 @@ export function validateMindmapPayload(
     }
     return null;
   };
+}
 
-  for (const cite of map.citations) {
+function verifyCitations(
+  citations: readonly StudioEvidenceRef[],
+  context: string,
+  verifyCitation: CitationVerifier,
+): string | null {
+  for (const cite of citations) {
+    const err = verifyCitation(cite, context);
+    if (err) return err;
+  }
+  return null;
+}
+
+function validatePayloadCitations(
+  citations: readonly StudioEvidenceRef[],
+  verifyCitation: CitationVerifier,
+): string | null {
+  const badgeMap = new Map<number, StudioEvidenceRef>();
+  for (const cite of citations) {
     const err = verifyCitation(cite, "Payload citations");
     if (err) return err;
     const prev = badgeMap.get(cite.badge_number);
@@ -73,27 +88,55 @@ export function validateMindmapPayload(
     }
     badgeMap.set(cite.badge_number, cite);
   }
+  return null;
+}
+
+function validateNode(node: MindmapNode, verifyCitation: CitationVerifier): string | null {
+  const labelCheck = validateMindmapLabel(node.label);
+  if (!labelCheck.valid || labelCheck.codePoints > MINDMAP_LABEL_MAX_CODE_POINTS) {
+    return `Node ${node.id} has invalid label: ${labelCheck.error ?? "exceeds 80 code points"}`;
+  }
+  if (node.label_citations.length === 0) {
+    return `Node ${node.id} label is missing supporting citations`;
+  }
+  if (node.summary_citations.length === 0) {
+    return `Node ${node.id} summary is missing supporting citations`;
+  }
+  return (
+    verifyCitations(node.label_citations, `Node ${node.id} label`, verifyCitation) ??
+    verifyCitations(node.summary_citations, `Node ${node.id} summary`, verifyCitation)
+  );
+}
+
+/**
+ * [011-studio-mindmaps-data-tables] T011, T017 — Mindmap graph and factual-field citation validator
+ * (FR-ST-08, FR-GC-02, C-03; FR-002, FR-003, FR-011, FR-013, FR-014, SC-001, SC-008).
+ *
+ * Returns `null` when valid, or a descriptive validation failure string (resulting in
+ * `CitationValidationFailed` with zero published payload and no silent retry).
+ */
+export function validateMindmapPayload(
+  payload: unknown,
+  chunks: readonly UnifiedDocumentChunk[],
+  snapshot: readonly SourceRevisionPair[],
+): string | null {
+  const parsed = StudioMindmapPayloadSchema.safeParse(payload);
+  if (!parsed.success) {
+    return parsed.error.issues.map((i) => i.message).join("; ");
+  }
+  const map: StudioMindmapPayload = parsed.data;
+  const metrics = inspectMindmapTree(map.root_node);
+
+  const shapeError = validateTreeShape(map, metrics);
+  if (shapeError) return shapeError;
+
+  const verifyCitation = createCitationVerifier(chunks, snapshot);
+  const citationError = validatePayloadCitations(map.citations, verifyCitation);
+  if (citationError) return citationError;
 
   for (const node of metrics.nodesById.values()) {
-    const labelCheck = validateMindmapLabel(node.label);
-    if (!labelCheck.valid || labelCheck.codePoints > MINDMAP_LABEL_MAX_CODE_POINTS) {
-      return `Node ${node.id} has invalid label: ${labelCheck.error ?? "exceeds 80 code points"}`;
-    }
-    if (node.label_citations.length === 0) {
-      return `Node ${node.id} label is missing supporting citations`;
-    }
-    if (node.summary_citations.length === 0) {
-      return `Node ${node.id} summary is missing supporting citations`;
-    }
-    for (const cite of node.label_citations) {
-      const err = verifyCitation(cite, `Node ${node.id} label`);
-      if (err) return err;
-    }
-    for (const cite of node.summary_citations) {
-      const err = verifyCitation(cite, `Node ${node.id} summary`);
-      if (err) return err;
-    }
+    const err = validateNode(node, verifyCitation);
+    if (err) return err;
   }
-
   return null;
 }

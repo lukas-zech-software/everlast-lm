@@ -15,7 +15,7 @@ export interface ScreeningVerdict {
 export interface ContentScreener {
   readonly name: string;
   /** Screens every text block; throws on transport/provider errors (callers fail closed). */
-  screen(texts: string[]): Promise<ScreeningVerdict>;
+  screen: (texts: string[]) => Promise<ScreeningVerdict>;
 }
 
 export class ScreeningUnavailableError extends Error {
@@ -28,7 +28,6 @@ export class ScreeningUnavailableError extends Error {
 // ---------------------------------------------------------------------------------------------------------
 // Model Armor (regional, EU) — specs/009 T023
 // ---------------------------------------------------------------------------------------------------------
-
 
 const EU_LOCATIONS = /^europe-[a-z]+\d+$|^eu$/;
 
@@ -48,7 +47,11 @@ export function modelArmorConfigFromEnv(env: NodeJS.ProcessEnv): ModelArmorConfi
   const templateId = env.MODEL_ARMOR_TEMPLATE_ID;
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   if (!templateId || !projectId) return null;
-  return { projectId, location: env.MODEL_ARMOR_LOCATION ?? env.GCP_REGION ?? "europe-west4", templateId };
+  return {
+    projectId,
+    location: env.MODEL_ARMOR_LOCATION ?? env.GCP_REGION ?? "europe-west4",
+    templateId,
+  };
 }
 
 interface SanitizeResponse {
@@ -62,10 +65,13 @@ interface SanitizeResponse {
 export class ModelArmorScreener implements ContentScreener {
   readonly name = "model-armor";
   private readonly config: ModelArmorConfig;
-  private readonly auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  private readonly auth = new GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
 
   constructor(config: ModelArmorConfig) {
-    if (!EU_LOCATIONS.test(config.location)) throw new Error("Model Armor must run in an EU location (D3)");
+    if (!EU_LOCATIONS.test(config.location))
+      throw new Error("Model Armor must run in an EU location (D3)");
     this.config = config;
   }
 
@@ -78,14 +84,24 @@ export class ModelArmorScreener implements ContentScreener {
     const url = this.endpoint();
     const data = { userPromptData: { text } };
     const send = async () => {
-      if (this.config.request) return (await this.config.request({ url, data })) as SanitizeResponse;
+      if (this.config.request)
+        return (await this.config.request({ url, data })) as SanitizeResponse;
       const client = await this.auth.getClient();
       return (await client.request<SanitizeResponse>({ url, method: "POST", data })).data;
     };
     const timeout = this.config.timeoutMs ?? 15_000;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([send(), new Promise<never>((_, reject) => (timer = setTimeout(() => reject(new ScreeningUnavailableError("Model Armor timed out")), timeout)))]);
+      return await Promise.race([
+        send(),
+        new Promise<never>(
+          (_, reject) =>
+            (timer = setTimeout(
+              () => reject(new ScreeningUnavailableError("Model Armor timed out")),
+              timeout,
+            )),
+        ),
+      ]);
     } finally {
       clearTimeout(timer);
     }
@@ -107,17 +123,21 @@ export class ModelArmorScreener implements ContentScreener {
     }
     if (current) pieces.push(current);
     const concurrency = Math.max(1, this.config.concurrency ?? 4);
-    let next = 0;
-    let quarantined = false;
+    const state = { next: 0, quarantined: false };
     const workers = Array.from({ length: Math.min(concurrency, pieces.length) }, async () => {
-      while (!quarantined && next < pieces.length) {
-        const res = await this.call(pieces[next++]!);
-        const state = res.sanitizationResult?.filterMatchState;
-        if (state === "MATCH_FOUND") quarantined = true;
-        else if (state !== "NO_MATCH_FOUND") throw new ScreeningUnavailableError("Unexpected Model Armor response");
+      while (!state.quarantined && state.next < pieces.length) {
+        const piece = pieces[state.next++];
+        if (piece === undefined) return;
+        const res = await this.call(piece);
+        const matchState = res.sanitizationResult?.filterMatchState;
+        if (matchState === "MATCH_FOUND") state.quarantined = true;
+        else if (matchState !== "NO_MATCH_FOUND")
+          throw new ScreeningUnavailableError("Unexpected Model Armor response");
       }
     });
     await Promise.all(workers);
-    return quarantined ? { verdict: "quarantined", reason: "model_armor_match" } : { verdict: "clean" };
+    return state.quarantined
+      ? { verdict: "quarantined", reason: "model_armor_match" }
+      : { verdict: "clean" };
   }
 }

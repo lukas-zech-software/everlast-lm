@@ -1,4 +1,11 @@
-import { createPublicKey, generateKeyPairSync, createSign, createVerify, randomUUID, type KeyObject } from "node:crypto";
+import {
+  createPublicKey,
+  generateKeyPairSync,
+  createSign,
+  createVerify,
+  randomUUID,
+  type KeyObject,
+} from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 import { AppError } from "@everlast/contracts";
 
@@ -28,12 +35,12 @@ export interface VerifiedIdentity {
 
 /** Supplies verification keys by `kid`. */
 export interface KeySource {
-  getKey(kid: string): Promise<KeyObject | undefined>;
+  getKey: (kid: string) => Promise<KeyObject | undefined>;
 }
 
 export interface RevocationChecker {
   /** True when tokens issued at `authTime` (seconds) for `subject` must no longer be accepted. */
-  isRevoked(subject: string, authTime: number): Promise<boolean>;
+  isRevoked: (subject: string, authTime: number) => Promise<boolean>;
 }
 
 export interface TokenVerifierOptions {
@@ -59,7 +66,9 @@ export class GoogleSecureTokenKeys implements KeySource {
   private inflight: Promise<void> | null = null;
   private lastRefreshAt = 0;
 
-  constructor(options: { url?: string; fetchImpl?: typeof fetch; minRefreshIntervalMs?: number } = {}) {
+  constructor(
+    options: { url?: string; fetchImpl?: typeof fetch; minRefreshIntervalMs?: number } = {},
+  ) {
     this.url = options.url ?? SECURE_TOKEN_CERTS_URL;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.minRefreshIntervalMs = options.minRefreshIntervalMs ?? 60_000;
@@ -69,7 +78,8 @@ export class GoogleSecureTokenKeys implements KeySource {
     const expired = !this.cache || Date.now() >= this.cache.expiresAt;
     // Unknown key ids (possibly attacker-chosen) trigger at most one refetch per interval, shared by all
     // callers; otherwise they are rejected from the cache without a network call.
-    const unknownKidMayRefresh = !this.cache?.keys.has(kid) && Date.now() - this.lastRefreshAt >= this.minRefreshIntervalMs;
+    const unknownKidMayRefresh =
+      !this.cache?.keys.has(kid) && Date.now() - this.lastRefreshAt >= this.minRefreshIntervalMs;
     if (expired || unknownKidMayRefresh) await this.refresh();
     return this.cache?.keys.get(kid);
   }
@@ -98,12 +108,15 @@ export class StaticKeys implements KeySource {
 
   constructor(keys: Record<string, KeyObject | string>) {
     this.keys = new Map(
-      Object.entries(keys).map(([kid, key]) => [kid, typeof key === "string" ? createPublicKey(key) : key])
+      Object.entries(keys).map(([kid, key]) => [
+        kid,
+        typeof key === "string" ? createPublicKey(key) : key,
+      ]),
     );
   }
 
-  async getKey(kid: string): Promise<KeyObject | undefined> {
-    return this.keys.get(kid);
+  getKey(kid: string): Promise<KeyObject | undefined> {
+    return Promise.resolve(this.keys.get(kid));
   }
 }
 
@@ -113,7 +126,10 @@ export class StaticKeys implements KeySource {
  */
 export class IdentityToolkitRevocationChecker implements RevocationChecker {
   private readonly auth: GoogleAuth;
-  private readonly cache = new Map<string, { revokedBefore: number; disabled: boolean; expiresAt: number }>();
+  private readonly cache = new Map<
+    string,
+    { revokedBefore: number; disabled: boolean; expiresAt: number }
+  >();
   private readonly projectId: string;
   private readonly cacheSeconds: number;
 
@@ -127,7 +143,9 @@ export class IdentityToolkitRevocationChecker implements RevocationChecker {
     let entry = this.cache.get(subject);
     if (!entry || Date.now() >= entry.expiresAt) {
       const client = await this.auth.getClient();
-      const response = await client.request<{ users?: { validSince?: string; disabled?: boolean }[] }>({
+      const response = await client.request<{
+        users?: Array<{ validSince?: string; disabled?: boolean }>;
+      }>({
         url: `https://identitytoolkit.googleapis.com/v1/projects/${this.projectId}/accounts:lookup`,
         method: "POST",
         data: { localId: [subject] },
@@ -146,11 +164,57 @@ export class IdentityToolkitRevocationChecker implements RevocationChecker {
 
 function decodeSegment(segment: string, label: string): Record<string, unknown> {
   try {
-    const value = JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
-    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("not an object");
+    const value: unknown = JSON.parse(Buffer.from(segment, "base64url").toString("utf8"));
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("not an object");
+    }
     return value as Record<string, unknown>;
   } catch {
     throw new AuthenticationError(`Malformed token ${label}`);
+  }
+}
+
+function readNumericClaim(claims: Record<string, unknown>, name: string): number {
+  const value = claims[name];
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new AuthenticationError(`Token missing ${name}`);
+  }
+  return value;
+}
+
+function parseTokenSegments(token: string): {
+  headerB64: string;
+  payloadB64: string;
+  signatureB64: string;
+  kid: string;
+} {
+  const [headerB64, payloadB64, signatureB64] = token.split(".");
+  if (!headerB64 || !payloadB64) {
+    throw new AuthenticationError("Malformed token");
+  }
+  const header = decodeSegment(headerB64, "header");
+  if (header.alg !== "RS256") {
+    throw new AuthenticationError("Unsupported token algorithm");
+  }
+  if (!signatureB64) {
+    throw new AuthenticationError("Token is not signed");
+  }
+  if (typeof header.kid !== "string" || header.kid.length === 0) {
+    throw new AuthenticationError("Token has no key id");
+  }
+  return { headerB64, payloadB64, signatureB64, kid: header.kid };
+}
+
+function verifyTokenSignature(
+  headerB64: string,
+  payloadB64: string,
+  signatureB64: string,
+  key: KeyObject,
+): void {
+  const verifier = createVerify("RSA-SHA256");
+  verifier.update(`${headerB64}.${payloadB64}`);
+  if (!verifier.verify(key, Buffer.from(signatureB64, "base64url"))) {
+    throw new AuthenticationError("Invalid token signature");
   }
 }
 
@@ -166,57 +230,75 @@ export class TokenVerifier {
   }
 
   async verifyAuthorizationHeader(header: string | undefined): Promise<VerifiedIdentity> {
-    if (!header) throw new AuthenticationError("Missing Authorization header");
+    if (!header) {
+      throw new AuthenticationError("Missing Authorization header");
+    }
     const match = /^Bearer ([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*)$/.exec(header.trim());
-    if (!match) throw new AuthenticationError("Malformed Authorization header. Expected 'Bearer <token>'");
-    return this.verifyToken(match[1]!);
+    const token = match?.[1];
+    if (!token) {
+      throw new AuthenticationError("Malformed Authorization header. Expected 'Bearer <token>'");
+    }
+    return this.verifyToken(token);
   }
 
-  async verifyToken(token: string): Promise<VerifiedIdentity> {
-    const [headerB64, payloadB64, signatureB64] = token.split(".");
-    if (!headerB64 || !payloadB64) throw new AuthenticationError("Malformed token");
-    const header = decodeSegment(headerB64, "header");
-    if (header.alg !== "RS256") throw new AuthenticationError("Unsupported token algorithm");
-    if (!signatureB64) throw new AuthenticationError("Token is not signed");
-    if (typeof header.kid !== "string" || header.kid.length === 0) throw new AuthenticationError("Token has no key id");
-
-    const key = await this.options.keys.getKey(header.kid);
-    if (!key) throw new AuthenticationError("Unknown token signing key");
-    const verifier = createVerify("RSA-SHA256");
-    verifier.update(`${headerB64}.${payloadB64}`);
-    if (!verifier.verify(key, Buffer.from(signatureB64, "base64url"))) {
-      throw new AuthenticationError("Invalid token signature");
-    }
-
-    const claims = decodeSegment(payloadB64, "payload");
+  private validateClaims(claims: Record<string, unknown>): {
+    subject: string;
+    email: string | undefined;
+    authTime: number;
+  } {
     const now = Math.floor((this.options.now ?? Date.now)() / 1000);
     const skew = this.options.clockSkewSeconds ?? 60;
-    const num = (name: string): number => {
-      const value = claims[name];
-      if (typeof value !== "number" || !Number.isFinite(value)) throw new AuthenticationError(`Token missing ${name}`);
-      return value;
-    };
-    if (num("exp") <= now - skew) throw new AuthenticationError("Token has expired");
-    if (num("iat") > now + skew) throw new AuthenticationError("Token issued in the future");
-    const authTime = typeof claims.auth_time === "number" ? claims.auth_time : num("iat");
-    if (authTime > now + skew) throw new AuthenticationError("Token auth_time is in the future");
-    if (claims.aud !== this.options.audience) throw new AuthenticationError("Invalid token audience");
-    if (claims.iss !== this.options.issuer) throw new AuthenticationError("Invalid token issuer");
+    if (readNumericClaim(claims, "exp") <= now - skew) {
+      throw new AuthenticationError("Token has expired");
+    }
+    if (readNumericClaim(claims, "iat") > now + skew) {
+      throw new AuthenticationError("Token issued in the future");
+    }
+    const authTime =
+      typeof claims.auth_time === "number" ? claims.auth_time : readNumericClaim(claims, "iat");
+    if (authTime > now + skew) {
+      throw new AuthenticationError("Token auth_time is in the future");
+    }
+    if (claims.aud !== this.options.audience) {
+      throw new AuthenticationError("Invalid token audience");
+    }
+    if (claims.iss !== this.options.issuer) {
+      throw new AuthenticationError("Invalid token issuer");
+    }
     const subject = claims.sub;
     if (typeof subject !== "string" || subject.length === 0 || subject.length > 128) {
       throw new AuthenticationError("Invalid token subject");
     }
     if (this.options.tenantId) {
       const firebase = claims.firebase as { tenant?: unknown } | undefined;
-      if (firebase?.tenant !== this.options.tenantId) throw new AuthenticationError("Invalid token tenant");
+      if (firebase?.tenant !== this.options.tenantId) {
+        throw new AuthenticationError("Invalid token tenant");
+      }
     }
+    return {
+      subject,
+      email: typeof claims.email === "string" ? claims.email : undefined,
+      authTime,
+    };
+  }
+
+  async verifyToken(token: string): Promise<VerifiedIdentity> {
+    const { headerB64, payloadB64, signatureB64, kid } = parseTokenSegments(token);
+    const key = await this.options.keys.getKey(kid);
+    if (!key) {
+      throw new AuthenticationError("Unknown token signing key");
+    }
+    verifyTokenSignature(headerB64, payloadB64, signatureB64, key);
+
+    const claims = decodeSegment(payloadB64, "payload");
+    const { subject, email, authTime } = this.validateClaims(claims);
     if (this.options.revocation && (await this.options.revocation.isRevoked(subject, authTime))) {
       throw new AuthenticationError("Token has been revoked");
     }
     return {
       issuer: this.options.issuer,
       subject,
-      email: typeof claims.email === "string" ? claims.email : undefined,
+      email,
       authTime,
     };
   }
@@ -233,7 +315,9 @@ export function createIdentityPlatformVerifier(options: {
     keys: new GoogleSecureTokenKeys(),
     tenantId: options.tenantId,
     revocation:
-      options.checkRevocation === false ? undefined : new IdentityToolkitRevocationChecker({ projectId: options.projectId }),
+      options.checkRevocation === false
+        ? undefined
+        : new IdentityToolkitRevocationChecker({ projectId: options.projectId }),
   });
 }
 
@@ -242,7 +326,9 @@ export const LOCAL_AUDIENCE = "everlast-local";
 
 export function assertLocalAuthAllowed(env: NodeJS.ProcessEnv = process.env): void {
   if (env.NODE_ENV === "production" || env.K_SERVICE) {
-    throw new Error("Local authentication is forbidden in production and on Cloud Run (NFR-SEC-01)");
+    throw new Error(
+      "Local authentication is forbidden in production and on Cloud Run (NFR-SEC-01)",
+    );
   }
 }
 
@@ -254,7 +340,7 @@ export class LocalIdentityIssuer {
   private readonly privateKey: KeyObject;
   private readonly kid = `local-${randomUUID()}`;
   readonly verifier: TokenVerifier;
-  private revokedBefore = new Map<string, number>();
+  private readonly revokedBefore = new Map<string, number>();
 
   constructor(env: NodeJS.ProcessEnv = process.env) {
     assertLocalAuthAllowed(env);
@@ -264,11 +350,17 @@ export class LocalIdentityIssuer {
       audience: LOCAL_AUDIENCE,
       issuer: LOCAL_ISSUER,
       keys: new StaticKeys({ [this.kid]: publicKey }),
-      revocation: { isRevoked: async (subject, authTime) => authTime < (this.revokedBefore.get(subject) ?? 0) },
+      revocation: {
+        isRevoked: (subject, authTime) =>
+          Promise.resolve(authTime < (this.revokedBefore.get(subject) ?? 0)),
+      },
     });
   }
 
-  issue(subject: string, options: { email?: string; ttlSeconds?: number; authTime?: number } = {}): string {
+  issue(
+    subject: string,
+    options: { email?: string; ttlSeconds?: number; authTime?: number } = {},
+  ): string {
     const now = Math.floor(Date.now() / 1000);
     const header = { alg: "RS256", kid: this.kid, typ: "JWT" };
     const payload = {

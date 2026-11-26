@@ -18,7 +18,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
 });
 
 function stratified(n: number) {
@@ -30,15 +30,35 @@ function stratified(n: number) {
 
 describe("deterministic evaluation over the production pipeline", () => {
   it("EVI-01: a stratified subset yields Precision_ID = 1 and leakage = 0 with valid C-01 corpus chunks", async () => {
-    const result = await runEvaluation({ pool: db.pool, embedder, model: new LexicalCitingModel(), ocr: new NoOcrEngine(), judge: null, concurrency: 2 }, stratified(8));
+    const result = await runEvaluation(
+      {
+        pool: db.pool,
+        embedder,
+        model: new LexicalCitingModel(),
+        ocr: new NoOcrEngine(),
+        judge: null,
+        concurrency: 2,
+      },
+      stratified(8),
+    );
     expect(result.upload.passed).toBe(true);
-    expect(result.upload.documents.every((d) => d.status === "Ready" && d.valid_chunks === d.chunks)).toBe(true);
+    expect(
+      result.upload.documents.every((d) => d.status === "Ready" && d.valid_chunks === d.chunks),
+    ).toBe(true);
     expect(result.errored).toEqual([]);
     const precision = result.metrics.find((m) => m.name === "citation_precision")!;
     expect(precision).toMatchObject({ value: 1, status: "pass" });
     expect(precision.denominator).toBeGreaterThan(0);
-    expect(result.metrics.find((m) => m.name === "scoping_leakage_count")).toMatchObject({ value: 0, status: "pass" });
-    expect(result.metrics.filter((m) => m.status === "unavailable").map((m) => m.name).sort()).toEqual(["hallucination_rate", "negative_rejection_rate", "semantic_support_rate"]);
+    expect(result.metrics.find((m) => m.name === "scoping_leakage_count")).toMatchObject({
+      value: 0,
+      status: "pass",
+    });
+    expect(
+      result.metrics
+        .filter((m) => m.status === "unavailable")
+        .map((m) => m.name)
+        .sort(),
+    ).toEqual(["hallucination_rate", "negative_rejection_rate", "semantic_support_rate"]);
     // History carry-over: the earlier budget turn never reaches the prompt after deselection.
     const his = result.cases.find((c) => c.category === "history_carryover")!;
     expect(his.turns).toHaveLength(2);
@@ -46,22 +66,40 @@ describe("deterministic evaluation over the production pipeline", () => {
   }, 120_000);
 
   it("EVI-02: an adversarial model citing out-of-prompt chunks never gets an answer published", async () => {
-    const foreign = (await db.pool.query<{ chunk_id: string }>("SELECT chunk_id FROM chunks")).rows.map((r) => r.chunk_id);
+    const foreign = (
+      await db.pool.query<{ chunk_id: string }>("SELECT chunk_id FROM chunks")
+    ).rows.map((r) => r.chunk_id);
     const model = new AdversarialCitingModel(() => foreign);
-    const result = await runEvaluation({ pool: db.pool, embedder, model, ocr: new NoOcrEngine(), judge: null, concurrency: 1 }, stratified(3).filter((c) => c.category !== "unanswerable"));
+    const result = await runEvaluation(
+      { pool: db.pool, embedder, model, ocr: new NoOcrEngine(), judge: null, concurrency: 1 },
+      stratified(3).filter((c) => c.category !== "unanswerable"),
+    );
     expect(model.attempts).toBeGreaterThan(0);
     expect(result.cases.filter((c) => c.kind === "answer")).toEqual([]);
   }, 120_000);
 
   it("EVI-03: the leakage detector counts inactive chunks in retrieval and prompt plus deselected facts in the response", async () => {
-    const owner = (await db.pool.query<{ id: string }>("INSERT INTO users (id, issuer, subject) VALUES ($1, 'i', $2) RETURNING id", [randomUUID(), randomUUID()])).rows[0]!.id;
+    const owner = (
+      await db.pool.query<{ id: string }>(
+        "INSERT INTO users (id, issuer, subject) VALUES ($1, 'i', $2) RETURNING id",
+        [randomUUID(), randomUUID()],
+      )
+    ).rows[0]!.id;
     const { notebook } = await createNotebook(db.pool, owner, {});
     const activeId = randomUUID();
     const inactiveId = randomUUID();
     const observations: TurnObservation[] = [];
-    const leakyChunk = { chunk_id: randomUUID(), source_id: inactiveId, revision: 1, text: "budget is €9.99M", locator: { page_number: 1, start_offset: 0, end_offset: 5 }, token_count: 3 };
+    const leakyChunk = {
+      chunk_id: randomUUID(),
+      source_id: inactiveId,
+      revision: 1,
+      text: "budget is €9.99M",
+      locator: { page_number: 1, start_offset: 0, end_offset: 5 },
+      token_count: 3,
+    };
     const fakeChat = {
       async *runTurn() {
+        await Promise.resolve();
         observations.push({
           requestId: randomUUID(),
           snapshot: [{ source_id: activeId, revision: 1 }],
@@ -70,10 +108,32 @@ describe("deterministic evaluation over the production pipeline", () => {
           draft: null,
           result: { kind: "refusal", content: "x", reason: "not_in_sources" },
         });
-        yield { type: "final" as const, replayed: false, messages: [{ id: randomUUID(), turn_id: randomUUID(), role: "assistant" as const, kind: "refusal" as const, content: "The budget is €9.99M.", unavailable_reason: null, citations: [], created_at: new Date().toISOString() }] };
+        yield {
+          type: "final" as const,
+          replayed: false,
+          messages: [
+            {
+              id: randomUUID(),
+              turn_id: randomUUID(),
+              role: "assistant" as const,
+              kind: "refusal" as const,
+              content: "The budget is €9.99M.",
+              unavailable_reason: null,
+              citations: [],
+              created_at: new Date().toISOString(),
+            },
+          ],
+        };
       },
     };
-    const ctx: NotebookContext = { pool: db.pool, notebookId: notebook.id, ownerId: owner, sources: new Map([["travel", activeId]]), chat: fakeChat as never, observations };
+    const ctx: NotebookContext = {
+      pool: db.pool,
+      notebookId: notebook.id,
+      ownerId: owner,
+      sources: new Map([["travel", activeId]]),
+      chat: fakeChat as never,
+      observations,
+    };
     const result = await runCase(ctx, {
       id: "DES-999",
       category: "deselected_source",

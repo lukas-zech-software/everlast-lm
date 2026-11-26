@@ -13,10 +13,14 @@ const NON_DEV_TARGET_RE = /(?:^|[-_/:.])(prod|production|staging)(?:$|[-_/:.])/i
 export function assertDevOnlyEnvironment(env: NodeJS.ProcessEnv = process.env): void {
   const everlastEnv = (env.EVERLAST_ENV ?? "dev").trim().toLowerCase();
   if (everlastEnv !== "dev") {
-    throw new Error(`UNAVAILABLE: live cloud tests may only run against the dev environment (got EVERLAST_ENV=${everlastEnv})`);
+    throw new Error(
+      `UNAVAILABLE: live cloud tests may only run against the dev environment (got EVERLAST_ENV=${everlastEnv})`,
+    );
   }
   if (env.NODE_ENV === "production" || env.K_SERVICE) {
-    throw new Error("UNAVAILABLE: live cloud tests are forbidden inside production or deployed Cloud Run runtimes");
+    throw new Error(
+      "UNAVAILABLE: live cloud tests are forbidden inside production or deployed Cloud Run runtimes",
+    );
   }
   const checkedValues = [
     env.WORKSPACE_IT_PROJECT,
@@ -33,12 +37,17 @@ export function assertDevOnlyEnvironment(env: NodeJS.ProcessEnv = process.env): 
   ];
   for (const val of checkedValues) {
     if (val && NON_DEV_TARGET_RE.test(val)) {
-      throw new Error(`UNAVAILABLE: live cloud tests cannot target staging/production resource (${val})`);
+      throw new Error(
+        `UNAVAILABLE: live cloud tests cannot target staging/production resource (${val})`,
+      );
     }
   }
 }
 
-export function approvedLiveFixture(env: NodeJS.ProcessEnv, kind: "identity" | "storage"): { project: string; target: string } {
+export function approvedLiveFixture(
+  env: NodeJS.ProcessEnv,
+  kind: "identity" | "storage",
+): { project: string; target: string } {
   assertDevOnlyEnvironment(env);
   const project = (
     env.WORKSPACE_IT_PROJECT ??
@@ -49,14 +58,17 @@ export function approvedLiveFixture(env: NodeJS.ProcessEnv, kind: "identity" | "
   ).trim();
   const target = (
     kind === "identity"
-      ? env.WORKSPACE_IT_IDENTITY_UID ?? ""
-      : env.WORKSPACE_IT_BUCKET ?? env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET ?? ""
+      ? (env.WORKSPACE_IT_IDENTITY_UID ?? "")
+      : (env.WORKSPACE_IT_BUCKET ?? env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET ?? "")
   ).trim();
 
   if (!project || !target) {
     throw new Error(`UNAVAILABLE: dev ${kind} fixture configuration is required`);
   }
-  if (env.WORKSPACE_IT_APPROVED_FIXTURE && env.WORKSPACE_IT_APPROVED_FIXTURE !== `${project}/${kind}/${target}`) {
+  if (
+    env.WORKSPACE_IT_APPROVED_FIXTURE &&
+    env.WORKSPACE_IT_APPROVED_FIXTURE !== `${project}/${kind}/${target}`
+  ) {
     throw new Error(`UNAVAILABLE: WORKSPACE_IT_APPROVED_FIXTURE mismatch for dev ${kind} fixture`);
   }
 
@@ -65,13 +77,19 @@ export function approvedLiveFixture(env: NodeJS.ProcessEnv, kind: "identity" | "
     try {
       url = new URL(env.TEST_DATABASE_URL ?? "http://missing");
     } catch {
-      throw new Error("UNAVAILABLE: storage cleanup tests require a valid PostgreSQL TEST_DATABASE_URL");
+      throw new Error(
+        "UNAVAILABLE: storage cleanup tests require a valid PostgreSQL TEST_DATABASE_URL",
+      );
     }
     if (!["postgres:", "postgresql:"].includes(url.protocol)) {
-      throw new Error("UNAVAILABLE: storage cleanup tests require a valid PostgreSQL TEST_DATABASE_URL");
+      throw new Error(
+        "UNAVAILABLE: storage cleanup tests require a valid PostgreSQL TEST_DATABASE_URL",
+      );
     }
     if (NON_DEV_TARGET_RE.test(url.hostname) || NON_DEV_TARGET_RE.test(url.pathname)) {
-      throw new Error("UNAVAILABLE: storage cleanup tests cannot point at a staging/production database");
+      throw new Error(
+        "UNAVAILABLE: storage cleanup tests cannot point at a staging/production database",
+      );
     }
   }
   return { project, target };
@@ -90,12 +108,44 @@ function approvedUser(env: NodeJS.ProcessEnv, suffix: "" | "_B") {
   const email = env[`WORKSPACE_IT_EMAIL${suffix}`] ?? "";
   const explicitApproval = env[`WORKSPACE_IT_APPROVED_FIXTURE${suffix}`];
   if (!uid || !email || (explicitApproval && explicitApproval !== `${project}/identity/${uid}`)) {
-    throw new Error(`UNAVAILABLE: dev identity user${suffix ? " B" : " A"} configuration is required`);
+    throw new Error(
+      `UNAVAILABLE: dev identity user${suffix ? " B" : " A"} configuration is required`,
+    );
   }
   return { uid, email };
 }
 
-export function frozenLiveFixturePlan(env: NodeJS.ProcessEnv) {
+export interface FrozenLiveFixtureUser {
+  readonly id: string;
+  readonly uid: string;
+  readonly email: string;
+  readonly notebookPrefixLabel: string;
+}
+
+export interface FrozenLiveFixtureObject {
+  readonly owner: string;
+  readonly name: string;
+  readonly generations: readonly string[];
+  readonly hold: string | null;
+}
+
+export interface FrozenLiveFixturePlan {
+  readonly users: readonly FrozenLiveFixtureUser[];
+  readonly objects: readonly FrozenLiveFixtureObject[];
+  readonly signup: {
+    readonly probe: string;
+    readonly expectedError: string;
+    readonly requiredPolicy: string;
+    readonly rollback: string;
+  };
+  readonly revocation: {
+    readonly revokedUser: string;
+    readonly survivingUser: string;
+  };
+  readonly cleanupRetry: readonly string[];
+}
+
+export function frozenLiveFixturePlan(env: NodeJS.ProcessEnv): FrozenLiveFixturePlan {
   const a = approvedUser(env, "");
   const b = approvedUser(env, "_B");
   if (a.uid === b.uid || a.email.toLowerCase() === b.email.toLowerCase()) {
@@ -109,22 +159,63 @@ export function frozenLiveFixturePlan(env: NodeJS.ProcessEnv) {
       Object.freeze({ id: "b", ...b, notebookPrefixLabel: "notebook-b" }),
     ]),
     objects: Object.freeze([
-      Object.freeze({ owner: "a", name: "sources/fixture/raw", generations: Object.freeze(["v1", "v2"]), hold: "v1" as string | null }),
-      Object.freeze({ owner: "a", name: "sources/late/raw", generations: Object.freeze(["late-put"]), hold: null as string | null }),
-      Object.freeze({ owner: "b", name: "sources/fixture/raw", generations: Object.freeze(["v1", "v2"]), hold: null as string | null }),
+      Object.freeze({
+        owner: "a",
+        name: "sources/fixture/raw",
+        generations: Object.freeze(["v1", "v2"]),
+        hold: "v1",
+      }),
+      Object.freeze({
+        owner: "a",
+        name: "sources/late/raw",
+        generations: Object.freeze(["late-put"]),
+        hold: null as string | null,
+      }),
+      Object.freeze({
+        owner: "b",
+        name: "sources/fixture/raw",
+        generations: Object.freeze(["v1", "v2"]),
+        hold: null as string | null,
+      }),
     ]),
-    signup: Object.freeze({ probe: "existing-email", expectedError: "ADMIN_ONLY_OPERATION", requiredPolicy: "disabledUserSignup=true", rollback: env.WORKSPACE_IT_SIGNUP_ROLLBACK ?? "disabledUserSignup=true" }),
+    signup: Object.freeze({
+      probe: "existing-email",
+      expectedError: "ADMIN_ONLY_OPERATION",
+      requiredPolicy: "disabledUserSignup=true",
+      rollback: env.WORKSPACE_IT_SIGNUP_ROLLBACK ?? "disabledUserSignup=true",
+    }),
     revocation: Object.freeze({ revokedUser: "a", survivingUser: "b" }),
     cleanupRetry: Object.freeze(["retry:RetainedObject", "deferred", "purged"]),
   });
 }
 
 /** Individually recorded resumable-upload scenarios. The API issues signed PUT capabilities only. */
-export const RESUMABLE_SCENARIOS: ReadonlyArray<{ id: string; verifiable: boolean; reason: string }> = Object.freeze([
-  { id: "signed-put-expiry-late-sweep", verifiable: true, reason: "Real signed PUT lands before expiry; cleanup waits, then fails after expiry." },
-  { id: "post-resumable-denied-on-put-capability", verifiable: true, reason: "POST x-goog-resumable start is rejected on the issued PUT capability." },
-  { id: "externally-created-resumable-session-cancel", verifiable: false, reason: "UNAVAILABLE: the API never issues or tracks resumable sessions, so cancellation cannot be exercised through it." },
-  { id: "resumable-session-survives-notebook-delete", verifiable: false, reason: "UNAVAILABLE: needs an API-issued resumable session; current API exposes none." },
+export const RESUMABLE_SCENARIOS: ReadonlyArray<{
+  id: string;
+  verifiable: boolean;
+  reason: string;
+}> = Object.freeze([
+  {
+    id: "signed-put-expiry-late-sweep",
+    verifiable: true,
+    reason: "Real signed PUT lands before expiry; cleanup waits, then fails after expiry.",
+  },
+  {
+    id: "post-resumable-denied-on-put-capability",
+    verifiable: true,
+    reason: "POST x-goog-resumable start is rejected on the issued PUT capability.",
+  },
+  {
+    id: "externally-created-resumable-session-cancel",
+    verifiable: false,
+    reason:
+      "UNAVAILABLE: the API never issues or tracks resumable sessions, so cancellation cannot be exercised through it.",
+  },
+  {
+    id: "resumable-session-survives-notebook-delete",
+    verifiable: false,
+    reason: "UNAVAILABLE: needs an API-issued resumable session; current API exposes none.",
+  },
 ]);
 
 export interface DevInstanceState {
@@ -150,7 +241,7 @@ export interface DevEnvironmentLease {
   stateBefore: DevInstanceState;
   startedSql: boolean;
   warmedApi: boolean;
-  restore(): Promise<void>;
+  restore: () => Promise<void>;
 }
 
 function defaultExecGcloud(cmd: string, args: string[]): string | null {
@@ -168,23 +259,24 @@ async function defaultPromptConfirm(question: string): Promise<boolean> {
   }
 }
 
-export function inspectDevInstanceState(
-  options: Pick<EnsureDevEnvironmentOptions, "env" | "execCommand" | "warmupApi"> = {}
-): DevInstanceState {
-  const env = options.env ?? process.env;
-  assertDevOnlyEnvironment(env);
-
-  const sqlInstance = (env.DEV_CLOUD_SQL_INSTANCE ?? "everlast-dev-pg").trim();
-  const apiService = (env.DEV_CLOUD_RUN_API ?? "everlast-dev-api").trim();
-  const region = (env.DEV_CLOUD_RUN_REGION ?? "europe-west4").trim();
-  const run = options.execCommand ?? defaultExecGcloud;
-
-  let sqlRaw: string | null = null;
+function inspectDevSqlInstance(
+  run: (cmd: string, args: string[]) => string | null,
+  sqlInstance: string,
+): { sqlActivationPolicy: string; sqlState: string; sqlRunning: boolean } {
+  let sqlRaw: string | null;
   try {
-    sqlRaw = run("gcloud", ["sql", "instances", "describe", sqlInstance, "--format=json", "--quiet"]);
+    sqlRaw = run("gcloud", [
+      "sql",
+      "instances",
+      "describe",
+      sqlInstance,
+      "--format=json",
+      "--quiet",
+    ]);
   } catch (err) {
     throw new Error(
-      `UNAVAILABLE: Could not inspect dev Cloud SQL instance (${sqlInstance}): ${err instanceof Error ? err.message : String(err)}`
+      `UNAVAILABLE: Could not inspect dev Cloud SQL instance (${sqlInstance}): ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
     );
   }
   if (!sqlRaw) {
@@ -194,31 +286,77 @@ export function inspectDevInstanceState(
   let sqlJson: { settings?: { activationPolicy?: string }; state?: string };
   try {
     sqlJson = JSON.parse(sqlRaw) as typeof sqlJson;
-  } catch {
-    throw new Error(`UNAVAILABLE: Invalid JSON inspecting dev Cloud SQL instance (${sqlInstance})`);
+  } catch (err) {
+    throw new Error(
+      `UNAVAILABLE: Invalid JSON inspecting dev Cloud SQL instance (${sqlInstance})`,
+      { cause: err },
+    );
   }
 
   const sqlActivationPolicy = sqlJson.settings?.activationPolicy ?? "UNKNOWN";
   const sqlState = sqlJson.state ?? "UNKNOWN";
   const sqlRunning = sqlActivationPolicy === "ALWAYS" && sqlState === "RUNNABLE";
+  return { sqlActivationPolicy, sqlState, sqlRunning };
+}
 
-  let apiMinInstances = 0;
+function inspectDevApiMinInstances(
+  run: (cmd: string, args: string[]) => string | null,
+  apiService: string,
+  region: string,
+  warmupApi: boolean,
+): number {
   try {
-    const apiRaw = run("gcloud", ["run", "services", "describe", apiService, `--region=${region}`, "--format=json", "--quiet"]);
-    if (apiRaw) {
-      const apiJson = JSON.parse(apiRaw) as { spec?: { template?: { metadata?: { annotations?: Record<string, string> } } } };
-      apiMinInstances = Number(apiJson.spec?.template?.metadata?.annotations?.["run.googleapis.com/minScale"] ?? 0);
-      if (!Number.isFinite(apiMinInstances)) apiMinInstances = 0;
-    } else if (options.warmupApi) {
-      throw new Error(`Dev Cloud Run service (${apiService}) returned empty state`);
+    const apiRaw = run("gcloud", [
+      "run",
+      "services",
+      "describe",
+      apiService,
+      `--region=${region}`,
+      "--format=json",
+      "--quiet",
+    ]);
+    if (!apiRaw) {
+      if (warmupApi) {
+        throw new Error(`Dev Cloud Run service (${apiService}) returned empty state`);
+      }
+      return 0;
     }
+    const apiJson = JSON.parse(apiRaw) as {
+      spec?: { template?: { metadata?: { annotations?: Record<string, string> } } };
+    };
+    const minInstances = Number(
+      apiJson.spec?.template?.metadata?.annotations?.["run.googleapis.com/minScale"] ?? 0,
+    );
+    return Number.isFinite(minInstances) ? minInstances : 0;
   } catch (err) {
-    if (options.warmupApi) {
+    if (warmupApi) {
       throw new Error(
-        `UNAVAILABLE: Could not inspect dev Cloud Run service (${apiService}): ${err instanceof Error ? err.message : String(err)}`
+        `UNAVAILABLE: Could not inspect dev Cloud Run service (${apiService}): ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
+    return 0;
   }
+}
+
+export function inspectDevInstanceState(
+  options: Pick<EnsureDevEnvironmentOptions, "env" | "execCommand" | "warmupApi"> = {},
+): DevInstanceState {
+  const env = options.env ?? process.env;
+  assertDevOnlyEnvironment(env);
+
+  const sqlInstance = (env.DEV_CLOUD_SQL_INSTANCE ?? "everlast-dev-pg").trim();
+  const apiService = (env.DEV_CLOUD_RUN_API ?? "everlast-dev-api").trim();
+  const region = (env.DEV_CLOUD_RUN_REGION ?? "europe-west4").trim();
+  const run = options.execCommand ?? defaultExecGcloud;
+
+  const { sqlActivationPolicy, sqlState, sqlRunning } = inspectDevSqlInstance(run, sqlInstance);
+  const apiMinInstances = inspectDevApiMinInstances(
+    run,
+    apiService,
+    region,
+    Boolean(options.warmupApi),
+  );
 
   return {
     environment: "dev",
@@ -241,10 +379,14 @@ export function inspectDevInstanceState(
  *   untouched in `restore()`.
  */
 export async function ensureDevEnvironmentForTests(
-  options: EnsureDevEnvironmentOptions = {}
+  options: EnsureDevEnvironmentOptions = {},
 ): Promise<DevEnvironmentLease> {
   const env = options.env ?? process.env;
-  const log = options.log ?? ((msg: string) => console.log(msg));
+  const log =
+    options.log ??
+    ((msg: string) => {
+      process.stdout.write(`${msg}\n`);
+    });
   const run = options.execCommand ?? defaultExecGcloud;
   const confirm = options.promptConfirm ?? defaultPromptConfirm;
 
@@ -254,20 +396,27 @@ export async function ensureDevEnvironmentForTests(
 
   if (!needsSqlStart && !needsApiWarmup) {
     log(
-      `[dev-env] Dev environment (${stateBefore.sqlInstance}) is already running; leaving it running after test execution.`
+      `[dev-env] Dev environment (${stateBefore.sqlInstance}) is already running; leaving it running after test execution.`,
     );
     return {
       stateBefore,
       startedSql: false,
       warmedApi: false,
-      async restore() {},
+      restore: () => Promise.resolve(),
     };
   }
 
-  const preApproved = env.EVERLAST_START_DEV_APPROVED === "1" || env.EVERLAST_AUTO_START_DEV === "1";
+  const preApproved =
+    env.EVERLAST_START_DEV_APPROVED === "1" || env.EVERLAST_AUTO_START_DEV === "1";
   const targets: string[] = [];
-  if (needsSqlStart) targets.push(`${stateBefore.sqlInstance} (${stateBefore.sqlActivationPolicy}/${stateBefore.sqlState})`);
-  if (needsApiWarmup) targets.push(`${stateBefore.apiService} (min-instances=0)`);
+  if (needsSqlStart) {
+    targets.push(
+      `${stateBefore.sqlInstance} (${stateBefore.sqlActivationPolicy}/${stateBefore.sqlState})`,
+    );
+  }
+  if (needsApiWarmup) {
+    targets.push(`${stateBefore.apiService} (min-instances=0)`);
+  }
 
   const question =
     `Dev environment (${targets.join(", ")}) is currently scaled down to zero. ` +
@@ -276,7 +425,7 @@ export async function ensureDevEnvironmentForTests(
   const granted = preApproved || (await confirm(question));
   if (!granted) {
     throw new Error(
-      `UNAVAILABLE: Dev environment (${stateBefore.sqlInstance}) is not running and permission to start it for test execution was not granted.`
+      `UNAVAILABLE: Dev environment (${stateBefore.sqlInstance}) is not running and permission to start it for test execution was not granted.`,
     );
   }
 
@@ -284,8 +433,10 @@ export async function ensureDevEnvironmentForTests(
   let warmedApi = false;
   let restored = false;
 
-  const scaleBackDown = async () => {
-    if (restored) return;
+  const scaleBackDown = (): Promise<void> => {
+    if (restored) {
+      return Promise.resolve();
+    }
     restored = true;
     process.off("SIGINT", onSignal);
     process.off("SIGTERM", onSignal);
@@ -304,21 +455,31 @@ export async function ensureDevEnvironmentForTests(
           "--quiet",
         ]);
       } catch (err) {
-        errors.push(`Cloud Run scale-down failed: ${err instanceof Error ? err.message : String(err)}`);
+        errors.push(
+          `Cloud Run scale-down failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
       }
     }
     if (startedSql) {
       try {
         log(`[dev-env] Scaling down ${stateBefore.sqlInstance} back to activation-policy=NEVER...`);
-        run("gcloud", ["sql", "instances", "patch", stateBefore.sqlInstance, "--activation-policy=NEVER", "--quiet"]);
+        run("gcloud", [
+          "sql",
+          "instances",
+          "patch",
+          stateBefore.sqlInstance,
+          "--activation-policy=NEVER",
+          "--quiet",
+        ]);
       } catch (err) {
         errors.push(`Cloud SQL pause failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
     if (errors.length > 0) {
       console.error(`[dev-env] WARNING: ${errors.join("; ")}`);
-      throw new Error(errors.join("; "));
+      return Promise.reject(new Error(errors.join("; ")));
     }
+    return Promise.resolve();
   };
 
   const onSignal = () => {
@@ -329,8 +490,17 @@ export async function ensureDevEnvironmentForTests(
 
   try {
     if (needsSqlStart) {
-      log(`[dev-env] Starting ${stateBefore.sqlInstance} (activation-policy=ALWAYS) for test execution...`);
-      run("gcloud", ["sql", "instances", "patch", stateBefore.sqlInstance, "--activation-policy=ALWAYS", "--quiet"]);
+      log(
+        `[dev-env] Starting ${stateBefore.sqlInstance} (activation-policy=ALWAYS) for test execution...`,
+      );
+      run("gcloud", [
+        "sql",
+        "instances",
+        "patch",
+        stateBefore.sqlInstance,
+        "--activation-policy=ALWAYS",
+        "--quiet",
+      ]);
       startedSql = true;
     }
     if (needsApiWarmup) {
@@ -347,7 +517,7 @@ export async function ensureDevEnvironmentForTests(
       warmedApi = true;
     }
   } catch (err) {
-    await scaleBackDown().catch(() => {});
+    await scaleBackDown().catch(() => undefined);
     throw err;
   }
 
@@ -361,7 +531,7 @@ export async function ensureDevEnvironmentForTests(
 
 export async function withDevTestEnvironment<T>(
   options: EnsureDevEnvironmentOptions,
-  fn: (lease: DevEnvironmentLease) => Promise<T>
+  fn: (lease: DevEnvironmentLease) => Promise<T>,
 ): Promise<T> {
   const lease = await ensureDevEnvironmentForTests(options);
   try {

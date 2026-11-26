@@ -18,6 +18,31 @@ import type { EvidenceBatchLimits } from "../evidence.ts";
 import { DeterministicQuizModel, type QuizModelClient } from "./model.ts";
 import { generateQuiz } from "./pipeline.ts";
 
+function parseDifficulty(raw: unknown): PedagogyDifficulty | undefined {
+  if (raw === undefined) return undefined;
+  const parsedDiff = PedagogyDifficultySchema.safeParse(raw);
+  if (!parsedDiff.success) throw new StudioParamsError("Invalid quiz difficulty.");
+  return parsedDiff.data;
+}
+
+function parseQuestionCount(raw: number | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  if (!Number.isInteger(raw) || raw < QUIZ_MIN_QUESTIONS || raw > QUIZ_MAX_QUESTIONS) {
+    throw new StudioParamsError(
+      `Quiz question_count must be an integer between ${QUIZ_MIN_QUESTIONS} and ${QUIZ_MAX_QUESTIONS}.`,
+    );
+  }
+  return raw;
+}
+
+function parseFocusPrompt(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const check = validatePedagogyFocusPrompt(raw);
+  if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid focus prompt.");
+  if (!check.normalized) return undefined;
+  return check.normalized;
+}
+
 /**
  * [014-studio-active-learning-suite] T017 — Quiz Studio generator plugin (`quiz/default`, FR-ST-14, C-03).
  */
@@ -41,32 +66,15 @@ export class QuizGeneratorPlugin implements StudioGeneratorPlugin {
     if (!parsedSubtype.success) {
       throw new StudioParamsError(`Unknown quiz subtype ${request.subtype}`);
     }
-    let difficulty: PedagogyDifficulty | undefined;
-    if (request.params.difficulty !== undefined) {
-      const parsedDiff = PedagogyDifficultySchema.safeParse(request.params.difficulty);
-      if (!parsedDiff.success) throw new StudioParamsError("Invalid quiz difficulty.");
-      difficulty = parsedDiff.data;
-    }
-    let questionCount: number | undefined;
-    if (request.params.question_count !== undefined) {
-      const q = request.params.question_count;
-      if (!Number.isInteger(q) || q < QUIZ_MIN_QUESTIONS || q > QUIZ_MAX_QUESTIONS) {
-        throw new StudioParamsError(`Quiz question_count must be an integer between ${QUIZ_MIN_QUESTIONS} and ${QUIZ_MAX_QUESTIONS}.`);
-      }
-      questionCount = q;
-    }
-    let focusPrompt: string | undefined;
-    if (request.params.focus_prompt !== undefined) {
-      const check = validatePedagogyFocusPrompt(request.params.focus_prompt);
-      if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid focus prompt.");
-      if (check.normalized) focusPrompt = check.normalized;
-    }
+    const difficulty = parseDifficulty(request.params.difficulty);
+    const questionCount = parseQuestionCount(request.params.question_count);
+    const focusPrompt = parseFocusPrompt(request.params.focus_prompt);
     return {
       title: focusPrompt ? `Quiz: ${focusPrompt.slice(0, 48)}` : "Quiz",
       params_json: {
-        ...(difficulty !== undefined ? { difficulty } : {}),
-        ...(questionCount !== undefined ? { question_count: questionCount } : {}),
-        ...(focusPrompt !== undefined ? { focus_prompt: focusPrompt } : {}),
+        ...(difficulty === undefined ? {} : { difficulty }),
+        ...(questionCount === undefined ? {} : { question_count: questionCount }),
+        ...(focusPrompt === undefined ? {} : { focus_prompt: focusPrompt }),
       },
     };
   }

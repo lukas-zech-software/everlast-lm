@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createStudioPanel, type StudioPanel } from "../src/studio/panel.ts";
 import { renderNotebookOverview } from "../src/chat-control.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [011-studio-mindmaps-data-tables] T015 — Mindmap admission, list, cancel, initial canvas (depth 2),
@@ -90,48 +90,62 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
     selection = [SRC_A, SRC_B];
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const q = (sel: string, root: MockElement = body()) => root.querySelector(sel);
   const qa = (sel: string, root: MockElement = body()) => root.querySelectorAll(sel);
   const tid = (id: string, root?: MockElement) => q(`[data-testid=${id}]`, root);
   const tids = (id: string, root?: MockElement) => qa(`[data-testid=${id}]`, root);
 
   it("renders Mindmap tile in Studio panel and Generate Mindmap button in Notebook Overview; disables both when selection is empty", async () => {
-    const calls: { method: string; path: string; body: any }[] = [];
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const calls: Array<{
+      method: string;
+      path: string;
+      body: Record<string, unknown> | undefined;
+    }> = [];
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
-      const reqBody = typeof init.body === "string" ? JSON.parse(init.body) : undefined;
+      const reqBody =
+        typeof init.body === "string"
+          ? (JSON.parse(init.body) as Record<string, unknown>)
+          : undefined;
       calls.push({ method, path: url.pathname, body: reqBody });
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(JSON.stringify({ artifacts: [] }), { status: 200, headers: { "content-type": "application/json" } });
-      }
-      if (url.pathname.endsWith("/artifacts") && method === "POST") {
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              id: randomUUID(),
-              notebook_id: NB,
-              plugin_type: reqBody.plugin_type,
-              subtype: reqBody.subtype,
-              status: "Queued",
-              title: "Mindmap",
-              params_json: {},
-              payload_json: null,
-              source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
-              output_language: "en-US",
-              progress: null,
-              failure: null,
-              attempt: 1,
-              retry_of: null,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            },
+        return Promise.resolve(
+          new Response(JSON.stringify({ artifacts: [] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
           }),
-          { status: 202, headers: { "content-type": "application/json" } }
         );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      if (url.pathname.endsWith("/artifacts") && method === "POST") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                id: randomUUID(),
+                notebook_id: NB,
+                plugin_type: reqBody?.plugin_type,
+                subtype: reqBody?.subtype,
+                status: "Queued",
+                title: "Mindmap",
+                params_json: {},
+                payload_json: null,
+                source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
+                output_language: "en-US",
+                progress: null,
+                failure: null,
+                attempt: 1,
+                retry_of: null,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+            }),
+            { status: 202, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
     const panel: StudioPanel = createStudioPanel({
@@ -194,10 +208,9 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
     const reportId = randomUUID();
     let mindmapStatus: "Queued" | "Running" | "Completed" | "Cancelled" = "Running";
     let mindmapUnavailable = false;
-    const cancelCalls: string[] = [];
 
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
       const mindmapDto = {
         id: mindmapId,
@@ -207,11 +220,15 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
         status: mindmapStatus,
         title: mindmapUnavailable ? "Mindmap" : "Project Vortex Architecture",
         params_json: {},
-        payload_json: mindmapStatus === "Completed" && !mindmapUnavailable ? buildValidMindmapPayload() : null,
+        payload_json:
+          mindmapStatus === "Completed" && !mindmapUnavailable ? buildValidMindmapPayload() : null,
         source_revisions_snapshot: [{ source_id: SRC_A, revision: 1 }],
         output_language: "en-US",
         progress: null,
-        failure: mindmapStatus === "Cancelled" ? { code: "CancelledError", message: "Generation was cancelled." } : null,
+        failure:
+          mindmapStatus === "Cancelled"
+            ? { code: "CancelledError", message: "Generation was cancelled." }
+            : null,
         attempt: 1,
         retry_of: null,
         created_at: new Date().toISOString(),
@@ -236,37 +253,47 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
         updated_at: new Date().toISOString(),
       };
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(JSON.stringify({ artifacts: [mindmapDto, reportDto] }), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
+        return Promise.resolve(
+          new Response(JSON.stringify({ artifacts: [mindmapDto, reportDto] }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
       }
       if (url.pathname.endsWith(`/artifacts/${mindmapId}/cancel`) && method === "POST") {
-        cancelCalls.push(mindmapId);
         mindmapStatus = "Cancelled";
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              ...mindmapDto,
-              status: "Cancelled",
-              failure: { code: "CancelledError", message: "Generation was cancelled." },
-            },
-          }),
-          { status: 200, headers: { "content-type": "application/json" } }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                ...mindmapDto,
+                status: "Cancelled",
+                failure: { code: "CancelledError", message: "Generation was cancelled." },
+              },
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
         );
       }
       if (url.pathname.endsWith(`/artifacts/${mindmapId}`) && method === "GET") {
-        return new Response(
-          JSON.stringify({
-            artifact: mindmapDto,
-            ...(mindmapUnavailable
-              ? { unavailable: { code: "ArtifactSourceDeleted", message: "A source used by this artifact was deleted." } }
-              : {}),
-          }),
-          { status: 200, headers: { "content-type": "application/json" } }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: mindmapDto,
+              ...(mindmapUnavailable
+                ? {
+                    unavailable: {
+                      code: "ArtifactSourceDeleted",
+                      message: "A source used by this artifact was deleted.",
+                    },
+                  }
+                : {}),
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
         );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
     const panel = createStudioPanel({
@@ -292,7 +319,9 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
     // Now transition mindmap to Completed and refresh
     mindmapStatus = "Completed";
     await panel.refresh();
-    const completedRow = tids("studio-artifact-row").find((r) => r.getAttribute("data-artifact-id") === mindmapId)!;
+    const completedRow = tids("studio-artifact-row").find(
+      (r) => r.getAttribute("data-artifact-id") === mindmapId,
+    )!;
     tid("studio-artifact-open", completedRow)!.click();
 
     await vi.waitFor(() => expect(tid("studio-ai-generated-badge")).not.toBeNull());
@@ -304,7 +333,9 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
     expect(tid("studio-convert", viewer)).toBeNull();
 
     // Initial expansion is depth 2: root (depth 0), branch-1 (depth 1), depth-2-node (depth 2) visible; depth-3-hidden (depth 3) not visible
-    const visibleNodeIds = tids("mindmap-node", viewer).map((el) => el.getAttribute("data-node-id"));
+    const visibleNodeIds = tids("mindmap-node", viewer).map((el) =>
+      el.getAttribute("data-node-id"),
+    );
     expect(visibleNodeIds).toContain("root");
     expect(visibleNodeIds).toContain("branch-1");
     expect(visibleNodeIds).toContain("depth-2-node");
@@ -314,7 +345,9 @@ describe("[011-studio-mindmaps-data-tables] T015 — Studio mindmap UI admission
     tid("studio-viewer-close", viewer)!.click();
     mindmapUnavailable = true;
     await panel.refresh();
-    const unavailableRow = tids("studio-artifact-row").find((r) => r.getAttribute("data-artifact-id") === mindmapId)!;
+    const unavailableRow = tids("studio-artifact-row").find(
+      (r) => r.getAttribute("data-artifact-id") === mindmapId,
+    )!;
     tid("studio-artifact-open", unavailableRow)!.click();
     await vi.waitFor(() => expect(tid("studio-artifact-unavailable")).not.toBeNull());
     expect(tid("studio-artifact-unavailable")!.textContent).toContain("deleted");

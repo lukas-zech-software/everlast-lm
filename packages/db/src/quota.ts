@@ -70,7 +70,10 @@ export const SOURCE_COLUMNS = `id, notebook_id, attempt_id, title, media_type, s
   failure_message, link_kind, external_url, canonical_url, external_document_id, delegated_connection_id,
   content_hash, last_synced_at, progress, created_at, updated_at`;
 
-export interface SourceRow extends Omit<SourceRecord, "created_at" | "updated_at" | "upload_expires_at" | "last_synced_at"> {
+export interface SourceRow extends Omit<
+  SourceRecord,
+  "created_at" | "updated_at" | "upload_expires_at" | "last_synced_at"
+> {
   created_at: Date;
   updated_at: Date;
   upload_expires_at: Date | null;
@@ -107,18 +110,29 @@ export interface ReserveOptions {
   uploadTtlSeconds?: number | null;
 }
 
+function requireFirstRow<T>(rows: T[], context: string): T {
+  const row = rows[0];
+  if (!row) throw new Error(`Expected row for ${context}`);
+  return row;
+}
+
 async function countOccupied(db: Queryable, notebookId: string): Promise<number> {
   const result = await db.query<{ count: number }>(
     "SELECT count(*)::int AS count FROM sources WHERE notebook_id = $1 AND status = ANY($2::text[])",
-    [notebookId, OCCUPYING_STATUSES]
+    [notebookId, OCCUPYING_STATUSES],
   );
-  return result.rows[0]!.count;
+  return result.rows[0]?.count ?? 0;
 }
 
 function validateEntry(entry: AdmissionEntry): { code: string; message: string } | null {
-  if (!isUuid(entry.attempt_id)) return { code: "ValidationFailed", message: "attempt_id must be a UUID" };
+  if (!isUuid(entry.attempt_id))
+    return { code: "ValidationFailed", message: "attempt_id must be a UUID" };
   // Linked web/video types are admitted only through `admitLinkedImport` (specs/009), never as uploads.
-  if (!SourceMediaTypeSchema.safeParse(entry.media_type).success || entry.media_type === "text/html" || entry.media_type === "video_url") {
+  if (
+    !SourceMediaTypeSchema.safeParse(entry.media_type).success ||
+    entry.media_type === "text/html" ||
+    entry.media_type === "video_url"
+  ) {
     return { code: "UnsupportedMediaType", message: UNSUPPORTED_UPLOAD_MESSAGE };
   }
   if (!Number.isSafeInteger(entry.declared_bytes) || entry.declared_bytes < 0) {
@@ -127,7 +141,10 @@ function validateEntry(entry: AdmissionEntry): { code: string; message: string }
   if (entry.declared_bytes > MAX_SOURCE_BYTES) {
     return { code: "SourceOversized", message: "Source exceeds 200,000,000 bytes limit" };
   }
-  const titleLength = Array.from(entry.title.trim()).length;
+  let titleLength = 0;
+  for (const _cp of entry.title.trim()) {
+    titleLength += 1;
+  }
   if (titleLength < 1 || titleLength > 100) {
     return { code: "InvalidTitle", message: "Source title must be 1–100 Unicode code points" };
   }
@@ -143,7 +160,7 @@ export async function reserveSources(
   ownerId: string,
   notebookId: string,
   entries: AdmissionEntry[],
-  options: ReserveOptions = {}
+  options: ReserveOptions = {},
 ): Promise<AdmissionResult[]> {
   const sourceLimit = options.sourceLimit ?? DEFAULT_MAX_SOURCES_PER_NOTEBOOK;
   const ttl = options.uploadTtlSeconds === undefined ? 3600 : options.uploadTtlSeconds;
@@ -160,19 +177,24 @@ export async function reserveSources(
         continue;
       }
 
-      const prior = await tx.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE attempt_id = $1`, [
-        entry.attempt_id,
-      ]);
+      const prior = await tx.query<SourceRow>(
+        `SELECT ${SOURCE_COLUMNS} FROM sources WHERE attempt_id = $1`,
+        [entry.attempt_id],
+      );
       if (prior.rows[0]) {
         const record = toSourceRecord(prior.rows[0]);
-        if (record.notebook_id !== notebookId) {
+        if (record.notebook_id === notebookId) {
+          results.push({
+            attempt_id: entry.attempt_id,
+            admitted: record.status !== "Failed",
+            source: record,
+          });
+        } else {
           results.push({
             attempt_id: entry.attempt_id,
             admitted: false,
             error: { code: "InvalidScope", message: "attempt_id belongs to another notebook" },
           });
-        } else {
-          results.push({ attempt_id: entry.attempt_id, admitted: record.status !== "Failed", source: record });
         }
         continue;
       }
@@ -191,22 +213,45 @@ export async function reserveSources(
          VALUES ($1, $2, $3, $4, $5, 'Uploading', $6,
                  CASE WHEN $7::int IS NULL THEN NULL ELSE now() + make_interval(secs => $7::int) END)
          RETURNING ${SOURCE_COLUMNS}`,
-        [randomUUID(), notebookId, entry.attempt_id, entry.title.trim(), entry.media_type, entry.declared_bytes, ttl]
+        [
+          randomUUID(),
+          notebookId,
+          entry.attempt_id,
+          entry.title.trim(),
+          entry.media_type,
+          entry.declared_bytes,
+          ttl,
+        ],
       );
       occupied++;
-      results.push({ attempt_id: entry.attempt_id, admitted: true, source: toSourceRecord(inserted.rows[0]!) });
+      results.push({
+        attempt_id: entry.attempt_id,
+        admitted: true,
+        source: toSourceRecord(requireFirstRow(inserted.rows, "reserveSources")),
+      });
     }
     return results;
   });
 }
 
 /** Locks notebook (share) then source (update) for a trusted worker transition; returns null when fenced. */
-export async function lockSourceForTransition(db: Queryable, sourceId: string): Promise<SourceRecord | null> {
-  const parent = await db.query<{ notebook_id: string }>("SELECT notebook_id FROM sources WHERE id = $1", [sourceId]);
+export async function lockSourceForTransition(
+  db: Queryable,
+  sourceId: string,
+): Promise<SourceRecord | null> {
+  const parent = await db.query<{ notebook_id: string }>(
+    "SELECT notebook_id FROM sources WHERE id = $1",
+    [sourceId],
+  );
   if (!parent.rows[0]) return null;
-  const nb = await db.query("SELECT id FROM notebooks WHERE id = $1 FOR SHARE", [parent.rows[0].notebook_id]);
+  const nb = await db.query("SELECT id FROM notebooks WHERE id = $1 FOR SHARE", [
+    parent.rows[0].notebook_id,
+  ]);
   if ((nb.rowCount ?? 0) === 0) return null;
-  const row = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1 FOR UPDATE`, [sourceId]);
+  const row = await db.query<SourceRow>(
+    `SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1 FOR UPDATE`,
+    [sourceId],
+  );
   return row.rows[0] ? toSourceRecord(row.rows[0]) : null;
 }
 
@@ -227,22 +272,38 @@ export type ReceiveOutcome =
  * Trusted receipt (FR-WM-07): verifies the actual object size against the inclusive byte limit and moves
  * Uploading → Processing on the same slot, enqueuing ingestion atomically. Oversize fails and releases the slot.
  */
-export async function acceptReceivedSource(pool: Pool, input: ReceiveInput): Promise<ReceiveOutcome> {
+export async function acceptReceivedSource(
+  pool: Pool,
+  input: ReceiveInput,
+): Promise<ReceiveOutcome> {
   return withTransaction(pool, async (tx) => {
     const source = await lockSourceForTransition(tx, input.sourceId);
     if (!source) return { outcome: "rejected", reason: "fenced" };
-    if (source.attempt_id !== input.attemptId) return { outcome: "rejected", reason: "attempt_mismatch" };
+    if (source.attempt_id !== input.attemptId)
+      return { outcome: "rejected", reason: "attempt_mismatch" };
     if (source.status !== "Uploading") return { outcome: "rejected", reason: "not_uploading" };
 
-    if (!Number.isSafeInteger(input.actualBytes) || input.actualBytes < 0 || input.actualBytes > MAX_SOURCE_BYTES) {
+    if (
+      !Number.isSafeInteger(input.actualBytes) ||
+      input.actualBytes < 0 ||
+      input.actualBytes > MAX_SOURCE_BYTES
+    ) {
       const failed = await tx.query<SourceRow>(
         `UPDATE sources SET status = 'Failed', actual_bytes = $2, object_name = $3, object_generation = $4,
                 failure_code = 'SourceOversized', failure_message = 'Exceeds 200,000,000 bytes limit',
                 updated_at = now()
          WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
-        [input.sourceId, Math.max(0, Math.trunc(input.actualBytes)), input.objectName, input.objectGeneration]
+        [
+          input.sourceId,
+          Math.max(0, Math.trunc(input.actualBytes)),
+          input.objectName,
+          input.objectGeneration,
+        ],
       );
-      return { outcome: "failed", source: toSourceRecord(failed.rows[0]!) };
+      return {
+        outcome: "failed",
+        source: toSourceRecord(requireFirstRow(failed.rows, "acceptReceivedSource oversize")),
+      };
     }
 
     if (input.actualBytes === 0) {
@@ -250,19 +311,29 @@ export async function acceptReceivedSource(pool: Pool, input: ReceiveInput): Pro
         `UPDATE sources SET status = 'Failed', actual_bytes = 0, object_name = $2, object_generation = $3,
                 failure_code = 'EmptyFile', failure_message = 'File is empty', updated_at = now()
          WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
-        [input.sourceId, input.objectName, input.objectGeneration]
+        [input.sourceId, input.objectName, input.objectGeneration],
       );
-      return { outcome: "failed", source: toSourceRecord(failed.rows[0]!) };
+      return {
+        outcome: "failed",
+        source: toSourceRecord(requireFirstRow(failed.rows, "acceptReceivedSource empty")),
+      };
     }
 
     const updated = await tx.query<SourceRow>(
       `UPDATE sources SET status = 'Processing', actual_bytes = $2, object_name = $3, object_generation = $4,
               updated_at = now()
        WHERE id = $1 RETURNING ${SOURCE_COLUMNS}`,
-      [input.sourceId, input.actualBytes, input.objectName, input.objectGeneration]
+      [input.sourceId, input.actualBytes, input.objectName, input.objectGeneration],
     );
-    const jobId = await enqueueJob(tx, "ingest", { source_id: input.sourceId, attempt_id: input.attemptId });
-    return { outcome: "processing", source: toSourceRecord(updated.rows[0]!), jobId };
+    const jobId = await enqueueJob(tx, "ingest", {
+      source_id: input.sourceId,
+      attempt_id: input.attemptId,
+    });
+    return {
+      outcome: "processing",
+      source: toSourceRecord(requireFirstRow(updated.rows, "acceptReceivedSource processing")),
+      jobId,
+    };
   });
 }
 
@@ -272,12 +343,12 @@ export async function acceptReceivedSource(pool: Pool, input: ReceiveInput): Pro
  */
 export async function failSource(
   db: Queryable,
-  input: { sourceId: string; attemptId: string; code: string; message: string }
+  input: { sourceId: string; attemptId: string; code: string; message: string },
 ): Promise<boolean> {
   const result = await db.query(
     `UPDATE sources SET status = 'Failed', failure_code = $3, failure_message = $4, progress = NULL, updated_at = now()
      WHERE id = $1 AND attempt_id = $2 AND status IN ('Uploading', 'Processing')`,
-    [input.sourceId, input.attemptId, input.code, input.message]
+    [input.sourceId, input.attemptId, input.code, input.message],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -287,15 +358,15 @@ export async function dismissSourceError(
   pool: Pool,
   ownerId: string,
   notebookId: string,
-  sourceId: string
+  sourceId: string,
 ): Promise<void> {
   await withTransaction(pool, async (tx) => {
     await requireOwnedNotebook(tx, ownerId, notebookId, "update");
     if (!isUuid(sourceId)) throw new SourceNotFoundError();
-    const deleted = await tx.query("DELETE FROM sources WHERE notebook_id = $1 AND id = $2 AND status = 'Failed'", [
-      notebookId,
-      sourceId,
-    ]);
+    const deleted = await tx.query(
+      "DELETE FROM sources WHERE notebook_id = $1 AND id = $2 AND status = 'Failed'",
+      [notebookId, sourceId],
+    );
     if ((deleted.rowCount ?? 0) > 0) return;
     const exists = await tx.query("SELECT status FROM sources WHERE notebook_id = $1 AND id = $2", [
       notebookId,
@@ -306,11 +377,15 @@ export async function dismissSourceError(
   });
 }
 
-export async function listSources(db: Queryable, ownerId: string, notebookId: string): Promise<SourceRecord[]> {
+export async function listSources(
+  db: Queryable,
+  ownerId: string,
+  notebookId: string,
+): Promise<SourceRecord[]> {
   await requireOwnedNotebook(db, ownerId, notebookId);
   const result = await db.query<SourceRow>(
     `SELECT ${SOURCE_COLUMNS} FROM sources WHERE notebook_id = $1 ORDER BY created_at, id`,
-    [notebookId]
+    [notebookId],
   );
   return result.rows.map(toSourceRecord);
 }
@@ -319,14 +394,14 @@ export async function getSource(
   db: Queryable,
   ownerId: string,
   notebookId: string,
-  sourceId: string
+  sourceId: string,
 ): Promise<SourceRecord> {
   await requireOwnedNotebook(db, ownerId, notebookId);
   if (!isUuid(sourceId)) throw new SourceNotFoundError();
-  const result = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE notebook_id = $1 AND id = $2`, [
-    notebookId,
-    sourceId,
-  ]);
+  const result = await db.query<SourceRow>(
+    `SELECT ${SOURCE_COLUMNS} FROM sources WHERE notebook_id = $1 AND id = $2`,
+    [notebookId, sourceId],
+  );
   if (!result.rows[0]) throw new SourceNotFoundError();
   return toSourceRecord(result.rows[0]);
 }
@@ -334,7 +409,9 @@ export async function getSource(
 /** Trusted (worker) read without owner context; callers must re-verify the fence before publishing. */
 export async function getSourceById(db: Queryable, sourceId: string): Promise<SourceRecord | null> {
   if (!isUuid(sourceId)) return null;
-  const result = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1`, [sourceId]);
+  const result = await db.query<SourceRow>(`SELECT ${SOURCE_COLUMNS} FROM sources WHERE id = $1`, [
+    sourceId,
+  ]);
   return result.rows[0] ? toSourceRecord(result.rows[0]) : null;
 }
 
@@ -342,15 +419,15 @@ export async function getQuotaSummary(
   db: Queryable,
   ownerId: string,
   notebookId: string,
-  sourceLimit: number = DEFAULT_MAX_SOURCES_PER_NOTEBOOK
+  sourceLimit: number = DEFAULT_MAX_SOURCES_PER_NOTEBOOK,
 ): Promise<QuotaSummary> {
   await requireOwnedNotebook(db, ownerId, notebookId);
   const notebooks = await db.query<{ count: number }>(
     "SELECT count(*)::int AS count FROM notebooks WHERE owner_id = $1",
-    [ownerId]
+    [ownerId],
   );
   return {
-    notebooks_used: notebooks.rows[0]!.count,
+    notebooks_used: notebooks.rows[0]?.count ?? 0,
     notebook_limit: MAX_NOTEBOOKS_PER_USER,
     sources_used: await countOccupied(db, notebookId),
     source_limit: sourceLimit,
@@ -360,11 +437,14 @@ export async function getQuotaSummary(
 }
 
 /** Ready-source count per notebook of one owner (notebook overview cards, FR-WM-03). */
-export async function countReadySources(db: Queryable, ownerId: string): Promise<Map<string, number>> {
+export async function countReadySources(
+  db: Queryable,
+  ownerId: string,
+): Promise<Map<string, number>> {
   const result = await db.query<{ notebook_id: string; ready: string }>(
     `SELECT s.notebook_id, count(*) AS ready FROM sources s JOIN notebooks n ON n.id = s.notebook_id
      WHERE n.owner_id = $1 AND s.status = 'Ready' GROUP BY s.notebook_id`,
-    [ownerId]
+    [ownerId],
   );
   return new Map(result.rows.map((r) => [r.notebook_id, Number(r.ready)]));
 }

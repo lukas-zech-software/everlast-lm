@@ -34,7 +34,8 @@ export function resolveEnterpriseGeminiConfig<Role extends GeminiModelRole>(
   env: NodeJS.ProcessEnv = process.env,
 ): EnterpriseGeminiConfig<Role> {
   const project = (env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT)?.trim();
-  if (!project) throw new Error("VERTEX_PROJECT (or GCP_PROJECT_ID) is required for enterprise Gemini");
+  if (!project)
+    throw new Error("VERTEX_PROJECT (or GCP_PROJECT_ID) is required for enterprise Gemini");
   const location = env.GEMINI_LOCATION ?? EU_LOCATION;
   if (location !== EU_LOCATION) throw new Error("GEMINI_LOCATION must be eu under D23");
 

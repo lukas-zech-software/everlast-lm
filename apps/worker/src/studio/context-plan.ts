@@ -1,6 +1,11 @@
-import { createHash } from 'node:crypto';
-import { ContextModeSchema, EvidenceSegmentSchema, type EvidenceSegment, type UnifiedDocumentChunk } from '@everlast/contracts';
-import type { z } from 'zod';
+import { createHash } from "node:crypto";
+import {
+  type ContextModeSchema,
+  EvidenceSegmentSchema,
+  type EvidenceSegment,
+  type UnifiedDocumentChunk,
+} from "@everlast/contracts";
+import type { z } from "zod";
 
 export type ContextMode = z.infer<typeof ContextModeSchema>;
 
@@ -19,7 +24,7 @@ export interface StudioContextPlan {
   mode: ContextMode;
   sourceTokenTotal: number;
   segments: EvidenceSegment[];
-  originals: { chunk_id: string; digest: string; length: number }[];
+  originals: Array<{ chunk_id: string; digest: string; length: number }>;
   modelInputLimit: number;
   outputReserve: number;
 }
@@ -31,19 +36,21 @@ export function planStudioContext(input: PlanStudioContextInput): StudioContextP
   const maxBatchTokens = input.maxBatchTokens ?? 4000;
 
   if (outputReserve + instructionTokens >= modelInputLimit) {
-    throw new Error('Complete model envelope exceeds capacity: output reserve and instructions exceed model input limit');
+    throw new Error(
+      "Complete model envelope exceeds capacity: output reserve and instructions exceed model input limit",
+    );
   }
 
   const fitsInCache =
     input.sourceTokenTotal <= 100_000 &&
     input.sourceTokenTotal + outputReserve + instructionTokens <= modelInputLimit;
 
-  const mode: ContextMode = fitsInCache ? 'CachedFullContext' : 'ChunkMapReduce';
+  const mode: ContextMode = fitsInCache ? "CachedFullContext" : "ChunkMapReduce";
 
   const segments: EvidenceSegment[] = [];
   const originals = input.chunks.map((c) => {
     const textLen = c.text.length || 1;
-    const digest = createHash('sha256').update(c.text).digest('hex');
+    const digest = createHash("sha256").update(c.text).digest("hex");
 
     if (c.token_count > maxBatchTokens && c.text.length > 1) {
       // Oversized chunk: segment into continuous, non-overlapping parts
@@ -60,7 +67,7 @@ export function planStudioContext(input: PlanStudioContextInput): StudioContextP
             start_offset: offset,
             end_offset: end,
             token_count: partTokens,
-          })
+          }),
         );
         offset = end;
       }
@@ -71,7 +78,7 @@ export function planStudioContext(input: PlanStudioContextInput): StudioContextP
           start_offset: 0,
           end_offset: textLen,
           token_count: c.token_count,
-        })
+        }),
       );
     }
 

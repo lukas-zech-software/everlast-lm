@@ -3,7 +3,7 @@ import { makeCodePointString } from "@everlast/testkit/studio-structure-fixtures
 import type { StudioSlideDeckPayload } from "@everlast/contracts";
 import { createSlideDeckViewer } from "../src/studio/slide-deck-viewer.ts";
 import { createStudioPanel } from "../src/studio/panel.ts";
-import { setupMockDOM, type MockElement } from "./mock-dom.ts";
+import { requestUrl, setupMockDOM, type MockElement } from "./mock-dom.ts";
 
 /**
  * [015-studio-visuals-presentations] T010 — Slide Deck UI viewer, carousel navigation, speaker notes drawer,
@@ -25,21 +25,34 @@ const cite = {
   locator: { page_number: 2 },
 };
 
+function slideLayout(idx: number): StudioSlideDeckPayload["slides"][number]["layout"] {
+  if (idx === 0) {
+    return "title";
+  }
+  if (idx === 2) {
+    return "key_metric_callout";
+  }
+  return "two_column";
+}
+
 const samplePayload: StudioSlideDeckPayload = {
-  slides: Array.from({ length: 8 }, (_, idx) => ({
-    slide_number: idx + 1,
-    layout: idx === 0 ? "title" : idx === 2 ? "key_metric_callout" : "two_column",
-    title: `Slide ${idx + 1}: Architecture Highlight`,
-    bullets: [`Key claim ${idx + 1} verified in europe-west4 [1]`],
-    visual_spec: {
-      layout: idx === 0 ? "title" : idx === 2 ? "key_metric_callout" : "two_column",
-      subtitle: `Section ${idx + 1}`,
-      ...(idx === 2 ? { callout: { value: "99.95%", label: "Uptime SLA" } } : {}),
-    },
-    speaker_notes: `Detailed speaker notes for slide ${idx + 1}.`,
-    source_chunk_ids: [CHUNK_1],
-    citations: [cite],
-  })),
+  slides: Array.from({ length: 8 }, (_, idx) => {
+    const layout = slideLayout(idx);
+    return {
+      slide_number: idx + 1,
+      layout,
+      title: `Slide ${idx + 1}: Architecture Highlight`,
+      bullets: [`Key claim ${idx + 1} verified in europe-west4 [1]`],
+      visual_spec: {
+        layout,
+        subtitle: `Section ${idx + 1}`,
+        ...(idx === 2 ? { callout: { value: "99.95%", label: "Uptime SLA" } } : {}),
+      },
+      speaker_notes: `Detailed speaker notes for slide ${idx + 1}.`,
+      source_chunk_ids: [CHUNK_1],
+      citations: [cite],
+    };
+  }),
   target_count: 8,
   insufficient_evidence_note: null,
   citations: [cite],
@@ -52,7 +65,7 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     dom = setupMockDOM(1440);
   });
 
-  const body = () => dom.document.body as unknown as MockElement;
+  const body = () => dom.document.body;
   const tid = (id: string, root: MockElement = body()) => root.querySelector(`[data-testid=${id}]`);
 
   it("renders 16:9 slide carousel, toggles speaker notes, triggers citations and PPTX/PDF exports (with zero Google Slides option)", async () => {
@@ -64,8 +77,9 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
       title: "Architecture Deck",
       payload: samplePayload,
       onOpenCitation: (ref) => openedCites.push(ref.badge_number),
-      onExport: async (format) => {
+      onExport: (format) => {
         exported.push(format);
+        return Promise.resolve();
       },
     });
     body().append(viewer.element as unknown as MockElement);
@@ -77,7 +91,9 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     // Toggle Speaker Notes drawer open
     tid("slide-notes-toggle")!.click();
     expect(tid("slide-speaker-notes")!.hidden).toBe(false);
-    expect(tid("slide-speaker-notes")!.textContent).toContain("Detailed speaker notes for slide 1.");
+    expect(tid("slide-speaker-notes")!.textContent).toContain(
+      "Detailed speaker notes for slide 1.",
+    );
 
     // Advance with Next and Thumbnail 3
     tid("slide-next")!.click();
@@ -91,8 +107,8 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     expect(openedCites).toEqual([1]);
 
     // Trigger PPTX and PDF exports; ensure no Google Slides export button
-    await (tid("slide-export-pptx") as any).click();
-    await (tid("slide-export-pdf") as any).click();
+    tid("slide-export-pptx")!.click();
+    tid("slide-export-pdf")!.click();
     await new Promise((r) => setTimeout(r, 0));
     expect(exported).toEqual(["pptx", "pdf"]);
     expect(tid("slide-export-google-slides")).toBeNull();
@@ -100,7 +116,7 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
 
   it("validates 5..20 slide_count (default 10) and 2,000-codepoint focus_prompt in modal, and shows Retry without export on Failed row", async () => {
     let selection = [SRC_A];
-    const posts: any[] = [];
+    const posts: Array<Record<string, unknown>> = [];
     const artifacts = [
       {
         id: "42000000-ffff-4000-8000-000000000009",
@@ -122,29 +138,32 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
       },
     ];
 
-    const fetcher = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
-      const url = new URL(String(input), "http://local");
+    const fetcher = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(requestUrl(input), "http://local");
       const method = (init.method ?? "GET").toUpperCase();
       if (url.pathname.endsWith("/artifacts") && method === "GET") {
-        return new Response(JSON.stringify({ artifacts }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ artifacts }), { status: 200 }));
       }
       if (url.pathname.endsWith("/artifacts") && method === "POST") {
-        const parsed = JSON.parse(String(init.body));
+        const parsed =
+          typeof init.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {};
         posts.push(parsed);
-        return new Response(
-          JSON.stringify({
-            artifact: {
-              ...artifacts[0],
-              id: ART,
-              status: "Queued",
-              failure: null,
-              params_json: parsed,
-            },
-          }),
-          { status: 202 }
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              artifact: {
+                ...artifacts[0],
+                id: ART,
+                status: "Queued",
+                failure: null,
+                params_json: parsed,
+              },
+            }),
+            { status: 202 },
+          ),
         );
       }
-      return new Response(JSON.stringify({}), { status: 200 });
+      return Promise.resolve(new Response(JSON.stringify({}), { status: 200 }));
     }) as typeof fetch;
 
     const panel = createStudioPanel({
@@ -159,7 +178,7 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     await panel.refresh();
 
     // Failed deck card shows Retry button and no partial export actions
-    const listText = body().textContent ?? "";
+    const listText = body().textContent;
     expect(listText).toContain("Retry");
     expect(tid("slide-export-pptx")).toBeNull();
     expect(tid("slide-export-pdf")).toBeNull();
@@ -177,10 +196,10 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     tile.click();
     const modal = tid("slide-deck-modal")!;
     expect(modal).not.toBeNull();
-    expect((tid("slide-deck-count-input", modal) as any).value).toBe("10");
+    expect(tid("slide-deck-count-input", modal)!.value).toBe("10");
 
     // 2,001 Unicode code points disables submit without truncation
-    const promptInput = tid("slide-deck-focus-prompt", modal) as any;
+    const promptInput = tid("slide-deck-focus-prompt", modal)!;
     promptInput.value = makeCodePointString(2001);
     promptInput.dispatchEvent({ type: "input" });
     expect(tid("slide-deck-generate", modal)!.disabled).toBe(true);
@@ -188,7 +207,7 @@ describe("[015-studio-visuals-presentations] T010: Slide Deck UI viewer, carouse
     // Slide count 4 or 21 disables submit
     promptInput.value = "Executive Q3 architecture overview";
     promptInput.dispatchEvent({ type: "input" });
-    const countInput = tid("slide-deck-count-input", modal) as any;
+    const countInput = tid("slide-deck-count-input", modal)!;
     countInput.value = "4";
     countInput.dispatchEvent({ type: "input" });
     expect(tid("slide-deck-generate", modal)!.disabled).toBe(true);

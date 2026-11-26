@@ -18,7 +18,10 @@ import { StudioJobRunner } from "./runner.ts";
  * inline runner, so a mindmap/data_table attempt whose API process died is recovered on the same attempt.
  * Runs inside `runWithV2Persistence(pool, …)` (the outbox handler binds it), which `getNotebookOwner` needs.
  */
-export function createDurableStudioRunner(pool: Pool, options: StudioRegistryOptions = {}): { run(id: string): Promise<StudioArtifactRecord> } {
+export function createDurableStudioRunner(
+  pool: Pool,
+  options: StudioRegistryOptions = {},
+): { run: (id: string) => Promise<StudioArtifactRecord> } {
   const runner = new StudioJobRunner({
     repo: new PostgresStudioArtifactRepository(pool),
     registry: createStudioPluginRegistry(options),
@@ -26,12 +29,19 @@ export function createDurableStudioRunner(pool: Pool, options: StudioRegistryOpt
       async getScopedContext(notebookId, activeSourceIds, ownerId) {
         const owner = ownerId ?? (await getNotebookOwner(notebookId));
         if (!owner) throw new InvalidScopeError("Notebook is not available");
-        return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
+        return listAllSnapshotChunks(
+          pool,
+          await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds),
+        );
       },
     },
     access: {
       async verifySnapshot(ownerId, notebookId, snapshot) {
-        await verifyScopeSnapshot(pool, { notebook_id: notebookId, owner_id: ownerId, sources: snapshot });
+        await verifyScopeSnapshot(pool, {
+          notebook_id: notebookId,
+          owner_id: ownerId,
+          sources: snapshot,
+        });
       },
     },
   });

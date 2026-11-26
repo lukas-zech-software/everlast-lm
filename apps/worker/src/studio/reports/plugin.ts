@@ -34,8 +34,10 @@ export class ReportGeneratorPlugin implements StudioGeneratorPlugin {
     const subtype = parsed.data;
     if (subtype === "dynamic" || subtype === "custom") {
       const check = validateCustomReportPrompt(request.params.custom_prompt ?? "");
-      if (!check.valid) throw new StudioParamsError(check.error ?? "Invalid report prompt");
-      return { title: TEMPLATES[subtype].title, params_json: { custom_prompt: check.normalized as string } };
+      if (!check.valid || check.normalized === undefined) {
+        throw new StudioParamsError(check.error ?? "Invalid report prompt");
+      }
+      return { title: TEMPLATES[subtype].title, params_json: { custom_prompt: check.normalized } };
     }
     return { title: TEMPLATES[subtype].title, params_json: {} };
   }

@@ -15,23 +15,41 @@ export interface NoteSourceProvenance {
 }
 
 /** Reuse key: the sorted, de-duplicated `note_id:revision` set of the converted notes (order-independent). */
-export function noteSourceOriginKey(origins: Pick<NoteSourceOrigin, "note_id" | "revision">[]): string {
+export function noteSourceOriginKey(
+  origins: Array<Pick<NoteSourceOrigin, "note_id" | "revision">>,
+): string {
   return [...new Set(origins.map((o) => `${o.note_id}:${o.revision}`))].sort().join(",");
 }
 
 export async function recordNoteSourceProvenance(
   db: Queryable,
-  input: { notebook_id: string; source_id: string; origin_notes: NoteSourceOrigin[]; origin_citations: Citation[] }
+  input: {
+    notebook_id: string;
+    source_id: string;
+    origin_notes: NoteSourceOrigin[];
+    origin_citations: Citation[];
+  },
 ): Promise<void> {
   await db.query(
     `INSERT INTO note_source_provenance (source_id, notebook_id, origin_key, origin_notes, origin_citations)
      VALUES ($1, $2, $3, $4::jsonb, $5::jsonb)`,
-    [input.source_id, input.notebook_id, noteSourceOriginKey(input.origin_notes), JSON.stringify(input.origin_notes), JSON.stringify(input.origin_citations)]
+    [
+      input.source_id,
+      input.notebook_id,
+      noteSourceOriginKey(input.origin_notes),
+      JSON.stringify(input.origin_notes),
+      JSON.stringify(input.origin_citations),
+    ],
   );
 }
 
 /** The newest Ready note-source of this owner's notebook converted from exactly these notes at these revisions. */
-export async function findReusableNoteSource(db: Queryable, ownerId: string, notebookId: string, originKey: string): Promise<string | null> {
+export async function findReusableNoteSource(
+  db: Queryable,
+  ownerId: string,
+  notebookId: string,
+  originKey: string,
+): Promise<string | null> {
   await requireOwnedNotebook(db, ownerId, notebookId);
   const result = await db.query<{ id: string }>(
     `SELECT s.id FROM note_source_provenance p
@@ -39,16 +57,29 @@ export async function findReusableNoteSource(db: Queryable, ownerId: string, not
       WHERE p.notebook_id = $1 AND p.origin_key = $2 AND s.status = 'Ready' AND s.media_type = 'note_markdown'
       ORDER BY p.created_at DESC
       LIMIT 1`,
-    [notebookId, originKey]
+    [notebookId, originKey],
   );
   return result.rows[0]?.id ?? null;
 }
 
-export async function getNoteSourceProvenance(db: Queryable, notebookId: string, sourceIds: string[]): Promise<Map<string, NoteSourceProvenance>> {
+export async function getNoteSourceProvenance(
+  db: Queryable,
+  notebookId: string,
+  sourceIds: string[],
+): Promise<Map<string, NoteSourceProvenance>> {
   if (sourceIds.length === 0) return new Map();
-  const result = await db.query<{ source_id: string; origin_notes: NoteSourceOrigin[]; origin_citations: Citation[] }>(
+  const result = await db.query<{
+    source_id: string;
+    origin_notes: NoteSourceOrigin[];
+    origin_citations: Citation[];
+  }>(
     "SELECT source_id, origin_notes, origin_citations FROM note_source_provenance WHERE notebook_id = $1 AND source_id = ANY($2::uuid[])",
-    [notebookId, sourceIds]
+    [notebookId, sourceIds],
   );
-  return new Map(result.rows.map((r) => [r.source_id, { origin_notes: r.origin_notes, origin_citations: r.origin_citations }]));
+  return new Map(
+    result.rows.map((r) => [
+      r.source_id,
+      { origin_notes: r.origin_notes, origin_citations: r.origin_citations },
+    ]),
+  );
 }

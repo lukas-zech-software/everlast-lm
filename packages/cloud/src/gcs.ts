@@ -1,5 +1,11 @@
 import { Storage, type Bucket } from "@google-cloud/storage";
-import { RetainedObjectError, type ObjectMetadata, type ObjectStorage, type ObjectVersion, type UploadCapability } from "./storage.ts";
+import {
+  RetainedObjectError,
+  type ObjectMetadata,
+  type ObjectStorage,
+  type ObjectVersion,
+  type UploadCapability,
+} from "./storage.ts";
 
 /**
  * Cloud Storage implementation (FR-WM-01, FR-SI-01, NFR-SEC-01, D3). Private, versioned, europe-west4 bucket
@@ -16,9 +22,18 @@ export class GcsObjectStorage implements ObjectStorage {
 
   async write(name: string, data: Buffer, contentType: string): Promise<ObjectMetadata> {
     const file = this.bucket.file(name);
-    await file.save(data, { contentType, resumable: false, metadata: { cacheControl: "private, no-store" } });
+    await file.save(data, {
+      contentType,
+      resumable: false,
+      metadata: { cacheControl: "private, no-store" },
+    });
     const [metadata] = await file.getMetadata();
-    return { name, generation: String(metadata.generation), size: Number(metadata.size), contentType };
+    return {
+      name,
+      generation: String(metadata.generation),
+      size: Number(metadata.size),
+      contentType,
+    };
   }
 
   async read(name: string, generation?: string): Promise<Buffer> {
@@ -28,7 +43,9 @@ export class GcsObjectStorage implements ObjectStorage {
   }
 
   async readRange(name: string, generation: string, start: number, end: number): Promise<Buffer> {
-    const [contents] = await this.bucket.file(name, { generation: Number(generation) }).download({ start, end });
+    const [contents] = await this.bucket
+      .file(name, { generation: Number(generation) })
+      .download({ start, end });
     return contents;
   }
 
@@ -56,24 +73,30 @@ export class GcsObjectStorage implements ObjectStorage {
         generation: String(m.generation),
         size: Number(m.size ?? 0),
         live: !m.timeDeleted,
-        retained: Boolean(m.temporaryHold || m.eventBasedHold || (m.retention && m.retention.retainUntilTime)),
+        retained:
+          Boolean(m.temporaryHold) ||
+          Boolean(m.eventBasedHold) ||
+          Boolean(m.retention?.retainUntilTime),
       };
     });
   }
 
   async deleteVersion(name: string, generation: string): Promise<void> {
     try {
-      await this.bucket.file(name, { generation: Number(generation) }).delete({ ignoreNotFound: true });
+      await this.bucket
+        .file(name, { generation: Number(generation) })
+        .delete({ ignoreNotFound: true });
     } catch (err) {
       const code = (err as { code?: number }).code;
-      if (code === 403 && /retention|hold/i.test((err as Error).message)) throw new RetainedObjectError(name);
+      if (code === 403 && /retention|hold/i.test((err as Error).message))
+        throw new RetainedObjectError(name);
       throw err;
     }
   }
 
   async createUploadUrl(
     name: string,
-    options: { contentType: string; maxBytes: number; expiresAt: Date }
+    options: { contentType: string; maxBytes: number; expiresAt: Date },
   ): Promise<UploadCapability> {
     const extensionHeaders = { "x-goog-content-length-range": `0,${options.maxBytes}` };
     const [url] = await this.bucket.file(name).getSignedUrl({

@@ -5,7 +5,12 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HashingTestEmbedder, LocalObjectStorage } from "@everlast/cloud";
 import { captureScopeSnapshot, createNotebook } from "@everlast/db";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "@everlast/db/testing";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "@everlast/db/testing";
 import { ChatService, type TurnObservation } from "@everlast/api/chat/service";
 import type { GroundedModel } from "@everlast/api/chat/model";
 import { createPostgresNoteSources } from "@everlast/notes/note-sources";
@@ -21,8 +26,15 @@ let dir: string;
 const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 const citesEverything: GroundedModel = {
   id: "eval:cite-all",
-  async generate({ chunks }) {
-    return { status: "answered", sentences: chunks.map((c) => ({ text: c.text, citations: [c.chunk_id], kind: "claim" as const })) };
+  generate({ chunks }) {
+    return Promise.resolve({
+      status: "answered",
+      sentences: chunks.map((c) => ({
+        text: c.text,
+        citations: [c.chunk_id],
+        kind: "claim" as const,
+      })),
+    });
   },
 };
 
@@ -31,7 +43,7 @@ beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "everlast-eval-notes-"));
 });
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -41,7 +53,12 @@ describe("NFR-EVAL-02, NFR-EVAL-04: note-source scope", () => {
     const nb = (await createNotebook(db.pool, owner, {})).notebook.id;
     const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: "http://127.0.0.1:9" });
     const notes = createPostgresNoteSources({ pool: db.pool, storage, embedder, sourceLimit: 50 });
-    await seedReadySource(db.pool, owner, nb, { title: "Decoy.txt", mediaType: "text/plain", pages: ["Project codename is DECOY-99."], embed: (t) => embedder.embed(t) });
+    await seedReadySource(db.pool, owner, nb, {
+      title: "Decoy.txt",
+      mediaType: "text/plain",
+      pages: ["Project codename is DECOY-99."],
+      embed: (t) => embedder.embed(t),
+    });
     const source = await notes.create(owner, nb, {
       title: "Raw data note",
       markdown: "# Raw data note\n\nProject codename is TITAN-77.",
@@ -51,15 +68,30 @@ describe("NFR-EVAL-02, NFR-EVAL-04: note-source scope", () => {
     expect(source.status).toBe("Ready");
 
     const observations: TurnObservation[] = [];
-    const chat = new ChatService({ pool: db.pool, embedder, model: citesEverything, observer: (o) => observations.push(o) });
-    for await (const _ of chat.runTurn({ ownerId: owner, notebookId: nb, message: "What is the project codename?", activeSourceIds: [source.id], requestId: randomUUID() })) void _;
+    const chat = new ChatService({
+      pool: db.pool,
+      embedder,
+      model: citesEverything,
+      observer: (o) => observations.push(o),
+    });
+    for await (const _event of chat.runTurn({
+      ownerId: owner,
+      notebookId: nb,
+      message: "What is the project codename?",
+      activeSourceIds: [source.id],
+      requestId: randomUUID(),
+    })) {
+      // Drain turn stream so observer records the completed turn.
+    }
 
     const [observation] = observations;
     const leaked = observation!.retrieved.filter((c) => c.source_id !== source.id);
     expect(leaked).toHaveLength(0);
     expect(observation!.result.kind).toBe("answer");
     const citations = observation!.result.kind === "answer" ? observation!.result.citations : [];
-    const valid = citations.filter((c) => observation!.retrieved.some((r) => r.chunk_id === c.chunk_id && r.source_id === source.id));
+    const valid = citations.filter((c) =>
+      observation!.retrieved.some((r) => r.chunk_id === c.chunk_id && r.source_id === source.id),
+    );
     expect(citations.length).toBeGreaterThan(0);
     expect(valid.length / citations.length).toBe(1);
   });
@@ -71,7 +103,10 @@ describe("NFR-EVAL-02, NFR-EVAL-04: note-source scope", () => {
     const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: "http://127.0.0.1:9" });
     const notes = createPostgresNoteSources({ pool: db.pool, storage, embedder, sourceLimit: 50 });
     const source = await notes.create(owner, nb1, {
-      title: "Secret", markdown: "# Secret\n\nsecret", origin_notes: [{ note_id: randomUUID(), revision: 1, title: "Secret" }], origin_citations: [],
+      title: "Secret",
+      markdown: "# Secret\n\nsecret",
+      origin_notes: [{ note_id: randomUUID(), revision: 1, title: "Secret" }],
+      origin_citations: [],
     });
     await expect(captureScopeSnapshot(db.pool, owner, nb2, [source.id])).rejects.toThrow();
   });

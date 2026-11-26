@@ -4,7 +4,9 @@ import { createPool, runMigrations } from "../index.ts";
 const pool = createPool();
 try {
   const applied = await runMigrations(pool);
-  console.log(applied.length ? `Applied migrations: ${applied.join(", ")}` : "Database schema is up to date");
+  console.log(
+    applied.length ? `Applied migrations: ${applied.join(", ")}` : "Database schema is up to date",
+  );
 } finally {
   await pool.end();
 }

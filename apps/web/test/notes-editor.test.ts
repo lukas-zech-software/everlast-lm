@@ -17,8 +17,13 @@ describe("FR-NM-01: note editor auto-save", () => {
   afterEach(() => vi.useRealTimers());
 
   it("debounces 500 ms, saves within the 1 s deadline and reports saved", async () => {
-    const patch = vi.fn(async () => ({ revision: 2 }));
-    const s = new NoteEditorSession({ noteId: "n1", revision: 1, api: { patchNote: patch }, drafts: memoryDrafts() });
+    const patch = vi.fn(() => Promise.resolve({ revision: 2 }));
+    const s = new NoteEditorSession({
+      noteId: "n1",
+      revision: 1,
+      api: { patchNote: patch },
+      drafts: memoryDrafts(),
+    });
     s.edit({ content_md: "a" });
     s.edit({ content_md: "ab" });
     expect(s.status).toBe("pending");
@@ -32,9 +37,14 @@ describe("FR-NM-01: note editor auto-save", () => {
   });
 
   it("flushes pending edits on close before reporting success", async () => {
-    const patch = vi.fn(async () => ({ revision: 2 }));
+    const patch = vi.fn(() => Promise.resolve({ revision: 2 }));
     const drafts = memoryDrafts();
-    const s = new NoteEditorSession({ noteId: "n1", revision: 1, api: { patchNote: patch }, drafts });
+    const s = new NoteEditorSession({
+      noteId: "n1",
+      revision: 1,
+      api: { patchNote: patch },
+      drafts,
+    });
     s.edit({ title: "Key Audit Findings" });
     await expect(s.close()).resolves.toEqual({ ok: true });
     expect(patch).toHaveBeenCalledTimes(1);
@@ -44,16 +54,25 @@ describe("FR-NM-01: note editor auto-save", () => {
   it("keeps a recoverable draft and shows error when the save fails; close is not successful", async () => {
     const drafts = memoryDrafts();
     const s = new NoteEditorSession({
-      noteId: "n1", revision: 1, drafts,
-      api: { patchNote: async () => { throw new Error("offline"); } },
+      noteId: "n1",
+      revision: 1,
+      drafts,
+      api: {
+        patchNote: () => Promise.reject(new Error("offline")),
+      },
     });
     s.edit({ content_md: "unsaved" });
     await expect(s.close()).resolves.toEqual({ ok: false });
     expect(s.status).toBe("error");
     expect(drafts.load("n1")).toMatchObject({ content_md: "unsaved" });
 
-    const patch = vi.fn(async () => ({ revision: 2 }));
-    const next = new NoteEditorSession({ noteId: "n1", revision: 1, api: { patchNote: patch }, drafts });
+    const patch = vi.fn(() => Promise.resolve({ revision: 2 }));
+    const next = new NoteEditorSession({
+      noteId: "n1",
+      revision: 1,
+      api: { patchNote: patch },
+      drafts,
+    });
     expect(next.recoverDraft()).toBe(true);
     expect(next.status).toBe("pending");
     await next.close();
@@ -62,7 +81,11 @@ describe("FR-NM-01: note editor auto-save", () => {
 });
 
 describe("FR-NM-01, FR-NM-03: pinboard helpers", () => {
-  const n = (id: string, order: number, content = "x") => ({ id, display_order: order, content_md: content });
+  const n = (id: string, order: number, content = "x") => ({
+    id,
+    display_order: order,
+    content_md: content,
+  });
 
   it("orders by display_order", () => {
     expect(orderNotes([n("b", 2), n("a", 1)]).map((x) => x.id)).toEqual(["a", "b"]);
@@ -70,8 +93,13 @@ describe("FR-NM-01, FR-NM-03: pinboard helpers", () => {
 
   it("disables conversion for blank bodies or a full source quota", () => {
     expect(conversionState([n("a", 1)], { used: 0, limit: 50 })).toEqual({ enabled: true });
-    expect(conversionState([n("a", 1, "  ")], { used: 0, limit: 50 })).toMatchObject({ enabled: false });
-    expect(conversionState([n("a", 1)], { used: 50, limit: 50 })).toEqual({ enabled: false, tooltip: "Source limit reached" });
+    expect(conversionState([n("a", 1, "  ")], { used: 0, limit: 50 })).toMatchObject({
+      enabled: false,
+    });
+    expect(conversionState([n("a", 1)], { used: 50, limit: 50 })).toEqual({
+      enabled: false,
+      tooltip: "Source limit reached",
+    });
     expect(conversionState([], { used: 0, limit: 50 })).toMatchObject({ enabled: false });
   });
 

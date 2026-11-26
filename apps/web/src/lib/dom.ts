@@ -3,7 +3,11 @@
 type Attrs = Record<string, string | number | boolean | undefined | null>;
 type Child = Node | string | null | undefined | false;
 
-export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs = {}, ...children: Child[]): HTMLElementTagNameMap[K] {
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  attrs: Attrs = {},
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(attrs)) {
     if (value === undefined || value === null || value === false) continue;
@@ -34,11 +38,21 @@ export function toast(message: string, kind: "error" | "info" = "error"): void {
   setTimeout(() => item.remove(), 5000);
 }
 
-export function confirmDialog(options: { title: string; body: string; confirm: string; danger?: boolean }): Promise<boolean> {
+export function confirmDialog(options: {
+  title: string;
+  body: string;
+  confirm: string;
+  danger?: boolean;
+}): Promise<boolean> {
   return new Promise((resolve) => {
     const dialog = h(
       "div",
-      { class: "modal-backdrop", "data-testid": "confirm-dialog", role: "dialog", "aria-modal": "true" },
+      {
+        class: "modal-backdrop",
+        "data-testid": "confirm-dialog",
+        role: "dialog",
+        "aria-modal": "true",
+      },
       h(
         "div",
         { class: "modal" },
@@ -48,16 +62,22 @@ export function confirmDialog(options: { title: string; body: string; confirm: s
           "div",
           { class: "modal-actions" },
           h("button", { class: "btn", "data-action": "cancel", text: "Cancel" }),
-          h("button", { class: `btn ${options.danger ? "btn-danger" : "btn-primary"}`, "data-action": "confirm", text: options.confirm })
-        )
-      )
+          h("button", {
+            class: `btn ${options.danger ? "btn-danger" : "btn-primary"}`,
+            "data-action": "confirm",
+            text: options.confirm,
+          }),
+        ),
+      ),
     );
     const close = (result: boolean) => {
       dialog.remove();
       resolve(result);
     };
     dialog.addEventListener("click", (event) => {
-      const action = (event.target as HTMLElement).closest("[data-action]")?.getAttribute("data-action");
+      const action = (event.target as HTMLElement)
+        .closest("[data-action]")
+        ?.getAttribute("data-action");
       if (action === "cancel" || event.target === dialog) close(false);
       if (action === "confirm") close(true);
     });
@@ -65,6 +85,6 @@ export function confirmDialog(options: { title: string; body: string; confirm: s
       if (event.key === "Escape") close(false);
     });
     document.body.append(dialog);
-    (dialog.querySelector('[data-action="confirm"]') as HTMLButtonElement).focus();
+    dialog.querySelector<HTMLElement>('[data-action="confirm"]')?.focus();
   });
 }

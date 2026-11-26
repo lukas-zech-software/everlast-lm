@@ -38,102 +38,131 @@ export interface StudioStructureDeterministicEvalReport {
   cases: StudioStructureEvalCaseResult[];
 }
 
-export async function runStudioStructureDeterministicEval(): Promise<StudioStructureDeterministicEvalReport> {
-  const cases: StudioStructureEvalCaseResult[] = [];
-  let totalCitations = 0;
-  let validCitations = 0;
-  let totalLeakage = 0;
+type ThreeSourceStudioFixture = ReturnType<typeof buildThreeSourceStudioFixture>;
+type MindmapOutcome = Awaited<ReturnType<typeof generateMindmap>>;
 
-  // Case 1: 3-source multimodal mindmap (PDF page_number, Web dom_path, Audio start_ms..end_ms) + unselected leak probe
-  const threeSource = buildThreeSourceStudioFixture();
-  const mmModel = new DeterministicMindmapModel();
-  const mmOutcome = await generateMindmap({
+async function evaluateThreeSourceMindmap(
+  threeSource: ThreeSourceStudioFixture,
+  mmModel: DeterministicMindmapModel,
+): Promise<{ outcome: MindmapOutcome; result: StudioStructureEvalCaseResult }> {
+  const outcome = await generateMindmap({
     chunks: threeSource.chunks,
     snapshot: threeSource.snapshot,
     model: mmModel,
     signal: new AbortController().signal,
     reportProgress: () => undefined,
   });
-  const mmValid =
-    mmOutcome.status === "completed" &&
-    validateMindmapPayload(mmOutcome.payload, threeSource.chunks, threeSource.snapshot) === null;
-  const mmJson = mmOutcome.status === "completed" ? JSON.stringify(mmOutcome.payload) : "";
-  const mmLeak = mmJson.includes(STUDIO_LEAK_PROBE) ? 1 : 0;
-  const mmCiteCount = mmOutcome.status === "completed" ? mmOutcome.payload.citations.length : 0;
-  totalCitations += mmCiteCount;
-  if (mmValid) validCitations += mmCiteCount;
-  totalLeakage += mmLeak;
-  cases.push({
-    id: "MM-DET-01: 3-source multimodal mindmap",
-    kind: "mindmap",
-    passed: mmValid && mmLeak === 0 && mmCiteCount > 0,
-    total_citations: mmCiteCount,
-    valid_citations: mmValid ? mmCiteCount : 0,
-    leaked_tokens: mmLeak,
-    detail: mmValid ? `Valid tree (${mmOutcome.status === "completed" ? mmOutcome.payload.node_count : 0} nodes)` : "Validation failed",
-  });
+  if (outcome.status !== "completed") {
+    return {
+      outcome,
+      result: {
+        id: "MM-DET-01: 3-source multimodal mindmap",
+        kind: "mindmap",
+        passed: false,
+        total_citations: 0,
+        valid_citations: 0,
+        leaked_tokens: 0,
+        detail: "Validation failed",
+      },
+    };
+  }
+  const valid =
+    validateMindmapPayload(outcome.payload, threeSource.chunks, threeSource.snapshot) === null;
+  const leak = JSON.stringify(outcome.payload).includes(STUDIO_LEAK_PROBE) ? 1 : 0;
+  const citeCount = outcome.payload.citations.length;
+  return {
+    outcome,
+    result: {
+      id: "MM-DET-01: 3-source multimodal mindmap",
+      kind: "mindmap",
+      passed: valid && leak === 0 && citeCount > 0,
+      total_citations: citeCount,
+      valid_citations: valid ? citeCount : 0,
+      leaked_tokens: leak,
+      detail: valid ? `Valid tree (${outcome.payload.node_count} nodes)` : "Validation failed",
+    },
+  };
+}
 
-  // Case 2: >=50-source mindmap retaining late-only original fact (SC-008)
+async function evaluateFiftySourceMindmap(
+  mmModel: DeterministicMindmapModel,
+): Promise<{ lateFactRetained: boolean; result: StudioStructureEvalCaseResult }> {
   const fiftySource = buildFiftySourceFixture(50);
-  const mm50Outcome = await generateMindmap({
+  const outcome = await generateMindmap({
     chunks: fiftySource.chunks,
     snapshot: fiftySource.snapshot,
     model: mmModel,
     signal: new AbortController().signal,
     reportProgress: () => undefined,
   });
-  const mm50Valid =
-    mm50Outcome.status === "completed" &&
-    validateMindmapPayload(mm50Outcome.payload, fiftySource.chunks, fiftySource.snapshot) === null;
-  const mm50Json = mm50Outcome.status === "completed" ? JSON.stringify(mm50Outcome.payload) : "";
-  const lateFactRetained = mm50Json.includes(LATE_ORIGINAL_FACT_TOKEN);
-  const mm50CiteCount = mm50Outcome.status === "completed" ? mm50Outcome.payload.citations.length : 0;
-  totalCitations += mm50CiteCount;
-  if (mm50Valid) validCitations += mm50CiteCount;
-  cases.push({
-    id: "MM-DET-02: 50-source all-original batch mindmap",
-    kind: "mindmap",
-    passed: mm50Valid && lateFactRetained,
-    total_citations: mm50CiteCount,
-    valid_citations: mm50Valid ? mm50CiteCount : 0,
-    leaked_tokens: 0,
-    detail: lateFactRetained ? "Retained late-batch original fact" : "Missing late-batch original fact",
-  });
+  const valid =
+    outcome.status === "completed" &&
+    validateMindmapPayload(outcome.payload, fiftySource.chunks, fiftySource.snapshot) === null;
+  const json = outcome.status === "completed" ? JSON.stringify(outcome.payload) : "";
+  const lateFactRetained = json.includes(LATE_ORIGINAL_FACT_TOKEN);
+  const citeCount = outcome.status === "completed" ? outcome.payload.citations.length : 0;
+  return {
+    lateFactRetained,
+    result: {
+      id: "MM-DET-02: 50-source all-original batch mindmap",
+      kind: "mindmap",
+      passed: valid && lateFactRetained,
+      total_citations: citeCount,
+      valid_citations: valid ? citeCount : 0,
+      leaked_tokens: 0,
+      detail: lateFactRetained
+        ? "Retained late-batch original fact"
+        : "Missing late-batch original fact",
+    },
+  };
+}
 
-  // Case 3: 3-vendor comparison Data Table with conflict & missing value marker (SC-006, SC-008)
+async function evaluateThreeVendorDataTable(
+  dtModel: DeterministicDataTableModel,
+): Promise<StudioStructureEvalCaseResult> {
   const vendorFixture = buildThreeVendorTableFixture();
-  const dtModel = new DeterministicDataTableModel();
-  const dtOutcome = await generateDataTable({
+  const outcome = await generateDataTable({
     chunks: vendorFixture.chunks,
     snapshot: vendorFixture.snapshot,
     model: dtModel,
     signal: new AbortController().signal,
     reportProgress: () => undefined,
   });
-  const dtValid =
-    dtOutcome.status === "completed" &&
-    validateDataTablePayload(dtOutcome.payload, vendorFixture.chunks, vendorFixture.snapshot) === null;
-  const dtJson = dtOutcome.status === "completed" ? JSON.stringify(dtOutcome.payload) : "";
-  const dtLeak = dtJson.includes(STUDIO_LEAK_PROBE) ? 1 : 0;
-  const dtCiteCount = dtOutcome.status === "completed" ? dtOutcome.payload.citations.length : 0;
-  totalCitations += dtCiteCount;
-  if (dtValid) validCitations += dtCiteCount;
-  totalLeakage += dtLeak;
-  cases.push({
+  if (outcome.status !== "completed") {
+    return {
+      id: "DT-DET-01: 3-vendor comparison table with conflicts and missing cells",
+      kind: "data_table",
+      passed: false,
+      total_citations: 0,
+      valid_citations: 0,
+      leaked_tokens: 0,
+      detail: "Validation failed",
+    };
+  }
+  const valid =
+    validateDataTablePayload(outcome.payload, vendorFixture.chunks, vendorFixture.snapshot) ===
+    null;
+  const leak = JSON.stringify(outcome.payload).includes(STUDIO_LEAK_PROBE) ? 1 : 0;
+  const citeCount = outcome.payload.citations.length;
+  return {
     id: "DT-DET-01: 3-vendor comparison table with conflicts and missing cells",
     kind: "data_table",
-    passed: dtValid && dtLeak === 0 && dtCiteCount > 0,
-    total_citations: dtCiteCount,
-    valid_citations: dtValid ? dtCiteCount : 0,
-    leaked_tokens: dtLeak,
-    detail: dtValid ? `Valid table (${dtOutcome.status === "completed" ? dtOutcome.payload.rows.length : 0} rows)` : "Validation failed",
-  });
+    passed: valid && leak === 0 && citeCount > 0,
+    total_citations: citeCount,
+    valid_citations: valid ? citeCount : 0,
+    leaked_tokens: leak,
+    detail: valid ? `Valid table (${outcome.payload.rows.length} rows)` : "Validation failed",
+  };
+}
 
-  // Case 4: Negative guard — forged/out-of-scope chunk citation in mindmap or table is deterministically rejected
+function evaluateNegativeCitationGuard(
+  mmOutcome: MindmapOutcome,
+  threeSource: ThreeSourceStudioFixture,
+): { invalidCitationRejected: boolean; result: StudioStructureEvalCaseResult } {
   let invalidCitationRejected = false;
-  if (mmOutcome.status === "completed") {
+  const outChunk = threeSource.unselectedChunks[0];
+  if (mmOutcome.status === "completed" && outChunk) {
     const forged = structuredClone(mmOutcome.payload);
-    const outChunk = threeSource.unselectedChunks[0]!;
     forged.citations.push({
       badge_number: 999,
       source_id: outChunk.source_id,
@@ -141,20 +170,29 @@ export async function runStudioStructureDeterministicEval(): Promise<StudioStruc
       revision: 1,
       snippet: outChunk.text,
     });
-    const forgedErr = validateMindmapPayload(forged, threeSource.chunks, threeSource.snapshot);
-    invalidCitationRejected = forgedErr !== null;
+    invalidCitationRejected =
+      validateMindmapPayload(forged, threeSource.chunks, threeSource.snapshot) !== null;
   }
-  cases.push({
-    id: "NEG-DET-01: Out-of-scope chunk citation rejected before publication",
-    kind: "negative_citation_guard",
-    passed: invalidCitationRejected,
-    total_citations: 0,
-    valid_citations: 0,
-    leaked_tokens: 0,
-    detail: invalidCitationRejected ? "Forged citation rejected" : "Forged citation was not rejected",
-  });
+  return {
+    invalidCitationRejected,
+    result: {
+      id: "NEG-DET-01: Out-of-scope chunk citation rejected before publication",
+      kind: "negative_citation_guard",
+      passed: invalidCitationRejected,
+      total_citations: 0,
+      valid_citations: 0,
+      leaked_tokens: 0,
+      detail: invalidCitationRejected
+        ? "Forged citation rejected"
+        : "Forged citation was not rejected",
+    },
+  };
+}
 
-  // Case 5: Missing-scope drilldown guard — when node's supporting source is deselected, zero node/parent text is injected
+function evaluateDrilldownGuard(mmOutcome: MindmapOutcome): {
+  missingScopeBlocked: boolean;
+  result: StudioStructureEvalCaseResult;
+} {
   let missingScopeBlocked = false;
   if (mmOutcome.status === "completed") {
     const rootNode = mmOutcome.payload.root_node;
@@ -166,32 +204,59 @@ export async function runStudioStructureDeterministicEval(): Promise<StudioStruc
     const allPresent = [...requiredSources].every((s) => activeSources.has(s));
     missingScopeBlocked = !allPresent;
   }
-  cases.push({
-    id: "DRILL-DET-01: Deselected supporting source blocks drilldown prompt construction",
-    kind: "drilldown_guard",
-    passed: missingScopeBlocked,
-    total_citations: 0,
-    valid_citations: 0,
-    leaked_tokens: 0,
-    detail: missingScopeBlocked ? "Blocked missing-scope drilldown" : "Failed to block missing-scope drilldown",
-  });
+  return {
+    missingScopeBlocked,
+    result: {
+      id: "DRILL-DET-01: Deselected supporting source blocks drilldown prompt construction",
+      kind: "drilldown_guard",
+      passed: missingScopeBlocked,
+      total_citations: 0,
+      valid_citations: 0,
+      leaked_tokens: 0,
+      detail: missingScopeBlocked
+        ? "Blocked missing-scope drilldown"
+        : "Failed to block missing-scope drilldown",
+    },
+  };
+}
 
+export async function runStudioStructureDeterministicEval(): Promise<StudioStructureDeterministicEvalReport> {
+  const threeSource = buildThreeSourceStudioFixture();
+  const mmModel = new DeterministicMindmapModel();
+  const dtModel = new DeterministicDataTableModel();
+
+  const mmThree = await evaluateThreeSourceMindmap(threeSource, mmModel);
+  const mmFifty = await evaluateFiftySourceMindmap(mmModel);
+  const dtResult = await evaluateThreeVendorDataTable(dtModel);
+  const negGuard = evaluateNegativeCitationGuard(mmThree.outcome, threeSource);
+  const drillGuard = evaluateDrilldownGuard(mmThree.outcome);
+
+  const cases: StudioStructureEvalCaseResult[] = [
+    mmThree.result,
+    mmFifty.result,
+    dtResult,
+    negGuard.result,
+    drillGuard.result,
+  ];
+  const totalCitations = cases.reduce((sum, c) => sum + c.total_citations, 0);
+  const validCitations = cases.reduce((sum, c) => sum + c.valid_citations, 0);
+  const totalLeakage = cases.reduce((sum, c) => sum + c.leaked_tokens, 0);
   const precision = totalCitations > 0 ? validCitations / totalCitations : 0;
   const passed =
     precision === 1 &&
     totalLeakage === 0 &&
-    lateFactRetained &&
-    invalidCitationRejected &&
-    missingScopeBlocked &&
+    mmFifty.lateFactRetained &&
+    negGuard.invalidCitationRejected &&
+    drillGuard.missingScopeBlocked &&
     cases.every((c) => c.passed);
 
   return {
     passed,
     citation_precision: precision,
     leakage_count: totalLeakage,
-    late_fact_retained: lateFactRetained,
-    invalid_citation_rejected: invalidCitationRejected,
-    missing_scope_drilldown_blocked: missingScopeBlocked,
+    late_fact_retained: mmFifty.lateFactRetained,
+    invalid_citation_rejected: negGuard.invalidCitationRejected,
+    missing_scope_drilldown_blocked: drillGuard.missingScopeBlocked,
     models: { mindmap: mmModel.id, data_table: dtModel.id },
     cases,
   };

@@ -11,7 +11,8 @@ import { neutralizeMarkers } from "./sanitize.ts";
  * on a factual claim withholds the whole draft and yields the refusal — no stripping, no regeneration.
  */
 
-export const REFUSAL_UNVERIFIED = "I can't give a verified answer to this from the selected sources.";
+export const REFUSAL_UNVERIFIED =
+  "I can't give a verified answer to this from the selected sources.";
 
 export function notInSourcesMessage(topic?: string): string {
   const clean = sanitizeTopic(topic);
@@ -20,21 +21,36 @@ export function notInSourcesMessage(topic?: string): string {
     : "The selected sources do not contain information to answer this question.";
 }
 
-function sanitizeTopic(topic?: string): string {
-  const clean = neutralizeMarkers(topic ?? "").replace(/\s+/g, " ").trim();
+function sanitizeTopic(topic = ""): string {
+  const clean = neutralizeMarkers(topic).replace(/\s+/g, " ").trim();
   // Trailing punctuation removed in linear time (no backtracking regex on model output).
   let end = clean.length;
-  while (end > 0 && ".?!".includes(clean[end - 1]!)) end--;
+  while (end > 0 && ".?!".includes(clean.charAt(end - 1))) {
+    end--;
+  }
   return clean.slice(0, end).slice(0, 120);
 }
 
 export type VerificationResult =
   | { kind: "answer"; content: string; citations: StoredCitation[] }
-  | { kind: "refusal"; content: string; reason: "not_in_sources" | "invalid_citation" | "uncited_claim" | "unverifiable" | "insufficient_evidence" }
+  | {
+      kind: "refusal";
+      content: string;
+      reason:
+        | "not_in_sources"
+        | "invalid_citation"
+        | "uncited_claim"
+        | "unverifiable"
+        | "insufficient_evidence";
+    }
   /** FR-GC-08 FR-014: a focused follow-up question; carries no source-derived claim and starts no execution. */
   | { kind: "clarification"; content: string }
   /** FR-GC-08 FR-001: verified preamble + computation to run; becomes an answer only after sandbox validation. */
-  | { kind: "compute"; preamble: { text: string; chunkIds: string[] }[]; computation: Computation };
+  | {
+      kind: "compute";
+      preamble: Array<{ text: string; chunkIds: string[] }>;
+      computation: Computation;
+    };
 
 export const REFUSAL_INSUFFICIENT_VALUES =
   "I can't calculate this from the selected sources: the values the calculation needs could not be verified in them.";
@@ -46,36 +62,68 @@ export function badgeMarker(n: number): string {
   return `[[${n}]]`;
 }
 
-export function verifyDraft(draft: GroundedDraft, retrieved: UnifiedDocumentChunk[]): VerificationResult {
+function getOrAssignBadge(
+  chunk: UnifiedDocumentChunk,
+  badgeOf: Map<string, number>,
+  citations: StoredCitation[],
+): number {
+  const existing = badgeOf.get(chunk.chunk_id);
+  if (existing !== undefined) {
+    return existing;
+  }
+  const nextBadge = badgeOf.size + 1;
+  badgeOf.set(chunk.chunk_id, nextBadge);
+  citations.push({
+    badge_number: nextBadge,
+    source_id: chunk.source_id,
+    chunk_id: chunk.chunk_id,
+    revision: chunk.revision,
+  });
+  return nextBadge;
+}
+
+export function verifyDraft(
+  draft: GroundedDraft,
+  retrieved: UnifiedDocumentChunk[],
+): VerificationResult {
   const universe = new Map(retrieved.map((c) => [c.chunk_id, c]));
   if (draft.status === "clarify") {
-    return { kind: "clarification", content: neutralizeMarkers(draft.clarification_question ?? "").trim().slice(0, 500) };
+    return {
+      kind: "clarification",
+      content: neutralizeMarkers(draft.clarification_question ?? "")
+        .trim()
+        .slice(0, 500),
+    };
   }
   if (draft.status === "compute") return verifyComputeDraft(draft, universe);
   const claims = draft.sentences.filter((s) => s.kind === "claim");
 
   if (draft.status === "not_in_sources" || claims.length === 0) {
-    return { kind: "refusal", content: notInSourcesMessage(draft.missing_topic), reason: "not_in_sources" };
+    return {
+      kind: "refusal",
+      content: notInSourcesMessage(draft.missing_topic),
+      reason: "not_in_sources",
+    };
   }
 
   const badgeOf = new Map<string, number>();
   const citations: StoredCitation[] = [];
   const parts: string[] = [];
   for (const sentence of draft.sentences) {
-    const ids = Array.from(new Set(sentence.citations));
+    const ids = [...new Set(sentence.citations)];
     if (sentence.kind === "claim" && ids.length === 0) {
       return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "uncited_claim" };
     }
+    const badges: string[] = [];
     for (const id of ids) {
       const chunk = universe.get(id);
-      if (!chunk) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "invalid_citation" };
-      if (!badgeOf.has(id)) {
-        badgeOf.set(id, badgeOf.size + 1);
-        citations.push({ badge_number: badgeOf.size, source_id: chunk.source_id, chunk_id: id, revision: chunk.revision });
+      if (!chunk) {
+        return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "invalid_citation" };
       }
+      badges.push(badgeMarker(getOrAssignBadge(chunk, badgeOf, citations)));
     }
     const text = neutralizeMarkers(sentence.text).trim();
-    parts.push(`${text}${ids.map((id) => badgeMarker(badgeOf.get(id)!)).join("")}`);
+    parts.push(`${text}${badges.join("")}`);
   }
   return { kind: "answer", content: parts.join(" "), citations };
 }
@@ -90,19 +138,35 @@ export function stripBadges(content: string): string {
  * contain any number that their cited chunks do not literally contain — the model never publishes its own
  * arithmetic. The computation itself is validated by the manifest builder against the same universe.
  */
-function verifyComputeDraft(draft: GroundedDraft, universe: Map<string, UnifiedDocumentChunk>): VerificationResult {
-  const preamble: { text: string; chunkIds: string[] }[] = [];
+function verifyComputeDraft(
+  draft: GroundedDraft,
+  universe: Map<string, UnifiedDocumentChunk>,
+): VerificationResult {
+  if (!draft.computation) {
+    return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
+  }
+  const preamble: Array<{ text: string; chunkIds: string[] }> = [];
   for (const sentence of draft.sentences) {
     if (sentence.kind !== "claim") continue;
-    const ids = Array.from(new Set(sentence.citations));
-    if (ids.length === 0) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "uncited_claim" };
-    const chunks = ids.map((id) => universe.get(id));
-    if (chunks.some((c) => !c)) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "invalid_citation" };
-    const supported = new Set(chunks.flatMap((c) => numericTokens(c!.text)));
-    if (numericTokens(sentence.text).some((n) => !supported.has(n))) return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
+    const ids = [...new Set(sentence.citations)];
+    if (ids.length === 0) {
+      return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "uncited_claim" };
+    }
+    const chunks: UnifiedDocumentChunk[] = [];
+    for (const id of ids) {
+      const chunk = universe.get(id);
+      if (!chunk) {
+        return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "invalid_citation" };
+      }
+      chunks.push(chunk);
+    }
+    const supported = new Set(chunks.flatMap((c) => numericTokens(c.text)));
+    if (numericTokens(sentence.text).some((n) => !supported.has(n))) {
+      return { kind: "refusal", content: REFUSAL_UNVERIFIED, reason: "unverifiable" };
+    }
     preamble.push({ text: neutralizeMarkers(sentence.text).trim(), chunkIds: ids });
   }
-  return { kind: "compute", preamble, computation: draft.computation! };
+  return { kind: "compute", preamble, computation: draft.computation };
 }
 
 /**
@@ -110,7 +174,7 @@ function verifyComputeDraft(draft: GroundedDraft, universe: Map<string, UnifiedD
  * exact returned value text, its unit, an individual "(Computed)" label and badges for its input chunks.
  */
 export function composeComputedAnswer(input: {
-  preamble: { text: string; chunkIds: string[] }[];
+  preamble: Array<{ text: string; chunkIds: string[] }>;
   results: ComputedResult[];
   retrieved: UnifiedDocumentChunk[];
 }): { kind: "answer"; content: string; citations: StoredCitation[] } {
@@ -121,16 +185,17 @@ export function composeComputedAnswer(input: {
     ids
       .map((id) => {
         const chunk = universe.get(id);
-        if (!chunk) throw new Error("computed citation outside the supplied universe");
-        if (!badgeOf.has(id)) {
-          badgeOf.set(id, badgeOf.size + 1);
-          citations.push({ badge_number: badgeOf.size, source_id: chunk.source_id, chunk_id: id, revision: chunk.revision });
+        if (!chunk) {
+          throw new Error("computed citation outside the supplied universe");
         }
-        return badgeMarker(badgeOf.get(id)!);
+        return badgeMarker(getOrAssignBadge(chunk, badgeOf, citations));
       })
       .join("");
   const parts = input.preamble.map((p) => `${p.text}${badges(p.chunkIds)}`);
-  for (const r of input.results) parts.push(`${r.label}: ${r.value}${r.unit ? ` ${r.unit}` : ""} (Computed)${badges(r.citations)}`);
+  for (const r of input.results)
+    parts.push(
+      `${r.label}: ${r.value}${r.unit ? ` ${r.unit}` : ""} (Computed)${badges(r.citations)}`,
+    );
   return { kind: "answer", content: parts.join(" "), citations };
 }
 
@@ -155,7 +220,9 @@ export function computationFailureMessage(code: CodeExecutionFailureCode): strin
     case "ProviderUnavailable":
     case "ExecutionOutcomeUnknown":
       return `${prefix} The code execution service did not respond reliably. Please try again.`;
-    default:
+    case "AccessRevoked":
+    case "GenerationCancelled":
+    case "ScopeChanged":
       return `${prefix} The request was cancelled or its sources changed.`;
   }
 }

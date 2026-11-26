@@ -1,4 +1,10 @@
-import { toVectorLiteral, retrieveScopedChunks, type Pool, type ScopeSnapshot, type RetrievedChunk } from '@everlast/db';
+import {
+  toVectorLiteral,
+  retrieveScopedChunks,
+  type Pool,
+  type ScopeSnapshot,
+  type RetrievedChunk,
+} from "@everlast/db";
 
 export interface CalibrationResult {
   retrievedChunks: RetrievedChunk[];
@@ -19,7 +25,7 @@ export async function calibrateScopedRetrieval(
     needleChunkId?: string | undefined;
     limit?: number;
     candidates?: number;
-  }
+  },
 ): Promise<CalibrationResult> {
   const limit = options.limit ?? 12;
   const candidates = options.candidates ?? 40;
@@ -31,8 +37,8 @@ export async function calibrateScopedRetrieval(
     candidates,
   });
 
-  const sourceIds = snapshot.sources.map(s => s.source_id);
-  const revisions = snapshot.sources.map(s => s.revision);
+  const sourceIds = snapshot.sources.map((s) => s.source_id);
+  const revisions = snapshot.sources.map((s) => s.revision);
   const vectorLiteral = toVectorLiteral(options.queryEmbedding);
 
   const exactRes = await pool.query<{ chunk_id: string; distance: number }>(
@@ -43,10 +49,10 @@ export async function calibrateScopedRetrieval(
      WHERE c.notebook_id = $1
      ORDER BY distance, c.chunk_id
      LIMIT $5`,
-    [snapshot.notebook_id, sourceIds, revisions, vectorLiteral, limit]
+    [snapshot.notebook_id, sourceIds, revisions, vectorLiteral, limit],
   );
 
-  const planRes = await pool.query<{ ['QUERY PLAN']: string }>(
+  const planRes = await pool.query<{ ["QUERY PLAN"]: string }>(
     `EXPLAIN
      SELECT c.chunk_id
      FROM chunks c
@@ -55,20 +61,20 @@ export async function calibrateScopedRetrieval(
      WHERE c.notebook_id = $1
      ORDER BY c.embedding <=> $4::vector, c.chunk_id
      LIMIT $5`,
-    [snapshot.notebook_id, sourceIds, revisions, vectorLiteral, candidates]
+    [snapshot.notebook_id, sourceIds, revisions, vectorLiteral, candidates],
   );
 
-  const retrievedIds = retrieved.map(c => c.chunk_id);
+  const retrievedIds = retrieved.map((c) => c.chunk_id);
   const exactIds = exactRes.rows.map((r: { chunk_id: string }) => r.chunk_id);
 
-  const allowedSources = new Map(snapshot.sources.map(s => [s.source_id, s.revision]));
-  const scopePreserved = retrieved.every(
-    c => allowedSources.get(c.source_id) === c.revision
-  );
+  const allowedSources = new Map(snapshot.sources.map((s) => [s.source_id, s.revision]));
+  const scopePreserved = retrieved.every((c) => allowedSources.get(c.source_id) === c.revision);
 
-  const needleRecalled = options.needleChunkId ? retrievedIds.includes(options.needleChunkId) : true;
+  const needleRecalled = options.needleChunkId
+    ? retrievedIds.includes(options.needleChunkId)
+    : true;
   const exactSet = new Set(exactIds);
-  const matched = retrievedIds.filter(id => exactSet.has(id)).length;
+  const matched = retrievedIds.filter((id) => exactSet.has(id)).length;
   const recallVsExact = exactIds.length > 0 ? matched / exactIds.length : 1.0;
 
   return {
@@ -77,7 +83,7 @@ export async function calibrateScopedRetrieval(
     exactTopChunkIds: exactIds,
     needleRecalled,
     recallVsExact,
-    queryPlan: planRes.rows.map((r: { ['QUERY PLAN']: string }) => r['QUERY PLAN']).join('\n'),
+    queryPlan: planRes.rows.map((r: { ["QUERY PLAN"]: string }) => r["QUERY PLAN"]).join("\n"),
     scopePreserved,
   };
 }

@@ -76,9 +76,27 @@ test("SD-E01: generates an 8-slide deck across 3 sources, toggles speaker notes,
   const email = uniqueEmail("sde01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "Platform.pdf", buildPdf([{ kind: "text", lines: SRC_PLATFORM }]));
-  await uploadSource(page.request, email, id, "Metrics.pdf", buildPdf([{ kind: "text", lines: SRC_METRICS }]));
-  await uploadSource(page.request, email, id, "Security.pdf", buildPdf([{ kind: "text", lines: SRC_SECURITY }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Platform.pdf",
+    buildPdf([{ kind: "text", lines: SRC_PLATFORM }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Metrics.pdf",
+    buildPdf([{ kind: "text", lines: SRC_METRICS }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Security.pdf",
+    buildPdf([{ kind: "text", lines: SRC_SECURITY }]),
+  );
   await waitReady(page.request, email, id, 3);
 
   await page.goto(`/notebook/${id}`);
@@ -89,10 +107,14 @@ test("SD-E01: generates an 8-slide deck across 3 sources, toggles speaker notes,
   await expect(modal).toBeVisible();
   await expect(modal.getByTestId("slide-deck-count-input")).toHaveValue("10");
   await modal.getByTestId("slide-deck-count-input").fill("8");
-  await modal.getByTestId("slide-deck-focus-prompt").fill("Platform architecture and Q3 reliability");
+  await modal
+    .getByTestId("slide-deck-focus-prompt")
+    .fill("Platform architecture and Q3 reliability");
   await modal.getByTestId("slide-deck-generate").click();
 
-  const row = page.locator('[data-testid="studio-artifact-row"][data-plugin-type="slide_deck"]').first();
+  const row = page
+    .locator('[data-testid="studio-artifact-row"][data-plugin-type="slide_deck"]')
+    .first();
   await expect(row).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
   await row.getByTestId("studio-artifact-open").click();
 
@@ -119,7 +141,7 @@ test("SD-E01: generates an 8-slide deck across 3 sources, toggles speaker notes,
   ]);
   const pptxPath = await pptxDownload.path();
   expect(pptxPath).toBeTruthy();
-  const entries = readZip(readFileSync(pptxPath!));
+  const entries = readZip(readFileSync(pptxPath));
   for (let k = 1; k <= 8; k++) {
     expect(entries.has(`ppt/slides/slide${k}.xml`)).toBe(true);
     expect(entries.has(`ppt/notesSlides/notesSlide${k}.xml`)).toBe(true);
@@ -133,8 +155,13 @@ test("SD-E01: generates an 8-slide deck across 3 sources, toggles speaker notes,
   ]);
   const pdfPath = await pdfDownload.path();
   expect(pdfPath).toBeTruthy();
-  const pdfBytes = new Uint8Array(readFileSync(pdfPath!));
-  const task = getDocument({ data: pdfBytes, useSystemFonts: false, disableFontFace: true, verbosity: 0 });
+  const pdfBytes = new Uint8Array(readFileSync(pdfPath));
+  const task = getDocument({
+    data: pdfBytes,
+    useSystemFonts: false,
+    disableFontFace: true,
+    verbosity: 0,
+  });
   const doc = await task.promise;
   try {
     expect(doc.numPages).toBe(8);
@@ -154,7 +181,13 @@ test("IG-E01: generates a 4-stage process_flow D9 SVG infographic, supports zoom
   const email = uniqueEmail("ige01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "IncidentPlaybook.pdf", buildPdf([{ kind: "text", lines: SRC_INCIDENT }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "IncidentPlaybook.pdf",
+    buildPdf([{ kind: "text", lines: SRC_INCIDENT }]),
+  );
   await waitReady(page.request, email, id, 1);
 
   await page.goto(`/notebook/${id}`);
@@ -167,7 +200,9 @@ test("IG-E01: generates a 4-stage process_flow D9 SVG infographic, supports zoom
   await modal.getByTestId("infographic-focus-prompt").fill("4-stage incident response workflow");
   await modal.getByTestId("infographic-generate").click();
 
-  const row = page.locator('[data-testid="studio-artifact-row"][data-plugin-type="infographic"]').first();
+  const row = page
+    .locator('[data-testid="studio-artifact-row"][data-plugin-type="infographic"]')
+    .first();
   await expect(row).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
   await row.getByTestId("studio-artifact-open").click();
 
@@ -186,7 +221,7 @@ test("IG-E01: generates a 4-stage process_flow D9 SVG infographic, supports zoom
   ]);
   const svgPath = await svgDownload.path();
   expect(svgPath).toBeTruthy();
-  const svgText = readFileSync(svgPath!, "utf8");
+  const svgText = readFileSync(svgPath, "utf8");
   expect(svgText).toContain("<svg");
   expect(svgText).toContain("Detection");
   expect(svgText).toContain("Recovery");
@@ -197,11 +232,13 @@ test("IG-E01: generates a 4-stage process_flow D9 SVG infographic, supports zoom
   ]);
   const pngPath = await pngDownload.path();
   expect(pngPath).toBeTruthy();
-  const pngBytes = readFileSync(pngPath!);
-  expect(Array.from(pngBytes.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  const pngBytes = readFileSync(pngPath);
+  expect([...pngBytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
 });
 
-test("SD-E02: Failed slide deck offers Retry and displays zero partial export buttons", async ({ page }) => {
+test("SD-E02: Failed slide deck offers Retry and displays zero partial export buttons", async ({
+  page,
+}) => {
   test.setTimeout(90_000);
   const email = uniqueEmail("sde02");
   await signIn(page, email);
@@ -211,7 +248,7 @@ test("SD-E02: Failed slide deck offers Retry and displays zero partial export bu
     email,
     id,
     "Brief.pdf",
-    buildPdf([{ kind: "text", lines: SRC_PLATFORM }])
+    buildPdf([{ kind: "text", lines: SRC_PLATFORM }]),
   );
   await waitReady(page.request, email, id, 1);
 
@@ -251,7 +288,9 @@ test("SD-E02: Failed slide deck offers Retry and displays zero partial export bu
   });
 
   await page.goto(`/notebook/${id}`);
-  const failedRow = page.locator('[data-testid="studio-artifact-row"][data-plugin-type="slide_deck"]').first();
+  const failedRow = page
+    .locator('[data-testid="studio-artifact-row"][data-plugin-type="slide_deck"]')
+    .first();
   await expect(failedRow).toHaveAttribute("data-status", "Failed");
   await expect(failedRow.getByTestId("studio-retry")).toBeVisible();
   await expect(page.getByTestId("slide-export-pptx")).toHaveCount(0);

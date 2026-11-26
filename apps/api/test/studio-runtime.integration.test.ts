@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { seedReadySource } from "@everlast/db/testing";
 import { DeterministicReportModel } from "@everlast/worker/studio/reports/deterministic-model";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import type { ComposeRequest, ExtractRequest, ReportModelClient } from "@everlast/worker/studio/reports/model";
 import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 
@@ -16,7 +18,7 @@ import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 class SpyReportModel implements ReportModelClient {
   readonly inner = new DeterministicReportModel();
   batches: string[][] = [];
-  languages: (string | undefined)[] = [];
+  languages: Array<string | undefined> = [];
   private gate: Promise<void> | null = null;
   private release: (() => void) | null = null;
   started: Promise<void>;
@@ -53,16 +55,47 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   spy.open();
-  await n?.close();
+  await n.close();
 });
 
-const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
-const paragraphs = (prefix: string, count: number, from = 1600) =>
-  Array.from({ length: count }, (_, i) => `${prefix} fact ${i + 1} was recorded in ${from + i}. It concerned Count ${prefix} Archive.`).join("\n\n");
+interface CitationDto {
+  chunk_id: string;
+}
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+interface RuntimeArtifactDto {
+  id: string;
+  status: string;
+  failure?: { code: string; message: string };
+  payload_json: {
+    citations: CitationDto[];
+    content_md: string;
+  } | null;
+}
+
+interface RuntimeArtifactEnvelope {
+  artifact: RuntimeArtifactDto;
+}
+
+interface RuntimeArtifactListEnvelope {
+  artifacts: RuntimeArtifactDto[];
+}
+
+interface SuggestionEnvelope {
+  state: string;
+}
+
+const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
+
+const paragraphs = (prefix: string, count: number, from = 1600) =>
+  Array.from(
+    { length: count },
+    (_, i) =>
+      `${prefix} fact ${i + 1} was recorded in ${from + i}. It concerned Count ${prefix} Archive.`,
+  ).join("\n\n");
+
+async function waitTerminal(nb: string, id: string): Promise<RuntimeArtifactEnvelope> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<RuntimeArtifactEnvelope>(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -71,7 +104,12 @@ async function waitTerminal(nb: string, id: string): Promise<any> {
 
 async function seed(nb: string, title: string, pages: string[]) {
   const owner = await n.userId(OWNER);
-  return seedReadySource(n.api.db.pool, owner, nb, { title, mediaType: "text/plain", pages, embed: (t) => n.embedder.embed(t, "RETRIEVAL_DOCUMENT") });
+  return seedReadySource(n.api.db.pool, owner, nb, {
+    title,
+    mediaType: "text/plain",
+    pages,
+    embed: (t) => n.embedder.embed(t, "RETRIEVAL_DOCUMENT"),
+  });
 }
 
 async function deleteSource(sourceId: string) {
@@ -86,11 +124,22 @@ describe("T040 Studio jobs read every scoped chunk in bounded batches (D12, C-02
     const b = await seed(nb, "Archive B.txt", [paragraphs("Beta", 30, 1900)]);
     expect(a.chunkIds.length).toBe(230);
     spy.batches = [];
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, { plugin_type: "report", subtype: "briefing_doc", active_source_ids: [a.sourceId, b.sourceId] });
+    const created = await n.call<RuntimeArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "report",
+        subtype: "briefing_doc",
+        active_source_ids: [a.sourceId, b.sourceId],
+      },
+    );
     expect(created.status).toBe(202);
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
-    const ordered = [a, b].sort((x, y) => x.sourceId.localeCompare(y.sourceId)).flatMap((s) => s.chunkIds);
+    const ordered = [a, b]
+      .sort((x, y) => x.sourceId.localeCompare(y.sourceId))
+      .flatMap((s) => s.chunkIds);
     expect(spy.batches.flat()).toEqual(ordered);
     expect(spy.batches.length).toBeGreaterThan(1);
     for (const batch of spy.batches) expect(batch.length).toBeLessThanOrEqual(40);
@@ -101,14 +150,25 @@ describe("T043 composition: the Vertex Flash report adapter is wired when Vertex
   it("createV2ReportModel returns the Vertex adapter only under the grounded-model condition", async () => {
     const { VertexReportModel } = await import("@everlast/worker/studio/reports/vertex-model");
     const { createV2ReportModel } = await import("../src/server.ts");
-    expect(createV2ReportModel({ VERTEX_PROJECT: "everlast-eu" }, true)).toBeInstanceOf(VertexReportModel);
+    expect(createV2ReportModel({ VERTEX_PROJECT: "everlast-eu" }, true)).toBeInstanceOf(
+      VertexReportModel,
+    );
     expect(createV2ReportModel({ VERTEX_PROJECT: "everlast-eu" }, false)).toBeUndefined();
   });
   it("createV2Runtime uses the injected report model (the spy above), else the deterministic one", async () => {
     const nb = await n.notebook(OWNER);
     const a = await seed(nb, "Small.txt", [paragraphs("Gamma", 3)]);
     spy.batches = [];
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, { plugin_type: "report", subtype: "faq", active_source_ids: [a.sourceId] });
+    const created = await n.call<RuntimeArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "report",
+        subtype: "faq",
+        active_source_ids: [a.sourceId],
+      },
+    );
     expect((await waitTerminal(nb, created.json.artifact.id)).artifact.status).toBe("Completed");
     expect(spy.batches.flat()).toEqual(a.chunkIds);
   });
@@ -117,19 +177,37 @@ describe("T043 composition: the Vertex Flash report adapter is wired when Vertex
 describe("T047 a captured source deleted before publication fails the job (FR-ST-10 Gherkin, FR-013, C-02/03)", () => {
   async function runHeldAndDelete(nb: string, sourceId: string) {
     spy.hold();
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, { plugin_type: "report", subtype: "faq", active_source_ids: [sourceId] });
+    const created = await n.call<RuntimeArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "report",
+        subtype: "faq",
+        active_source_ids: [sourceId],
+      },
+    );
     expect(created.status).toBe(202);
     await spy.started;
     await deleteSource(sourceId);
     spy.open();
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Failed");
-    expect(done.artifact.failure.code).toBe("SourceChanged");
-    expect(done.artifact.failure.message).toMatch(/no longer current|changed|deleted/i);
+    expect(done.artifact.failure?.code).toBe("SourceChanged");
+    expect(done.artifact.failure?.message).toMatch(/no longer current|changed|deleted/i);
     expect(done.artifact.payload_json).toBeNull();
-    const listed = await n.call(OWNER, "GET", `${studio(nb)}/artifacts`);
-    expect(listed.json.artifacts.find((x: any) => x.id === created.json.artifact.id)).not.toHaveProperty("payload_json");
-    expect((await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${created.json.artifact.id}/retry`, {})).status).toBe(400);
+    const listed = await n.call<RuntimeArtifactListEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts`,
+    );
+    expect(listed.json.artifacts.find((x) => x.id === created.json.artifact.id)).not.toHaveProperty(
+      "payload_json",
+    );
+    expect(
+      (await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${created.json.artifact.id}/retry`, {}))
+        .status,
+    ).toBe(400);
   }
 
   it("an uploaded source (revision 1) deleted after submission", async () => {
@@ -140,8 +218,23 @@ describe("T047 a captured source deleted before publication fails the job (FR-ST
 
   it("a note-source deleted after submission", async () => {
     const nb = await n.notebook(OWNER);
-    const note = (await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes`, { title: "Field notes", content_md: "The survey began in 1921. It was led by Count Epsilon Survey." })).json.note;
-    const converted = await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes/convert-to-source`, { note_ids: [note.id] });
+    const noteRes = await n.call<{ note: { id: string } }>(
+      OWNER,
+      "POST",
+      `/api/notebooks/${nb}/notes`,
+      {
+        title: "Field notes",
+        content_md: "The survey began in 1921. It was led by Count Epsilon Survey.",
+      },
+    );
+    const converted = await n.call<{ source: { id: string } }>(
+      OWNER,
+      "POST",
+      `/api/notebooks/${nb}/notes/convert-to-source`,
+      {
+        note_ids: [noteRes.json.note.id],
+      },
+    );
     expect(converted.status).toBe(201);
     await runHeldAndDelete(nb, converted.json.source.id);
   });
@@ -151,38 +244,88 @@ describe("T047 Convert to source saves the report as a note and converts it thro
   it("creates a note (GET /notes) and a Ready note-source without [n] markers, keeping origin_citations", async () => {
     const nb = await n.notebook(OWNER);
     const a = await seed(nb, "History.txt", [paragraphs("Zeta", 3)]);
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, { plugin_type: "report", subtype: "faq", active_source_ids: [a.sourceId] });
+    const created = await n.call<RuntimeArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "report",
+        subtype: "faq",
+        active_source_ids: [a.sourceId],
+      },
+    );
     const done = await waitTerminal(nb, created.json.artifact.id);
     expect(done.artifact.status).toBe("Completed");
-    const citations = done.artifact.payload_json.citations;
-    expect(done.artifact.payload_json.content_md).toMatch(/\[1\]/);
+    const citations = done.artifact.payload_json!.citations;
+    expect(done.artifact.payload_json!.content_md).toMatch(/\[1\]/);
 
-    const conv = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${created.json.artifact.id}/convert-to-source`, {});
+    const conv = await n.call<{ source_id: string }>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${created.json.artifact.id}/convert-to-source`,
+      {},
+    );
     expect(conv.status).toBe(201);
-    const notes = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.notes;
-    const saved = notes.find((x: any) => x.title === "FAQ");
+    const notesRes = await n.call<{
+      notes: Array<{ title: string; citations_json: CitationDto[] }>;
+    }>(OWNER, "GET", `/api/notebooks/${nb}/notes`);
+    const saved = notesRes.json.notes.find((x) => x.title === "FAQ")!;
     expect(saved).toBeTruthy();
-    expect(saved.citations_json.map((c: any) => c.chunk_id)).toEqual(citations.map((c: any) => c.chunk_id));
+    expect(saved.citations_json.map((c) => c.chunk_id)).toEqual(citations.map((c) => c.chunk_id));
 
-    const source = await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources/${conv.json.source_id}`);
+    const source = await n.call<{ source: { status: string } }>(
+      OWNER,
+      "GET",
+      `/api/notebooks/${nb}/sources/${conv.json.source_id}`,
+    );
     expect(source.json.source.status).toBe("Ready");
-    const text = (await n.api.db.pool.query("SELECT string_agg(text, '' ORDER BY page_number) AS t FROM source_pages WHERE source_id = $1", [conv.json.source_id])).rows[0].t as string;
+    const textRow = (
+      await n.api.db.pool.query<{ t: string }>(
+        "SELECT string_agg(text, '' ORDER BY page_number) AS t FROM source_pages WHERE source_id = $1",
+        [conv.json.source_id],
+      )
+    ).rows[0]!;
+    const text = textRow.t;
     expect(text).toContain("Zeta fact 1 was recorded in 1600.");
     expect(text).not.toMatch(/\[\d+\]/);
-    const prov = (await n.api.db.pool.query("SELECT origin_citations FROM note_source_provenance WHERE source_id = $1", [conv.json.source_id])).rows[0];
-    expect(prov.origin_citations.map((c: any) => c.chunk_id)).toEqual(citations.map((c: any) => c.chunk_id));
-    expect(prov.origin_citations[0]).toMatchObject({ source_id: a.sourceId, source_title: "History.txt" });
+    const prov = (
+      await n.api.db.pool.query<{
+        origin_citations: Array<{ chunk_id: string; source_id: string; source_title: string }>;
+      }>("SELECT origin_citations FROM note_source_provenance WHERE source_id = $1", [
+        conv.json.source_id,
+      ])
+    ).rows[0]!;
+    expect(prov.origin_citations.map((c) => c.chunk_id)).toEqual(citations.map((c) => c.chunk_id));
+    expect(prov.origin_citations[0]).toMatchObject({
+      source_id: a.sourceId,
+      source_title: "History.txt",
+    });
   });
 
   it("rejects conversion of a report whose captured snapshot is no longer valid (409)", async () => {
     const nb = await n.notebook(OWNER);
     const a = await seed(nb, "Gone.txt", [paragraphs("Eta", 3)]);
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, { plugin_type: "report", subtype: "faq", active_source_ids: [a.sourceId] });
+    const created = await n.call<RuntimeArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "report",
+        subtype: "faq",
+        active_source_ids: [a.sourceId],
+      },
+    );
     expect((await waitTerminal(nb, created.json.artifact.id)).artifact.status).toBe("Completed");
     await deleteSource(a.sourceId);
-    const conv = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${created.json.artifact.id}/convert-to-source`, {});
+    const conv = await n.call(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${created.json.artifact.id}/convert-to-source`,
+      {},
+    );
     expect(conv.status).toBe(409);
-    expect((await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.notes).toHaveLength(0);
+    const notesRes = await n.call<{ notes: unknown[] }>(OWNER, "GET", `/api/notebooks/${nb}/notes`);
+    expect(notesRes.json.notes).toHaveLength(0);
   });
 });
 
@@ -192,31 +335,54 @@ describe("report suggestions start on-demand guides only for supported languages
     const guideLanguages: string[] = [];
     // TEST DOUBLE for the Package 2.2 structured-generation client: records Source Guide runs only.
     const generation = {
-      async generateSourceGuide(input: { output_language: string }) {
+      generateSourceGuide(input: { output_language: string }) {
         guideLanguages.push(input.output_language);
-        throw new Error("test double: no guide");
+        return Promise.reject(new Error("test double: no guide"));
       },
-      async generateOverview(): Promise<never> {
-        throw new Error("unused");
+      generateOverview(): Promise<never> {
+        return Promise.reject(new Error("unused"));
       },
-      async generateFollowUps(): Promise<never> {
-        throw new Error("unused");
+      generateFollowUps(): Promise<never> {
+        return Promise.reject(new Error("unused"));
       },
     };
-    const g = await startNotesApi({ v2: { generation, suggestionModel: new DeterministicReportModel() } });
+    const g = await startNotesApi({
+      v2: { generation, suggestionModel: new DeterministicReportModel() },
+    });
     try {
       const nb = await g.notebook(OWNER);
       const owner = await g.userId(OWNER);
-      const src = await seedReadySource(g.api.db.pool, owner, nb, { title: "Vendor.txt", mediaType: "text/plain", pages: ["Vendor Alpha proposes a monolith."], embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT") });
+      const src = await seedReadySource(g.api.db.pool, owner, nb, {
+        title: "Vendor.txt",
+        mediaType: "text/plain",
+        pages: ["Vendor Alpha proposes a monolith."],
+        embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT"),
+      });
       for (const tag of ["zz-ZZ", "x".repeat(200), "../../etc"]) {
-        expect((await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, { active_source_ids: [src.sourceId], output_language: tag })).status).toBe(400);
+        expect(
+          (
+            await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, {
+              active_source_ids: [src.sourceId],
+              output_language: tag,
+            })
+          ).status,
+        ).toBe(400);
       }
       await new Promise((r) => setTimeout(r, 50));
       expect(guideLanguages).toEqual([]);
-      const ok = await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, { active_source_ids: [src.sourceId], output_language: "fr-FR" });
+      const ok = await g.call<SuggestionEnvelope>(
+        OWNER,
+        "POST",
+        `/api/notebooks/${nb}/studio/report-suggestions`,
+        {
+          active_source_ids: [src.sourceId],
+          output_language: "fr-FR",
+        },
+      );
       expect(ok.status).toBe(200);
       expect(ok.json.state).toBe("SuggestionsLoading");
-      for (let i = 0; i < 100 && guideLanguages.length === 0; i++) await new Promise((r) => setTimeout(r, 10));
+      for (let i = 0; i < 100 && guideLanguages.length === 0; i++)
+        await new Promise((r) => setTimeout(r, 10));
       expect(guideLanguages).toEqual(["fr-FR"]);
     } finally {
       await g.close();
@@ -231,9 +397,22 @@ describe("suggestions with a suggestion model but no guide generation", () => {
     try {
       const nb = await g.notebook(OWNER);
       const owner = await g.userId(OWNER);
-      const src = await seedReadySource(g.api.db.pool, owner, nb, { title: "Vendor.txt", mediaType: "text/plain", pages: ["Vendor Beta proposes microservices."], embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT") });
-      for (const body of [{ active_source_ids: [src.sourceId] }, { active_source_ids: [src.sourceId], output_language: "de-DE" }]) {
-        const r = await g.call(OWNER, "POST", `/api/notebooks/${nb}/studio/report-suggestions`, body);
+      const src = await seedReadySource(g.api.db.pool, owner, nb, {
+        title: "Vendor.txt",
+        mediaType: "text/plain",
+        pages: ["Vendor Beta proposes microservices."],
+        embed: (t) => g.embedder.embed(t, "RETRIEVAL_DOCUMENT"),
+      });
+      for (const body of [
+        { active_source_ids: [src.sourceId] },
+        { active_source_ids: [src.sourceId], output_language: "de-DE" },
+      ]) {
+        const r = await g.call<SuggestionEnvelope>(
+          OWNER,
+          "POST",
+          `/api/notebooks/${nb}/studio/report-suggestions`,
+          body,
+        );
         expect(r.status).toBe(200);
         expect(r.json.state).toBe("SuggestionsUnavailable");
       }

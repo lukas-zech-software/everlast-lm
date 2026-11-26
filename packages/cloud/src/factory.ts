@@ -12,7 +12,9 @@ export function createObjectStorage(env: NodeJS.ProcessEnv = process.env): Objec
     throw new Error("STORAGE_BUCKET is required in production");
   }
   const root = env.LOCAL_STORAGE_DIR ?? ".local/storage";
-  const signingKey = env.LOCAL_STORAGE_SIGNING_KEY ? Buffer.from(env.LOCAL_STORAGE_SIGNING_KEY, "utf8") : undefined;
+  const signingKey = env.LOCAL_STORAGE_SIGNING_KEY
+    ? Buffer.from(env.LOCAL_STORAGE_SIGNING_KEY, "utf8")
+    : undefined;
   return new LocalObjectStorage({
     root,
     publicBaseUrl: env.PUBLIC_BASE_URL ?? `http://localhost:${env.PORT ?? 8080}`,

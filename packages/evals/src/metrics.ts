@@ -3,16 +3,18 @@
  */
 
 export const THRESHOLDS = {
-  hallucination_rate: { lt: 0.10 },
+  hallucination_rate: { lt: 0.1 },
   citation_precision: { eq: 1 },
   semantic_support_rate: { eq: 1 },
-  negative_rejection_rate: { gte: 0.90 },
+  negative_rejection_rate: { gte: 0.9 },
   scoping_leakage_count: { eq: 0 },
 } as const;
 
 export function ratio(numerator: number, denominator: number, label: string): number {
-  if (!Number.isInteger(denominator) || denominator <= 0) throw new Error(`${label}: zero or invalid denominator fails closed`);
-  if (!Number.isInteger(numerator) || numerator < 0 || numerator > denominator) throw new Error(`${label}: invalid numerator ${numerator}/${denominator}`);
+  if (!Number.isInteger(denominator) || denominator <= 0)
+    throw new Error(`${label}: zero or invalid denominator fails closed`);
+  if (!Number.isInteger(numerator) || numerator < 0 || numerator > denominator)
+    throw new Error(`${label}: invalid numerator ${numerator}/${denominator}`);
   return numerator / denominator;
 }
 
@@ -27,12 +29,36 @@ export interface MetricResult {
   detail?: string;
 }
 
-export function judgeMetric(name: keyof typeof THRESHOLDS, value: number | null, extra: Omit<MetricResult, "name" | "value" | "passed" | "status"> & { unavailable?: string }): MetricResult {
+function evaluateThreshold(
+  threshold: { lt?: number; eq?: number; gte?: number },
+  value: number,
+): boolean {
+  if (typeof threshold.lt === "number") {
+    return value < threshold.lt;
+  }
+  if (typeof threshold.gte === "number") {
+    return value >= threshold.gte;
+  }
+  return value === threshold.eq;
+}
+
+export function judgeMetric(
+  name: keyof typeof THRESHOLDS,
+  value: number | null,
+  extra: Omit<MetricResult, "name" | "value" | "passed" | "status"> & { unavailable?: string },
+): MetricResult {
   if (value === null) {
-    return { name, value, passed: false, status: "unavailable", failing_cases: extra.failing_cases, ...(extra.unavailable ? { detail: extra.unavailable } : {}) };
+    return {
+      name,
+      value,
+      passed: false,
+      status: "unavailable",
+      failing_cases: extra.failing_cases,
+      ...(extra.unavailable ? { detail: extra.unavailable } : {}),
+    };
   }
   const t = THRESHOLDS[name] as { lt?: number; eq?: number; gte?: number };
-  const passed = t.lt !== undefined ? value < t.lt : t.gte !== undefined ? value >= t.gte : value === t.eq;
+  const passed = evaluateThreshold(t, value);
   const { unavailable: _u, ...rest } = extra;
   return { name, value, passed, status: passed ? "pass" : "fail", ...rest };
 }

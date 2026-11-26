@@ -14,7 +14,12 @@ import {
   PostgresStudioArtifactRepository,
   verifyScopeSnapshot,
 } from "@everlast/db";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "@everlast/db/testing";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "@everlast/db/testing";
 import { drainJobs } from "../src/jobs.ts";
 import { StudioJobRunner } from "../src/studio/runner.ts";
 import { createStudioOutboxHandler, DurableStudioDispatcher } from "../src/studio/handler.ts";
@@ -31,7 +36,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
 });
 
 describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind validation, captured-owner C-02 reads, and outbox redelivery", () => {
@@ -42,12 +47,12 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
       title: "Source1.txt",
       mediaType: "text/plain",
       pages: ["Deterministic evidence about distributed consensus and raft leases."],
-      embed: async (texts) => texts.map(() => new Array(768).fill(0.01)),
+      embed: (texts) => Promise.resolve(texts.map(() => new Array<number>(768).fill(0.01))),
     });
     const snapshot: SourceRevisionPair[] = [{ source_id: seeded.sourceId, revision: 1 }];
     const chunkId = seeded.chunkIds[0]!;
 
-    const observedOwners: (string | undefined)[] = [];
+    const observedOwners: Array<string | undefined> = [];
     let modelCalls = 0;
     let shouldCiteInvalidChunk = false;
 
@@ -60,7 +65,7 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
       triggerJob(_req: StudioJobRequest): StudioJobPlan {
         return { title: "Mindmap", params_json: {} };
       },
-      async generate(ctx: StudioGenerationContext): Promise<StudioGenerationOutcome> {
+      generate(_ctx: StudioGenerationContext): Promise<StudioGenerationOutcome> {
         modelCalls += 1;
         const cite = {
           badge_number: 1,
@@ -69,7 +74,7 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
           revision: 1,
           snippet: "Deterministic evidence",
         };
-        return {
+        return Promise.resolve({
           status: "completed",
           payload: {
             root_node: {
@@ -95,7 +100,7 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
             insufficient_evidence_note: "Only 2 nodes supported by single-page source.",
             citations: [cite],
           },
-        };
+        });
       },
     };
 
@@ -107,9 +112,9 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
       repo,
       registry,
       scopedContext: {
-        async getScopedContext(notebookId, activeSourceIds, ownerId) {
+        getScopedContext(notebookId, activeSourceIds, ownerId) {
           observedOwners.push(ownerId);
-          return [
+          return Promise.resolve([
             {
               chunk_id: chunkId,
               source_id: activeSourceIds[0]!,
@@ -118,12 +123,16 @@ describe("[011-studio-mindmaps-data-tables] T006: StudioJobRunner per-kind valid
               token_count: 16,
               text: "Deterministic evidence about distributed consensus and raft leases.",
             },
-          ];
+          ]);
         },
       },
       access: {
         async verifySnapshot(ownerId, notebookId, snap) {
-          await verifyScopeSnapshot(db.pool, { notebook_id: notebookId, owner_id: ownerId, sources: snap });
+          await verifyScopeSnapshot(db.pool, {
+            notebook_id: notebookId,
+            owner_id: ownerId,
+            sources: snap,
+          });
         },
       },
     });

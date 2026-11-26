@@ -4,12 +4,30 @@ import { InMemoryStudioArtifactRepository } from "@everlast/db";
 import { StudioJobRunner } from "../src/studio/runner.ts";
 import { ReportGeneratorPlugin } from "../src/studio/reports/plugin.ts";
 import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
-import { FakeAccess, FakeScopedContext, NB, OWNER, SRC_HISTORY, SRC_TECH, SRC_UNSELECTED, historyChunks, techChunks, unselectedChunks } from "./studio-fixtures.ts";
+import {
+  FakeAccess,
+  FakeScopedContext,
+  NB,
+  OWNER,
+  SRC_HISTORY,
+  SRC_TECH,
+  SRC_UNSELECTED,
+  historyChunks,
+  techChunks,
+  unselectedChunks,
+} from "./studio-fixtures.ts";
 
 // Deterministic eval (NFR-EVAL-02, NFR-EVAL-04, FR-017); LLM-judged evals NFR-EVAL-01/03 are UNAVAILABLE here.
 describe("Studio reports deterministic eval", () => {
   it("citation precision 1.0, leakage 0, P95 ≤ 25 s across all six subtypes", async () => {
-    const subtypes: ReportSubtype[] = ["briefing_doc", "study_guide", "faq", "timeline", "dynamic", "custom"];
+    const subtypes: ReportSubtype[] = [
+      "briefing_doc",
+      "study_guide",
+      "faq",
+      "timeline",
+      "dynamic",
+      "custom",
+    ];
     const durations: number[] = [];
     let cited = 0;
     let valid = 0;
@@ -21,13 +39,31 @@ describe("Studio reports deterministic eval", () => {
       registry.register(plugin);
       const chunks = [...historyChunks(), ...techChunks(), ...unselectedChunks()];
       const runner = new StudioJobRunner({
-        repo, registry,
+        repo,
+        registry,
         scopedContext: new FakeScopedContext(chunks),
-        access: new FakeAccess(new Map([[SRC_HISTORY, 1], [SRC_TECH, 1], [SRC_UNSELECTED, 1]])),
+        access: new FakeAccess(
+          new Map([
+            [SRC_HISTORY, 1],
+            [SRC_TECH, 1],
+            [SRC_UNSELECTED, 1],
+          ]),
+        ),
       });
       const snapshot = [SRC_HISTORY, SRC_TECH].map((source_id) => ({ source_id, revision: 1 }));
-      const plan = plugin.triggerJob({ notebook_id: NB, subtype, params: { custom_prompt: "Summarise the key facts." }, snapshot });
-      const a = await repo.createQueued({ notebook_id: NB, owner_id: OWNER, subtype, ...plan, snapshot });
+      const plan = plugin.triggerJob({
+        notebook_id: NB,
+        subtype,
+        params: { custom_prompt: "Summarise the key facts." },
+        snapshot,
+      });
+      const a = await repo.createQueued({
+        notebook_id: NB,
+        owner_id: OWNER,
+        subtype,
+        ...plan,
+        snapshot,
+      });
       const t0 = performance.now();
       const done = await runner.run(a.id);
       durations.push((performance.now() - t0) / 1000);
@@ -36,7 +72,7 @@ describe("Studio reports deterministic eval", () => {
       for (const c of done.payload_json!.citations) {
         cited++;
         const chunk = byId.get(c.chunk_id);
-        if (chunk && chunk.source_id === c.source_id && chunk.text.includes(c.snippet)) valid++;
+        if (chunk?.source_id === c.source_id && chunk.text.includes(c.snippet)) valid++;
         if (c.source_id === SRC_UNSELECTED) leaked++;
       }
     }

@@ -16,7 +16,8 @@ export class CitationRegistry {
   mark(chunkId: string, quote?: string): string {
     let n = this.badges.get(chunkId);
     if (n === undefined) {
-      const chunk = this.byId.get(chunkId)!;
+      const chunk = this.byId.get(chunkId);
+      if (!chunk) throw new Error(`Citation cites unknown chunk ${chunkId}`);
       n = this.citations.length + 1;
       this.badges.set(chunkId, n);
       const snippet = quote && chunk.text.includes(quote) ? quote : chunk.text.slice(0, SNIPPET_MAX).trim();
@@ -96,5 +97,5 @@ export function renderReport(input: RenderInput): StudioReportPayload {
     if (block.items.length > 0) lines.push(...renderItems(block.id, block.items, reg));
     lines.push("");
   }
-  return { content_md: lines.join("\n").trimEnd() + "\n", citations: reg.citations, sections };
+  return { content_md: `${lines.join("\n").trimEnd()  }\n`, citations: reg.citations, sections };
 }

@@ -3,15 +3,13 @@ import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { OutputLanguageSchema } from "./package-v2-1.ts";
 import { StudioParamsError, type PromptValidationResult } from "./package-v2-4.ts";
 import {
-  STUDIO_FLASHCARDS_PLUGIN_TYPE,
-  STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE,
   STUDIO_NODE_ID_PATTERN,
-  STUDIO_QUIZ_PLUGIN_TYPE,
   StudioCoverageManifestSchema,
   StudioEvidenceRefSchema,
   type StudioEvidenceRef,
 } from "./package-v3-3.ts";
 import type { SourceRevisionPair } from "./scoped-context.ts";
+import { countCodePoints, toCodePoints } from "./text-limits.ts";
 
 /**
  * [014-studio-active-learning-suite] T005 — Package 4.1 Studio Active Learning Suite Contracts
@@ -77,7 +75,7 @@ export function resolveFlashcardTargetCount(input?: FlashcardCountInput): Flashc
 /** FR-ST-13 / FR-ST-14 / FR-ST-12: Optional focus prompt is 0..1,000 Unicode code points after outer trim; never truncates. */
 export function validatePedagogyFocusPrompt(input: string): PromptValidationResult {
   const trimmed = input.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
   if (codePoints > PEDAGOGY_FOCUS_PROMPT_MAX) {
     return {
       valid: false,
@@ -90,17 +88,17 @@ export function validatePedagogyFocusPrompt(input: string): PromptValidationResu
 
 export const PedagogyFocusPromptSchema = z.string().transform((value, ctx) => {
   const result = validatePedagogyFocusPrompt(value);
-  if (!result.valid) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid focus prompt" });
+  if (!result.valid || result.normalized === undefined) {
+    ctx.addIssue({ code: "custom", message: result.error ?? "Invalid focus prompt" });
     return z.NEVER;
   }
-  return result.normalized as string;
+  return result.normalized;
 });
 
 /** FR-ST-14: Free-text quiz answer is 1..1,000 Unicode code points after outer trim; rejects empty or >1,000 without truncation. */
 export function validateShortAnswerInput(input: string): PromptValidationResult {
   const trimmed = input.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
   if (codePoints < 1) {
     return { valid: false, codePoints: 0, error: "Answer must not be empty or whitespace only." };
   }
@@ -116,11 +114,11 @@ export function validateShortAnswerInput(input: string): PromptValidationResult 
 
 export const QuizShortAnswerInputSchema = z.string().transform((value, ctx) => {
   const result = validateShortAnswerInput(value);
-  if (!result.valid) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid answer" });
+  if (!result.valid || result.normalized === undefined) {
+    ctx.addIssue({ code: "custom", message: result.error ?? "Invalid answer" });
     return z.NEVER;
   }
-  return result.normalized as string;
+  return result.normalized;
 });
 
 const PlainTextNoHtmlSchema = z
@@ -130,7 +128,7 @@ const PlainTextNoHtmlSchema = z
   .refine((s) => !/<[A-Za-z!/]/.test(s), "Text must be plain text without HTML markup");
 
 const UniqueSourceIdsSchema = z
-  .array(z.string().uuid("source ID must be a valid UUID"))
+  .array(z.uuid("source ID must be a valid UUID"))
   .min(1, "active_source_ids must contain at least 1 source ID")
   .refine((ids) => new Set(ids).size === ids.length, "active_source_ids must be unique");
 
@@ -138,10 +136,12 @@ const UniqueSourceIdsSchema = z
 
 export const FlashcardItemSchema = z
   .object({
-    id: z.string().uuid("flashcard id must be a valid UUID"),
+    id: z.uuid("flashcard id must be a valid UUID"),
     front_text: PlainTextNoHtmlSchema,
     back_text: PlainTextNoHtmlSchema,
-    source_chunk_ids: z.array(z.string().regex(UUID_V7_REGEX, "source_chunk_ids must contain UUID v7")).min(1),
+    source_chunk_ids: z
+      .array(z.string().regex(UUID_V7_REGEX, "source_chunk_ids must contain UUID v7"))
+      .min(1),
     citations: z.array(StudioEvidenceRefSchema).min(1),
   })
   .strict()
@@ -150,7 +150,7 @@ export const FlashcardItemSchema = z
     for (const ref of card.citations) {
       if (!chunkSet.has(ref.chunk_id)) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["source_chunk_ids"],
           message: `Flashcard ${card.id} citation ${ref.chunk_id} must be listed in source_chunk_ids`,
         });
@@ -181,11 +181,15 @@ export const StudioFlashcardsPayloadSchema = z
   .superRefine((payload, ctx) => {
     const ids = payload.cards.map((c) => c.id);
     if (new Set(ids).size !== ids.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cards"], message: "Flashcard IDs must be unique" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["cards"],
+        message: "Flashcard IDs must be unique",
+      });
     }
     if (payload.cards.length < payload.target_count && !payload.insufficient_evidence_note) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["insufficient_evidence_note"],
         message: `Flashcard deck with fewer than ${payload.target_count} cards must include insufficient_evidence_note`,
       });
@@ -195,7 +199,7 @@ export const StudioFlashcardsPayloadSchema = z
       for (const ref of card.citations) {
         if (!badgeSet.has(`${ref.badge_number}|${ref.chunk_id}`)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             path: ["citations"],
             message: `Flashcard ${card.id} references citation ${ref.badge_number} (${ref.chunk_id}) not in payload.citations`,
           });
@@ -223,9 +227,9 @@ export const QuizOptionSchema = z
   .strict();
 export type QuizOption = z.infer<typeof QuizOptionSchema>;
 
-export const QuizQuestionSchema = z
+const QuizQuestionBaseSchema = z
   .object({
-    id: z.string().uuid("question id must be a valid UUID"),
+    id: z.uuid("question id must be a valid UUID"),
     type: QuizQuestionTypeSchema,
     prompt: PlainTextNoHtmlSchema,
     hint: PlainTextNoHtmlSchema.optional(),
@@ -233,74 +237,91 @@ export const QuizQuestionSchema = z
     correct_answer: z.union([z.string().trim().min(1), z.array(z.string().trim().min(1)).min(1)]),
     rubric: PlainTextNoHtmlSchema,
     explanation: PlainTextNoHtmlSchema,
-    source_chunk_ids: z.array(z.string().regex(UUID_V7_REGEX, "source_chunk_ids must contain UUID v7")).min(1),
+    source_chunk_ids: z
+      .array(z.string().regex(UUID_V7_REGEX, "source_chunk_ids must contain UUID v7"))
+      .min(1),
     citations: z.array(StudioEvidenceRefSchema).min(1),
   })
-  .strict()
-  .superRefine((q, ctx) => {
-    const chunkSet = new Set(q.source_chunk_ids);
-    for (const ref of q.citations) {
-      if (!chunkSet.has(ref.chunk_id)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["source_chunk_ids"],
-          message: `Question ${q.id} citation ${ref.chunk_id} must be listed in source_chunk_ids`,
-        });
-      }
+  .strict();
+
+type RawQuizQuestion = z.infer<typeof QuizQuestionBaseSchema>;
+
+function validateChoiceQuizQuestion(q: RawQuizQuestion, ctx: z.RefinementCtx): void {
+  if (!q.options || q.options.length < 2) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["options"],
+      message: `Question type ${q.type} requires at least 2 options`,
+    });
+    return;
+  }
+  const optionIds = q.options.map((o) => o.id);
+  const optionIdSet = new Set(optionIds);
+  if (optionIdSet.size !== optionIds.length) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["options"],
+      message: "Quiz option IDs must be unique",
+    });
+  }
+  if (q.type === "multiple_choice") {
+    if (typeof q.correct_answer !== "string" || !optionIdSet.has(q.correct_answer)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["correct_answer"],
+        message: "multiple_choice correct_answer must match one option id",
+      });
     }
-    if (q.type === "multiple_choice" || q.type === "multiple_select") {
-      if (!q.options || q.options.length < 2) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["options"],
-          message: `Question type ${q.type} requires at least 2 options`,
-        });
-        return;
-      }
-      const optionIds = q.options.map((o) => o.id);
-      if (new Set(optionIds).size !== optionIds.length) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["options"], message: "Quiz option IDs must be unique" });
-      }
-      const optionIdSet = new Set(optionIds);
-      if (q.type === "multiple_choice") {
-        if (typeof q.correct_answer !== "string" || !optionIdSet.has(q.correct_answer)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["correct_answer"],
-            message: "multiple_choice correct_answer must match one option id",
-          });
-        }
-      } else {
-        if (
-          !Array.isArray(q.correct_answer) ||
-          q.correct_answer.length === 0 ||
-          new Set(q.correct_answer).size !== q.correct_answer.length ||
-          q.correct_answer.some((ans) => !optionIdSet.has(ans))
-        ) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["correct_answer"],
-            message: "multiple_select correct_answer must be a unique non-empty array of option ids",
-          });
-        }
-      }
-    } else {
-      if (q.options !== undefined) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["options"],
-          message: `Question type ${q.type} must not include options`,
-        });
-      }
-      if (typeof q.correct_answer !== "string" || q.correct_answer.trim().length === 0) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["correct_answer"],
-          message: `Question type ${q.type} requires a non-empty string correct_answer`,
-        });
-      }
+    return;
+  }
+  const validMultiSelect =
+    Array.isArray(q.correct_answer) &&
+    q.correct_answer.length > 0 &&
+    new Set(q.correct_answer).size === q.correct_answer.length &&
+    q.correct_answer.every((ans) => optionIdSet.has(ans));
+  if (!validMultiSelect) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["correct_answer"],
+      message: "multiple_select correct_answer must be a unique non-empty array of option ids",
+    });
+  }
+}
+
+function validateFreeTextQuizQuestion(q: RawQuizQuestion, ctx: z.RefinementCtx): void {
+  if (q.options !== undefined) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["options"],
+      message: `Question type ${q.type} must not include options`,
+    });
+  }
+  if (typeof q.correct_answer !== "string" || q.correct_answer.trim().length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["correct_answer"],
+      message: `Question type ${q.type} requires a non-empty string correct_answer`,
+    });
+  }
+}
+
+export const QuizQuestionSchema = QuizQuestionBaseSchema.superRefine((q, ctx) => {
+  const chunkSet = new Set(q.source_chunk_ids);
+  for (const ref of q.citations) {
+    if (!chunkSet.has(ref.chunk_id)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["source_chunk_ids"],
+        message: `Question ${q.id} citation ${ref.chunk_id} must be listed in source_chunk_ids`,
+      });
     }
-  });
+  }
+  if (q.type === "multiple_choice" || q.type === "multiple_select") {
+    validateChoiceQuizQuestion(q, ctx);
+  } else {
+    validateFreeTextQuizQuestion(q, ctx);
+  }
+});
 export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
 
 export const StudioQuizParamsSchema = z
@@ -325,11 +346,15 @@ export const StudioQuizPayloadSchema = z
   .superRefine((payload, ctx) => {
     const ids = payload.questions.map((q) => q.id);
     if (new Set(ids).size !== ids.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["questions"], message: "Quiz question IDs must be unique" });
+      ctx.addIssue({
+        code: "custom",
+        path: ["questions"],
+        message: "Quiz question IDs must be unique",
+      });
     }
     if (payload.questions.length < payload.target_count && !payload.insufficient_evidence_note) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["insufficient_evidence_note"],
         message: `Quiz with fewer than ${payload.target_count} questions must include insufficient_evidence_note`,
       });
@@ -339,7 +364,7 @@ export const StudioQuizPayloadSchema = z
       for (const ref of q.citations) {
         if (!badgeSet.has(`${ref.badge_number}|${ref.chunk_id}`)) {
           ctx.addIssue({
-            code: z.ZodIssueCode.custom,
+            code: "custom",
             path: ["citations"],
             message: `Question ${q.id} references citation ${ref.badge_number} (${ref.chunk_id}) not in payload.citations`,
           });
@@ -358,14 +383,14 @@ export const LearningItemStateSchema = z
   .object({
     status: LearningItemOutcomeSchema,
     attempts: z.number().int().positive(),
-    last_reviewed_at: z.string().datetime(),
+    last_reviewed_at: z.iso.datetime(),
   })
   .strict();
 export type LearningItemState = z.infer<typeof LearningItemStateSchema>;
 
 export const RecordLearningProgressRequestSchema = z
   .object({
-    item_id: z.string().uuid("item_id must be a valid UUID"),
+    item_id: z.uuid("item_id must be a valid UUID"),
     outcome: LearningItemOutcomeSchema,
   })
   .strict();
@@ -380,11 +405,11 @@ export type ResetLearningProgressRequest = z.infer<typeof ResetLearningProgressR
 
 export const LearningProgressDtoSchema = z
   .object({
-    user_id: z.string().uuid(),
-    artifact_id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
-    item_states_json: z.record(z.string().uuid(), LearningItemStateSchema),
-    updated_at: z.string().datetime(),
+    user_id: z.uuid(),
+    artifact_id: z.uuid(),
+    notebook_id: z.uuid(),
+    item_states_json: z.record(z.uuid(), LearningItemStateSchema),
+    updated_at: z.iso.datetime(),
   })
   .strict();
 export type LearningProgressDto = z.infer<typeof LearningProgressDtoSchema>;
@@ -393,7 +418,7 @@ export type LearningProgressDto = z.infer<typeof LearningProgressDtoSchema>;
 
 export const GradeQuizQuestionRequestSchema = z
   .object({
-    question_id: z.string().uuid("question_id must be a valid UUID"),
+    question_id: z.uuid("question_id must be a valid UUID"),
     answer: z.union([z.string(), z.array(z.string().trim().min(1)).min(1)]),
     active_source_ids: UniqueSourceIdsSchema.optional(),
   })
@@ -402,7 +427,7 @@ export type GradeQuizQuestionRequest = z.infer<typeof GradeQuizQuestionRequestSc
 
 export const GradeQuizQuestionResponseSchema = z
   .object({
-    question_id: z.string().uuid(),
+    question_id: z.uuid(),
     correct: z.boolean(),
     outcome: LearningItemOutcomeSchema,
     grading_mode: z.enum(["deterministic", "semantic"]),
@@ -416,7 +441,7 @@ export type GradeQuizQuestionResponse = z.infer<typeof GradeQuizQuestionResponse
 
 export const StudioExplainRequestSchema = z
   .object({
-    item_id: z.string().uuid("item_id must be a valid UUID"),
+    item_id: z.uuid("item_id must be a valid UUID"),
     item_kind: z.enum(["flashcard", "quiz_question"]).optional(),
     active_source_ids: UniqueSourceIdsSchema,
     output_language: OutputLanguageSchema.optional(),
@@ -460,25 +485,29 @@ export function escapeXmlText(text: string): string {
     .replaceAll("'", "&#39;");
 }
 
+function pushChunkedWord(lines: string[], wordChars: readonly string[], maxChars: number): void {
+  for (let i = 0; i < wordChars.length; i += maxChars) {
+    lines.push(wordChars.slice(i, i + maxChars).join(""));
+  }
+}
+
 export function wrapDiagramText(text: string, maxCharsPerLine: number): string[] {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return [];
   const lines: string[] = [];
   let current = "";
   for (const word of words) {
-    const wordChars = Array.from(word);
+    const wordChars = toCodePoints(word);
     if (wordChars.length > maxCharsPerLine) {
       if (current) {
         lines.push(current);
         current = "";
       }
-      for (let i = 0; i < wordChars.length; i += maxCharsPerLine) {
-        lines.push(wordChars.slice(i, i + maxCharsPerLine).join(""));
-      }
+      pushChunkedWord(lines, wordChars, maxCharsPerLine);
       continue;
     }
     const candidate = current ? `${current} ${word}` : word;
-    if (Array.from(candidate).length <= maxCharsPerLine) {
+    if (countCodePoints(candidate) <= maxCharsPerLine) {
       current = candidate;
     } else {
       lines.push(current);
@@ -487,6 +516,101 @@ export function wrapDiagramText(text: string, maxCharsPerLine: number): string[]
   }
   if (current) lines.push(current);
   return lines;
+}
+
+interface ConceptLayoutBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  titleLines: string[];
+  detailLines: string[];
+  badges: string;
+}
+
+function layoutConceptBoxes(
+  nodes: readonly ConceptDiagramNode[],
+  layout: {
+    cols: number;
+    boxWidth: number;
+    maxChars: number;
+    padX: number;
+    gapX: number;
+    gapY: number;
+    startY: number;
+  },
+): { boxes: ConceptLayoutBox[]; cursorY: number } {
+  const prepared = nodes.map((node) => {
+    const tLines = wrapDiagramText(node.label, layout.maxChars);
+    const dLines = node.detail ? wrapDiagramText(node.detail, layout.maxChars + 4) : [];
+    const badges = node.badge_numbers.map((n) => `[${n}]`).join(" ");
+    const h = 16 + tLines.length * 18 + (dLines.length > 0 ? 6 + dLines.length * 16 : 0) + 22 + 14;
+    return { tLines, dLines, badges, h };
+  });
+
+  const boxes: ConceptLayoutBox[] = [];
+  let cursorY = layout.startY;
+  for (let i = 0; i < prepared.length; i += layout.cols) {
+    const rowItems = prepared.slice(i, i + layout.cols);
+    const rowHeight = Math.max(...rowItems.map((r) => r.h));
+    rowItems.forEach((item, colIdx) => {
+      boxes.push({
+        x: layout.padX + colIdx * (layout.boxWidth + layout.gapX),
+        y: cursorY,
+        w: layout.boxWidth,
+        h: rowHeight,
+        titleLines: item.tLines,
+        detailLines: item.dLines,
+        badges: item.badges,
+      });
+    });
+    cursorY += rowHeight + layout.gapY;
+  }
+  return { boxes, cursorY };
+}
+
+function appendConceptConnectors(parts: string[], boxes: readonly ConceptLayoutBox[]): void {
+  for (let i = 0; i < boxes.length - 1; i++) {
+    const a = boxes[i];
+    const b = boxes[i + 1];
+    if (!a || !b) continue;
+    if (a.y === b.y) {
+      parts.push(
+        `<line x1="${a.x + a.w}" y1="${a.y + a.h / 2}" x2="${b.x}" y2="${b.y + b.h / 2}" stroke="#64748b" stroke-width="1.5"/>`,
+      );
+    } else {
+      parts.push(
+        `<line x1="${a.x + a.w / 2}" y1="${a.y + a.h}" x2="${b.x + b.w / 2}" y2="${b.y}" stroke="#64748b" stroke-width="1.5"/>`,
+      );
+    }
+  }
+}
+
+function appendConceptBox(parts: string[], box: ConceptLayoutBox): void {
+  parts.push(
+    `<g>`,
+    `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>`,
+  );
+  let textY = box.y + 24;
+  for (const line of box.titleLines) {
+    parts.push(
+      `<text x="${box.x + 14}" y="${textY}" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#0f172a">${escapeXmlText(line)}</text>`,
+    );
+    textY += 18;
+  }
+  if (box.detailLines.length > 0) {
+    textY += 4;
+    for (const line of box.detailLines) {
+      parts.push(
+        `<text x="${box.x + 14}" y="${textY}" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#334155">${escapeXmlText(line)}</text>`,
+      );
+      textY += 16;
+    }
+  }
+  parts.push(
+    `<text x="${box.x + 14}" y="${box.y + box.h - 10}" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#1d4ed8">${escapeXmlText(box.badges)}</text>`,
+    `</g>`,
+  );
 }
 
 /**
@@ -507,42 +631,15 @@ export function renderDeterministicConceptDiagramSvg(rawSpec: ConceptDiagramSpec
   const startY = headerY + titleLines.length * 22 + 16;
   const totalWidth = cols === 2 ? padX * 2 + boxWidth * 2 + gapX : padX * 2 + boxWidth;
 
-  interface LayoutBox {
-    x: number;
-    y: number;
-    w: number;
-    h: number;
-    titleLines: string[];
-    detailLines: string[];
-    badges: string;
-  }
-
-  const prepared = spec.nodes.map((node) => {
-    const tLines = wrapDiagramText(node.label, maxChars);
-    const dLines = node.detail ? wrapDiagramText(node.detail, maxChars + 4) : [];
-    const badges = node.badge_numbers.map((n) => `[${n}]`).join(" ");
-    const h = 16 + tLines.length * 18 + (dLines.length > 0 ? 6 + dLines.length * 16 : 0) + 22 + 14;
-    return { tLines, dLines, badges, h };
+  const { boxes, cursorY } = layoutConceptBoxes(spec.nodes, {
+    cols,
+    boxWidth,
+    maxChars,
+    padX,
+    gapX,
+    gapY,
+    startY,
   });
-
-  const boxes: LayoutBox[] = [];
-  let cursorY = startY;
-  for (let i = 0; i < prepared.length; i += cols) {
-    const rowItems = prepared.slice(i, i + cols);
-    const rowHeight = Math.max(...rowItems.map((r) => r.h));
-    rowItems.forEach((item, colIdx) => {
-      boxes.push({
-        x: padX + colIdx * (boxWidth + gapX),
-        y: cursorY,
-        w: boxWidth,
-        h: rowHeight,
-        titleLines: item.tLines,
-        detailLines: item.dLines,
-        badges: item.badges,
-      });
-    });
-    cursorY += rowHeight + gapY;
-  }
 
   const footerText = spec.footer_label.includes("AI-generated")
     ? spec.footer_label
@@ -558,57 +655,18 @@ export function renderDeterministicConceptDiagramSvg(rawSpec: ConceptDiagramSpec
 
   titleLines.forEach((line, idx) => {
     parts.push(
-      `<text x="${padX}" y="${28 + idx * 22}" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#0f172a">${escapeXmlText(line)}</text>`
+      `<text x="${padX}" y="${28 + idx * 22}" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" fill="#0f172a">${escapeXmlText(line)}</text>`,
     );
   });
 
-  // Connect consecutive boxes cleanly
-  for (let i = 0; i < boxes.length - 1; i++) {
-    const a = boxes[i]!;
-    const b = boxes[i + 1]!;
-    const x1 = a.x + a.w / 2;
-    const y1 = a.y + a.h;
-    const x2 = b.x + b.w / 2;
-    const y2 = b.y;
-    if (a.y === b.y) {
-      parts.push(
-        `<line x1="${a.x + a.w}" y1="${a.y + a.h / 2}" x2="${b.x}" y2="${b.y + b.h / 2}" stroke="#64748b" stroke-width="1.5"/>`
-      );
-    } else {
-      parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#64748b" stroke-width="1.5"/>`);
-    }
-  }
-
+  appendConceptConnectors(parts, boxes);
   for (const box of boxes) {
-    parts.push(
-      `<g>`,
-      `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="10" fill="#ffffff" stroke="#94a3b8" stroke-width="1.2"/>`
-    );
-    let textY = box.y + 24;
-    for (const line of box.titleLines) {
-      parts.push(
-        `<text x="${box.x + 14}" y="${textY}" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="600" fill="#0f172a">${escapeXmlText(line)}</text>`
-      );
-      textY += 18;
-    }
-    if (box.detailLines.length > 0) {
-      textY += 4;
-      for (const line of box.detailLines) {
-        parts.push(
-          `<text x="${box.x + 14}" y="${textY}" font-family="system-ui, -apple-system, sans-serif" font-size="12" fill="#334155">${escapeXmlText(line)}</text>`
-        );
-        textY += 16;
-      }
-    }
-    parts.push(
-      `<text x="${box.x + 14}" y="${box.y + box.h - 10}" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="600" fill="#1d4ed8">${escapeXmlText(box.badges)}</text>`,
-      `</g>`
-    );
+    appendConceptBox(parts, box);
   }
 
   parts.push(
     `<text x="${padX}" y="${footerY}" font-family="system-ui, -apple-system, sans-serif" font-size="11" fill="#475569">${escapeXmlText(footerText)}</text>`,
-    `</svg>`
+    `</svg>`,
   );
   return parts.join("");
 }
@@ -644,15 +702,21 @@ export function validateSafeDeterministicSvg(svg: string): { valid: boolean; err
 
 export const LearningOverviewModuleSchema = z
   .object({
-    id: z.string().uuid("module id must be a valid UUID"),
+    id: z.uuid("module id must be a valid UUID"),
     title: PlainTextNoHtmlSchema,
     summary_md: z.string().trim().min(1, "module summary_md must not be empty"),
-    diagram_svg: z.string().min(1).superRefine((svg, ctx) => {
-      const check = validateSafeDeterministicSvg(svg);
-      if (!check.valid) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, message: check.error ?? "Invalid diagram_svg" });
-      }
-    }),
+    diagram_svg: z
+      .string()
+      .min(1)
+      .superRefine((svg, ctx) => {
+        const check = validateSafeDeterministicSvg(svg);
+        if (!check.valid) {
+          ctx.addIssue({
+            code: "custom",
+            message: check.error ?? "Invalid diagram_svg",
+          });
+        }
+      }),
     flashcards: z.array(FlashcardItemSchema).min(1).max(5),
     checkpoint_quiz: z.array(QuizQuestionSchema).min(1).max(4),
     citations: z.array(StudioEvidenceRefSchema).min(1),
@@ -673,10 +737,37 @@ export const StudioLearningOverviewParamsSchema = z
   .strict();
 export type StudioLearningOverviewParams = z.infer<typeof StudioLearningOverviewParamsSchema>;
 
+function validateOverviewModuleCitationRefs(
+  modules: readonly LearningOverviewModule[],
+  badgeSet: ReadonlySet<string>,
+  ctx: z.RefinementCtx,
+): void {
+  for (const mod of modules) {
+    const refs = [
+      ...mod.citations,
+      ...mod.flashcards.flatMap((c) => c.citations),
+      ...mod.checkpoint_quiz.flatMap((q) => q.citations),
+    ];
+    for (const ref of refs) {
+      if (!badgeSet.has(`${ref.badge_number}|${ref.chunk_id}`)) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["citations"],
+          message: `Module ${mod.id} references citation ${ref.badge_number} (${ref.chunk_id}) not in payload.citations`,
+        });
+      }
+    }
+  }
+}
+
 export const StudioLearningOverviewPayloadSchema = z
   .object({
     modules: z.array(LearningOverviewModuleSchema).min(1).max(LEARNING_OVERVIEW_MAX_SECTIONS),
-    target_section_count: z.number().int().min(LEARNING_OVERVIEW_MIN_SECTIONS).max(LEARNING_OVERVIEW_MAX_SECTIONS),
+    target_section_count: z
+      .number()
+      .int()
+      .min(LEARNING_OVERVIEW_MIN_SECTIONS)
+      .max(LEARNING_OVERVIEW_MAX_SECTIONS),
     insufficient_evidence_note: z.string().trim().min(1).nullable(),
     citations: z.array(StudioEvidenceRefSchema).min(1),
     coverage: StudioCoverageManifestSchema.optional(),
@@ -685,47 +776,38 @@ export const StudioLearningOverviewPayloadSchema = z
   .superRefine((payload, ctx) => {
     const modIds = payload.modules.map((m) => m.id);
     if (new Set(modIds).size !== modIds.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["modules"], message: "Learning overview module IDs must be unique" });
-    }
-    const itemIds: string[] = [];
-    for (const mod of payload.modules) {
-      for (const c of mod.flashcards) itemIds.push(c.id);
-      for (const q of mod.checkpoint_quiz) itemIds.push(q.id);
-    }
-    if (new Set(itemIds).size !== itemIds.length) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["modules"],
-        message: "Embedded flashcard and quiz question IDs must be globally unique within the overview",
+        message: "Learning overview module IDs must be unique",
       });
     }
-    if (payload.modules.length < payload.target_section_count && !payload.insufficient_evidence_note) {
+    const itemIds = payload.modules.flatMap((mod) => [
+      ...mod.flashcards.map((c) => c.id),
+      ...mod.checkpoint_quiz.map((q) => q.id),
+    ]);
+    if (new Set(itemIds).size !== itemIds.length) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
+        path: ["modules"],
+        message:
+          "Embedded flashcard and quiz question IDs must be globally unique within the overview",
+      });
+    }
+    if (
+      payload.modules.length < payload.target_section_count &&
+      !payload.insufficient_evidence_note
+    ) {
+      ctx.addIssue({
+        code: "custom",
         path: ["insufficient_evidence_note"],
         message: `Learning overview with fewer than ${payload.target_section_count} modules must include insufficient_evidence_note`,
       });
     }
     const badgeSet = new Set(payload.citations.map((c) => `${c.badge_number}|${c.chunk_id}`));
-    for (const mod of payload.modules) {
-      const refs = [
-        ...mod.citations,
-        ...mod.flashcards.flatMap((c) => c.citations),
-        ...mod.checkpoint_quiz.flatMap((q) => q.citations),
-      ];
-      for (const ref of refs) {
-        if (!badgeSet.has(`${ref.badge_number}|${ref.chunk_id}`)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["citations"],
-            message: `Module ${mod.id} references citation ${ref.badge_number} (${ref.chunk_id}) not in payload.citations`,
-          });
-        }
-      }
-    }
+    validateOverviewModuleCitationRefs(payload.modules, badgeSet, ctx);
   });
 export type StudioLearningOverviewPayload = z.infer<typeof StudioLearningOverviewPayloadSchema>;
-
 
 // ---- Shared Active Learning Domain Evaluators & Citation Validators (Package 4.1, CC-09 / NFR-EVAL-02/04) ----
 
@@ -737,7 +819,7 @@ export function verifyStudioCitations(
   citations: readonly StudioEvidenceRef[],
   chunks: readonly UnifiedDocumentChunk[],
   snapshot: readonly SourceRevisionPair[],
-  contextLabel = "Artifact"
+  contextLabel = "Artifact",
 ): { error: string | null; badgeMap: Map<number, StudioEvidenceRef> } {
   const revisions = new Map(snapshot.map((p) => [p.source_id, p.revision]));
   const chunkById = new Map(chunks.map((c) => [c.chunk_id, c]));
@@ -745,14 +827,27 @@ export function verifyStudioCitations(
   for (const cite of citations) {
     const chunk = chunkById.get(cite.chunk_id);
     if (!chunk) {
-      return { error: `${contextLabel}: citation ${cite.badge_number} (${cite.chunk_id}) does not resolve to a scoped chunk`, badgeMap };
+      return {
+        error: `${contextLabel}: citation ${cite.badge_number} (${cite.chunk_id}) does not resolve to a scoped chunk`,
+        badgeMap,
+      };
     }
     const expectedRevision = revisions.get(cite.source_id);
-    if (expectedRevision !== cite.revision || chunk.source_id !== cite.source_id || chunk.revision !== cite.revision) {
-      return { error: `${contextLabel}: citation ${cite.badge_number} does not match the captured source revision snapshot`, badgeMap };
+    if (
+      expectedRevision !== cite.revision ||
+      chunk.source_id !== cite.source_id ||
+      chunk.revision !== cite.revision
+    ) {
+      return {
+        error: `${contextLabel}: citation ${cite.badge_number} does not match the captured source revision snapshot`,
+        badgeMap,
+      };
     }
     if (!chunk.text.includes(cite.snippet)) {
-      return { error: `${contextLabel}: citation ${cite.badge_number} snippet is not present in the cited chunk`, badgeMap };
+      return {
+        error: `${contextLabel}: citation ${cite.badge_number} snippet is not present in the cited chunk`,
+        badgeMap,
+      };
     }
     const prev = badgeMap.get(cite.badge_number);
     if (prev && (prev.chunk_id !== cite.chunk_id || prev.snippet !== cite.snippet)) {
@@ -766,18 +861,28 @@ export function verifyStudioCitations(
 export function validateFlashcardsPayload(
   payload: unknown,
   chunks: readonly UnifiedDocumentChunk[],
-  snapshot: readonly SourceRevisionPair[]
+  snapshot: readonly SourceRevisionPair[],
 ): string | null {
   const parsed = StudioFlashcardsPayloadSchema.safeParse(payload);
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join("; ");
   }
   const deck = parsed.data;
-  const payloadCheck = verifyStudioCitations(deck.citations, chunks, snapshot, "Flashcards payload");
+  const payloadCheck = verifyStudioCitations(
+    deck.citations,
+    chunks,
+    snapshot,
+    "Flashcards payload",
+  );
   if (payloadCheck.error) return payloadCheck.error;
 
   for (const card of deck.cards) {
-    const cardCheck = verifyStudioCitations(card.citations, chunks, snapshot, `Flashcard ${card.id}`);
+    const cardCheck = verifyStudioCitations(
+      card.citations,
+      chunks,
+      snapshot,
+      `Flashcard ${card.id}`,
+    );
     if (cardCheck.error) return cardCheck.error;
   }
   return null;
@@ -786,7 +891,7 @@ export function validateFlashcardsPayload(
 export function validateQuizPayload(
   payload: unknown,
   chunks: readonly UnifiedDocumentChunk[],
-  snapshot: readonly SourceRevisionPair[]
+  snapshot: readonly SourceRevisionPair[],
 ): string | null {
   const parsed = StudioQuizPayloadSchema.safeParse(payload);
   if (!parsed.success) {
@@ -803,49 +908,91 @@ export function validateQuizPayload(
   return null;
 }
 
+function validateOverviewModuleInlineCitations(
+  mod: LearningOverviewModule,
+  badgeMap: ReadonlyMap<number, StudioEvidenceRef>,
+): string | null {
+  if (!mod.summary_md.trim() || !/\[\d+\]/.test(mod.summary_md)) {
+    return `Module ${mod.id} summary_md is missing inline citations.`;
+  }
+  for (const match of mod.summary_md.matchAll(/\[(\d+)\]/g)) {
+    const badge = Number(match[1]);
+    if (!badgeMap.has(badge)) {
+      return `Module ${mod.id} summary references missing citation [${badge}].`;
+    }
+  }
+  return null;
+}
+
+function validateLearningOverviewModule(
+  mod: LearningOverviewModule,
+  badgeMap: ReadonlyMap<number, StudioEvidenceRef>,
+  chunks: readonly UnifiedDocumentChunk[],
+  snapshot: readonly SourceRevisionPair[],
+): string | null {
+  const inlineError = validateOverviewModuleInlineCitations(mod, badgeMap);
+  if (inlineError) return inlineError;
+
+  const svgCheck = validateSafeDeterministicSvg(mod.diagram_svg);
+  if (!svgCheck.valid) {
+    return `Module ${mod.id} diagram_svg failed validation: ${svgCheck.error ?? "unsafe SVG"}`;
+  }
+  if (mod.flashcards.length === 0) {
+    return `Module ${mod.id} is missing required embedded flashcards.`;
+  }
+  if (mod.checkpoint_quiz.length === 0) {
+    return `Module ${mod.id} is missing required checkpoint quiz questions.`;
+  }
+  const modCheck = verifyStudioCitations(mod.citations, chunks, snapshot, `Module ${mod.id}`);
+  if (modCheck.error) return modCheck.error;
+
+  for (const card of mod.flashcards) {
+    const cardCheck = verifyStudioCitations(
+      card.citations,
+      chunks,
+      snapshot,
+      `Module ${mod.id} card ${card.id}`,
+    );
+    if (cardCheck.error) return cardCheck.error;
+  }
+  for (const q of mod.checkpoint_quiz) {
+    const qCheck = verifyStudioCitations(
+      q.citations,
+      chunks,
+      snapshot,
+      `Module ${mod.id} question ${q.id}`,
+    );
+    if (qCheck.error) return qCheck.error;
+  }
+  return null;
+}
+
 export function validateLearningOverviewPayload(
   payload: unknown,
   chunks: readonly UnifiedDocumentChunk[],
-  snapshot: readonly SourceRevisionPair[]
+  snapshot: readonly SourceRevisionPair[],
 ): string | null {
   const parsed = StudioLearningOverviewPayloadSchema.safeParse(payload);
   if (!parsed.success) {
     return parsed.error.issues.map((i) => i.message).join("; ");
   }
   const overview = parsed.data;
-  const payloadCheck = verifyStudioCitations(overview.citations, chunks, snapshot, "Learning overview payload");
+  const payloadCheck = verifyStudioCitations(
+    overview.citations,
+    chunks,
+    snapshot,
+    "Learning overview payload",
+  );
   if (payloadCheck.error) return payloadCheck.error;
 
   for (const mod of overview.modules) {
-    if (!mod.summary_md.trim() || !/\[\d+\]/.test(mod.summary_md)) {
-      return `Module ${mod.id} summary_md is missing inline citations.`;
-    }
-    for (const match of mod.summary_md.matchAll(/\[(\d+)\]/g)) {
-      const badge = Number(match[1]);
-      if (!payloadCheck.badgeMap.has(badge)) {
-        return `Module ${mod.id} summary references missing citation [${badge}].`;
-      }
-    }
-    const svgCheck = validateSafeDeterministicSvg(mod.diagram_svg);
-    if (!svgCheck.valid) {
-      return `Module ${mod.id} diagram_svg failed validation: ${svgCheck.error ?? "unsafe SVG"}`;
-    }
-    if (mod.flashcards.length === 0) {
-      return `Module ${mod.id} is missing required embedded flashcards.`;
-    }
-    if (mod.checkpoint_quiz.length === 0) {
-      return `Module ${mod.id} is missing required checkpoint quiz questions.`;
-    }
-    const modCheck = verifyStudioCitations(mod.citations, chunks, snapshot, `Module ${mod.id}`);
-    if (modCheck.error) return modCheck.error;
-    for (const card of mod.flashcards) {
-      const cardCheck = verifyStudioCitations(card.citations, chunks, snapshot, `Module ${mod.id} card ${card.id}`);
-      if (cardCheck.error) return cardCheck.error;
-    }
-    for (const q of mod.checkpoint_quiz) {
-      const qCheck = verifyStudioCitations(q.citations, chunks, snapshot, `Module ${mod.id} question ${q.id}`);
-      if (qCheck.error) return qCheck.error;
-    }
+    const moduleError = validateLearningOverviewModule(
+      mod,
+      payloadCheck.badgeMap,
+      chunks,
+      snapshot,
+    );
+    if (moduleError) return moduleError;
   }
   return null;
 }
@@ -912,51 +1059,73 @@ interface NormalizedQuantity {
   value: number;
 }
 
+function isAsciiDigit(ch: string | undefined): boolean {
+  return ch !== undefined && ch >= "0" && ch <= "9";
+}
+
+function scanDecimalNumberEnd(text: string, start: number): number {
+  let index = start;
+  while (isAsciiDigit(text[index])) {
+    index++;
+  }
+  const sep = text[index];
+  if ((sep === "." || sep === ",") && isAsciiDigit(text[index + 1])) {
+    index++;
+    while (isAsciiDigit(text[index])) {
+      index++;
+    }
+  }
+  return index;
+}
+
+function scanUnitToken(text: string, start: number): { unit: string; end: number } {
+  let unitStart = start;
+  while (unitStart < text.length && /\s/.test(text[unitStart] ?? "")) {
+    unitStart++;
+  }
+  let unitEnd = unitStart;
+  if (text[unitStart] === "%") {
+    unitEnd++;
+  } else {
+    while (unitEnd < text.length && /[A-Za-z]/.test(text[unitEnd] ?? "")) {
+      unitEnd++;
+    }
+  }
+  return { unit: text.slice(unitStart, unitEnd).toLowerCase(), end: unitEnd };
+}
+
+function normalizeQuantity(rawNum: number, unit: string): NormalizedQuantity | null {
+  if (!Number.isFinite(rawNum)) return null;
+  if (Object.prototype.hasOwnProperty.call(STORAGE_UNIT_FACTORS, unit)) {
+    const factor = STORAGE_UNIT_FACTORS[unit];
+    if (factor !== undefined) return { dimension: "storage", value: rawNum * factor };
+  }
+  if (Object.prototype.hasOwnProperty.call(TIME_UNIT_FACTORS, unit)) {
+    const factor = TIME_UNIT_FACTORS[unit];
+    if (factor !== undefined) return { dimension: "time", value: rawNum * factor };
+  }
+  if (unit === "%") {
+    return { dimension: "percent", value: rawNum };
+  }
+  return null;
+}
+
 function extractQuantities(text: string): NormalizedQuantity[] {
   const out: NormalizedQuantity[] = [];
   let index = 0;
   while (index < text.length) {
-    if (text[index]! < "0" || text[index]! > "9") {
+    if (!isAsciiDigit(text[index])) {
       index++;
       continue;
     }
+    const numberEnd = scanDecimalNumberEnd(text, index);
+    const rawNumber = text.slice(index, numberEnd).replace(",", ".");
+    const { unit, end: unitEnd } = scanUnitToken(text, numberEnd);
+    index = numberEnd;
+    if (unit.length === 0) continue;
 
-    const numberStart = index;
-    while (index < text.length && text[index]! >= "0" && text[index]! <= "9") index++;
-    if (
-      index < text.length &&
-      (text[index] === "." || text[index] === ",") &&
-      index + 1 < text.length &&
-      text[index + 1]! >= "0" &&
-      text[index + 1]! <= "9"
-    ) {
-      index++;
-      while (index < text.length && text[index]! >= "0" && text[index]! <= "9") index++;
-    }
-
-    const rawNumber = text.slice(numberStart, index).replace(",", ".");
-    let unitStart = index;
-    while (unitStart < text.length && /\s/.test(text[unitStart]!)) unitStart++;
-
-    let unitEnd = unitStart;
-    if (text[unitStart] === "%") {
-      unitEnd++;
-    } else {
-      while (unitEnd < text.length && /[A-Za-z]/.test(text[unitEnd]!)) unitEnd++;
-    }
-
-    const unit = text.slice(unitStart, unitEnd).toLowerCase();
-    if (unitEnd === unitStart) continue;
-
-    const rawNum = Number(rawNumber);
-    if (!Number.isFinite(rawNum)) continue;
-    if (Object.prototype.hasOwnProperty.call(STORAGE_UNIT_FACTORS, unit)) {
-      out.push({ dimension: "storage", value: rawNum * STORAGE_UNIT_FACTORS[unit]! });
-    } else if (Object.prototype.hasOwnProperty.call(TIME_UNIT_FACTORS, unit)) {
-      out.push({ dimension: "time", value: rawNum * TIME_UNIT_FACTORS[unit]! });
-    } else if (unit === "%") {
-      out.push({ dimension: "percent", value: rawNum });
-    }
+    const quantity = normalizeQuantity(Number(rawNumber), unit);
+    if (quantity) out.push(quantity);
     index = unitEnd;
   }
   return out;
@@ -1010,7 +1179,7 @@ function significantTokens(text: string): string[] {
 export function evaluateDeterministicSemantic(
   userAnswer: string,
   expected: string,
-  rubric: string
+  rubric: string,
 ): { matched: boolean; conclusive: boolean } {
   if (isPromptInjectionAttempt(userAnswer)) {
     return { matched: false, conclusive: true };
@@ -1026,10 +1195,10 @@ export function evaluateDeterministicSemantic(
   const expectedQuantities = extractQuantities(`${expected} ${rubric}`);
   if (expectedQuantities.length > 0 && userQuantities.length > 0) {
     const allUserMatch = userQuantities.every((uq) =>
-      expectedQuantities.some((eq) => quantitiesEquivalent(uq, eq))
+      expectedQuantities.some((eq) => quantitiesEquivalent(uq, eq)),
     );
     const anyExpectedMatch = expectedQuantities.some((eq) =>
-      userQuantities.some((uq) => quantitiesEquivalent(uq, eq))
+      userQuantities.some((uq) => quantitiesEquivalent(uq, eq)),
     );
     if (allUserMatch && anyExpectedMatch) {
       return { matched: true, conclusive: true };
@@ -1070,60 +1239,84 @@ export interface DeterministicQuizGradeEvaluation {
 }
 
 function nowMs(): number {
-  return typeof globalThis.performance?.now === "function" ? globalThis.performance.now() : Date.now();
+  return globalThis.performance.now();
+}
+
+function buildQuizGradeResult(
+  question: QuizQuestion,
+  correct: boolean,
+  gradingMode: "deterministic" | "semantic",
+  startedMs: number,
+): DeterministicQuizGradeResult {
+  const elapsed_ms = Math.max(0, Number((nowMs() - startedMs).toFixed(2)));
+  return {
+    question_id: question.id,
+    correct,
+    outcome: correct ? "mastered" : "needs_review",
+    grading_mode: gradingMode,
+    elapsed_ms,
+    explanation: question.explanation,
+    citations: question.citations,
+  };
+}
+
+function extractSingleChoiceAnswer(answer: string | string[]): string {
+  if (!Array.isArray(answer)) {
+    return answer.trim();
+  }
+  return answer.length === 1 ? (answer[0] ?? "") : "";
+}
+
+function gradeMultipleChoiceQuestion(
+  question: QuizQuestion,
+  answer: string | string[],
+  startedMs: number,
+): DeterministicQuizGradeEvaluation {
+  const chosen = extractSingleChoiceAnswer(answer);
+  if (!chosen) {
+    throw new StudioParamsError("Please select one option.");
+  }
+  const correct = typeof question.correct_answer === "string" && chosen === question.correct_answer;
+  return {
+    conclusive: true,
+    result: buildQuizGradeResult(question, correct, "deterministic", startedMs),
+  };
+}
+
+function gradeMultipleSelectQuestion(
+  question: QuizQuestion,
+  answer: string | string[],
+  startedMs: number,
+): DeterministicQuizGradeEvaluation {
+  const chosen = Array.isArray(answer)
+    ? [...new Set(answer.map((s) => s.trim()).filter(Boolean))]
+    : [answer.trim()].filter(Boolean);
+  if (chosen.length === 0) {
+    throw new StudioParamsError("Please select at least one option.");
+  }
+  const expected = Array.isArray(question.correct_answer)
+    ? [...new Set(question.correct_answer)]
+    : [question.correct_answer];
+  const correct =
+    chosen.length === expected.length && expected.every((optId) => chosen.includes(optId));
+  return {
+    conclusive: true,
+    result: buildQuizGradeResult(question, correct, "deterministic", startedMs),
+  };
 }
 
 export function gradeQuizQuestionDeterministic(
   question: QuizQuestion,
-  answer: string | string[]
+  answer: string | string[],
 ): DeterministicQuizGradeEvaluation {
   const started = nowMs();
 
   if (question.type === "multiple_choice") {
-    const chosen = Array.isArray(answer) ? (answer.length === 1 ? answer[0] : "") : answer.trim();
-    if (!chosen) {
-      throw new StudioParamsError("Please select one option.");
-    }
-    const correct = typeof question.correct_answer === "string" && chosen === question.correct_answer;
-    const elapsed_ms = Math.max(0, Number((nowMs() - started).toFixed(2)));
-    return {
-      conclusive: true,
-      result: {
-        question_id: question.id,
-        correct,
-        outcome: correct ? "mastered" : "needs_review",
-        grading_mode: "deterministic",
-        elapsed_ms,
-        explanation: question.explanation,
-        citations: question.citations,
-      },
-    };
+    return gradeMultipleChoiceQuestion(question, answer, started);
   }
-
   if (question.type === "multiple_select") {
-    const chosen = Array.isArray(answer)
-      ? [...new Set(answer.map((s) => s.trim()).filter(Boolean))]
-      : [answer.trim()].filter(Boolean);
-    if (chosen.length === 0) {
-      throw new StudioParamsError("Please select at least one option.");
-    }
-    const expected = Array.isArray(question.correct_answer) ? [...new Set(question.correct_answer)] : [question.correct_answer];
-    const correct = chosen.length === expected.length && expected.every((optId) => chosen.includes(optId));
-    const elapsed_ms = Math.max(0, Number((nowMs() - started).toFixed(2)));
-    return {
-      conclusive: true,
-      result: {
-        question_id: question.id,
-        correct,
-        outcome: correct ? "mastered" : "needs_review",
-        grading_mode: "deterministic",
-        elapsed_ms,
-        explanation: question.explanation,
-        citations: question.citations,
-      },
-    };
+    return gradeMultipleSelectQuestion(question, answer, started);
   }
-
   if (Array.isArray(answer)) {
     throw new StudioParamsError("Free-text answers must be submitted as a string.");
   }
@@ -1132,29 +1325,22 @@ export function gradeQuizQuestionDeterministic(
     throw new StudioParamsError(textCheck.error ?? "Invalid answer.");
   }
   const normalizedAnswer = textCheck.normalized;
-  const expectedText = Array.isArray(question.correct_answer) ? question.correct_answer.join(", ") : question.correct_answer;
+  const expectedText = Array.isArray(question.correct_answer)
+    ? question.correct_answer.join(", ")
+    : question.correct_answer;
   const det = evaluateDeterministicSemantic(normalizedAnswer, expectedText, question.rubric);
-  const elapsed_ms = Math.max(0, Number((nowMs() - started).toFixed(2)));
   return {
     conclusive: det.conclusive,
     normalizedAnswer,
     expectedText,
-    result: {
-      question_id: question.id,
-      correct: det.matched,
-      outcome: det.matched ? "mastered" : "needs_review",
-      grading_mode: "semantic",
-      elapsed_ms,
-      explanation: question.explanation,
-      citations: question.citations,
-    },
+    result: buildQuizGradeResult(question, det.matched, "semantic", started),
   };
 }
 
 /** Verifies every supporting (source_id, revision) cited by an Explain item is present in S_aktiv (Gate v4.0 #1 / C-02). */
 export function verifyExplainSupportingSources(
-  citations: readonly Pick<StudioEvidenceRef, "source_id" | "revision">[],
-  snapshot: readonly SourceRevisionPair[]
+  citations: ReadonlyArray<Pick<StudioEvidenceRef, "source_id" | "revision">>,
+  snapshot: readonly SourceRevisionPair[],
 ): { ok: true } | { ok: false; missingSources: string[] } {
   const requiredBySource = new Map<string, number>();
   for (const cite of citations) {

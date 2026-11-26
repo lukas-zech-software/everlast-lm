@@ -1,4 +1,4 @@
-import { PrivateBenchmarkRecorder } from '../src/observability/benchmark.ts';
+import { PrivateBenchmarkRecorder } from "../src/observability/benchmark.ts";
 import { randomUUID } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,7 +28,7 @@ import { ChatService, selectEligibleHistory } from "../src/chat/service.ts";
 import type { GroundedModel, GroundedModelInput } from "../src/chat/model.ts";
 import type { GroundedDraft } from "../src/chat/draft.ts";
 import { createV2Runtime } from "../src/v2/runtime.ts";
-import { startTestApi, type TestApi } from "./support.ts";
+import { startTestApi, readJson, type TestApi } from "./support.ts";
 import { latencyComputeDraft, ScriptedSandbox } from "./code-execution-support.ts";
 
 /**
@@ -43,18 +43,31 @@ class ScriptedModel implements GroundedModel {
   calls: GroundedModelInput[] = [];
   script: (input: GroundedModelInput) => Promise<GroundedDraft> | GroundedDraft = ({ chunks }) =>
     latencyComputeDraft(chunks, "pstdev");
-  async generate(input: GroundedModelInput): Promise<GroundedDraft> {
+  generate(input: GroundedModelInput): Promise<GroundedDraft> {
     this.calls.push(input);
-    return this.script(input);
+    return Promise.resolve(this.script(input));
   }
 }
 
 // NFR-PERF-01 observer double only; no release qualification or private-file proof is claimed.
-const observedTraces:unknown[]=[];
-const benchmark=new PrivateBenchmarkRecorder({approved_notebook_ids:[],revision:'local',sink:()=>{}});
-benchmark.executionIdentity=()=>proofIdentity;
-benchmark.beginExecution=()=>({timing:()=>{},finish:trace=>{observedTraces.push(structuredClone(trace));}});
-const proofIdentity={instance_boot_id:randomUUID(),candidate_commit:'a'.repeat(40),runtime_config_sha256:'b'.repeat(64)};
+const observedTraces: unknown[] = [];
+const benchmark = new PrivateBenchmarkRecorder({
+  approved_notebook_ids: [],
+  revision: "local",
+  sink: () => undefined,
+});
+benchmark.executionIdentity = () => proofIdentity;
+benchmark.beginExecution = () => ({
+  timing: () => undefined,
+  finish: (trace) => {
+    observedTraces.push(structuredClone(trace));
+  },
+});
+const proofIdentity = {
+  instance_boot_id: randomUUID(),
+  candidate_commit: "a".repeat(40),
+  runtime_config_sha256: "b".repeat(64),
+};
 let api: TestApi;
 let storage: LocalObjectStorage;
 const model = new ScriptedModel();
@@ -63,36 +76,53 @@ const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 const embed = (t: string[]) => embedder.embed(t);
 
 beforeAll(async () => {
-  storage = new LocalObjectStorage({ root: await mkdtemp(join(tmpdir(), "everlast-ce-scope-")), publicBaseUrl: "http://127.0.0.1" });
+  storage = new LocalObjectStorage({
+    root: await mkdtemp(join(tmpdir(), "everlast-ce-scope-")),
+    publicBaseUrl: "http://127.0.0.1",
+  });
   api = await startTestApi({}, (db) => {
     const v2 = createV2Runtime({
       pool: db.pool,
       sourceLimit: 50,
       model,
       generation: {
-        async generateSourceGuide({ source }) {
-          return {
+        generateSourceGuide({ source }) {
+          return Promise.resolve({
             summary_md: `Summary for ${source.title}.`,
             key_topics: ["latency"],
             supporting_chunk_ids: source.chunks.slice(0, 1).map((c) => c.chunk_id),
-          };
+          });
         },
-        async generateOverview({ sources, output_language }) {
+        generateOverview({ sources, output_language }) {
           const allChunks = sources.flatMap((s) => s.chunks);
-          return {
+          return Promise.resolve({
             overview_md: `Overview (${output_language}) of ${sources.map((s) => `${s.title}@r${s.revision}`).join(", ")}`,
-            starter_prompts: ["Calculate population standard deviation", "Plot monthly trend", "Compare min and max"],
-            supporting_chunk_ids: allChunks.slice(0, 2).map((c) => c.chunk_id),
-          };
-        },
-        async generateFollowUps({ sources }) {
-          const first = sources[0]?.chunks[0]?.chunk_id;
-          return {
-            suggested_followups: [
-              ...(first ? [{ text: "What is the sample standard deviation?", supporting_chunk_ids: [first] }] : []),
-              { text: "Forged chip with out-of-scope chunk", supporting_chunk_ids: [UNKNOWN_CHUNK_ID] },
+            starter_prompts: [
+              "Calculate population standard deviation",
+              "Plot monthly trend",
+              "Compare min and max",
             ],
-          };
+            supporting_chunk_ids: allChunks.slice(0, 2).map((c) => c.chunk_id),
+          });
+        },
+        generateFollowUps({ sources }) {
+          const first = sources[0]?.chunks[0]?.chunk_id;
+          return Promise.resolve({
+            suggested_followups: [
+              ...(first
+                ? [
+                    {
+                      text: "What is the sample standard deviation?",
+                      supporting_chunk_ids: [first],
+                    },
+                  ]
+                : []),
+              {
+                text: "Forged chip with out-of-scope chunk",
+                supporting_chunk_ids: [UNKNOWN_CHUNK_ID],
+              },
+            ],
+          });
         },
       },
     });
@@ -105,60 +135,124 @@ beforeAll(async () => {
         benchmark,
         embedder,
         model,
-        codeExecution: {runtime:{id:'agent-platform-code-execution',create:async(id,signal)=>({...await sandbox.create(),profileObservation:{...proofIdentity,observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args)=>sandbox.execute(...args),destroy:(...args)=>sandbox.destroy(...args)},storage},
-        resolvePreferences: (ownerId, notebookId, locale) => v2.chatPreferences(ownerId, notebookId, locale),
+        codeExecution: {
+          runtime: {
+            id: "agent-platform-code-execution",
+            create: async (_id, _signal) => ({
+              ...(await sandbox.create()),
+              profileObservation: {
+                ...proofIdentity,
+                observed_at: new Date().toISOString(),
+                machine_config: "default" as const,
+              },
+            }),
+            execute: (...args) => sandbox.execute(...args),
+            destroy: (...args) => sandbox.destroy(...args),
+          },
+          storage,
+        },
+        resolvePreferences: (ownerId, notebookId, locale) =>
+          v2.chatPreferences(ownerId, notebookId, locale),
       }),
     };
   });
 });
 
 afterAll(async () => {
-  await api?.close();
+  await (api as TestApi | undefined)?.close();
 });
 
 beforeEach(() => {
-  observedTraces.length=0;
+  observedTraces.length = 0;
   sandbox.reset();
   model.calls = [];
   model.script = ({ chunks }) => latencyComputeDraft(chunks, "pstdev");
 });
 
+interface ScopeMessageView {
+  id: string;
+  kind: string;
+  content: string;
+  citations: Array<{ source_id: string }>;
+}
+
+interface ScopeFinalPayload {
+  messages: ScopeMessageView[];
+}
+
+interface ScopeErrorPayload {
+  error: { code: string; message?: string };
+}
+
 async function createOwnedNotebook(as: string) {
   const res = await api.fetch("/api/notebooks", { method: "POST", as, json: {} });
-  const id = ((await res.json()) as any).notebook.id as string;
-  const owner = (await api.db.pool.query("SELECT id FROM users WHERE subject = $1", [`local:${as}`])).rows[0].id as string;
+  const id = (await readJson<{ notebook: { id: string } }>(res)).notebook.id;
+  const owner = (
+    await api.db.pool.query<{ id: string }>("SELECT id FROM users WHERE subject = $1", [
+      `local:${as}`,
+    ])
+  ).rows[0]!.id;
   return { id, owner };
 }
 
-async function turn(as: string, notebookId: string, activeSourceIds: unknown, message = POPULATION_STDDEV_QUESTION, requestId = randomUUID()) {
+async function turn(
+  as: string,
+  notebookId: string,
+  activeSourceIds: unknown,
+  message = POPULATION_STDDEV_QUESTION,
+  requestId = randomUUID(),
+): Promise<{
+  status: number;
+  json: ScopeErrorPayload | null;
+  final: ScopeFinalPayload | null;
+  error: ScopeErrorPayload | null;
+}> {
   const res = await api.fetch(`/api/notebooks/${notebookId}/chat/turns`, {
     method: "POST",
     as,
     json: { message, active_source_ids: activeSourceIds, request_id: requestId },
   });
   if (res.headers.get("content-type")?.startsWith("application/json")) {
-    return { status: res.status, json: (await res.json()) as any, final: null, error: null };
+    return {
+      status: res.status,
+      json: await readJson<ScopeErrorPayload>(res),
+      final: null,
+      error: null,
+    };
   }
   const text = await res.text();
   const events = text
     .split("\n\n")
     .filter(Boolean)
-    .map((block) => ({ event: /^event: (.+)$/m.exec(block)![1]!, data: JSON.parse(/^data: (.+)$/m.exec(block)![1]!) }));
+    .map((block) => ({
+      event: /^event: (.+)$/m.exec(block)![1]!,
+      data: JSON.parse(/^data: (.+)$/m.exec(block)![1]!) as unknown,
+    }));
   return {
     status: res.status,
     json: null,
-    final: events.find((e) => e.event === "final")?.data ?? null,
-    error: events.find((e) => e.event === "error")?.data ?? null,
+    final: (events.find((e) => e.event === "final")?.data as ScopeFinalPayload | undefined) ?? null,
+    error: (events.find((e) => e.event === "error")?.data as ScopeErrorPayload | undefined) ?? null,
   };
 }
 
-async function resyncSourceToNextRevision(owner: string, notebookId: string, sourceId: string, newPageText: string): Promise<number> {
-  await api.db.pool.query("UPDATE sources SET link_kind = 'web', external_url = 'https://example.test/latency' WHERE id = $1", [sourceId]);
+async function resyncSourceToNextRevision(
+  owner: string,
+  notebookId: string,
+  sourceId: string,
+  newPageText: string,
+): Promise<number> {
+  await api.db.pool.query(
+    "UPDATE sources SET link_kind = 'web', external_url = 'https://example.test/latency' WHERE id = $1",
+    [sourceId],
+  );
   const { operation } = await requestSourceSync(api.db.pool, owner, notebookId, sourceId, {
     attemptId: randomUUID(),
     trigger: "manual",
   });
-  const claimed = await claimSourceOperation(api.db.pool, operation.operation_id, { leaseSeconds: 60 });
+  const claimed = await claimSourceOperation(api.db.pool, operation.operation_id, {
+    leaseSeconds: 60,
+  });
   if (claimed.status !== "claimed") throw new Error(`expected claimed, got ${claimed.status}`);
   const [embedding] = await embed([newPageText]);
   const revision = claimed.operation.expected_revision! + 1;
@@ -196,19 +290,23 @@ describe("T032 C-02 scope guard and decoy exclusion (FR-002, FR-009, SC-005)", (
   it("CE-SCP-01: empty scope is rejected (400 EmptyScope) and non-notebook/foreign source IDs are rejected (403 InvalidScope) with zero sandbox calls", async () => {
     const nbA = await createOwnedNotebook("scp01-a");
     const nbB = await createOwnedNotebook("scp01-b");
-    const srcB = await seedReadySource(api.db.pool, nbB.owner, nbB.id, { title: "Foreign.pdf", pages: [DECOY_PAGE], embed });
+    const srcB = await seedReadySource(api.db.pool, nbB.owner, nbB.id, {
+      title: "Foreign.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    });
 
     const empty = await turn("scp01-a", nbA.id, []);
     expect(empty.status).toBe(400);
-    expect(empty.json.error.code).toBe("EmptyScope");
+    expect(empty.json!.error.code).toBe("EmptyScope");
 
     const unknown = await turn("scp01-a", nbA.id, [UNKNOWN_SOURCE_ID]);
     expect(unknown.status).toBe(403);
-    expect(unknown.json.error.code).toBe("InvalidScope");
+    expect(unknown.json!.error.code).toBe("InvalidScope");
 
     const foreign = await turn("scp01-a", nbA.id, [srcB.sourceId]);
     expect(foreign.status).toBe(403);
-    expect(foreign.json.error.code).toBe("InvalidScope");
+    expect(foreign.json!.error.code).toBe("InvalidScope");
 
     expect(sandbox.calls).toHaveLength(0);
     expect(model.calls).toHaveLength(0);
@@ -217,31 +315,53 @@ describe("T032 C-02 scope guard and decoy exclusion (FR-002, FR-009, SC-005)", (
   it("CE-SCP-02: unselected sources in the same notebook and sources in other notebooks never enter retrieval, manifest, code, stdout or published answers (0 leaks)", async () => {
     const nbA = await createOwnedNotebook("scp02-a");
     const nbB = await createOwnedNotebook("scp02-b");
-    const selected = await seedReadySource(api.db.pool, nbA.owner, nbA.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
-    await seedReadySource(api.db.pool, nbA.owner, nbA.id, { title: "UnselectedDecoy.pdf", pages: [DECOY_PAGE], embed });
-    await seedReadySource(api.db.pool, nbB.owner, nbB.id, { title: "OtherNotebookDecoy.pdf", pages: [DECOY_PAGE], embed });
+    const selected = await seedReadySource(api.db.pool, nbA.owner, nbA.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
+    await seedReadySource(api.db.pool, nbA.owner, nbA.id, {
+      title: "UnselectedDecoy.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    });
+    await seedReadySource(api.db.pool, nbB.owner, nbB.id, {
+      title: "OtherNotebookDecoy.pdf",
+      pages: [DECOY_PAGE],
+      embed,
+    });
 
     const res = await turn("scp02-a", nbA.id, [selected.sourceId]);
     expect(res.final).toBeTruthy();
-    const answer = res.final.messages[1];
+    const answer = res.final!.messages[1]!;
     expect(answer.kind).toBe("answer");
 
     // Verify 0 decoy leakage across model prompt chunks, sandbox manifest, code, stdout, and published answer.
     const promptText = JSON.stringify(model.calls);
-    const manifestText = sandbox.calls.flatMap((c) => c.files.map((f) => f.content.toString("utf8"))).join("\n");
+    const manifestText = sandbox.calls
+      .flatMap((c) => c.files.map((f) => f.content.toString("utf8")))
+      .join("\n");
     const answerText = JSON.stringify(res.final);
     expect(promptText).not.toContain(DECOY_MARKER);
     expect(promptText).not.toContain("900 ms");
     expect(manifestText).not.toContain(DECOY_MARKER);
     expect(manifestText).not.toContain("900");
     expect(answerText).not.toContain(DECOY_MARKER);
-    expect(answer.citations.every((c: any) => c.source_id === selected.sourceId)).toBe(true);
+    expect(answer.citations.every((c) => c.source_id === selected.sourceId)).toBe(true);
   });
 
   it("CE-SCP-03: changing source selection for a later request does not mutate an in-flight turn's submission snapshot", async () => {
     const nb = await createOwnedNotebook("scp03");
-    const src1 = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
-    const src2 = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "RND.pdf", pages: [RND_2021_PAGE], embed });
+    const src1 = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
+    const src2 = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "RND.pdf",
+      pages: [RND_2021_PAGE],
+      embed,
+    });
 
     let release!: () => void;
     sandbox.gate = new Promise<void>((r) => (release = r));
@@ -259,10 +379,9 @@ describe("T032 C-02 scope guard and decoy exclusion (FR-002, FR-009, SC-005)", (
     release();
     const finished = await inFlight;
     expect(finished.final).toBeTruthy();
-    const stored = await api.db.pool.query<{ provenance: { source_id: string; revision: number }[] }>(
-      "SELECT provenance FROM chat_messages WHERE notebook_id = $1 ORDER BY seq",
-      [nb.id]
-    );
+    const stored = await api.db.pool.query<{
+      provenance: Array<{ source_id: string; revision: number }>;
+    }>("SELECT provenance FROM chat_messages WHERE notebook_id = $1 ORDER BY seq", [nb.id]);
     expect(stored.rows).toHaveLength(2);
     expect(stored.rows[0]!.provenance).toEqual([{ source_id: src1.sourceId, revision: 1 }]);
     expect(stored.rows[1]!.provenance).toEqual([{ source_id: src1.sourceId, revision: 1 }]);
@@ -272,14 +391,23 @@ describe("T032 C-02 scope guard and decoy exclusion (FR-002, FR-009, SC-005)", (
 describe("T032 source replacement, deletion and revocation fences (FR-010, C-02)", () => {
   it("CE-SCP-04: re-syncing (replacing) a captured source to revision 2 during execution refuses publication with ScopeChanged and never substitutes revision 2", async () => {
     const nb = await createOwnedNotebook("scp04");
-    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
+    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
 
     let release!: () => void;
     sandbox.gate = new Promise<void>((r) => (release = r));
     const pending = turn("scp04", nb.id, [src.sourceId]);
     while (sandbox.calls.length === 0) await new Promise((r) => setTimeout(r, 10));
 
-    const newRev = await resyncSourceToNextRevision(nb.owner, nb.id, src.sourceId, `${LATENCY_TABLE_PAGE}\nUpdated rev 2`);
+    const newRev = await resyncSourceToNextRevision(
+      nb.owner,
+      nb.id,
+      src.sourceId,
+      `${LATENCY_TABLE_PAGE}\nUpdated rev 2`,
+    );
     expect(newRev).toBe(2);
 
     release();
@@ -287,19 +415,35 @@ describe("T032 source replacement, deletion and revocation fences (FR-010, C-02)
     expect(outcome.final).toBeNull();
     expect(outcome.error?.error.code).toBe("SourceSnapshotInvalid");
 
-    const msgCount = await api.db.pool.query("SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1", [nb.id]);
-    expect(msgCount.rows[0].n).toBe(0);
-    const exec = await api.db.pool.query("SELECT state, failure_code FROM code_executions WHERE notebook_id = $1", [nb.id]);
+    const msgCount = await api.db.pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1",
+      [nb.id],
+    );
+    expect(msgCount.rows[0]!.n).toBe(0);
+    const exec = await api.db.pool.query(
+      "SELECT state, failure_code FROM code_executions WHERE notebook_id = $1",
+      [nb.id],
+    );
     expect(exec.rows[0]).toEqual({ state: "Failed", failure_code: "ScopeChanged" });
-    const charts = await api.db.pool.query("SELECT state FROM chart_artifacts WHERE notebook_id = $1", [nb.id]);
+    const charts = await api.db.pool.query<{ state: string }>(
+      "SELECT state FROM chart_artifacts WHERE notebook_id = $1",
+      [nb.id],
+    );
     expect(charts.rows.every((r) => r.state === "invalidated")).toBe(true);
-    const canonical=await api.db.pool.query('SELECT trace FROM code_executions WHERE notebook_id=$1',[nb.id]);
-    expect(observedTraces).toEqual([canonical.rows[0].trace]);
+    const canonical = await api.db.pool.query<{ trace: unknown }>(
+      "SELECT trace FROM code_executions WHERE notebook_id=$1",
+      [nb.id],
+    );
+    expect(observedTraces).toEqual([canonical.rows[0]!.trace]);
   });
 
   it("CE-SCP-05: deleting a captured source before whole-table read or before commit aborts publication with zero messages or published charts", async () => {
     const nb = await createOwnedNotebook("scp05");
-    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
+    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
 
     model.script = async ({ chunks }) => {
       // Delete the source while the model is drafting (before buildInputManifest / publishTurn).
@@ -310,35 +454,58 @@ describe("T032 source replacement, deletion and revocation fences (FR-010, C-02)
     const outcome = await turn("scp05", nb.id, [src.sourceId]);
     expect(outcome.final).toBeNull();
     expect(outcome.error?.error.code).toBe("SourceSnapshotInvalid");
-    const msgCount = await api.db.pool.query("SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1", [nb.id]);
-    expect(msgCount.rows[0].n).toBe(0);
+    const msgCount = await api.db.pool.query<{ n: number }>(
+      "SELECT count(*)::int AS n FROM chat_messages WHERE notebook_id = $1",
+      [nb.id],
+    );
+    expect(msgCount.rows[0]!.n).toBe(0);
   });
 });
 
 describe("T032 invalid citation refusal without retry or stripped fallback (FR-012, SC-005)", () => {
   it("CE-SCP-06: an out-of-scope citation in the compute draft preamble or dataset is refused immediately without running Python or stripping the citation", async () => {
     const nb = await createOwnedNotebook("scp06");
-    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
+    const src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
 
     // Case A: preamble cites UNKNOWN_CHUNK_ID -> refused before sandbox allocation.
     model.script = ({ chunks }) => {
       const draft = latencyComputeDraft(chunks, "pstdev");
-      draft.sentences = [{ text: "The latency table lists monthly server latency in ms for 2025.", citations: [UNKNOWN_CHUNK_ID], kind: "claim" }];
+      draft.sentences = [
+        {
+          text: "The latency table lists monthly server latency in ms for 2025.",
+          citations: [UNKNOWN_CHUNK_ID],
+          kind: "claim",
+        },
+      ];
       return draft;
     };
     const resA = await turn("scp06", nb.id, [src.sourceId]);
-    expect(resA.final.messages[1]).toMatchObject({ kind: "refusal", citations: [], code_execution_trace: null });
-    expect(resA.final.messages[1].content).not.toContain("(Computed)");
+    expect(resA.final!.messages[1]).toMatchObject({
+      kind: "refusal",
+      citations: [],
+      code_execution_trace: null,
+    });
+    expect(resA.final!.messages[1]!.content).not.toContain("(Computed)");
     expect(sandbox.calls).toHaveLength(0);
 
     // Case B: dataset row cites UNKNOWN_CHUNK_ID -> refused before sandbox allocation.
     model.script = ({ chunks }) => {
-      const draft = latencyComputeDraft(chunks, "pstdev") as any;
-      draft.computation.dataset[0].chunk_id = UNKNOWN_CHUNK_ID;
+      const draft = latencyComputeDraft(chunks, "pstdev");
+      if (draft.status === "compute" && draft.computation) {
+        draft.computation.dataset[0]!.chunk_id = UNKNOWN_CHUNK_ID;
+      }
       return draft;
     };
     const resB = await turn("scp06", nb.id, [src.sourceId]);
-    expect(resB.final.messages[1]).toMatchObject({ kind: "refusal", citations: [], code_execution_trace: null });
+    expect(resB.final!.messages[1]).toMatchObject({
+      kind: "refusal",
+      citations: [],
+      code_execution_trace: null,
+    });
     expect(sandbox.calls).toHaveLength(0);
   });
 });
@@ -346,28 +513,47 @@ describe("T032 invalid citation refusal without retry or stripped fallback (FR-0
 describe("T032 overview/follow-up cache-key composition and provenance-eligible history (FR-009, FR-GC-03/05)", () => {
   it("CE-SCP-07: overview cache keys include notebook_id, exact source_revisions, authorization_key and output_language; follow-ups drop out-of-scope chips", async () => {
     const nb = await createOwnedNotebook("scp07");
-    const src1 = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "Latency.pdf", pages: [LATENCY_TABLE_PAGE], embed });
-    const src2 = await seedReadySource(api.db.pool, nb.owner, nb.id, { title: "RND.pdf", pages: [RND_2025_PAGE], embed });
+    const src1 = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
+    const src2 = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "RND.pdf",
+      pages: [RND_2025_PAGE],
+      embed,
+    });
 
-    const ov1 = await (
+    interface OverviewJson {
+      cache_key: string;
+      output_language: string;
+      source_revisions: Array<{ source_id: string; revision: number }>;
+    }
+    const ov1 = await readJson<OverviewJson>(
       await api.fetch(`/api/notebooks/${nb.id}/overview`, {
         method: "POST",
         as: "scp07",
-        json: { source_revisions: [{ source_id: src1.sourceId, revision: 1 }], output_language: "en-US" },
-      })
-    ).json() as any;
-    const ov1Replay = await (
+        json: {
+          source_revisions: [{ source_id: src1.sourceId, revision: 1 }],
+          output_language: "en-US",
+        },
+      }),
+    );
+    const ov1Replay = await readJson<OverviewJson>(
       await api.fetch(`/api/notebooks/${nb.id}/overview`, {
         method: "POST",
         as: "scp07",
-        json: { source_revisions: [{ source_id: src1.sourceId, revision: 1 }], output_language: "en-US" },
-      })
-    ).json() as any;
+        json: {
+          source_revisions: [{ source_id: src1.sourceId, revision: 1 }],
+          output_language: "en-US",
+        },
+      }),
+    );
     expect(ov1.cache_key).toBeTruthy();
     expect(ov1.cache_key).toBe(ov1Replay.cache_key);
 
     // Changing source selection changes source_revisions and produces a distinct cache_key.
-    const ovBoth = await (
+    const ovBoth = await readJson<OverviewJson>(
       await api.fetch(`/api/notebooks/${nb.id}/overview`, {
         method: "POST",
         as: "scp07",
@@ -378,48 +564,67 @@ describe("T032 overview/follow-up cache-key composition and provenance-eligible 
           ],
           output_language: "en-US",
         },
-      })
-    ).json() as any;
+      }),
+    );
     expect(ovBoth.cache_key).not.toBe(ov1.cache_key);
 
     // Changing output_language changes cache_key for the same source selection.
-    const ovDe = await (
+    const ovDe = await readJson<OverviewJson>(
       await api.fetch(`/api/notebooks/${nb.id}/overview`, {
         method: "POST",
         as: "scp07",
-        json: { source_revisions: [{ source_id: src1.sourceId, revision: 1 }], output_language: "de-DE" },
-      })
-    ).json() as any;
+        json: {
+          source_revisions: [{ source_id: src1.sourceId, revision: 1 }],
+          output_language: "de-DE",
+        },
+      }),
+    );
     expect(ovDe.output_language).toBe("de-DE");
     expect(ovDe.cache_key).not.toBe(ov1.cache_key);
 
     // Re-syncing src1 to revision 2 invalidates the revision-1 cache key and rejects stale revision-1 overview GETs.
-    await resyncSourceToNextRevision(nb.owner, nb.id, src1.sourceId, `${LATENCY_TABLE_PAGE}\nRev 2`);
-    const staleGet = await api.fetch(`/api/notebooks/${nb.id}/overview?cache_key=${encodeURIComponent(ov1.cache_key)}`, { as: "scp07" });
+    await resyncSourceToNextRevision(
+      nb.owner,
+      nb.id,
+      src1.sourceId,
+      `${LATENCY_TABLE_PAGE}\nRev 2`,
+    );
+    const staleGet = await api.fetch(
+      `/api/notebooks/${nb.id}/overview?cache_key=${encodeURIComponent(ov1.cache_key)}`,
+      { as: "scp07" },
+    );
     expect(staleGet.status).toBe(409);
 
-    const ovRev2 = await (
+    const ovRev2 = await readJson<OverviewJson>(
       await api.fetch(`/api/notebooks/${nb.id}/overview`, {
         method: "POST",
         as: "scp07",
-        json: { source_revisions: [{ source_id: src1.sourceId, revision: 2 }], output_language: "de-DE" },
-      })
-    ).json() as any;
+        json: {
+          source_revisions: [{ source_id: src1.sourceId, revision: 2 }],
+          output_language: "de-DE",
+        },
+      }),
+    );
     expect(ovRev2.source_revisions).toEqual([{ source_id: src1.sourceId, revision: 2 }]);
     expect(ovRev2.cache_key).not.toBe(ovDe.cache_key);
 
     // Publish a computed turn on revision 2 and verify follow-ups filter out the forged UNKNOWN_CHUNK_ID chip.
     const chatTurn = await turn("scp07", nb.id, [src1.sourceId]);
-    const assistantMsgId = chatTurn.final.messages[1].id as string;
-    const followUpsRes = await api.fetch(`/api/notebooks/${nb.id}/chat/messages/${assistantMsgId}/follow-ups`, {
-      method: "POST",
-      as: "scp07",
-      json: { source_revisions: [{ source_id: src1.sourceId, revision: 2 }] },
-    });
+    const assistantMsgId = chatTurn.final!.messages[1]!.id;
+    const followUpsRes = await api.fetch(
+      `/api/notebooks/${nb.id}/chat/messages/${assistantMsgId}/follow-ups`,
+      {
+        method: "POST",
+        as: "scp07",
+        json: { source_revisions: [{ source_id: src1.sourceId, revision: 2 }] },
+      },
+    );
     expect(followUpsRes.status).toBe(200);
-    const followUps = (await followUpsRes.json()) as any;
+    const followUps = await readJson<{ suggested_followups: Array<{ text: string }> }>(
+      followUpsRes,
+    );
     expect(followUps.suggested_followups).toHaveLength(1);
-    expect(followUps.suggested_followups[0].text).toBe("What is the sample standard deviation?");
+    expect(followUps.suggested_followups[0]!.text).toBe("What is the sample standard deviation?");
   });
 
   it("CE-SCP-08: selectEligibleHistory includes computed turns only when their complete provenance matches the current active snapshot", () => {
@@ -462,7 +667,7 @@ describe("T032 overview/follow-up cache-key composition and provenance-eligible 
       selectEligibleHistory(messages, [
         { source_id: s1, revision: 1 },
         { source_id: s2, revision: 1 },
-      ])
+      ]),
     ).toHaveLength(1);
 
     // Deselected source (only s2 active) or re-synced source (s1@2) excludes the historical turn from new prompts.
@@ -471,147 +676,703 @@ describe("T032 overview/follow-up cache-key composition and provenance-eligible 
   });
 });
 
-it('FR-GC-08 NFR-PERF-01 canonical operational proof binds actual stored profile/boot/scope and confirmed cleanup',async()=>{
- const nb=await createOwnedNotebook('operational-proof');const src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
- const since=Date.now()-1000;const outcome=await turn('operational-proof',nb.id,[src.sourceId]);expect(outcome.final).not.toBeNull();
- const input={...proofIdentity,owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}],observed_after:since};
- expect(await hasOperationalExecutionEvidence(api.db.pool,input)).toBe(true);
- expect(await hasOperationalExecutionEvidence(api.db.pool,{...input,instance_boot_id:randomUUID()})).toBe(false);
- expect(await hasOperationalExecutionEvidence(api.db.pool,{...input,sources:[{source_id:src.sourceId,revision:2}]})).toBe(false);
- await api.db.pool.query("UPDATE code_execution_sandboxes SET state='DestroyPending' WHERE notebook_id=$1",[nb.id]);
- expect(await hasOperationalExecutionEvidence(api.db.pool,input)).toBe(false);
+it("FR-GC-08 NFR-PERF-01 canonical operational proof binds actual stored profile/boot/scope and confirmed cleanup", async () => {
+  const nb = await createOwnedNotebook("operational-proof");
+  const src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+    title: "Latency.pdf",
+    pages: [LATENCY_TABLE_PAGE],
+    embed,
+  });
+  const since = Date.now() - 1000;
+  const outcome = await turn("operational-proof", nb.id, [src.sourceId]);
+  expect(outcome.final).not.toBeNull();
+  const input = {
+    ...proofIdentity,
+    owner_id: nb.owner,
+    notebook_id: nb.id,
+    sources: [{ source_id: src.sourceId, revision: 1 }],
+    observed_after: since,
+  };
+  expect(await hasOperationalExecutionEvidence(api.db.pool, input)).toBe(true);
+  expect(
+    await hasOperationalExecutionEvidence(api.db.pool, {
+      ...input,
+      instance_boot_id: randomUUID(),
+    }),
+  ).toBe(false);
+  expect(
+    await hasOperationalExecutionEvidence(api.db.pool, {
+      ...input,
+      sources: [{ source_id: src.sourceId, revision: 2 }],
+    }),
+  ).toBe(false);
+  await api.db.pool.query(
+    "UPDATE code_execution_sandboxes SET state='DestroyPending' WHERE notebook_id=$1",
+    [nb.id],
+  );
+  expect(await hasOperationalExecutionEvidence(api.db.pool, input)).toBe(false);
 });
 
-it('NFR-PERF-01 actual API-owned operational adapters read scoped data and clean a cache created after cancellation (LOCAL model/cache doubles)',async()=>{
- const {createOperationalProbePorts}=await import('../src/services/source-context.ts');
- const nb=await createOwnedNotebook('operational-adapters'),src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
- const recorder=new PrivateBenchmarkRecorder({approved_notebook_ids:[nb.id],revision:'local',sink:()=>{}});
- // Observer/identity seam only for this LOCAL adapter integration; no deployed qualification is claimed.
- recorder.executionIdentity=()=>proofIdentity;
- const actor={owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}]};
- const signal=new AbortController().signal,deleted:string[]=[];
- const scripted={id:'LOCAL-factual-port',generate:async(input:GroundedModelInput)=>({status:'answered' as const,sentences:[{kind:'claim' as const,text:'The source contains latency data.',citations:[input.chunks[0]!.chunk_id]}]})};
- const cache={identity:'LOCAL cache double',create:async({pages}:{pages:unknown[]})=>{expect(pages.length).toBeGreaterThan(0);return {handle:'LOCAL-private-cache',expiresAt:Date.now()+60000};},delete:async(handle:string)=>{deleted.push(handle);}};
- const ports=createOperationalProbePorts({pool:api.db.pool,benchmark:recorder,model:scripted,embedder,cache});
- await expect(ports.runtime_observation(actor,signal)).rejects.toThrow(/lifecycle/);
- expect((await turn('operational-adapters',nb.id,[src.sourceId])).final).not.toBeNull();
- await ports.runtime_observation(actor,signal);await ports.retrieval(actor,signal);await ports.model(actor,signal);await ports.cache(actor,signal);
- expect(deleted).toEqual(['LOCAL-private-cache']);
- let release!:(value:{handle:string;expiresAt:number})=>void,started!:()=>void;const entered=new Promise<void>(resolve=>{started=resolve;});
- const late=createOperationalProbePorts({pool:api.db.pool,benchmark:recorder,model:scripted,embedder,cache:{...cache,create:async()=>{started();return new Promise(resolve=>{release=resolve;});}}});
- await late.retrieval(actor,signal);const controller=new AbortController(),pending=late.cache(actor,controller.signal);await entered;controller.abort();release({handle:'LOCAL-late-cache',expiresAt:Date.now()+60000});
- await expect(pending).rejects.toThrow();expect(deleted).toContain('LOCAL-late-cache');
- await expect(ports.retrieval({...actor,sources:[{source_id:src.sourceId,revision:2}]},signal)).rejects.toThrow(/revision/);
+it("NFR-PERF-01 actual API-owned operational adapters read scoped data and clean a cache created after cancellation (LOCAL model/cache doubles)", async () => {
+  const { createOperationalProbePorts } = await import("../src/services/source-context.ts");
+  const nb = await createOwnedNotebook("operational-adapters"),
+    src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
+  const recorder = new PrivateBenchmarkRecorder({
+    approved_notebook_ids: [nb.id],
+    revision: "local",
+    sink: () => undefined,
+  });
+  // Observer/identity seam only for this LOCAL adapter integration; no deployed qualification is claimed.
+  recorder.executionIdentity = () => proofIdentity;
+  const actor = {
+    owner_id: nb.owner,
+    notebook_id: nb.id,
+    sources: [{ source_id: src.sourceId, revision: 1 }],
+  };
+  const signal = new AbortController().signal,
+    deleted: string[] = [];
+  const scripted = {
+    id: "LOCAL-factual-port",
+    generate: (input: GroundedModelInput): Promise<GroundedDraft> =>
+      Promise.resolve({
+        status: "answered",
+        sentences: [
+          {
+            kind: "claim",
+            text: "The source contains latency data.",
+            citations: [input.chunks[0]!.chunk_id],
+          },
+        ],
+      }),
+  };
+  const cache = {
+    identity: "LOCAL cache double",
+    create: ({ pages }: { pages: unknown[] }) => {
+      expect(pages.length).toBeGreaterThan(0);
+      return Promise.resolve({ handle: "LOCAL-private-cache", expiresAt: Date.now() + 60000 });
+    },
+    delete: (handle: string) => {
+      deleted.push(handle);
+      return Promise.resolve();
+    },
+  };
+  const ports = createOperationalProbePorts({
+    pool: api.db.pool,
+    benchmark: recorder,
+    model: scripted,
+    embedder,
+    cache,
+  });
+  await expect(ports.runtime_observation(actor, signal)).rejects.toThrow(/lifecycle/);
+  expect((await turn("operational-adapters", nb.id, [src.sourceId])).final).not.toBeNull();
+  await ports.runtime_observation(actor, signal);
+  await ports.retrieval(actor, signal);
+  await ports.model(actor, signal);
+  await ports.cache(actor, signal);
+  expect(deleted).toEqual(["LOCAL-private-cache"]);
+  let release!: (value: { handle: string; expiresAt: number }) => void, started!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const late = createOperationalProbePorts({
+    pool: api.db.pool,
+    benchmark: recorder,
+    model: scripted,
+    embedder,
+    cache: {
+      ...cache,
+      create: async () => {
+        started();
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      },
+    },
+  });
+  await late.retrieval(actor, signal);
+  const controller = new AbortController(),
+    pending = late.cache(actor, controller.signal);
+  await entered;
+  controller.abort();
+  release({ handle: "LOCAL-late-cache", expiresAt: Date.now() + 60000 });
+  await expect(pending).rejects.toThrow();
+  expect(deleted).toContain("LOCAL-late-cache");
+  await expect(
+    ports.retrieval({ ...actor, sources: [{ source_id: src.sourceId, revision: 2 }] }, signal),
+  ).rejects.toThrow(/revision/);
 });
 
-it('FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or optional failure write to ordinary execution',async()=>{
- const disabled=await startTestApi({},db=>({embedder,storage,chat:new ChatService({pool:db.pool,embedder,model,codeExecution:{runtime:{id:'agent-platform-code-execution',create:async()=>({...await sandbox.create(),profileObservation:{...proofIdentity,observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args)=>sandbox.execute(...args),destroy:(...args)=>sandbox.destroy(...args)},storage}})}));
- try{
-  const notebookResponse=await disabled.fetch('/api/notebooks',{method:'POST',as:'disabled-proof',json:{}});const notebook=(await notebookResponse.json()).notebook.id;
-  const owner=(await disabled.db.pool.query("SELECT id FROM users WHERE subject='local:disabled-proof'")).rows[0].id;
-  const src=await seedReadySource(disabled.db.pool,owner,notebook,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});
-  const response=await disabled.fetch(`/api/notebooks/${notebook}/chat/turns`,{method:'POST',as:'disabled-proof',json:{message:POPULATION_STDDEV_QUESTION,active_source_ids:[src.sourceId],request_id:randomUUID()}});
-  expect(await response.text()).toContain('event: final');
-  const row=(await disabled.db.pool.query('SELECT runtime_metadata FROM code_executions WHERE notebook_id=$1',[notebook])).rows[0];expect(row.runtime_metadata.profile_observation).toBeUndefined();expect(row.runtime_metadata.instance_boot_id).toBeUndefined();
- }finally{await disabled.close();}
-});
-
-it.each(['local-files','remote-bridge','clock-bootstrap'])('NFR-PERF-01 actual server %s wiring stays disabled until signed private adapters succeed with LOCAL providers',async mode=>{
- const {startApiServer}=await import('../src/server.ts');const {OPERATIONAL_PROVIDER_BUDGET}=await import('../src/observability/benchmark.ts');
- const {generateKeyPairSync,sign,createHash}=await import('node:crypto');const {mkdtempSync,mkdirSync,writeFileSync,readFileSync,rmSync}=await import('node:fs');
- const dir=mkdtempSync(join(tmpdir(),'012-server-')),channel=join(dir,'private'),publicDir=join(dir,'public');mkdirSync(channel,{mode:0o700});mkdirSync(publicDir);
- const actors=[];
- for(const who of ['server-proof-a','server-proof-b']){const nb=await createOwnedNotebook(who),src=await seedReadySource(api.db.pool,nb.owner,nb.id,{title:'Latency.pdf',pages:[LATENCY_TABLE_PAGE],embed});actors.push({who,owner_id:nb.owner,notebook_id:nb.id,sources:[{source_id:src.sourceId,revision:1}]});}
- const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');const runtimeConfig={reasoning_engine:'projects/test/locations/europe-west4/reasoningEngines/123',region:'europe-west4',vcpu:2,memory_gb:1.5,network:'none',file_io_mb:100,deadline_ms:15000};
- let calibration={offset_ms:0,uncertainty_ms:1,measured_at_ms:Date.now()-10,expires_at_ms:Date.now()+60000,measurement_id:'LOCAL clock double'};const qualification='LOCAL provider doubles; not release evidence';
- const metadata={schema_version:1,candidate_commit:'a'.repeat(40),serving_revision:'server-test',fixture_sha256:'f'.repeat(64),classification_basis:'application-serving-readiness',qualification_sha256:createHash('sha256').update(qualification).digest('hex'),runtime_config_sha256:hash(runtimeConfig),clock_calibration_sha256:hash(calibration),approved_notebook_ids:actors.map(a=>a.notebook_id)};
- const configFile=join(channel,'execution-config.json');writeFileSync(configFile,JSON.stringify({file:join(channel,'code.json'),metadata,runtime:runtimeConfig,calibration,qualification}),{mode:0o600});
- const keys=generateKeyPairSync('ed25519');writeFileSync(join(channel,'trusted-public-key.pem'),keys.publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
- let modelProbes=0,cacheCreates=0,cacheDeletes=0;
- const servingModel:GroundedModel={id:'LOCAL-serving-model',generate:async input=>{if(input.operationalProbe){modelProbes++;return {status:'answered',sentences:[{kind:'claim',text:'The source contains latency data.',citations:[input.chunks[0]!.chunk_id]}]};}return latencyComputeDraft(input.chunks,'pstdev');}};
- const localRuntime={id:'agent-platform-code-execution',create:async()=>({...await sandbox.create(),profileObservation:{runtime_config_sha256:hash(runtimeConfig),observed_at:new Date().toISOString(),machine_config:'default' as const}}),execute:(...args:Parameters<typeof sandbox.execute>)=>sandbox.execute(...args),destroy:(...args:Parameters<typeof sandbox.destroy>)=>sandbox.destroy(...args)};
- const localCache={identity:'LOCAL cache double',create:async()=>{cacheCreates++;return {handle:'LOCAL-cache',expiresAt:Date.now()+60000};},delete:async()=>{cacheDeletes++;}};
- const env={NODE_ENV:'test',AUTH_MODE:'local',PORT:'0',V2_POC:'off',EVERLAST_DEV_TEST_EMBEDDER:'1',WEB_DIST_DIR:publicDir,BENCHMARK_APPROVED_NOTEBOOKS:actors.map(a=>a.notebook_id).join(','),BENCHMARK_EXECUTION_CONFIG_FILE:configFile,BENCHMARK_EVIDENCE_FILE:join(channel,'records.jsonl'),CODE_EXECUTION_ENABLED:'true',CODE_EXECUTION_REASONING_ENGINE:runtimeConfig.reasoning_engine,COMMIT_SHA:metadata.candidate_commit,K_REVISION:metadata.serving_revision};
- const extra={pool:api.db.pool,embedder,storage,v2:api.deps.v2};let running:Awaited<ReturnType<typeof startApiServer>>|undefined;
- const close=async()=>{if(running){const current=running;running=undefined;await new Promise<void>(resolve=>current.server.close(()=>resolve()));}};
- try{
-  running=await startApiServer(env,extra,{model:servingModel,runtime:localRuntime,cache:localCache});expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();expect(modelProbes+cacheCreates).toBe(0);await close();
-  const {LocalPrivateBridgeObjects,PrivateBenchmarkOperator,privateDigest,privateBridgePrefix}=await import('@everlast/cloud/private-benchmark');
-  const campaign=randomUUID(),objects=new LocalPrivateBridgeObjects(join(dir,'objects'));
-  const remoteEnv={...env,BENCHMARK_BRIDGE_ENABLED:'true',BENCHMARK_BRIDGE_EXPIRES_AT_MS:String(Date.now()+60000),BENCHMARK_BRIDGE_CAMPAIGN_ID:campaign,BENCHMARK_BRIDGE_PUBLIC_KEY:keys.publicKey.export({type:'spki',format:'pem'}).toString(),BENCHMARK_BRIDGE_EXECUTION_CONFIG:readFileSync(configFile,'utf8')};
-  const servingKeys=generateKeyPairSync('ed25519');
-  const {clock_calibration_sha256:_clockHash,...frozenMetadata}=metadata;
-  const clockEnv={...remoteEnv,BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP:'true',
-   BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY:servingKeys.privateKey.export({type:'pkcs8',format:'pem'}).toString(),
-   BENCHMARK_BRIDGE_EXECUTION_CONFIG:JSON.stringify({metadata:frozenMetadata,runtime:runtimeConfig,qualification})};
-  running=await startApiServer(mode==='clock-bootstrap'?clockEnv:mode==='remote-bridge'?remoteEnv:{...env,BENCHMARK_OPERATIONAL_DIRECTORY:channel},extra,{model:servingModel,runtime:localRuntime,cache:localCache,bridgeObjects:objects});
-  const identity={campaign_id:campaign,candidate_commit:metadata.candidate_commit,serving_revision:metadata.serving_revision,instance_boot_id:running.deps.benchmark!.readiness().instance_boot_id};
-  if(mode==='clock-bootstrap'){
-   expect(running.deps.benchmark!.executionIdentity()).toBeUndefined();
-   expect(await objects.stat(privateBridgePrefix(identity)+'/challenge.json')).toBeNull();
-   writeFileSync(join(channel,'identity.json'),JSON.stringify(identity),{mode:0o600});
-   writeFileSync(join(channel,'receipt-root.pem'),servingKeys.publicKey.export({type:'spki',format:'pem'}),{mode:0o600});
-   writeFileSync(join(channel,'owner-key.pem'),keys.privateKey.export({type:'pkcs8',format:'pem'}),{mode:0o600});
-   const {execFile}=await import('node:child_process');const {promisify}=await import('node:util');
-   const runCli=promisify(execFile);
-   const clockArgs=['--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--receipt-key-file',join(channel,'receipt-root.pem')];
-   const discovery=await runCli(process.execPath,['scripts/private-benchmark.mjs','clock-discover',...clockArgs]);
-   expect(JSON.parse(discovery.stdout)).toEqual({boots:[identity],release_eligible:false});
-   const {fixture_hash:_unused,...scaleRecipe}=JSON.parse(readFileSync('packages/evals/fixtures/v3/scale-manifest.json','utf8'));
-   const boundScale={...scaleRecipe,runtime_qualification:identity.serving_revision};
-   const scalePath=join(channel,'scale.json');
-   writeFileSync(scalePath,JSON.stringify({...boundScale,fixture_hash:hash(boundScale)}),{mode:0o600});
-   await expect(runCli(process.execPath,['scripts/private-benchmark.mjs','clock-acquire',...clockArgs,
-    '--private-key-file',join(channel,'owner-key.pem'),
-    '--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',channel,
-    '--collector','scale','--','--manifest',scalePath])).rejects.toMatchObject({code:2,stdout:expect.stringContaining('CLOCK_INSTALLED')});
-   const scaleReport=JSON.parse(readFileSync(join(channel,'v3-scale-benchmark.json'),'utf8'));
-   expect(scaleReport).toMatchObject({result:'UNAVAILABLE',missing_prerequisites:expect.stringContaining('duration'),core:{attempt_count:0}});
-   calibration=JSON.parse(readFileSync(join(channel,'calibration.json'),'utf8'));
-   expect(JSON.parse(readFileSync(join(channel,'clock-proof.json'),'utf8')).calibration).toEqual(calibration);
-   const confirmation=JSON.parse(readFileSync(join(channel,'clock-installed.json'),'utf8'));
-   expect(JSON.parse(confirmation.envelope.payload)).toMatchObject({identity,calibration_sha256:hash(calibration)});
-   expect(running.deps.benchmark!.executionIdentity()!.instance_boot_id).toBe(identity.instance_boot_id);
-   expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();
-   expect(modelProbes+cacheCreates).toBe(0);
+it("FR-GC-08 NFR-PERF-01 disabled instrumentation adds no profile metadata or optional failure write to ordinary execution", async () => {
+  const disabled = await startTestApi({}, (db) => ({
+    embedder,
+    storage,
+    chat: new ChatService({
+      pool: db.pool,
+      embedder,
+      model,
+      codeExecution: {
+        runtime: {
+          id: "agent-platform-code-execution",
+          create: async () => ({
+            ...(await sandbox.create()),
+            profileObservation: {
+              ...proofIdentity,
+              observed_at: new Date().toISOString(),
+              machine_config: "default" as const,
+            },
+          }),
+          execute: (...args) => sandbox.execute(...args),
+          destroy: (...args) => sandbox.destroy(...args),
+        },
+        storage,
+      },
+    }),
+  }));
+  try {
+    const notebookResponse = await disabled.fetch("/api/notebooks", {
+      method: "POST",
+      as: "disabled-proof",
+      json: {},
+    });
+    const notebook = (await readJson<{ notebook: { id: string } }>(notebookResponse)).notebook.id;
+    const owner = (
+      await disabled.db.pool.query<{ id: string }>(
+        "SELECT id FROM users WHERE subject='local:disabled-proof'",
+      )
+    ).rows[0]!.id;
+    const src = await seedReadySource(disabled.db.pool, owner, notebook, {
+      title: "Latency.pdf",
+      pages: [LATENCY_TABLE_PAGE],
+      embed,
+    });
+    const response = await disabled.fetch(`/api/notebooks/${notebook}/chat/turns`, {
+      method: "POST",
+      as: "disabled-proof",
+      json: {
+        message: POPULATION_STDDEV_QUESTION,
+        active_source_ids: [src.sourceId],
+        request_id: randomUUID(),
+      },
+    });
+    expect(await response.text()).toContain("event: final");
+    const row = (
+      await disabled.db.pool.query<{
+        runtime_metadata: { profile_observation?: unknown; instance_boot_id?: unknown };
+      }>("SELECT runtime_metadata FROM code_executions WHERE notebook_id=$1", [notebook])
+    ).rows[0]!;
+    expect(row.runtime_metadata.profile_observation).toBeUndefined();
+    expect(row.runtime_metadata.instance_boot_id).toBeUndefined();
+  } finally {
+    await disabled.close();
   }
-  const operator=new PrivateBenchmarkOperator({objects,calibration,publicKey:keys.publicKey.export({type:'spki',format:'pem'}).toString(),identity});
+});
 
-  await new Promise(resolve=>setTimeout(resolve,1100));expect(modelProbes+cacheCreates).toBe(0);
-  const port=(running.server.address() as {port:number}).port;
-  for(const actor of actors){const token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');}
-  const remote=mode!=='local-files'?await operator.challenge():undefined;
-  const challenge=remote?.challenge.challenge??JSON.parse(readFileSync(join(channel,'challenge.json'),'utf8'));
-  const mappedNow=Date.now()+calibration.offset_ms;
-  const plan={id:randomUUID(),instance_boot_id:challenge.instance_boot_id,revision:metadata.serving_revision,candidate_commit:metadata.candidate_commit,fixture_sha256:metadata.fixture_sha256,classification_basis:metadata.classification_basis,runtime_config_sha256:metadata.runtime_config_sha256,clock_calibration_sha256:challenge.clock_calibration_sha256,qualification_sha256:metadata.qualification_sha256,source_tree_sha256:challenge.source_tree_sha256,operational_config_sha256:challenge.operational_config_sha256,provider_budget:OPERATIONAL_PROVIDER_BUDGET,issued_at:Math.floor(mappedNow-calibration.uncertainty_ms)-1,expires_at:Math.floor(Math.min(mappedNow+30000,calibration.expires_at_ms+calibration.offset_ms-calibration.uncertainty_ms)),timeout_ms:10000,operations:['retrieval','model','cache','runtime_observation'],actors:actors.map(({who:_who,...actor})=>actor)};
-  if(remote)Object.assign(plan,{bridge:{campaign_id:campaign,challenge_generation:remote.ref.generation,challenge_sha256:remote.ref.sha256,channel_policy_sha256:privateDigest(JSON.stringify(remote.challenge.policy))}});
-  const payload=JSON.stringify(plan);if(remote){
-   writeFileSync(join(channel,'calibration.json'),JSON.stringify(calibration),{mode:0o600});writeFileSync(join(channel,'identity.json'),JSON.stringify(remote.challenge.identity),{mode:0o600});writeFileSync(join(channel,'payload.json'),payload,{mode:0o600});writeFileSync(join(channel,'signature.txt'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});
-   const {execFileSync}=await import('node:child_process');execFileSync(process.execPath,['scripts/private-benchmark.mjs','deliver','--calibration-file',join(channel,'calibration.json'),'--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--public-key-file',join(channel,'trusted-public-key.pem'),'--payload-file',join(channel,'payload.json'),'--signature-file',join(channel,'signature.txt')]);
-  }else{writeFileSync(join(channel,'authorization.json'),payload,{mode:0o600});writeFileSync(join(channel,'authorization.sig'),sign(null,Buffer.from(payload),keys.privateKey).toString('base64'),{mode:0o600});}
-  await new Promise(resolve=>setTimeout(resolve,2500));expect(running.deps.benchmark!.readiness().ready_at_ms).not.toBeNull();expect({modelProbes,cacheCreates,cacheDeletes}).toEqual({modelProbes:2,cacheCreates:2,cacheDeletes:2});
-  if(remote){
-   const actor=actors[0]!,token=running.deps.localIssuer!.issue('local:'+actor.who);const response=await fetch(`http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,{method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:JSON.stringify({request_id:randomUUID(),message:POPULATION_STDDEV_QUESTION,active_source_ids:actor.sources.map(s=>s.source_id)})});expect(await response.text()).toContain('event: final');
-   await new Promise(resolve=>setTimeout(resolve,1200));const {execFileSync}=await import('node:child_process');execFileSync(process.execPath,['scripts/private-benchmark.mjs','download','--calibration-file',join(channel,'calibration.json'),'--local-root',join(dir,'objects'),'--identity-file',join(channel,'identity.json'),'--public-key-file',join(channel,'trusted-public-key.pem'),'--directory',join(dir,'download')]);expect(JSON.parse(readFileSync(join(dir,'download','code-evidence.json'),'utf8')).measurements).toHaveLength(1);
-   const downloaded=await operator.download();expect(downloaded.files.outcomes).toEqual(expect.arrayContaining([expect.objectContaining({result:'OBSERVED_READY',release_eligible:false})]));expect(downloaded.files.code).toMatchObject({measurements:expect.arrayContaining([expect.objectContaining({qualified:true})])});
-  }else expect(JSON.parse(readFileSync(join(channel,'status.json'),'utf8'))).toMatchObject({result:'OBSERVED_READY',release_eligible:false});
-  if(mode==='clock-bootstrap'){
-   const recorder=running.deps.benchmark!;
-   const requestId=randomUUID();
-   const span=recorder.begin(actors[0]!.notebook_id,requestId)!;
-   const stepped=vi.spyOn(Date,'now').mockReturnValue(Date.now()+2000);
-   try{
-    span.finish('error');
-    expect(recorder.readiness().ready_at_ms).toBeNull();
-    expect(recorder.executionIdentity()).toBeUndefined();
-   }finally{stepped.mockRestore();}
-   await new Promise(resolve=>setTimeout(resolve,1200));
-   const retained=(await operator.download()).files.scale as unknown[];
-   expect(retained).toEqual(expect.arrayContaining([expect.objectContaining({
-    request_id:requestId,terminal_status:'error',readiness:expect.objectContaining({ready_at_ms:null}),
-   })]));
-  }
-  operator.close();
-  const recorder=running.deps.benchmark!;await close();expect(recorder.readiness().ready_at_ms).toBeNull();
- }finally{await close();rmSync(dir,{recursive:true,force:true});}
-},20000);
+it.each(["local-files", "remote-bridge", "clock-bootstrap"])(
+  "NFR-PERF-01 actual server %s wiring stays disabled until signed private adapters succeed with LOCAL providers",
+  async (mode) => {
+    const { startApiServer } = await import("../src/server.ts");
+    const { OPERATIONAL_PROVIDER_BUDGET } = await import("../src/observability/benchmark.ts");
+    const { generateKeyPairSync, sign, createHash } = await import("node:crypto");
+    const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } = await import("node:fs");
+    const dir = mkdtempSync(join(tmpdir(), "012-server-")),
+      channel = join(dir, "private"),
+      publicDir = join(dir, "public");
+    mkdirSync(channel, { mode: 0o700 });
+    mkdirSync(publicDir);
+    const actors = [];
+    for (const who of ["server-proof-a", "server-proof-b"]) {
+      const nb = await createOwnedNotebook(who),
+        src = await seedReadySource(api.db.pool, nb.owner, nb.id, {
+          title: "Latency.pdf",
+          pages: [LATENCY_TABLE_PAGE],
+          embed,
+        });
+      actors.push({
+        who,
+        owner_id: nb.owner,
+        notebook_id: nb.id,
+        sources: [{ source_id: src.sourceId, revision: 1 }],
+      });
+    }
+    const hash = (value: unknown) =>
+      createHash("sha256").update(JSON.stringify(value)).digest("hex");
+    const runtimeConfig = {
+      reasoning_engine: "projects/test/locations/europe-west4/reasoningEngines/123",
+      region: "europe-west4",
+      vcpu: 2,
+      memory_gb: 1.5,
+      network: "none",
+      file_io_mb: 100,
+      deadline_ms: 15000,
+    };
+    let calibration = {
+      offset_ms: 0,
+      uncertainty_ms: 1,
+      measured_at_ms: Date.now() - 10,
+      expires_at_ms: Date.now() + 60000,
+      measurement_id: "LOCAL clock double",
+    };
+    const qualification = "LOCAL provider doubles; not release evidence";
+    const metadata = {
+      schema_version: 1,
+      candidate_commit: "a".repeat(40),
+      serving_revision: "server-test",
+      fixture_sha256: "f".repeat(64),
+      classification_basis: "application-serving-readiness",
+      qualification_sha256: createHash("sha256").update(qualification).digest("hex"),
+      runtime_config_sha256: hash(runtimeConfig),
+      clock_calibration_sha256: hash(calibration),
+      approved_notebook_ids: actors.map((a) => a.notebook_id),
+    };
+    const configFile = join(channel, "execution-config.json");
+    writeFileSync(
+      configFile,
+      JSON.stringify({
+        file: join(channel, "code.json"),
+        metadata,
+        runtime: runtimeConfig,
+        calibration,
+        qualification,
+      }),
+      { mode: 0o600 },
+    );
+    const keys = generateKeyPairSync("ed25519");
+    writeFileSync(
+      join(channel, "trusted-public-key.pem"),
+      keys.publicKey.export({ type: "spki", format: "pem" }),
+      { mode: 0o600 },
+    );
+    let modelProbes = 0,
+      cacheCreates = 0,
+      cacheDeletes = 0;
+    const servingModel: GroundedModel = {
+      id: "LOCAL-serving-model",
+      generate: (input) => {
+        if (input.operationalProbe) {
+          modelProbes++;
+          return Promise.resolve({
+            status: "answered",
+            sentences: [
+              {
+                kind: "claim",
+                text: "The source contains latency data.",
+                citations: [input.chunks[0]!.chunk_id],
+              },
+            ],
+          });
+        }
+        return Promise.resolve(latencyComputeDraft(input.chunks, "pstdev"));
+      },
+    };
+    const localRuntime = {
+      id: "agent-platform-code-execution",
+      create: async () => ({
+        ...(await sandbox.create()),
+        profileObservation: {
+          runtime_config_sha256: hash(runtimeConfig),
+          observed_at: new Date().toISOString(),
+          machine_config: "default" as const,
+        },
+      }),
+      execute: (...args: Parameters<typeof sandbox.execute>) => sandbox.execute(...args),
+      destroy: (...args: Parameters<typeof sandbox.destroy>) => sandbox.destroy(...args),
+    };
+    const localCache = {
+      identity: "LOCAL cache double",
+      create: () => {
+        cacheCreates++;
+        return Promise.resolve({ handle: "LOCAL-cache", expiresAt: Date.now() + 60000 });
+      },
+      delete: () => {
+        cacheDeletes++;
+        return Promise.resolve();
+      },
+    };
+    const env = {
+      NODE_ENV: "test",
+      AUTH_MODE: "local",
+      PORT: "0",
+      V2_POC: "off",
+      EVERLAST_DEV_TEST_EMBEDDER: "1",
+      WEB_DIST_DIR: publicDir,
+      BENCHMARK_APPROVED_NOTEBOOKS: actors.map((a) => a.notebook_id).join(","),
+      BENCHMARK_EXECUTION_CONFIG_FILE: configFile,
+      BENCHMARK_EVIDENCE_FILE: join(channel, "records.jsonl"),
+      CODE_EXECUTION_ENABLED: "true",
+      CODE_EXECUTION_REASONING_ENGINE: runtimeConfig.reasoning_engine,
+      COMMIT_SHA: metadata.candidate_commit,
+      K_REVISION: metadata.serving_revision,
+    };
+    const extra = { pool: api.db.pool, embedder, storage, v2: api.deps.v2 };
+    let running: Awaited<ReturnType<typeof startApiServer>> | undefined;
+    const close = async () => {
+      if (running) {
+        const current = running;
+        running = undefined;
+        await new Promise<void>((resolve) => current.server.close(() => resolve()));
+      }
+    };
+    try {
+      running = await startApiServer(env, extra, {
+        model: servingModel,
+        runtime: localRuntime,
+        cache: localCache,
+      });
+      expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();
+      expect(modelProbes + cacheCreates).toBe(0);
+      await close();
+      const {
+        LocalPrivateBridgeObjects,
+        PrivateBenchmarkOperator,
+        privateDigest,
+        privateBridgePrefix,
+      } = await import("@everlast/cloud/private-benchmark");
+      const campaign = randomUUID(),
+        objects = new LocalPrivateBridgeObjects(join(dir, "objects"));
+      const remoteEnv = {
+        ...env,
+        BENCHMARK_BRIDGE_ENABLED: "true",
+        BENCHMARK_BRIDGE_EXPIRES_AT_MS: String(Date.now() + 60000),
+        BENCHMARK_BRIDGE_CAMPAIGN_ID: campaign,
+        BENCHMARK_BRIDGE_PUBLIC_KEY: keys.publicKey.export({ type: "spki", format: "pem" }),
+        BENCHMARK_BRIDGE_EXECUTION_CONFIG: readFileSync(configFile, "utf8"),
+      };
+      const servingKeys = generateKeyPairSync("ed25519");
+      const { clock_calibration_sha256: _clockHash, ...frozenMetadata } = metadata;
+      const clockEnv = {
+        ...remoteEnv,
+        BENCHMARK_BRIDGE_CLOCK_BOOTSTRAP: "true",
+        BENCHMARK_BRIDGE_CLOCK_RECEIPT_PRIVATE_KEY: servingKeys.privateKey.export({
+          type: "pkcs8",
+          format: "pem",
+        }),
+        BENCHMARK_BRIDGE_EXECUTION_CONFIG: JSON.stringify({
+          metadata: frozenMetadata,
+          runtime: runtimeConfig,
+          qualification,
+        }),
+      };
+      let serverEnv: Record<string, string> = { ...env, BENCHMARK_OPERATIONAL_DIRECTORY: channel };
+      if (mode === "clock-bootstrap") {
+        serverEnv = clockEnv;
+      } else if (mode === "remote-bridge") {
+        serverEnv = remoteEnv;
+      }
+      running = await startApiServer(serverEnv, extra, {
+        model: servingModel,
+        runtime: localRuntime,
+        cache: localCache,
+        bridgeObjects: objects,
+      });
+      const identity = {
+        campaign_id: campaign,
+        candidate_commit: metadata.candidate_commit,
+        serving_revision: metadata.serving_revision,
+        instance_boot_id: running.deps.benchmark!.readiness().instance_boot_id,
+      };
+      if (mode === "clock-bootstrap") {
+        expect(running.deps.benchmark!.executionIdentity()).toBeUndefined();
+        expect(await objects.stat(`${privateBridgePrefix(identity)}/challenge.json`)).toBeNull();
+        writeFileSync(join(channel, "identity.json"), JSON.stringify(identity), { mode: 0o600 });
+        writeFileSync(
+          join(channel, "receipt-root.pem"),
+          servingKeys.publicKey.export({ type: "spki", format: "pem" }),
+          { mode: 0o600 },
+        );
+        writeFileSync(
+          join(channel, "owner-key.pem"),
+          keys.privateKey.export({ type: "pkcs8", format: "pem" }),
+          { mode: 0o600 },
+        );
+        const { execFile } = await import("node:child_process");
+        const { promisify } = await import("node:util");
+        const runCli = promisify(execFile);
+        const clockArgs = [
+          "--local-root",
+          join(dir, "objects"),
+          "--identity-file",
+          join(channel, "identity.json"),
+          "--receipt-key-file",
+          join(channel, "receipt-root.pem"),
+        ];
+        const discovery = await runCli(process.execPath, [
+          "scripts/private-benchmark.mjs",
+          "clock-discover",
+          ...clockArgs,
+        ]);
+        expect(JSON.parse(discovery.stdout)).toEqual({
+          boots: [identity],
+          release_eligible: false,
+        });
+        const { fixture_hash: _unused, ...scaleRecipe } = JSON.parse(
+          readFileSync("packages/evals/fixtures/v3/scale-manifest.json", "utf8"),
+        ) as Record<string, unknown>;
+        const boundScale = { ...scaleRecipe, runtime_qualification: identity.serving_revision };
+        const scalePath = join(channel, "scale.json");
+        writeFileSync(
+          scalePath,
+          JSON.stringify({ ...boundScale, fixture_hash: hash(boundScale) }),
+          { mode: 0o600 },
+        );
+        await expect(
+          runCli(process.execPath, [
+            "scripts/private-benchmark.mjs",
+            "clock-acquire",
+            ...clockArgs,
+            "--private-key-file",
+            join(channel, "owner-key.pem"),
+            "--public-key-file",
+            join(channel, "trusted-public-key.pem"),
+            "--directory",
+            channel,
+            "--collector",
+            "scale",
+            "--",
+            "--manifest",
+            scalePath,
+          ]),
+        ).rejects.toMatchObject({
+          code: 2,
+          stdout: expect.stringContaining("CLOCK_INSTALLED") as unknown,
+        });
+        const scaleReport = JSON.parse(
+          readFileSync(join(channel, "v3-scale-benchmark.json"), "utf8"),
+        ) as Record<string, unknown>;
+        expect(scaleReport).toMatchObject({
+          result: "UNAVAILABLE",
+          missing_prerequisites: expect.stringContaining("duration") as unknown,
+          core: { attempt_count: 0 },
+        });
+        calibration = JSON.parse(
+          readFileSync(join(channel, "calibration.json"), "utf8"),
+        ) as typeof calibration;
+        expect(
+          (
+            JSON.parse(readFileSync(join(channel, "clock-proof.json"), "utf8")) as {
+              calibration: unknown;
+            }
+          ).calibration,
+        ).toEqual(calibration);
+        const confirmation = JSON.parse(
+          readFileSync(join(channel, "clock-installed.json"), "utf8"),
+        ) as { envelope: { payload: string } };
+        expect(JSON.parse(confirmation.envelope.payload)).toMatchObject({
+          identity,
+          calibration_sha256: hash(calibration),
+        });
+        expect(running.deps.benchmark!.executionIdentity()!.instance_boot_id).toBe(
+          identity.instance_boot_id,
+        );
+        expect(running.deps.benchmark!.readiness().ready_at_ms).toBeNull();
+        expect(modelProbes + cacheCreates).toBe(0);
+      }
+      const operator = new PrivateBenchmarkOperator({
+        objects,
+        calibration,
+        publicKey: keys.publicKey.export({ type: "spki", format: "pem" }),
+        identity,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      expect(modelProbes + cacheCreates).toBe(0);
+      const port = (running.server.address() as { port: number }).port;
+      for (const actor of actors) {
+        const token = running.deps.localIssuer!.issue(`local:${actor.who}`);
+        const response = await fetch(
+          `http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,
+          {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({
+              request_id: randomUUID(),
+              message: POPULATION_STDDEV_QUESTION,
+              active_source_ids: actor.sources.map((s) => s.source_id),
+            }),
+          },
+        );
+        expect(await response.text()).toContain("event: final");
+      }
+      const remote = mode === "local-files" ? undefined : await operator.challenge();
+      interface ChallengePayload {
+        instance_boot_id: string;
+        clock_calibration_sha256: string;
+        source_tree_sha256: string;
+        operational_config_sha256: string;
+      }
+      const challenge: ChallengePayload =
+        remote?.challenge.challenge ??
+        (JSON.parse(readFileSync(join(channel, "challenge.json"), "utf8")) as ChallengePayload);
+      const mappedNow = Date.now() + calibration.offset_ms;
+      const plan = {
+        id: randomUUID(),
+        instance_boot_id: challenge.instance_boot_id,
+        revision: metadata.serving_revision,
+        candidate_commit: metadata.candidate_commit,
+        fixture_sha256: metadata.fixture_sha256,
+        classification_basis: metadata.classification_basis,
+        runtime_config_sha256: metadata.runtime_config_sha256,
+        clock_calibration_sha256: challenge.clock_calibration_sha256,
+        qualification_sha256: metadata.qualification_sha256,
+        source_tree_sha256: challenge.source_tree_sha256,
+        operational_config_sha256: challenge.operational_config_sha256,
+        provider_budget: OPERATIONAL_PROVIDER_BUDGET,
+        issued_at: Math.floor(mappedNow - calibration.uncertainty_ms) - 1,
+        expires_at: Math.floor(
+          Math.min(
+            mappedNow + 30000,
+            calibration.expires_at_ms + calibration.offset_ms - calibration.uncertainty_ms,
+          ),
+        ),
+        timeout_ms: 10000,
+        operations: ["retrieval", "model", "cache", "runtime_observation"],
+        actors: actors.map(({ who: _who, ...actor }) => actor),
+      };
+      if (remote)
+        Object.assign(plan, {
+          bridge: {
+            campaign_id: campaign,
+            challenge_generation: remote.ref.generation,
+            challenge_sha256: remote.ref.sha256,
+            channel_policy_sha256: privateDigest(JSON.stringify(remote.challenge.policy)),
+          },
+        });
+      const payload = JSON.stringify(plan);
+      if (remote) {
+        writeFileSync(join(channel, "calibration.json"), JSON.stringify(calibration), {
+          mode: 0o600,
+        });
+        writeFileSync(join(channel, "identity.json"), JSON.stringify(remote.challenge.identity), {
+          mode: 0o600,
+        });
+        writeFileSync(join(channel, "payload.json"), payload, { mode: 0o600 });
+        writeFileSync(
+          join(channel, "signature.txt"),
+          sign(null, Buffer.from(payload), keys.privateKey).toString("base64"),
+          { mode: 0o600 },
+        );
+        const { execFileSync } = await import("node:child_process");
+        execFileSync(process.execPath, [
+          "scripts/private-benchmark.mjs",
+          "deliver",
+          "--calibration-file",
+          join(channel, "calibration.json"),
+          "--local-root",
+          join(dir, "objects"),
+          "--identity-file",
+          join(channel, "identity.json"),
+          "--public-key-file",
+          join(channel, "trusted-public-key.pem"),
+          "--payload-file",
+          join(channel, "payload.json"),
+          "--signature-file",
+          join(channel, "signature.txt"),
+        ]);
+      } else {
+        writeFileSync(join(channel, "authorization.json"), payload, { mode: 0o600 });
+        writeFileSync(
+          join(channel, "authorization.sig"),
+          sign(null, Buffer.from(payload), keys.privateKey).toString("base64"),
+          { mode: 0o600 },
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+      expect(running.deps.benchmark!.readiness().ready_at_ms).not.toBeNull();
+      expect({ modelProbes, cacheCreates, cacheDeletes }).toEqual({
+        modelProbes: 2,
+        cacheCreates: 2,
+        cacheDeletes: 2,
+      });
+      if (remote) {
+        const actor = actors[0]!,
+          token = running.deps.localIssuer!.issue(`local:${actor.who}`);
+        const response = await fetch(
+          `http://127.0.0.1:${port}/api/notebooks/${actor.notebook_id}/chat/turns`,
+          {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({
+              request_id: randomUUID(),
+              message: POPULATION_STDDEV_QUESTION,
+              active_source_ids: actor.sources.map((s) => s.source_id),
+            }),
+          },
+        );
+        expect(await response.text()).toContain("event: final");
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const { execFileSync } = await import("node:child_process");
+        execFileSync(process.execPath, [
+          "scripts/private-benchmark.mjs",
+          "download",
+          "--calibration-file",
+          join(channel, "calibration.json"),
+          "--local-root",
+          join(dir, "objects"),
+          "--identity-file",
+          join(channel, "identity.json"),
+          "--public-key-file",
+          join(channel, "trusted-public-key.pem"),
+          "--directory",
+          join(dir, "download"),
+        ]);
+        expect(
+          (
+            JSON.parse(readFileSync(join(dir, "download", "code-evidence.json"), "utf8")) as {
+              measurements: unknown[];
+            }
+          ).measurements,
+        ).toHaveLength(1);
+        const downloaded = await operator.download();
+        expect(downloaded.files.outcomes).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ result: "OBSERVED_READY", release_eligible: false }),
+          ]),
+        );
+        expect(downloaded.files.code).toMatchObject({
+          measurements: expect.arrayContaining([
+            expect.objectContaining({ qualified: true }) as unknown,
+          ]) as unknown,
+        });
+      } else
+        expect(JSON.parse(readFileSync(join(channel, "status.json"), "utf8"))).toMatchObject({
+          result: "OBSERVED_READY",
+          release_eligible: false,
+        });
+      if (mode === "clock-bootstrap") {
+        const recorder = running.deps.benchmark!;
+        const requestId = randomUUID();
+        const span = recorder.begin(actors[0]!.notebook_id, requestId)!;
+        const stepped = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 2000);
+        try {
+          span.finish("error");
+          expect(recorder.readiness().ready_at_ms).toBeNull();
+          expect(recorder.executionIdentity()).toBeUndefined();
+        } finally {
+          stepped.mockRestore();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        const retained = (await operator.download()).files.scale as unknown[];
+        expect(retained).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              request_id: requestId,
+              terminal_status: "error",
+              readiness: expect.objectContaining({ ready_at_ms: null }) as unknown,
+            }),
+          ]),
+        );
+      }
+      operator.close();
+      const recorder = running.deps.benchmark!;
+      await close();
+      expect(recorder.readiness().ready_at_ms).toBeNull();
+    } finally {
+      await close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  },
+  20000,
+);

@@ -21,14 +21,34 @@ const SOURCE_3 = [
   "Every factual node and cell cites original source chunks.",
 ];
 
-test("MM-E01: generates a grounded mindmap from Studio tile and Overview, opens at depth 2 with AI-generated badge, and persists across reload", async ({ page }) => {
+test("MM-E01: generates a grounded mindmap from Studio tile and Overview, opens at depth 2 with AI-generated badge, and persists across reload", async ({
+  page,
+}) => {
   test.setTimeout(90_000);
   const email = uniqueEmail("mme01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "Architecture.pdf", buildPdf([{ kind: "text", lines: SOURCE_1 }]));
-  await uploadSource(page.request, email, id, "Multimodal.pdf", buildPdf([{ kind: "text", lines: SOURCE_2 }]));
-  await uploadSource(page.request, email, id, "Studio.pdf", buildPdf([{ kind: "text", lines: SOURCE_3 }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Architecture.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_1 }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Multimodal.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_2 }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "Studio.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_3 }]),
+  );
   await waitReady(page.request, email, id, 3);
 
   await page.goto(`/notebook/${id}`);
@@ -52,7 +72,9 @@ test("MM-E01: generates a grounded mindmap from Studio tile and Overview, opens 
   // Verify initial depth <= 2 visible nodes
   const nodes = viewer.getByTestId("mindmap-node");
   await expect(nodes.first()).toBeVisible();
-  const depths = await nodes.evaluateAll((els) => els.map((el) => Number(el.getAttribute("data-depth") ?? "0")));
+  const depths = await nodes.evaluateAll((els) =>
+    els.map((el) => Number(el.getAttribute("data-depth") ?? "0")),
+  );
   expect(Math.max(...depths)).toBeLessThanOrEqual(2);
 
   // Reload page and reopen Completed mindmap

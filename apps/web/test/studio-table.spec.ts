@@ -30,10 +30,34 @@ test("DT-E01: generates a cited 3-vendor comparison table, displays conflicting 
   const email = uniqueEmail("dte01");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await uploadSource(page.request, email, id, "VendorAlpha.pdf", buildPdf([{ kind: "text", lines: VENDOR_ALPHA }]));
-  await uploadSource(page.request, email, id, "VendorBeta.pdf", buildPdf([{ kind: "text", lines: VENDOR_BETA }]));
-  await uploadSource(page.request, email, id, "VendorGamma.pdf", buildPdf([{ kind: "text", lines: VENDOR_GAMMA }]));
-  await uploadSource(page.request, email, id, "AlphaAddendum.pdf", buildPdf([{ kind: "text", lines: ALPHA_ADDENDUM }]));
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "VendorAlpha.pdf",
+    buildPdf([{ kind: "text", lines: VENDOR_ALPHA }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "VendorBeta.pdf",
+    buildPdf([{ kind: "text", lines: VENDOR_BETA }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "VendorGamma.pdf",
+    buildPdf([{ kind: "text", lines: VENDOR_GAMMA }]),
+  );
+  await uploadSource(
+    page.request,
+    email,
+    id,
+    "AlphaAddendum.pdf",
+    buildPdf([{ kind: "text", lines: ALPHA_ADDENDUM }]),
+  );
   await waitReady(page.request, email, id, 4);
 
   await page.goto(`/notebook/${id}`);
@@ -68,7 +92,7 @@ test("DT-E01: generates a cited 3-vendor comparison table, displays conflicting 
   ]);
   const csvPath = await csvDownload.path();
   expect(csvPath).toBeTruthy();
-  const csvText = readFileSync(csvPath!, "utf8");
+  const csvText = readFileSync(csvPath, "utf8");
   expect(csvText.startsWith("\uFEFF")).toBe(true);
   expect(csvText).toContain("'=SUM(A1:A2)");
 
@@ -79,6 +103,6 @@ test("DT-E01: generates a cited 3-vendor comparison table, displays conflicting 
   ]);
   const xlsxPath = await xlsxDownload.path();
   expect(xlsxPath).toBeTruthy();
-  const xlsxBytes = readFileSync(xlsxPath!);
+  const xlsxBytes = readFileSync(xlsxPath);
   expect(xlsxBytes.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))).toBe(true);
 });

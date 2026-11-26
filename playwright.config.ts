@@ -26,5 +26,10 @@ export default defineConfig({
     timeout: 120_000,
     env: { E2E_PORT: String(port), TEST_DATABASE_URL: process.env.TEST_DATABASE_URL ?? "" },
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+  ],
 });

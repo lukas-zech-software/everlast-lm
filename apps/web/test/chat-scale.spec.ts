@@ -1,16 +1,30 @@
 import { expect, test } from "@playwright/test";
-import { addTextSource, createNotebook, signIn, token as getToken, uniqueEmail, waitReady } from "./helpers.ts";
+import {
+  addTextSource,
+  createNotebook,
+  signIn,
+  token as getToken,
+  uniqueEmail,
+  waitReady,
+} from "./helpers.ts";
 
 /**
  * NFR-PERF-01 / C-02: browser regression test for chat scale timing,
  * source readiness before submission, and verified final response receipt.
  */
 
-test("SCALE-UI-01: send is enabled only when sources are ready; final SSE response displays with citation within budget", async ({ page }) => {
+test("SCALE-UI-01: send is enabled only when sources are ready; final SSE response displays with citation within budget", async ({
+  page,
+}) => {
   const email = uniqueEmail("scale");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
-  await addTextSource(page.request, email, id, "Reactor coolant pressure must be 142.8 bar. Operational limits apply.");
+  await addTextSource(
+    page.request,
+    email,
+    id,
+    "Reactor coolant pressure must be 142.8 bar. Operational limits apply.",
+  );
 
   await waitReady(page.request, email, id, 1);
   await page.goto(`/notebook/${id}`);
@@ -39,8 +53,10 @@ test("SCALE-UI-01: send is enabled only when sources are ready; final SSE respon
 
   // Ensure no public tuning or benchmark endpoint exists
   const token =
-    (await page.evaluate(() => localStorage.getItem("everlast.localToken") ?? localStorage.getItem("everlast:id_token"))) ??
-    (await getToken(page.request, email));
+    (await page.evaluate(
+      () =>
+        localStorage.getItem("everlast.localToken") ?? localStorage.getItem("everlast:id_token"),
+    )) ?? (await getToken(page.request, email));
   const tuningRes = await page.request.get(`/api/notebooks/${id}/chat/tuning`, {
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });

@@ -24,10 +24,11 @@ export function defaultPreferences(breakpoint: Breakpoint): PanelPreferences {
 
 export function loadPreferences(): PanelPreferences | null {
   try {
-    const raw = globalThis.localStorage?.getItem(KEY);
+    const raw = globalThis.localStorage.getItem(KEY);
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<PanelPreferences>;
-    if (typeof value.left_collapsed !== "boolean" || typeof value.right_collapsed !== "boolean") return null;
+    if (typeof value.left_collapsed !== "boolean" || typeof value.right_collapsed !== "boolean")
+      return null;
     return { left_collapsed: value.left_collapsed, right_collapsed: value.right_collapsed };
   } catch {
     return null;
@@ -36,7 +37,7 @@ export function loadPreferences(): PanelPreferences | null {
 
 export function savePreferences(prefs: PanelPreferences): void {
   try {
-    globalThis.localStorage?.setItem(KEY, JSON.stringify(prefs));
+    globalThis.localStorage.setItem(KEY, JSON.stringify(prefs));
   } catch {
     /* preferences are a convenience only */
   }

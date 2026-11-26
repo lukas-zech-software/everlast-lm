@@ -165,3 +165,18 @@ Manual boundary review: PASS for this manifest/lockfile-only dependency delta. N
 Automated evidence on the reviewed dependency head: [CI run](https://github.com/lukas-zech-software/everlast-lm/actions/runs/43524466716) passed typecheck, unit/contract, PostgreSQL integration, deterministic evaluation and Chromium journeys. The separate required Spec integrity run passed link/spec checks, all 39 architecture fixtures and the boundary scan (zero findings, 90 exact exceptions), then correctly rejected the missing changed-feature evidence. This review supplies that evidence without changing the checker or migration policy.
 
 This is dependency maintenance evidence, not new feature implementation or release acceptance. No live cloud workload or judged release run is claimed.
+
+## Tier-2 TypeScript Clean-Code Conventions & Lint Gates — 2026-11-26 (CC-09)
+
+Traceability: C-01..C-03, NFR-EVAL-02/04, CC-09.
+
+### Scope & Tooling
+- Added dev-only formatting and static-analysis tooling in root `package.json`, `pnpm-workspace.yaml`, and `pnpm-lock.yaml`: `prettier`, `eslint`, `@eslint/js`, `typescript-eslint`, `eslint-config-prettier`, `eslint-plugin-sonarjs`, `eslint-plugin-unicorn`, and `globals`.
+- Added `.prettierrc.json`, `.prettierignore`, `eslint.config.mjs` (using `node:module` `registerHooks` to route `typescript-eslint` to the existing pinned `typescript-compiler` `6.0.2` while preserving TypeScript `7.0.2` as the application compiler), `docs/code-conventions.md`, and a reference in `CONTRIBUTING.md`.
+- Wired `pnpm format`, `pnpm format:check`, `pnpm lint:eslint`, and `pnpm lint:eslint:fix` in `package.json`, and integrated Prettier + ESLint checks into `scripts/lint.mjs`.
+- Applied Tier-2 formatting, Zod v4 API migrations (`z.uuid()`, `z.iso.datetime()`, `z.url()`, `"custom"`, `{ error }`), complexity/depth/parameter decompositions, and strict TypeScript narrowing across `apps/*` and `packages/*`, replacing the global `Response.json(): Promise<any>` override (`apps/api/test/studio-fetch-json.d.ts`) with typed `readJson<T>` in `apps/api/test/support.ts`.
+
+### CC-09 Boundary Review
+- **PASS (manual + automated)**: No new runtime dependencies, workspace package edges, cross-app imports, shared-to-app edges, or `packages/contracts` runtime dependencies were introduced.
+- Preserved all C-01/C-02/C-03 schema semantics, authorization/snapshot checks, transaction atomicity, and public exports.
+- Preserved all **88** exact `D21` (`specs/004-ui-skeleton-quality-gates T035`) legacy exceptions in `scripts/architecture-policy.json` without widening or modifying the policy (using `// prettier-ignore` on the 12 legacy import lines whose formatting or quotes would otherwise alter AST token fingerprints). Zero `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any` suppressions were added.

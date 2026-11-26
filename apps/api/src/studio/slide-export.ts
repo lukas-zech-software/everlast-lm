@@ -19,7 +19,7 @@ export interface SlideDeckExportResult {
   bytes: Uint8Array;
 }
 
-export async function exportSlideDeckArtifact(input: {
+export function exportSlideDeckArtifact(input: {
   artifactId: string;
   title: string;
   payload: StudioSlideDeckPayload;
@@ -27,28 +27,36 @@ export async function exportSlideDeckArtifact(input: {
 }): Promise<SlideDeckExportResult> {
   const reqParsed = SlideDeckExportRequestSchema.safeParse(input.body);
   if (!reqParsed.success) {
-    throw new StudioParamsError(reqParsed.error.issues.map((i) => i.message).join("; "));
+    return Promise.reject(
+      new StudioParamsError(reqParsed.error.issues.map((i) => i.message).join("; ")),
+    );
   }
   const payloadParsed = StudioSlideDeckPayloadSchema.safeParse(input.payload);
   if (!payloadParsed.success) {
-    throw new StudioParamsError(payloadParsed.error.issues.map((i) => i.message).join("; "));
+    return Promise.reject(
+      new StudioParamsError(payloadParsed.error.issues.map((i) => i.message).join("; ")),
+    );
   }
 
-  const safePrefix = input.artifactId.slice(0, 8).toLowerCase().replace(/[^a-z0-9-]/g, "") || "deck";
+  const safePrefix =
+    input.artifactId
+      .slice(0, 8)
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "") || "deck";
   const format = reqParsed.data.format;
 
   if (format === "pptx") {
     const entries = buildSlideDeckOoxmlEntries(input.title, payloadParsed.data);
-    return {
+    return Promise.resolve({
       contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       filename: `slide-deck-${safePrefix}.pptx`,
       bytes: new Uint8Array(writeOoxmlZip(entries)),
-    };
+    });
   }
 
-  return {
+  return Promise.resolve({
     contentType: "application/pdf",
     filename: `slide-deck-${safePrefix}.pdf`,
     bytes: buildSlideDeckPdfBytes(input.title, payloadParsed.data),
-  };
+  });
 }

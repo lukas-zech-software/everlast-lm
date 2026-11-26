@@ -16,16 +16,16 @@ export interface SlideDeckViewerOptions {
   artifactId: string;
   title: string;
   payload: StudioSlideDeckPayload;
-  onOpenCitation?(ref: StudioEvidenceRef): void;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onExport?(format: SlideDeckExportFormat): Promise<void> | void;
-  onClose?(): void;
+  onOpenCitation?: (ref: StudioEvidenceRef) => void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onExport?: (format: SlideDeckExportFormat) => Promise<void> | void;
+  onClose?: () => void;
   actions?: HTMLElement[];
 }
 
 export interface SlideDeckViewer {
   element: HTMLElement;
-  destroy(): void;
+  destroy: () => void;
 }
 
 function renderVisualSpec(slide: SlideItem): HTMLElement | null {
@@ -36,7 +36,7 @@ function renderVisualSpec(slide: SlideItem): HTMLElement | null {
       { class: "studio-slide-callout", "data-testid": "slide-visual-callout" },
       h("div", { class: "studio-slide-callout-value", text: vs.callout.value }),
       h("div", { class: "studio-slide-callout-label", text: vs.callout.label }),
-      ...(vs.callout.context ? [h("p", { class: "muted", text: vs.callout.context })] : [])
+      ...(vs.callout.context ? [h("p", { class: "muted", text: vs.callout.context })] : []),
     );
   }
   if (vs.layout === "two_column" && vs.columns) {
@@ -47,14 +47,14 @@ function renderVisualSpec(slide: SlideItem): HTMLElement | null {
         "div",
         { class: "studio-slide-col" },
         h("h5", { text: vs.columns.left_heading }),
-        h("ul", {}, ...vs.columns.left_points.map((pt) => h("li", { text: pt })))
+        h("ul", {}, ...vs.columns.left_points.map((pt) => h("li", { text: pt }))),
       ),
       h(
         "div",
         { class: "studio-slide-col" },
         h("h5", { text: vs.columns.right_heading }),
-        h("ul", {}, ...vs.columns.right_points.map((pt) => h("li", { text: pt })))
-      )
+        h("ul", {}, ...vs.columns.right_points.map((pt) => h("li", { text: pt }))),
+      ),
     );
   }
   if (vs.layout === "comparison_table" && vs.table) {
@@ -62,7 +62,11 @@ function renderVisualSpec(slide: SlideItem): HTMLElement | null {
       "table",
       { class: "studio-slide-table", "data-testid": "slide-visual-table" },
       h("thead", {}, h("tr", {}, ...vs.table.headers.map((hd) => h("th", { text: hd })))),
-      h("tbody", {}, ...vs.table.rows.map((row) => h("tr", {}, ...row.map((cell) => h("td", { text: cell })))))
+      h(
+        "tbody",
+        {},
+        ...vs.table.rows.map((row) => h("tr", {}, ...row.map((cell) => h("td", { text: cell })))),
+      ),
     );
   }
   if (vs.layout === "diagram_chart" && vs.diagram_steps && vs.diagram_steps.length > 0) {
@@ -74,9 +78,9 @@ function renderVisualSpec(slide: SlideItem): HTMLElement | null {
           "div",
           { class: "studio-slide-diagram-step" },
           h("span", { class: "studio-slide-step-num", text: String(idx + 1) }),
-          h("span", { text: step })
-        )
-      )
+          h("span", { text: step }),
+        ),
+      ),
     );
   }
   if (vs.subtitle) {
@@ -114,7 +118,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     type: "button",
     "data-testid": "slide-export-pptx",
     text: "Export PPTX",
-  }) as HTMLButtonElement;
+  });
   exportPptxBtn.addEventListener("click", () => {
     void options.onExport?.("pptx");
   });
@@ -124,7 +128,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     type: "button",
     "data-testid": "slide-export-pdf",
     text: "Export PDF",
-  }) as HTMLButtonElement;
+  });
   exportPdfBtn.addEventListener("click", () => {
     void options.onExport?.("pdf");
   });
@@ -133,9 +137,19 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     "div",
     { class: "studio-viewer-head" },
     ...(closeBtn ? [closeBtn] : []),
-    h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }),
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
     aiLabel,
-    h("div", { class: "studio-table-controls" }, exportPptxBtn, exportPdfBtn, ...(options.actions ?? []))
+    h(
+      "div",
+      { class: "studio-table-controls" },
+      exportPptxBtn,
+      exportPdfBtn,
+      ...(options.actions ?? []),
+    ),
   );
 
   const noteBanner = payload.insufficient_evidence_note
@@ -147,16 +161,29 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     : null;
 
   const stageEl = h("div", { class: "studio-slide-stage", "data-testid": "slide-stage" });
-  const counterEl = h("span", { class: "studio-slide-counter muted", "data-testid": "slide-deck-counter" });
-  const prevBtn = h("button", { class: "btn btn-sm", type: "button", "data-testid": "slide-prev", text: "Prev" }) as HTMLButtonElement;
-  const nextBtn = h("button", { class: "btn btn-sm", type: "button", "data-testid": "slide-next", text: "Next" }) as HTMLButtonElement;
+  const counterEl = h("span", {
+    class: "studio-slide-counter muted",
+    "data-testid": "slide-deck-counter",
+  });
+  const prevBtn = h("button", {
+    class: "btn btn-sm",
+    type: "button",
+    "data-testid": "slide-prev",
+    text: "Prev",
+  });
+  const nextBtn = h("button", {
+    class: "btn btn-sm",
+    type: "button",
+    "data-testid": "slide-next",
+    text: "Next",
+  });
   const notesToggleBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "slide-notes-toggle",
     "aria-expanded": "false",
     text: "Speaker Notes",
-  }) as HTMLButtonElement;
+  });
 
   const controlsEl = h(
     "div",
@@ -164,7 +191,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     prevBtn,
     counterEl,
     nextBtn,
-    notesToggleBtn
+    notesToggleBtn,
   );
 
   const notesEl = h("section", {
@@ -174,18 +201,22 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
   });
   notesEl.hidden = true;
 
-  const thumbsEl = h("div", { class: "studio-slide-thumbnails", "data-testid": "slide-thumbnails" });
+  const thumbsEl = h("div", {
+    class: "studio-slide-thumbnails",
+    "data-testid": "slide-thumbnails",
+  });
 
   function render(): void {
     if (destroyed || slides.length === 0) return;
-    const slide = slides[currentIndex]!;
+    const slide = slides[currentIndex];
+    if (!slide) return;
     clear(stageEl);
 
     const visualNode = renderVisualSpec(slide);
     const bulletList = h(
       "ul",
       { class: "studio-slide-bullets" },
-      ...slide.bullets.map((b) => h("li", { text: b }))
+      ...slide.bullets.map((b) => h("li", { text: b })),
     );
 
     const citeRow = h(
@@ -205,15 +236,19 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
           options.onCitationClick?.(ref.source_id, ref.chunk_id);
         });
         return pill;
-      })
+      }),
     );
 
     stageEl.append(
       h("span", { class: "studio-slide-layout-chip muted", text: slide.layout }),
-      h("h4", { class: "studio-slide-stage-title", "data-testid": "slide-stage-title", text: slide.title }),
+      h("h4", {
+        class: "studio-slide-stage-title",
+        "data-testid": "slide-stage-title",
+        text: slide.title,
+      }),
       ...(visualNode ? [visualNode] : []),
       bulletList,
-      citeRow
+      citeRow,
     );
 
     counterEl.textContent = `Slide ${currentIndex + 1} of ${slides.length}`;
@@ -225,7 +260,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     notesToggleBtn.setAttribute("aria-expanded", String(notesOpen));
     notesEl.append(
       h("strong", { text: `Slide ${slide.slide_number} Speaker Notes` }),
-      h("p", { text: slide.speaker_notes })
+      h("p", { text: slide.speaker_notes }),
     );
 
     clear(thumbsEl);
@@ -240,7 +275,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
           "aria-pressed": String(active),
         },
         h("span", { class: "studio-slide-thumb-num", text: `${s.slide_number}` }),
-        h("span", { class: "studio-slide-thumb-title", text: s.title })
+        h("span", { class: "studio-slide-thumb-title", text: s.title }),
       );
       thumb.addEventListener("click", () => {
         currentIndex = idx;
@@ -281,7 +316,7 @@ export function createSlideDeckViewer(options: SlideDeckViewerOptions): SlideDec
     stageEl,
     controlsEl,
     notesEl,
-    thumbsEl
+    thumbsEl,
   );
 
   return {

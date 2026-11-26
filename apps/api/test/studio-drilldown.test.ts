@@ -16,8 +16,46 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
+
+interface MindmapCitation {
+  source_id: string;
+}
+
+interface MindmapNodeView {
+  id: string;
+  label: string;
+  label_citations?: MindmapCitation[];
+  summary_citations?: MindmapCitation[];
+  children?: MindmapNodeView[];
+}
+
+interface DrilldownArtifactEnvelope {
+  artifact: {
+    id: string;
+    status: string;
+    payload_json: {
+      root_node: MindmapNodeView;
+    } | null;
+  };
+}
+
+interface DrilldownErrorEnvelope {
+  error: { code: string };
+}
+
+interface ChatHistoryEnvelope {
+  messages?: unknown[];
+}
+
+interface DrilldownResponseEnvelope {
+  node_id: string;
+  node_label: string;
+  parent_label: string | null;
+  prompt: string;
+  messages: unknown[];
+}
 
 const studio = (nb: string) => `/api/notebooks/${nb}/studio`;
 
@@ -31,9 +69,13 @@ async function seed(nb: string, title: string, pages: string[]) {
   });
 }
 
-async function waitTerminal(nb: string, id: string): Promise<any> {
+async function waitTerminal(nb: string, id: string): Promise<DrilldownArtifactEnvelope> {
   for (let i = 0; i < 400; i++) {
-    const r = await n.call(OWNER, "GET", `${studio(nb)}/artifacts/${id}`);
+    const r = await n.call<DrilldownArtifactEnvelope>(
+      OWNER,
+      "GET",
+      `${studio(nb)}/artifacts/${id}`,
+    );
     if (["Completed", "Failed", "Cancelled"].includes(r.json.artifact.status)) return r.json;
     await new Promise((res) => setTimeout(res, 15));
   }
@@ -50,23 +92,33 @@ describe("[011-studio-mindmaps-data-tables] T026: Server-side mindmap node drill
       "Cloud SQL PostgreSQL 16 stores relational metadata and pgvector embeddings.",
     ]);
 
-    const created = await n.call(OWNER, "POST", `${studio(nb)}/artifacts`, {
-      plugin_type: "mindmap",
-      subtype: "default",
-      active_source_ids: [srcA.sourceId, srcB.sourceId],
-    });
+    const created = await n.call<DrilldownArtifactEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts`,
+      {
+        plugin_type: "mindmap",
+        subtype: "default",
+        active_source_ids: [srcA.sourceId, srcB.sourceId],
+      },
+    );
     expect(created.status).toBe(202);
     const completed = await waitTerminal(nb, created.json.artifact.id);
     expect(completed.artifact.status).toBe("Completed");
     const artifactId = completed.artifact.id;
-    const rootNode = completed.artifact.payload_json.root_node;
-    const childNode = rootNode.children[0]!;
+    const rootNode = completed.artifact.payload_json!.root_node;
+    const childNode = rootNode.children![0]!;
 
     // 1. Empty active_source_ids -> 400 EmptyScopeError
-    const emptyScope = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${artifactId}/drilldown`, {
-      node_id: childNode.id,
-      active_source_ids: [],
-    });
+    const emptyScope = await n.call<DrilldownErrorEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${artifactId}/drilldown`,
+      {
+        node_id: childNode.id,
+        active_source_ids: [],
+      },
+    );
     expect(emptyScope.status).toBe(400);
     expect(emptyScope.json.error.code).toBe("EmptyScopeError");
 
@@ -78,34 +130,51 @@ describe("[011-studio-mindmaps-data-tables] T026: Server-side mindmap node drill
     expect([404, 422]).toContain(badNode.status);
 
     // 3. Find a node citing srcB, and attempt drilldown with ONLY srcA selected -> 409 SupportingSourcesRequired
-    const findNodeForSource = (node: any, targetSource: string): any => {
+    const findNodeForSource = (
+      node: MindmapNodeView,
+      targetSource: string,
+    ): MindmapNodeView | null => {
       const cites = [...(node.label_citations ?? []), ...(node.summary_citations ?? [])];
-      if (cites.some((c: any) => c.source_id === targetSource)) return node;
+      if (cites.some((c) => c.source_id === targetSource)) return node;
       for (const ch of node.children ?? []) {
         const found = findNodeForSource(ch, targetSource);
         if (found) return found;
       }
       return null;
     };
-    const nodeB = findNodeForSource(rootNode, srcB.sourceId);
+    const nodeB = findNodeForSource(rootNode, srcB.sourceId)!;
     expect(nodeB).not.toBeNull();
 
-    const missingScope = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${artifactId}/drilldown`, {
-      node_id: nodeB.id,
-      active_source_ids: [srcA.sourceId], // srcB is deselected!
-    });
+    const missingScope = await n.call<DrilldownErrorEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${artifactId}/drilldown`,
+      {
+        node_id: nodeB.id,
+        active_source_ids: [srcA.sourceId], // srcB is deselected!
+      },
+    );
     expect(missingScope.status).toBe(409);
     expect(missingScope.json.error.code).toBe("SupportingSourcesRequired");
 
     // Verify no chat turn was persisted from the blocked drilldown!
-    const historyAfterBlocked = await n.call(OWNER, "GET", `/api/notebooks/${nb}/chat`);
+    const historyAfterBlocked = await n.call<ChatHistoryEnvelope>(
+      OWNER,
+      "GET",
+      `/api/notebooks/${nb}/chat`,
+    );
     expect(historyAfterBlocked.json.messages ?? []).toHaveLength(0);
 
     // 4. Eligible drilldown with both sources selected -> 200 with contextual prompt (including parent context for non-root node) and persisted chat messages
-    const eligible = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${artifactId}/drilldown`, {
-      node_id: childNode.id,
-      active_source_ids: [srcA.sourceId, srcB.sourceId],
-    });
+    const eligible = await n.call<DrilldownResponseEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${artifactId}/drilldown`,
+      {
+        node_id: childNode.id,
+        active_source_ids: [srcA.sourceId, srcB.sourceId],
+      },
+    );
     expect(eligible.status).toBe(200);
     expect(eligible.json.node_id).toBe(childNode.id);
     expect(eligible.json.node_label).toBe(childNode.label);
@@ -116,10 +185,15 @@ describe("[011-studio-mindmaps-data-tables] T026: Server-side mindmap node drill
     expect(eligible.json.messages.length).toBeGreaterThanOrEqual(2);
 
     // 5. Root node drilldown omits parent label
-    const rootDrill = await n.call(OWNER, "POST", `${studio(nb)}/artifacts/${artifactId}/drilldown`, {
-      node_id: rootNode.id,
-      active_source_ids: [srcA.sourceId, srcB.sourceId],
-    });
+    const rootDrill = await n.call<DrilldownResponseEnvelope>(
+      OWNER,
+      "POST",
+      `${studio(nb)}/artifacts/${artifactId}/drilldown`,
+      {
+        node_id: rootNode.id,
+        active_source_ids: [srcA.sourceId, srcB.sourceId],
+      },
+    );
     expect(rootDrill.status).toBe(200);
     expect(rootDrill.json.parent_label).toBeNull();
 

@@ -48,7 +48,7 @@ export const GroundedDraftSchema = z
             /** "claim" = factual/synthesized statement (must cite); "meta" = statement about source coverage. */
             kind: z.enum(["claim", "meta"]),
           })
-          .strict()
+          .strict(),
       )
       .max(60),
     /** FR-014: one focused question when the statistical intent is ambiguous (status "clarify"). */
@@ -58,8 +58,18 @@ export const GroundedDraftSchema = z
   })
   .strict()
   .superRefine((d, ctx) => {
-    if (d.status === "compute" && !d.computation) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "compute needs a computation", path: ["computation"] });
-    if (d.status === "clarify" && !d.clarification_question) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "clarify needs a question", path: ["clarification_question"] });
+    if (d.status === "compute" && !d.computation)
+      ctx.addIssue({
+        code: "custom",
+        message: "compute needs a computation",
+        path: ["computation"],
+      });
+    if (d.status === "clarify" && !d.clarification_question)
+      ctx.addIssue({
+        code: "custom",
+        message: "clarify needs a question",
+        path: ["clarification_question"],
+      });
   });
 
 export type GroundedDraft = z.infer<typeof GroundedDraftSchema>;
@@ -79,7 +89,12 @@ export const GROUNDED_DRAFT_RESPONSE_SCHEMA = {
           type: "ARRAY",
           items: {
             type: "OBJECT",
-            properties: { label: { type: "STRING" }, value: { type: "STRING" }, unit: { type: "STRING", nullable: true }, chunk_id: { type: "STRING" } },
+            properties: {
+              label: { type: "STRING" },
+              value: { type: "STRING" },
+              unit: { type: "STRING", nullable: true },
+              chunk_id: { type: "STRING" },
+            },
             required: ["label", "value", "chunk_id"],
             propertyOrdering: ["label", "value", "unit", "chunk_id"],
           },
@@ -104,13 +119,25 @@ export const GROUNDED_DRAFT_RESPONSE_SCHEMA = {
     },
   },
   required: ["status", "sentences"],
-  propertyOrdering: ["status", "missing_topic", "clarification_question", "sentences", "computation"],
+  propertyOrdering: [
+    "status",
+    "missing_topic",
+    "clarification_question",
+    "sentences",
+    "computation",
+  ],
 } as const;
 
 /** Response schema for the configured runtime: without a sandbox the model cannot choose compute/clarify (FR-GC-08). */
-export function groundedDraftResponseSchema(options: { codeExecution: boolean }): Record<string, unknown> {
+export function groundedDraftResponseSchema(options: {
+  codeExecution: boolean;
+}): Record<string, unknown> {
   if (options.codeExecution) return GROUNDED_DRAFT_RESPONSE_SCHEMA;
-  const { computation: _c, clarification_question: _q, ...properties } = GROUNDED_DRAFT_RESPONSE_SCHEMA.properties;
+  const {
+    computation: _c,
+    clarification_question: _q,
+    ...properties
+  } = GROUNDED_DRAFT_RESPONSE_SCHEMA.properties;
   return {
     ...GROUNDED_DRAFT_RESPONSE_SCHEMA,
     properties: { ...properties, status: { type: "STRING", enum: ["answered", "not_in_sources"] } },

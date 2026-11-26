@@ -13,7 +13,7 @@ import type { StudioJobRunner } from "./runner.ts";
 
 export function createStudioOutboxHandler(
   runner: Pick<StudioJobRunner, "run">,
-  pool?: Pool
+  pool?: Pool,
 ): JobHandler {
   return async (job: JobRecord): Promise<JobResult> => {
     const artifactId = job.payload.artifact_id;
@@ -22,7 +22,11 @@ export function createStudioOutboxHandler(
     }
     const exec = async () => runner.run(artifactId);
     const record = pool ? await runWithV2Persistence(pool, exec) : await exec();
-    if (record.status === "Completed" || record.status === "Failed" || record.status === "Cancelled") {
+    if (
+      record.status === "Completed" ||
+      record.status === "Failed" ||
+      record.status === "Cancelled"
+    ) {
       return { kind: "done" };
     }
     // Still Running under another active worker lease: defer so lease expiration can recover if needed
@@ -39,35 +43,36 @@ export interface DurableStudioDispatcherOptions {
 export class DurableStudioDispatcher {
   private readonly pending = new Set<Promise<void>>();
   private readonly pool: Pool;
-  private readonly runner: { run(id: string): Promise<unknown> };
+  private readonly runner: { run: (id: string) => Promise<unknown> };
   private readonly options: DurableStudioDispatcherOptions;
 
   constructor(
     pool: Pool,
-    runner: { run(id: string): Promise<unknown> },
-    options: DurableStudioDispatcherOptions = {}
+    runner: { run: (id: string) => Promise<unknown> },
+    options: DurableStudioDispatcherOptions = {},
   ) {
     this.pool = pool;
     this.runner = runner;
     this.options = options;
   }
 
-  async enqueue(artifactId: string, _ownerId: string): Promise<void> {
+  enqueue(artifactId: string, _ownerId: string): Promise<void> {
     this.options.onNotify?.();
     if (this.options.notifyImmediate === false) {
-      return;
+      return Promise.resolve();
     }
     const task = Promise.resolve()
       .then(() => runWithV2Persistence(this.pool, () => this.runner.run(artifactId)))
       .then(
         () => undefined,
-        () => undefined
+        () => undefined,
       )
       .finally(() => this.pending.delete(task));
     this.pending.add(task);
+    return Promise.resolve();
   }
 
   async idle(): Promise<void> {
-    await Promise.all([...this.pending]);
+    await Promise.all(this.pending);
   }
 }

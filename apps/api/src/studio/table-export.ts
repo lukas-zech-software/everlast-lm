@@ -15,7 +15,41 @@ import {
  * Logical columns each have separate citation fields. No formulas, macros or external links.
  */
 
-const FORMULA_DANGER_REGEX = /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@]/;
+function isFormulaLeadingIgnorable(code: number, ch: string): boolean {
+  return /\s/.test(ch) || (code >= 0x00 && code <= 0x1f) || (code >= 0x7f && code <= 0x9f);
+}
+
+function startsWithFormulaDanger(raw: string): boolean {
+  let i = 0;
+  while (i < raw.length && isFormulaLeadingIgnorable(raw.charCodeAt(i), raw.charAt(i))) {
+    i += 1;
+  }
+  const first = raw.charAt(i);
+  return first === "=" || first === "+" || first === "-" || first === "@";
+}
+
+function isXmlIllegalControl(code: number): boolean {
+  return (
+    (code >= 0x00 && code <= 0x08) ||
+    code === 0x0b ||
+    code === 0x0c ||
+    (code >= 0x0e && code <= 0x1f) ||
+    code === 0x7f ||
+    code === 0xfffe ||
+    code === 0xffff
+  );
+}
+
+function escapeXmlIllegalChars(text: string): string {
+  let out = "";
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    out += isXmlIllegalControl(code)
+      ? `_x${code.toString(16).toUpperCase().padStart(4, "0")}_`
+      : text.charAt(i);
+  }
+  return out;
+}
 
 /**
  * Export-only formula-injection neutralization:
@@ -23,7 +57,7 @@ const FORMULA_DANGER_REGEX = /^[\s\u0000-\u001f\u007f-\u009f]*[=+\-@]/;
  * prefix with a single apostrophe `'` so spreadsheet applications treat it as literal text.
  */
 export function sanitizeSpreadsheetText(raw: string): string {
-  if (FORMULA_DANGER_REGEX.test(raw)) {
+  if (startsWithFormulaDanger(raw)) {
     return `'${raw}`;
   }
   return raw;
@@ -61,19 +95,23 @@ function formatCellExportValue(cell: DataTableCell, identity: boolean): ExportVa
   if (cell.state === "missing") return DATA_TABLE_MISSING_MARKER;
   if (cell.state === "conflict") {
     // The literal prefix makes the whole cell inert, preserving alternatives byte-for-byte.
-    return `[Conflict] ${JSON.stringify(cell.values.map(v => v.value))}`;
+    return `[Conflict] ${JSON.stringify(cell.values.map((v) => v.value))}`;
   }
   const raw = cell.values[0]?.value ?? cell.display_text;
-  return (!identity ? numericValue(raw) : null) ?? sanitizeSpreadsheetText(raw);
+  return (identity ? null : numericValue(raw)) ?? sanitizeSpreadsheetText(raw);
 }
 
 function formatCellCitations(cell: DataTableCell): string {
   if (cell.state === "missing") return "";
-  if (cell.state === "conflict") return cell.values.map((v, i) => `${i + 1}: ${formatCiteBadges(v.citations)}`).join(" | ");
+  if (cell.state === "conflict")
+    return cell.values.map((v, i) => `${i + 1}: ${formatCiteBadges(v.citations)}`).join(" | ");
   return formatCiteBadges(cell.values[0]?.citations ?? []);
 }
 
-function resolveOrderedRows(payload: StudioDataTablePayload, orderedRowIds?: readonly string[]): DataTableRow[] {
+function resolveOrderedRows(
+  payload: StudioDataTablePayload,
+  orderedRowIds?: readonly string[],
+): DataTableRow[] {
   if (!orderedRowIds) {
     return [...payload.rows];
   }
@@ -82,7 +120,13 @@ function resolveOrderedRows(payload: StudioDataTablePayload, orderedRowIds?: rea
     throw new StudioParamsError(check.error ?? "Invalid ordered_row_ids permutation.");
   }
   const byId = new Map(payload.rows.map((r) => [r.item_id, r]));
-  return orderedRowIds.map((id) => byId.get(id)!);
+  return orderedRowIds.map((id) => {
+    const row = byId.get(id);
+    if (!row) {
+      throw new StudioParamsError(`Unknown row ID ${id} in ordered_row_ids.`);
+    }
+    return row;
+  });
 }
 
 function escapeCsvField(field: string): string {
@@ -102,7 +146,7 @@ function padRecord(fields: ExportValue[], totalColumns: number): ExportValue[] {
  */
 export function buildDataTableExportGrid(
   payload: StudioDataTablePayload,
-  orderedRowIds?: readonly string[]
+  orderedRowIds?: readonly string[],
 ): {
   headers: string[];
   dataRows: ExportValue[][];
@@ -111,40 +155,76 @@ export function buildDataTableExportGrid(
   allRecords: ExportValue[][];
 } {
   const orderedRows = resolveOrderedRows(payload, orderedRowIds);
-  const headers = ["Row item", "Row item citations", ...payload.columns.flatMap(c => [
-    sanitizeSpreadsheetText(c.label), sanitizeSpreadsheetText(`${c.label} citations`),
-  ])];
+  const headers = [
+    "Row item",
+    "Row item citations",
+    ...payload.columns.flatMap((c) => [
+      sanitizeSpreadsheetText(c.label),
+      sanitizeSpreadsheetText(`${c.label} citations`),
+    ]),
+  ];
   const colCount = headers.length;
-  const dataRows = orderedRows.map(row => [
-    sanitizeSpreadsheetText(row.item_label), formatCiteBadges(row.item_citations),
-    ...payload.columns.flatMap(col => {
+  const dataRows = orderedRows.map((row) => [
+    sanitizeSpreadsheetText(row.item_label),
+    formatCiteBadges(row.item_citations),
+    ...payload.columns.flatMap((col) => {
       const cell = row.cells[col.id];
-      return cell ? [formatCellExportValue(cell, col.id === "entity" || /(?:^|_)(?:id|identifier|code|isbn|sku)(?:_|$)/i.test(col.id) || /\b(?:id|identifier|code|isbn|sku)\b/i.test(col.label)), formatCellCitations(cell)] : [DATA_TABLE_MISSING_MARKER, ""];
+      return cell
+        ? [
+            formatCellExportValue(
+              cell,
+              col.id === "entity" ||
+                /(?:^|_)(?:id|identifier|code|isbn|sku)(?:_|$)/i.test(col.id) ||
+                /\b(?:id|identifier|code|isbn|sku)\b/i.test(col.label),
+            ),
+            formatCellCitations(cell),
+          ]
+        : [DATA_TABLE_MISSING_MARKER, ""];
     }),
   ]);
-  const headerCitationRow = ["[Header citations]", "", ...payload.columns.flatMap(c => ["", formatCiteBadges(c.citations)])];
-  const citationRows = [...payload.citations].sort((a, b) => a.badge_number - b.badge_number).map(cite =>
-    padRecord([
-      `[${cite.badge_number}]`, sanitizeSpreadsheetText(cite.source_id), sanitizeSpreadsheetText(cite.chunk_id),
-      String(cite.revision), sanitizeSpreadsheetText(cite.snippet),
-    ], colCount)
-  );
-  const allRecords = [headers, ...dataRows, headerCitationRow,
+  const headerCitationRow = [
+    "[Header citations]",
+    "",
+    ...payload.columns.flatMap((c) => ["", formatCiteBadges(c.citations)]),
+  ];
+  const citationRows = [...payload.citations]
+    .sort((a, b) => a.badge_number - b.badge_number)
+    .map((cite) =>
+      padRecord(
+        [
+          `[${cite.badge_number}]`,
+          sanitizeSpreadsheetText(cite.source_id),
+          sanitizeSpreadsheetText(cite.chunk_id),
+          String(cite.revision),
+          sanitizeSpreadsheetText(cite.snippet),
+        ],
+        colCount,
+      ),
+    );
+  const allRecords = [
+    headers,
+    ...dataRows,
+    headerCitationRow,
     padRecord(["[Citation references]"], colCount),
-    padRecord(["Badge", "Source ID", "Chunk ID", "Revision", "Snippet"], colCount), ...citationRows];
+    padRecord(["Badge", "Source ID", "Chunk ID", "Revision", "Snippet"], colCount),
+    ...citationRows,
+  ];
   return { headers, dataRows, headerCitationRow, citationRows, allRecords };
 }
 
-export function serializeDataTableCsv(payload: StudioDataTablePayload, orderedRowIds?: readonly string[]): Uint8Array {
+export function serializeDataTableCsv(
+  payload: StudioDataTablePayload,
+  orderedRowIds?: readonly string[],
+): Uint8Array {
   const { allRecords } = buildDataTableExportGrid(payload, orderedRowIds);
-  const csvBody = allRecords.map((rec) => rec.map(value => escapeCsvField(typeof value === "string" ? value : value.raw)).join(",")).join("\r\n") + "\r\n";
+  const csvBody = `${allRecords.map((rec) => rec.map((value) => escapeCsvField(typeof value === "string" ? value : value.raw)).join(",")).join("\r\n")}\r\n`;
   const withBom = `\uFEFF${csvBody}`;
   return new TextEncoder().encode(withBom);
 }
 
 export async function serializeDataTableXlsx(
   payload: StudioDataTablePayload,
-  orderedRowIds?: readonly string[]
+  orderedRowIds?: readonly string[],
 ): Promise<Uint8Array> {
   const { headers, dataRows, headerCitationRow } = buildDataTableExportGrid(payload, orderedRowIds);
   const workbook = new ExcelJS.Workbook();
@@ -155,7 +235,7 @@ export async function serializeDataTableXlsx(
   const dataSheet = workbook.addWorksheet("Data Table");
   const headerRow = dataSheet.addRow(headers);
   headerRow.eachCell((cell) => {
-    cell.value = String(cell.value ?? "");
+    cell.value = typeof cell.value === "string" ? cell.value : "";
     cell.numFmt = "@";
   });
 
@@ -174,7 +254,9 @@ export async function serializeDataTableXlsx(
   }
 
   const headerCites = dataSheet.addRow(headerCitationRow);
-  headerCites.eachCell(cell => { cell.numFmt = "@"; });
+  headerCites.eachCell((cell) => {
+    cell.numFmt = "@";
+  });
 
   const citeSheet = workbook.addWorksheet("Citations");
   const citeHeader = citeSheet.addRow(["Badge", "Source ID", "Chunk ID", "Revision", "Snippet"]);
@@ -192,20 +274,24 @@ export async function serializeDataTableXlsx(
       sanitizeSpreadsheetText(cite.snippet),
     ]);
     r.eachCell((cell) => {
-      cell.value = String(cell.value ?? "");
+      cell.value = typeof cell.value === "string" ? cell.value : "";
       cell.numFmt = "@";
     });
   }
 
   // OOXML ST_Xstring escaping: ExcelJS drops XML-illegal controls and decodes literal
   // _xNNNN_ sequences on read. Encode both once to retain the exact inert text.
-  workbook.eachSheet(sheet => sheet.eachRow(row => row.eachCell(cell => {
-    if (typeof cell.value === "string") {
-      cell.value = cell.value.replace(/_x[0-9a-f]{4}_/gi, match => `_x005F_${match.slice(1)}`)
-        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\ufffe\uffff]/g,
-          char => `_x${char.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}_`);
-    }
-  })));
+  workbook.eachSheet((sheet) =>
+    sheet.eachRow((row) =>
+      row.eachCell((cell) => {
+        if (typeof cell.value === "string") {
+          cell.value = escapeXmlIllegalChars(
+            cell.value.replace(/_x[0-9a-f]{4}_/gi, (match) => `_x005F_${match.slice(1)}`),
+          );
+        }
+      }),
+    ),
+  );
 
   const buffer = await workbook.xlsx.writeBuffer();
   return new Uint8Array(buffer);

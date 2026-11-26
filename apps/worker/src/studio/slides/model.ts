@@ -53,8 +53,8 @@ export interface SlideDeckComposeRequest {
 
 export interface SlideDeckModelClient {
   readonly id?: string;
-  extract(request: SlideDeckExtractRequest): Promise<SlideFactCandidate[]>;
-  compose(request: SlideDeckComposeRequest): Promise<StudioSlideDeckPayload>;
+  extract: (request: SlideDeckExtractRequest) => Promise<SlideFactCandidate[]>;
+  compose: (request: SlideDeckComposeRequest) => Promise<StudioSlideDeckPayload>;
 }
 
 export class SlideDeckGenerationError extends Error {
@@ -64,9 +64,24 @@ export class SlideDeckGenerationError extends Error {
   }
 }
 
-const stripHtml = (s: string): string => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const stripHtml = (s: string): string =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const FOCUS_STOPWORDS = new Set(["the", "and", "for", "with", "from", "that", "this", "into", "about", "using"]);
+const FOCUS_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "that",
+  "this",
+  "into",
+  "about",
+  "using",
+]);
 
 function tokenizeFocus(focus?: string): string[] {
   if (!focus) return [];
@@ -81,12 +96,17 @@ function extractTitleFromSentence(sentence: string): string {
   if (colonIdx > 2 && colonIdx <= 44) {
     return sentence.slice(0, colonIdx).trim();
   }
-  const words = sentence.replace(/[.!?]+$/, "").split(/\s+/).filter(Boolean);
+  const words = sentence
+    .replace(/[.!?]+$/, "")
+    .split(/\s+/)
+    .filter(Boolean);
   return words.slice(0, Math.min(6, words.length)).join(" ") || "Grounded Topic";
 }
 
 function extractMetric(sentence: string): { value: string; label: string } | null {
-  const match = /(\d+(?:\.\d+)?\s*(?:%|ms|s|GB|MB|TB|days?|minutes?|seconds?|req\/s))/i.exec(sentence);
+  const match = /(\d+(?:\.\d+)?\s*(?:%|ms|s|GB|MB|TB|days?|minutes?|seconds?|req\/s))/i.exec(
+    sentence,
+  );
   if (!match?.[1]) return null;
   const title = extractTitleFromSentence(sentence);
   return {
@@ -98,7 +118,11 @@ function extractMetric(sentence: string): { value: string; label: string } | nul
 function buildStepsFromSentence(sentence: string, fallbackTitle: string): string[] {
   const clauseParts = sentence
     .split(/(?:;|,\s+(?:and\s+)?|\s+->\s+)/)
-    .map((p) => stripHtml(p).replace(/[.!?]+$/, "").trim())
+    .map((p) =>
+      stripHtml(p)
+        .replace(/[.!?]+$/, "")
+        .trim(),
+    )
     .filter((p) => p.length >= 4);
   if (clauseParts.length >= 2) {
     return clauseParts.slice(0, 4).map((p) => (p.length > 48 ? `${p.slice(0, 45).trim()}...` : p));
@@ -112,7 +136,7 @@ function buildVisualSpec(
   layout: SlideLayoutType,
   candidate: SlideFactCandidate,
   bullets: string[],
-  badgeNumber: number
+  badgeNumber: number,
 ): SlideVisualSpec {
   const subtitle = candidate.title;
   if (layout === "title") {
@@ -120,6 +144,9 @@ function buildVisualSpec(
   }
   if (layout === "two_column") {
     const mid = Math.max(1, Math.ceil(bullets.length / 2));
+    const rightSlice = bullets.slice(mid);
+    const firstBullet = bullets[0];
+    const fallbackPoints = firstBullet ? [firstBullet] : [];
     return {
       layout,
       subtitle,
@@ -127,7 +154,7 @@ function buildVisualSpec(
         left_heading: "Grounded Facts",
         left_points: bullets.slice(0, mid),
         right_heading: "Key Context",
-        right_points: bullets.slice(mid).length > 0 ? bullets.slice(mid) : [bullets[0]!],
+        right_points: rightSlice.length > 0 ? rightSlice : fallbackPoints,
       },
     };
   }
@@ -151,9 +178,10 @@ function buildVisualSpec(
       },
     };
   }
-  const steps = candidate.diagram_steps && candidate.diagram_steps.length >= 2
-    ? candidate.diagram_steps.slice(0, 6)
-    : buildStepsFromSentence(candidate.sentence, candidate.title);
+  const steps =
+    candidate.diagram_steps && candidate.diagram_steps.length >= 2
+      ? candidate.diagram_steps.slice(0, 6)
+      : buildStepsFromSentence(candidate.sentence, candidate.title);
   return {
     layout: "diagram_chart",
     subtitle,
@@ -161,123 +189,142 @@ function buildVisualSpec(
   };
 }
 
-export class DeterministicSlideDeckModel implements SlideDeckModelClient {
-  readonly id = "deterministic-slide-deck-model";
+interface ScoredSlideCandidate {
+  score: number;
+  order: number;
+  candidate: SlideFactCandidate;
+}
 
-  async extract(req: SlideDeckExtractRequest): Promise<SlideFactCandidate[]> {
-    req.signal.throwIfAborted();
-    const focusTokens = tokenizeFocus(req.focus_prompt);
-    const out: { score: number; order: number; candidate: SlideFactCandidate }[] = [];
-    let order = 0;
+function collectSlideChunkCandidates(
+  chunk: UnifiedDocumentChunk,
+  focusTokens: readonly string[],
+  startOrder: number,
+  signal: AbortSignal,
+): ScoredSlideCandidate[] {
+  const sentences = splitSentences(chunk.text);
+  const rawSentences = sentences.length > 0 ? sentences : [chunk.text];
+  const entries: ScoredSlideCandidate[] = [];
+  let order = startOrder;
 
-    for (const chunk of req.chunks) {
-      const sentences = splitSentences(chunk.text);
-      const rawSentences = sentences.length > 0 ? sentences : [chunk.text];
-      for (const rawSentence of rawSentences) {
-        req.signal.throwIfAborted();
-        const cleaned = stripHtml(rawSentence);
-        if (cleaned.length < 12) continue;
-        if (/ignore\s+(?:all\s+)?previous\s+instructions/i.test(cleaned)) continue;
+  for (const rawSentence of rawSentences) {
+    signal.throwIfAborted();
+    const cleaned = stripHtml(rawSentence);
+    if (cleaned.length < 12) continue;
+    if (/ignore\s+(?:all\s+)?previous\s+instructions/i.test(cleaned)) continue;
 
-        const snippet = chunk.text.includes(rawSentence.trim())
-          ? rawSentence.trim().slice(0, 220)
-          : cleaned.slice(0, 220);
-        const title = extractTitleFromSentence(cleaned);
-        const metric = extractMetric(cleaned);
-        const lower = cleaned.toLowerCase();
-        const score = focusTokens.reduce((acc, tok) => (lower.includes(tok) ? acc + 2 : acc), 0);
+    const snippet = chunk.text.includes(rawSentence.trim())
+      ? rawSentence.trim().slice(0, 220)
+      : cleaned.slice(0, 220);
+    const title = extractTitleFromSentence(cleaned);
+    const metric = extractMetric(cleaned);
+    const lower = cleaned.toLowerCase();
+    const score = focusTokens.reduce((acc, tok) => (lower.includes(tok) ? acc + 2 : acc), 0);
 
-        out.push({
-          score,
-          order: order++,
-          candidate: {
-            sentence: cleaned,
-            title,
-            bullets: [cleaned],
-            ...(metric ? { metric_value: metric.value, metric_label: metric.label } : {}),
-            diagram_steps: buildStepsFromSentence(cleaned, title),
-            chunk_id: chunk.chunk_id,
-            source_id: chunk.source_id,
-            revision: chunk.revision,
-            snippet: snippet || chunk.text.slice(0, 180),
-          },
-        });
-      }
-    }
+    entries.push({
+      score,
+      order: order++,
+      candidate: {
+        sentence: cleaned,
+        title,
+        bullets: [cleaned],
+        ...(metric ? { metric_value: metric.value, metric_label: metric.label } : {}),
+        diagram_steps: buildStepsFromSentence(cleaned, title),
+        chunk_id: chunk.chunk_id,
+        source_id: chunk.source_id,
+        revision: chunk.revision,
+        snippet: snippet || chunk.text.slice(0, 180),
+      },
+    });
+  }
+  return entries;
+}
 
-    out.sort((a, b) => b.score - a.score || a.order - b.order);
-    return out.map((item) => item.candidate);
+function extractSlideCandidates(req: SlideDeckExtractRequest): SlideFactCandidate[] {
+  req.signal.throwIfAborted();
+  const focusTokens = tokenizeFocus(req.focus_prompt);
+  const out: ScoredSlideCandidate[] = [];
+  let order = 0;
+
+  for (const chunk of req.chunks) {
+    const chunkEntries = collectSlideChunkCandidates(chunk, focusTokens, order, req.signal);
+    out.push(...chunkEntries);
+    order += chunkEntries.length;
   }
 
-  async compose(req: SlideDeckComposeRequest): Promise<StudioSlideDeckPayload> {
-    req.signal.throwIfAborted();
-    const requested = req.slide_count ?? SLIDE_COUNT_DEFAULT;
-    const targetCount = Math.min(SLIDE_COUNT_MAX, Math.max(SLIDE_COUNT_MIN, requested));
-    if (req.candidates.length === 0) {
-      throw new SlideDeckGenerationError("Cannot compose slide deck without grounded candidates.");
+  out.sort((a, b) => b.score - a.score || a.order - b.order);
+  return out.map((item) => item.candidate);
+}
+
+function composeSlideDeckPayload(req: SlideDeckComposeRequest): StudioSlideDeckPayload {
+  req.signal.throwIfAborted();
+  const requested = req.slide_count ?? SLIDE_COUNT_DEFAULT;
+  const targetCount = Math.min(SLIDE_COUNT_MAX, Math.max(SLIDE_COUNT_MIN, requested));
+  if (req.candidates.length === 0) {
+    throw new SlideDeckGenerationError("Cannot compose slide deck without grounded candidates.");
+  }
+
+  // Build shared payload citation registry keyed by source|chunk|revision
+  const refByKey = new Map<string, StudioEvidenceRef>();
+  const citations: StudioEvidenceRef[] = [];
+
+  const ensureRef = (c: SlideFactCandidate): StudioEvidenceRef => {
+    const key = `${c.source_id}|${c.chunk_id}|${c.revision}`;
+    let ref = refByKey.get(key);
+    if (!ref) {
+      ref = {
+        badge_number: citations.length + 1,
+        chunk_id: c.chunk_id,
+        source_id: c.source_id,
+        revision: c.revision,
+        snippet: c.snippet,
+      };
+      refByKey.set(key, ref);
+      citations.push(ref);
+    }
+    return ref;
+  };
+
+  const slideTotal = Math.min(targetCount, req.candidates.length);
+  const groups: SlideFactCandidate[][] = Array.from({ length: slideTotal }, () => []);
+  for (const [i, candidate] of req.candidates.entries()) {
+    groups[i % slideTotal]?.push(candidate);
+  }
+
+  const layoutOptions = SlideLayoutTypeSchema.options;
+  const slides: SlideItem[] = groups.flatMap((group, idx) => {
+    const primary = group[0];
+    if (!primary) return [];
+    const layout: SlideLayoutType =
+      layoutOptions[idx] ??
+      primary.preferred_layout ??
+      layoutOptions[idx % layoutOptions.length] ??
+      "title";
+
+    const slideRefs: StudioEvidenceRef[] = [];
+    const seenSlideRef = new Set<string>();
+    const rawBullets: string[] = [];
+    const notesParts: string[] = [];
+
+    for (const item of group) {
+      const ref = ensureRef(item);
+      const rKey = `${ref.badge_number}|${ref.chunk_id}`;
+      if (!seenSlideRef.has(rKey)) {
+        seenSlideRef.add(rKey);
+        slideRefs.push(ref);
+      }
+      for (const b of item.bullets) {
+        rawBullets.push(b);
+      }
+      notesParts.push(item.custom_speaker_notes ?? `${item.sentence} [${ref.badge_number}]`);
     }
 
-    // Build shared payload citation registry keyed by source|chunk|revision
-    const badgeByKey = new Map<string, number>();
-    const refByKey = new Map<string, StudioEvidenceRef>();
-    const citations: StudioEvidenceRef[] = [];
+    const { bullets, speaker_notes } = enforceSlideBulletLimit(rawBullets, notesParts.join(" "));
+    const firstBadge = slideRefs[0]?.badge_number ?? 1;
+    const metricCandidate = group.find((g) => g.metric_value) ?? primary;
+    const visual_spec = buildVisualSpec(layout, metricCandidate, bullets, firstBadge);
 
-    const ensureRef = (c: SlideFactCandidate): StudioEvidenceRef => {
-      const key = `${c.source_id}|${c.chunk_id}|${c.revision}`;
-      let ref = refByKey.get(key);
-      if (!ref) {
-        const badge = citations.length + 1;
-        badgeByKey.set(key, badge);
-        ref = {
-          badge_number: badge,
-          chunk_id: c.chunk_id,
-          source_id: c.source_id,
-          revision: c.revision,
-          snippet: c.snippet,
-        };
-        refByKey.set(key, ref);
-        citations.push(ref);
-      }
-      return ref;
-    };
-
-    const slideTotal = Math.min(targetCount, req.candidates.length);
-    const groups: SlideFactCandidate[][] = Array.from({ length: slideTotal }, () => []);
-    for (let i = 0; i < req.candidates.length; i++) {
-      groups[i % slideTotal]!.push(req.candidates[i]!);
-    }
-
-    const slides: SlideItem[] = groups.map((group, idx) => {
-      const primary = group[0]!;
-      const layout: SlideLayoutType =
-        idx < SlideLayoutTypeSchema.options.length
-          ? SlideLayoutTypeSchema.options[idx]!
-          : primary.preferred_layout ?? SlideLayoutTypeSchema.options[idx % SlideLayoutTypeSchema.options.length]!;
-
-      const slideRefs: StudioEvidenceRef[] = [];
-      const seenSlideRef = new Set<string>();
-      const rawBullets: string[] = [];
-      const notesParts: string[] = [];
-
-      for (const item of group) {
-        const ref = ensureRef(item);
-        const rKey = `${ref.badge_number}|${ref.chunk_id}`;
-        if (!seenSlideRef.has(rKey)) {
-          seenSlideRef.add(rKey);
-          slideRefs.push(ref);
-        }
-        for (const b of item.bullets) {
-          rawBullets.push(b);
-        }
-        notesParts.push(item.custom_speaker_notes ?? `${item.sentence} [${ref.badge_number}]`);
-      }
-
-      const { bullets, speaker_notes } = enforceSlideBulletLimit(rawBullets, notesParts.join(" "));
-      const firstBadge = slideRefs[0]!.badge_number;
-      const metricCandidate = group.find((g) => g.metric_value) ?? primary;
-      const visual_spec = buildVisualSpec(layout, metricCandidate, bullets, firstBadge);
-
-      return {
+    return [
+      {
         slide_number: idx + 1,
         layout,
         title: primary.title,
@@ -286,18 +333,34 @@ export class DeterministicSlideDeckModel implements SlideDeckModelClient {
         speaker_notes,
         source_chunk_ids: [...new Set(slideRefs.map((r) => r.chunk_id))],
         citations: slideRefs,
-      };
-    });
+      },
+    ];
+  });
 
-    return {
-      slides,
-      target_count: targetCount,
-      insufficient_evidence_note:
-        slides.length < targetCount
-          ? `Selected sources supported ${slides.length} grounded slide(s) out of the requested ${targetCount}.`
-          : null,
-      citations,
-    };
+  return {
+    slides,
+    target_count: targetCount,
+    insufficient_evidence_note:
+      slides.length < targetCount
+        ? `Selected sources supported ${slides.length} grounded slide(s) out of the requested ${targetCount}.`
+        : null,
+    citations,
+  };
+}
+
+export class DeterministicSlideDeckModel implements SlideDeckModelClient {
+  readonly id = "deterministic-slide-deck-model";
+
+  extract(req: SlideDeckExtractRequest): Promise<SlideFactCandidate[]> {
+    return new Promise((resolve) => {
+      resolve(extractSlideCandidates(req));
+    });
+  }
+
+  compose(req: SlideDeckComposeRequest): Promise<StudioSlideDeckPayload> {
+    return new Promise((resolve) => {
+      resolve(composeSlideDeckPayload(req));
+    });
   }
 }
 
@@ -310,7 +373,7 @@ const vertexSlideSchema = z.strictObject({
       speaker_notes: z.string().trim().min(1),
       chunk_id: z.string().min(1),
       snippet: z.string().trim().min(1),
-    })
+    }),
   ),
 });
 

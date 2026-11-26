@@ -9,7 +9,20 @@
 export const CODE_EXECUTION_FIXTURE_VERSION = 1;
 
 /** 12 monthly latency values 1..12 ms (Gate v3.0 #2 standard-deviation scenario). */
-export const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+export const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
 export const LATENCY_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 /** Markdown/PDF page text containing the 12-row table. One paragraph → one C-01 chunk in `seedReadySource`. */
@@ -43,9 +56,12 @@ export const DECOY_PAGE = "Confidential decoy: latency values 900 ms, codename O
 export const DECOY_MARKER = "OBSIDIAN";
 
 /** Ambiguous statistical request (FR-014, SC-007) and its population resolution. */
-export const AMBIGUOUS_STDDEV_QUESTION = "What is the exact standard deviation of the monthly latency and plot the trend?";
-export const POPULATION_STDDEV_QUESTION = "What is the exact population standard deviation of the monthly latency? Plot the trend.";
-export const SAMPLE_STDDEV_QUESTION = "What is the exact sample standard deviation of the monthly latency? Plot the trend.";
+export const AMBIGUOUS_STDDEV_QUESTION =
+  "What is the exact standard deviation of the monthly latency and plot the trend?";
+export const POPULATION_STDDEV_QUESTION =
+  "What is the exact population standard deviation of the monthly latency? Plot the trend.";
+export const SAMPLE_STDDEV_QUESTION =
+  "What is the exact sample standard deviation of the monthly latency? Plot the trend.";
 
 /** Syntactically valid UUIDs that never exist in any fixture database (invalid citation cases, SC-005). */
 export const UNKNOWN_CHUNK_ID = "0190f0b5-7d1c-7a4e-9b2a-3c4d5e6f7a8b";
@@ -58,7 +74,8 @@ export const UNKNOWN_SOURCE_ID = "6f9619ff-8b86-4011-b42d-00c04fc964ff";
 export const ADVERSARIAL_CODE = {
   http: "import urllib.request\nprint(urllib.request.urlopen('https://example.com').read()[:10])",
   dns: "import socket\nprint(socket.gethostbyname('example.com'))",
-  metadata: "import urllib.request\nprint(urllib.request.urlopen('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token', timeout=2).read())",
+  metadata:
+    "import urllib.request\nprint(urllib.request.urlopen('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token', timeout=2).read())",
   privateAddress: "import socket\ns=socket.create_connection(('10.0.0.1', 5432), timeout=2)",
   inbound: "import socket\ns=socket.socket(); s.bind(('0.0.0.0', 8080)); s.listen(1); s.accept()",
   hostFile: "print(open('/etc/passwd').read())",
@@ -72,16 +89,26 @@ export const ADVERSARIAL_CODE = {
 /** SVG payloads that must be rejected or neutralized by output validation (T017). */
 export const UNSAFE_SVGS = {
   script: '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
-  onload: '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="1" height="1"/></svg>',
-  foreignObject: '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject></svg>',
-  externalHref: '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="https://evil.test/a.svg#x"/></svg>',
-  externalImage: '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.test/x.png"/></svg>',
-  cssUrl: '<svg xmlns="http://www.w3.org/2000/svg"><style>rect{fill:url(https://evil.test/x)}</style><rect width="1" height="1"/></svg>',
-  remoteFont: '<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{font-family:x;src:url(https://evil.test/f.woff)}</style></svg>',
-  importCss: '<svg xmlns="http://www.w3.org/2000/svg"><style>@import "https://evil.test/a.css";</style></svg>',
-  doctypeEntity: '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>',
-  javascriptHref: '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect width="1" height="1"/></a></svg>',
-  animateHref: '<svg xmlns="http://www.w3.org/2000/svg"><a><animate attributeName="href" to="javascript:alert(1)"/></a></svg>',
+  onload:
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="1" height="1"/></svg>',
+  foreignObject:
+    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject></svg>',
+  externalHref:
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><use xlink:href="https://evil.test/a.svg#x"/></svg>',
+  externalImage:
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://evil.test/x.png"/></svg>',
+  cssUrl:
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>rect{fill:url(https://evil.test/x)}</style><rect width="1" height="1"/></svg>',
+  remoteFont:
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>@font-face{font-family:x;src:url(https://evil.test/f.woff)}</style></svg>',
+  importCss:
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>@import "https://evil.test/a.css";</style></svg>',
+  doctypeEntity:
+    '<?xml version="1.0"?><!DOCTYPE svg [<!ENTITY x SYSTEM "file:///etc/passwd">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>',
+  javascriptHref:
+    '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><rect width="1" height="1"/></a></svg>',
+  animateHref:
+    '<svg xmlns="http://www.w3.org/2000/svg"><a><animate attributeName="href" to="javascript:alert(1)"/></a></svg>',
 } as const;
 
 /** Minimal safe matplotlib-like SVG (paths, groups, clip paths, local references only). */
@@ -94,10 +121,11 @@ export const SAFE_SVG =
   '  <g id="line2d_1"><path d="M 57 300 L 400 40" clip-path="url(#p1)" style="fill: none; stroke: #1f77b4; stroke-width: 1.5"/></g></g>\n' +
   ' <defs><clipPath id="p1"><rect x="57.6" y="41.472" width="357.12" height="266.112"/></clipPath></defs>\n' +
   ' <use xlink:href="#line2d_1" x="0" y="0"/>\n' +
-  '</svg>\n';
+  "</svg>\n";
 
 /**
  * A minimal valid 1×1 RGBA PNG (signature, IHDR, IDAT, IEND with correct CRCs). Base64 so the fixture is plain
  * text; decoded by tests with Buffer.from(…, "base64").
  */
-export const TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+export const TINY_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";

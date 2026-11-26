@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { StudioMindmapPayload } from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   makeCodePointString,
@@ -46,7 +47,7 @@ describe("[011-studio-mindmaps-data-tables] T013: Mindmap pipeline, structural i
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const payload = outcome.payload as any;
+    const payload = outcome.payload as StudioMindmapPayload;
     expect(payload.node_count).toBeGreaterThanOrEqual(15);
     expect(payload.node_count).toBeLessThanOrEqual(120);
     expect(payload.max_depth).toBeGreaterThanOrEqual(2);
@@ -95,13 +96,37 @@ describe("[011-studio-mindmaps-data-tables] T013: Mindmap pipeline, structural i
       };
     };
 
-    expect(validateMindmapPayload(buildTreeWithCount(119), fixture.chunks, fixture.snapshot)).toBeNull();
-    expect(validateMindmapPayload(buildTreeWithCount(120), fixture.chunks, fixture.snapshot)).toBeNull();
-    expect(validateMindmapPayload(buildTreeWithCount(121), fixture.chunks, fixture.snapshot)).toMatch(/120/);
+    expect(
+      validateMindmapPayload(buildTreeWithCount(119), fixture.chunks, fixture.snapshot),
+    ).toBeNull();
+    expect(
+      validateMindmapPayload(buildTreeWithCount(120), fixture.chunks, fixture.snapshot),
+    ).toBeNull();
+    expect(
+      validateMindmapPayload(buildTreeWithCount(121), fixture.chunks, fixture.snapshot),
+    ).toMatch(/120/);
 
-    expect(validateMindmapPayload(buildTreeWithCount(15, makeCodePointString(79)), fixture.chunks, fixture.snapshot)).toBeNull();
-    expect(validateMindmapPayload(buildTreeWithCount(15, makeCodePointString(80)), fixture.chunks, fixture.snapshot)).toBeNull();
-    expect(validateMindmapPayload(buildTreeWithCount(15, makeCodePointString(81)), fixture.chunks, fixture.snapshot)).toMatch(/80/);
+    expect(
+      validateMindmapPayload(
+        buildTreeWithCount(15, makeCodePointString(79)),
+        fixture.chunks,
+        fixture.snapshot,
+      ),
+    ).toBeNull();
+    expect(
+      validateMindmapPayload(
+        buildTreeWithCount(15, makeCodePointString(80)),
+        fixture.chunks,
+        fixture.snapshot,
+      ),
+    ).toBeNull();
+    expect(
+      validateMindmapPayload(
+        buildTreeWithCount(15, makeCodePointString(81)),
+        fixture.chunks,
+        fixture.snapshot,
+      ),
+    ).toMatch(/80/);
   });
 
   it("explains evidence-limited lower node counts (<15) and refuses when sources have zero readable evidence", async () => {
@@ -119,7 +144,7 @@ describe("[011-studio-mindmaps-data-tables] T013: Mindmap pipeline, structural i
     });
     expect(limited.status).toBe("completed");
     if (limited.status === "completed") {
-      const payload = limited.payload as any;
+      const payload = limited.payload;
       expect(payload.node_count).toBeLessThan(15);
       expect(payload.insufficient_evidence_note).toBeTruthy();
       expect(validateMindmapPayload(payload, [singleChunk], snapshot)).toBeNull();
@@ -132,10 +157,12 @@ describe("[011-studio-mindmaps-data-tables] T013: Mindmap pipeline, structural i
       signal: new AbortController().signal,
       reportProgress: () => undefined,
     });
-    expect(empty).toEqual({
+    expect(empty).toMatchObject({
       status: "refused",
       code: "InsufficientEvidence",
-      message: expect.stringMatching(/no readable|insufficient/i),
     });
+    if (empty.status === "refused") {
+      expect(empty.message).toMatch(/no readable|insufficient/i);
+    }
   });
 });

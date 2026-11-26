@@ -1,5 +1,12 @@
 import { h } from "../lib/dom.ts";
-import { breakpointFor, defaultPreferences, loadPreferences, savePreferences, type Breakpoint, type PanelPreferences } from "../lib/layout.ts";
+import {
+  breakpointFor,
+  defaultPreferences,
+  loadPreferences,
+  savePreferences,
+  type Breakpoint,
+  type PanelPreferences,
+} from "../lib/layout.ts";
 
 /**
  * Adaptive 3-column workspace shell (FR-UI-01). Panels are created once and only re-arranged on resize,
@@ -15,12 +22,17 @@ export interface WorkspaceShell {
   center: HTMLElement;
   right: HTMLElement;
   /** Makes the Sources panel visible (un-collapse / switch tab) — used when a citation opens the inspector. */
-  revealSources(): void;
-  setLeftWide(wide: boolean): void;
-  destroy(): void;
+  revealSources: () => void;
+  setLeftWide: (wide: boolean) => void;
+  destroy: () => void;
 }
 
-function panel(side: "left" | "center" | "right", title: string, testId: string, collapsible: boolean): { section: HTMLElement; body: HTMLElement } {
+function panel(
+  side: "left" | "center" | "right",
+  title: string,
+  testId: string,
+  collapsible: boolean,
+): { section: HTMLElement; body: HTMLElement } {
   const body = h("div", { class: "panel-body" });
   const head = h("div", { class: "panel-header" }, h("h2", { class: "panel-title", text: title }));
   if (collapsible) {
@@ -31,7 +43,7 @@ function panel(side: "left" | "center" | "right", title: string, testId: string,
         "data-testid": `collapse-${side}`,
         "aria-label": `Collapse ${title} panel`,
         text: side === "left" ? "⟨" : "⟩",
-      })
+      }),
     );
   }
   const rail = collapsible
@@ -43,7 +55,12 @@ function panel(side: "left" | "center" | "right", title: string, testId: string,
         text: title,
       })
     : null;
-  const section = h("section", { class: `panel panel-${side}`, "data-testid": testId, "aria-label": title }, head, body);
+  const section = h(
+    "section",
+    { class: `panel panel-${side}`, "data-testid": testId, "aria-label": title },
+    head,
+    body,
+  );
   if (rail) section.append(rail);
   return { section, body };
 }
@@ -54,8 +71,13 @@ export function createWorkspaceShell(container: HTMLElement): WorkspaceShell {
     "nav",
     { class: "tabs", "data-testid": "workspace-tabs", role: "tablist" },
     ...(["sources", "chat", "studio"] as Tab[]).map((tab) =>
-      h("button", { role: "tab", "data-tab": tab, "data-testid": `tab-${tab}`, text: tab[0]!.toUpperCase() + tab.slice(1) })
-    )
+      h("button", {
+        role: "tab",
+        "data-tab": tab,
+        "data-testid": `tab-${tab}`,
+        text: `${tab.charAt(0).toUpperCase()}${tab.slice(1)}`,
+      }),
+    ),
   );
   const left = panel("left", "Sources", "panel-sources", true);
   const center = panel("center", "Chat", "panel-chat", false);
@@ -94,7 +116,9 @@ export function createWorkspaceShell(container: HTMLElement): WorkspaceShell {
       apply();
       return;
     }
-    switch (target.dataset.action) {
+    const action = target.dataset.action;
+    if (!action) return;
+    switch (action) {
       case "collapse-left":
         setPrefs({ ...prefs, left_collapsed: true });
         break;
@@ -106,6 +130,8 @@ export function createWorkspaceShell(container: HTMLElement): WorkspaceShell {
         break;
       case "expand-right":
         setPrefs({ ...prefs, right_collapsed: false });
+        break;
+      default:
         break;
     }
   });

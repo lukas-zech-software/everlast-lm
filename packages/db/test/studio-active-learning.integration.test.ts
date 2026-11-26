@@ -5,7 +5,12 @@ import {
   PostgresStudioArtifactRepository,
   sweepInterruptedStudioArtifacts,
 } from "../src/index.ts";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "../src/testing.ts";
 
 /**
  * [014-studio-active-learning-suite] T004 — PostgreSQL migration 0013 and LearningProgress integration tests
@@ -13,17 +18,19 @@ import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase 
  */
 
 let db: TestDatabase;
+let dropDb: (() => Promise<void>) | undefined;
 let artifacts: PostgresStudioArtifactRepository;
 let progressRepo: PostgresLearningProgressRepository;
 
 beforeAll(async () => {
   db = await createTestDatabase();
+  dropDb = () => db.drop();
   artifacts = new PostgresStudioArtifactRepository(db.pool);
   progressRepo = new PostgresLearningProgressRepository(db.pool);
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await dropDb?.();
 });
 
 const ITEM_1 = "41000000-bbbb-4000-8000-000000000001";
@@ -37,7 +44,7 @@ describe("[014-studio-active-learning-suite] T004: Migration 0013, durable Studi
       title: "Policy.txt",
       mediaType: "text/plain",
       pages: ["The maximum payload size is 200 megabytes."],
-      embed: async (texts) => texts.map(() => new Array(768).fill(0.01)),
+      embed: (texts) => Promise.resolve(texts.map(() => Array.from({ length: 768 }, () => 0.01))),
     });
     const snapshot = [{ source_id: seeded.sourceId, revision: 1 }];
 
@@ -77,7 +84,7 @@ describe("[014-studio-active-learning-suite] T004: Migration 0013, durable Studi
 
     await db.pool.query(
       "UPDATE studio_artifacts SET updated_at = now() - interval '2 minutes' WHERE id = ANY($1::uuid[])",
-      [[fc.id, qz.id, lo.id]]
+      [[fc.id, qz.id, lo.id]],
     );
     await sweepInterruptedStudioArtifacts(db.pool);
 
@@ -94,7 +101,7 @@ describe("[014-studio-active-learning-suite] T004: Migration 0013, durable Studi
       title: "Guide.txt",
       mediaType: "text/plain",
       pages: ["Active learning strengthens retention."],
-      embed: async (texts) => texts.map(() => new Array(768).fill(0.01)),
+      embed: (texts) => Promise.resolve(texts.map(() => Array.from({ length: 768 }, () => 0.01))),
     });
 
     const quiz = await artifacts.createQueued({

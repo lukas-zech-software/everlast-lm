@@ -31,7 +31,10 @@ describe("[011-studio-mindmaps-data-tables] T014: Studio structure deterministic
     expect(result.late_fact_retained).toBe(true);
     expect(result.invalid_citation_rejected).toBe(true);
     expect(result.missing_scope_drilldown_blocked).toBe(true);
-    expect(result.models).toEqual({ mindmap: "deterministic-mindmap-model", data_table: "deterministic-data-table-model" });
+    expect(result.models).toEqual({
+      mindmap: "deterministic-mindmap-model",
+      data_table: "deterministic-data-table-model",
+    });
     expect(JSON.stringify(result.cases)).not.toContain(STUDIO_LEAK_PROBE);
   });
 });

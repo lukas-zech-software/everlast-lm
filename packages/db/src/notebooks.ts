@@ -73,6 +73,23 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+function requireFirstRow<T>(rows: T[], context: string): T {
+  const row = rows[0];
+  if (!row) throw new Error(`Expected row for ${context}`);
+  return row;
+}
+
+function lockSuffix(lock: "none" | "share" | "update"): string {
+  switch (lock) {
+    case "update":
+      return " FOR UPDATE";
+    case "share":
+      return " FOR SHARE";
+    case "none":
+      return "";
+  }
+}
+
 /**
  * Loads a notebook and enforces ownership: absent → 404, foreign → 403 (workspace API contract).
  * `lock` takes a row lock inside the caller's transaction.
@@ -81,13 +98,13 @@ export async function requireOwnedNotebook(
   db: Queryable,
   ownerId: string,
   notebookId: string,
-  lock: "none" | "share" | "update" = "none"
+  lock: "none" | "share" | "update" = "none",
 ): Promise<NotebookRow> {
   if (!isUuid(notebookId)) throw new NotebookNotFoundError();
-  const suffix = lock === "update" ? " FOR UPDATE" : lock === "share" ? " FOR SHARE" : "";
+  const suffix = lockSuffix(lock);
   const result = await db.query<NotebookRow>(
     `SELECT id, owner_id, title, created_at, updated_at FROM notebooks WHERE id = $1${suffix}`,
-    [notebookId]
+    [notebookId],
   );
   const row = result.rows[0];
   if (!row) throw new NotebookNotFoundError();
@@ -116,15 +133,17 @@ function normalizeCreateTitle(title: unknown): string {
   if (typeof title !== "string") throw new InvalidTitleError("Title must be a string");
   if (title.trim().length === 0) return DEFAULT_NOTEBOOK_TITLE;
   const validation = validateNotebookTitle(title);
-  if (!validation.valid) throw new InvalidTitleError(validation.error ?? "Invalid title");
-  return validation.normalized!;
+  if (!validation.valid || validation.normalized === undefined) {
+    throw new InvalidTitleError(validation.error ?? "Invalid title");
+  }
+  return validation.normalized;
 }
 
 export async function createNotebook(
   pool: Pool,
   ownerId: string,
   input: { title?: unknown },
-  options: CreateNotebookOptions = {}
+  options: CreateNotebookOptions = {},
 ): Promise<CreateNotebookResult> {
   const title = normalizeCreateTitle(input.title);
   const key = options.idempotencyKey;
@@ -138,12 +157,12 @@ export async function createNotebook(
     if (key) {
       const prior = await tx.query<{ notebook_id: string }>(
         "SELECT notebook_id FROM notebook_create_requests WHERE owner_id = $1 AND idempotency_key = $2",
-        [ownerId, key]
+        [ownerId, key],
       );
       if (prior.rows[0]) {
         const existing = await tx.query<NotebookRow>(
           "SELECT id, owner_id, title, created_at, updated_at FROM notebooks WHERE id = $1",
-          [prior.rows[0].notebook_id]
+          [prior.rows[0].notebook_id],
         );
         if (!existing.rows[0]) {
           // The notebook this request created was deleted; a replay must never resurrect it.
@@ -155,40 +174,44 @@ export async function createNotebook(
 
     const count = await tx.query<{ count: number }>(
       "SELECT count(*)::int AS count FROM notebooks WHERE owner_id = $1",
-      [ownerId]
+      [ownerId],
     );
-    if (count.rows[0]!.count >= MAX_NOTEBOOKS_PER_OWNER) {
+    if ((count.rows[0]?.count ?? 0) >= MAX_NOTEBOOKS_PER_OWNER) {
       throw new NotebookQuotaExceededError();
     }
 
     const inserted = await tx.query<NotebookRow>(
       `INSERT INTO notebooks (id, owner_id, title) VALUES ($1, $2, $3)
        RETURNING id, owner_id, title, created_at, updated_at`,
-      [randomUUID(), ownerId, title]
+      [randomUUID(), ownerId, title],
     );
-    const notebook = inserted.rows[0]!;
+    const notebook = requireFirstRow(inserted.rows, "createNotebook");
     if (key) {
       await tx.query(
         "INSERT INTO notebook_create_requests (owner_id, idempotency_key, notebook_id) VALUES ($1, $2, $3)",
-        [ownerId, key, notebook.id]
+        [ownerId, key, notebook.id],
       );
     }
     return { notebook: toNotebookDto(notebook), replayed: false };
   });
 }
 
-export async function getNotebook(db: Queryable, ownerId: string, notebookId: string): Promise<NotebookDto> {
+export async function getNotebook(
+  db: Queryable,
+  ownerId: string,
+  notebookId: string,
+): Promise<NotebookDto> {
   return toNotebookDto(await requireOwnedNotebook(db, ownerId, notebookId));
 }
 
 export async function listNotebooks(
   db: Queryable,
-  ownerId: string
+  ownerId: string,
 ): Promise<{ notebooks: NotebookDto[]; notebooks_used: number; notebook_limit: number }> {
   const result = await db.query<NotebookRow>(
     `SELECT id, owner_id, title, created_at, updated_at FROM notebooks
      WHERE owner_id = $1 ORDER BY created_at DESC, id`,
-    [ownerId]
+    [ownerId],
   );
   return {
     notebooks: result.rows.map(toNotebookDto),
@@ -201,7 +224,7 @@ export async function renameNotebook(
   pool: Pool,
   ownerId: string,
   notebookId: string,
-  rawTitle: unknown
+  rawTitle: unknown,
 ): Promise<NotebookDto> {
   if (typeof rawTitle !== "string") throw new InvalidTitleError("Title must be a string");
   const validation = validateNotebookTitle(rawTitle);
@@ -212,9 +235,9 @@ export async function renameNotebook(
     const updated = await tx.query<NotebookRow>(
       `UPDATE notebooks SET title = $2, updated_at = greatest(clock_timestamp(), created_at)
        WHERE id = $1 RETURNING id, owner_id, title, created_at, updated_at`,
-      [notebookId, validation.normalized]
+      [notebookId, validation.normalized],
     );
-    return toNotebookDto(updated.rows[0]!);
+    return toNotebookDto(requireFirstRow(updated.rows, "renameNotebook"));
   });
 }
 
@@ -230,7 +253,7 @@ export interface DeleteNotebookResult {
 export async function deleteNotebook(
   pool: Pool,
   ownerId: string,
-  notebookId: string
+  notebookId: string,
 ): Promise<DeleteNotebookResult> {
   return withTransaction(pool, async (tx) => {
     await lockOwner(tx, ownerId);
@@ -239,7 +262,7 @@ export async function deleteNotebook(
     // Pending signed-upload capabilities keep the operation non-terminal until they expire.
     const uploads = await tx.query<{ quiescent_after: Date | null }>(
       "SELECT max(upload_expires_at) AS quiescent_after FROM sources WHERE notebook_id = $1",
-      [notebookId]
+      [notebookId],
     );
     const quiescentAfter = uploads.rows[0]?.quiescent_after ?? null;
 
@@ -247,7 +270,7 @@ export async function deleteNotebook(
     await tx.query(
       `INSERT INTO cleanup_operations (id, notebook_id, owner_id, object_prefix, status, quiescent_after)
        VALUES ($1, $2, $3, $4, 'Pending', greatest(now(), coalesce($5::timestamptz, now())))`,
-      [deletionId, notebookId, ownerId, notebookObjectPrefix(notebookId), quiescentAfter]
+      [deletionId, notebookId, ownerId, notebookObjectPrefix(notebookId), quiescentAfter],
     );
     await enqueueJob(tx, "cleanup", { deletion_id: deletionId });
     await tx.query("DELETE FROM notebooks WHERE id = $1", [notebookId]);

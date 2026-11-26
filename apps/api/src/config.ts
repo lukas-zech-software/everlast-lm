@@ -28,15 +28,17 @@ export interface ApiConfig {
 }
 
 export function loadApiConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
-  const authMode = (env.AUTH_MODE ?? "identity-platform") as AuthMode;
-  if (authMode !== "identity-platform" && authMode !== "local") {
-    throw new Error(`AUTH_MODE must be identity-platform or local, got ${authMode}`);
+  const rawAuthMode = env.AUTH_MODE ?? "identity-platform";
+  if (rawAuthMode !== "identity-platform" && rawAuthMode !== "local") {
+    throw new Error(`AUTH_MODE must be identity-platform or local, got ${rawAuthMode}`);
   }
+  const authMode: AuthMode = rawAuthMode;
   const rawLimit = env.MAX_SOURCES_PER_NOTEBOOK ?? env.QUOTA_MAX_SOURCES_PER_NOTEBOOK;
   const limits = parseSourceLimitsConfig(
-    rawLimit === undefined ? {} : { maxSourcesPerNotebook: Number(rawLimit) }
+    rawLimit === undefined ? {} : { maxSourcesPerNotebook: Number(rawLimit) },
   );
-  const projectId = env.IDENTITY_PLATFORM_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT ?? env.GCP_PROJECT_ID ?? "";
+  const projectId =
+    env.IDENTITY_PLATFORM_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT ?? env.GCP_PROJECT_ID ?? "";
   if (authMode === "identity-platform" && !projectId) {
     throw new Error("GOOGLE_CLOUD_PROJECT is required when AUTH_MODE=identity-platform");
   }
@@ -70,14 +72,23 @@ export interface CodeExecutionConfig {
   location: string;
 }
 
-export function loadCodeExecutionConfig(env: NodeJS.ProcessEnv = process.env): CodeExecutionConfig | undefined {
+export function loadCodeExecutionConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): CodeExecutionConfig | undefined {
   if (env.CODE_EXECUTION_ENABLED !== "true") return undefined;
   const reasoningEngine = env.CODE_EXECUTION_REASONING_ENGINE ?? "";
   const location = env.CODE_EXECUTION_LOCATION ?? "europe-west4";
-  const match = /^projects\/[a-z0-9-]+\/locations\/([a-z0-9-]+)\/reasoningEngines\/\d+$/.exec(reasoningEngine);
-  if (!match) throw new Error("CODE_EXECUTION_REASONING_ENGINE must be projects/<p>/locations/<region>/reasoningEngines/<id>");
+  const match = /^projects\/[a-z0-9-]+\/locations\/([a-z0-9-]+)\/reasoningEngines\/\d+$/.exec(
+    reasoningEngine,
+  );
+  if (!match)
+    throw new Error(
+      "CODE_EXECUTION_REASONING_ENGINE must be projects/<p>/locations/<region>/reasoningEngines/<id>",
+    );
   if (location !== "europe-west4" || match[1] !== location) {
-    throw new Error("Code execution must run in europe-west4 (D3); no region exception is approved");
+    throw new Error(
+      "Code execution must run in europe-west4 (D3); no region exception is approved",
+    );
   }
   return { reasoningEngine, location };
 }
@@ -93,25 +104,51 @@ export interface BenchmarkConfig {
   fixtures: Record<string, { fixture_hash: string; forbidden_facts: string[] }>;
 }
 
-export function loadBenchmarkConfig(env: NodeJS.ProcessEnv = process.env): BenchmarkConfig | undefined {
+export function loadBenchmarkConfig(
+  env: NodeJS.ProcessEnv = process.env,
+): BenchmarkConfig | undefined {
   const raw = env.BENCHMARK_APPROVED_NOTEBOOKS ?? env.SCALE_BENCHMARK_NOTEBOOK_IDS;
   if (!raw) return undefined;
-  const approvedNotebookIds = raw.split(",").map(s => s.trim()).filter(Boolean);
+  const approvedNotebookIds = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (!approvedNotebookIds.length) return undefined;
-  for (const id of approvedNotebookIds) z.string().uuid().parse(id);
+  for (const id of approvedNotebookIds) z.uuid().parse(id);
   const revision = env.K_REVISION ?? env.COMMIT_SHA ?? "dev";
-  const fixtures = env.BENCHMARK_FIXTURES_FILE ? z.record(z.string().uuid(), z.object({fixture_hash:z.string().regex(/^[a-f0-9]{64}$/),forbidden_facts:z.array(z.string().min(1)).min(1)}).strict()).parse(JSON.parse(readFileSync(env.BENCHMARK_FIXTURES_FILE,"utf8"))) : {};
-  const evidenceFile=resolve(env.BENCHMARK_EVIDENCE_FILE ?? ".local/benchmark/private.jsonl"),publicRoot=resolve(env.WEB_DIST_DIR??"apps/web/dist");
-  if(evidenceFile===publicRoot||evidenceFile.startsWith(publicRoot+"/"))throw new Error("Private benchmark evidence cannot be served as a public asset");
+  const fixtures = env.BENCHMARK_FIXTURES_FILE
+    ? z
+        .record(
+          z.uuid(),
+          z
+            .object({
+              fixture_hash: z.string().regex(/^[a-f0-9]{64}$/),
+              forbidden_facts: z.array(z.string().min(1)).min(1),
+            })
+            .strict(),
+        )
+        .parse(JSON.parse(readFileSync(env.BENCHMARK_FIXTURES_FILE, "utf8")))
+    : {};
+  const evidenceFile = resolve(env.BENCHMARK_EVIDENCE_FILE ?? ".local/benchmark/private.jsonl"),
+    publicRoot = resolve(env.WEB_DIST_DIR ?? "apps/web/dist");
+  if (evidenceFile === publicRoot || evidenceFile.startsWith(`${publicRoot}/`))
+    throw new Error("Private benchmark evidence cannot be served as a public asset");
   return { approvedNotebookIds, revision, fixtures, evidenceFile };
 }
 
 /** [008-studio-text-reports] T074 — FR-SI-02, FR-ST-11: startup validation. */
-export function loadGuideAdmissionConfig(env: NodeJS.ProcessEnv = process.env): {maxConcurrent:number;maxStartsPerHour:number} {
-  const positive=(key:string,fallback:number)=>{
-    const value=env[key]===undefined?fallback:Number(env[key]);
-    if(!Number.isSafeInteger(value)||value<1)throw new Error(`${key} must be a positive integer`);
+export function loadGuideAdmissionConfig(env: NodeJS.ProcessEnv = process.env): {
+  maxConcurrent: number;
+  maxStartsPerHour: number;
+} {
+  const positive = (key: string, fallback: number) => {
+    const value = env[key] === undefined ? fallback : Number(env[key]);
+    if (!Number.isSafeInteger(value) || value < 1)
+      throw new Error(`${key} must be a positive integer`);
     return value;
   };
-  return {maxConcurrent:positive("GUIDE_MAX_CONCURRENT",2),maxStartsPerHour:positive("GUIDE_MAX_STARTS_PER_HOUR",20)};
+  return {
+    maxConcurrent: positive("GUIDE_MAX_CONCURRENT", 2),
+    maxStartsPerHour: positive("GUIDE_MAX_STARTS_PER_HOUR", 20),
+  };
 }

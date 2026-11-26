@@ -6,13 +6,25 @@ import { addTextSource, createNotebook, signIn, uniqueEmail, waitReady } from ".
  * followed by detailed follow-up query and source mutation regression.
  */
 
-test("CONTEXT-UI-01: broad synthesis includes themes across sources; detailed follow-up cites original needle", async ({ page }) => {
+test("CONTEXT-UI-01: broad synthesis includes themes across sources; detailed follow-up cites original needle", async ({
+  page,
+}) => {
   const email = uniqueEmail("broad");
   await signIn(page, email);
   const id = await createNotebook(page.request, email);
 
-  await addTextSource(page.request, email, id, "Theme Alpha: Core safety protocols. Reactor coolant pressure must be 142.8 bar.");
-  await addTextSource(page.request, email, id, "Theme Beta: Operational monitoring and turbine efficiency standards.");
+  await addTextSource(
+    page.request,
+    email,
+    id,
+    "Theme Alpha: Core safety protocols. Reactor coolant pressure must be 142.8 bar.",
+  );
+  await addTextSource(
+    page.request,
+    email,
+    id,
+    "Theme Beta: Operational monitoring and turbine efficiency standards.",
+  );
   await waitReady(page.request, email, id, 2);
 
   await page.goto(`/notebook/${id}`);

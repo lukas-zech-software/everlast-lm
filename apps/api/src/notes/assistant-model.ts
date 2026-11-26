@@ -15,7 +15,10 @@ export interface NoteAssistantAnswer {
 }
 
 export interface NoteAssistantModel {
-  answer(input: { question: string; chunks: UnifiedDocumentChunk[] }): Promise<NoteAssistantAnswer>;
+  answer: (input: {
+    question: string;
+    chunks: UnifiedDocumentChunk[];
+  }) => Promise<NoteAssistantAnswer>;
 }
 
 export class GroundedNoteAssistant implements NoteAssistantModel {
@@ -24,14 +27,25 @@ export class GroundedNoteAssistant implements NoteAssistantModel {
     this.model = model;
   }
 
-  async answer(input: { question: string; chunks: UnifiedDocumentChunk[] }): Promise<NoteAssistantAnswer> {
-    if (input.chunks.length === 0) return { kind: "refusal", content: REFUSAL_UNVERIFIED, citations: [] };
+  async answer(input: {
+    question: string;
+    chunks: UnifiedDocumentChunk[];
+  }): Promise<NoteAssistantAnswer> {
+    if (input.chunks.length === 0)
+      return { kind: "refusal", content: REFUSAL_UNVERIFIED, citations: [] };
     try {
-      const result = verifyDraft(await this.model.generate({ question: input.question, chunks: input.chunks, history: [] }), input.chunks);
+      const result = verifyDraft(
+        await this.model.generate({ question: input.question, chunks: input.chunks, history: [] }),
+        input.chunks,
+      );
       return result.kind === "answer"
         ? { kind: "answer", content: result.content, citations: result.citations }
         : // Note actions never run code or ask back (FR-NM-04); a compute/clarify draft becomes the verified refusal.
-          { kind: "refusal", content: result.kind === "refusal" ? result.content : REFUSAL_UNVERIFIED, citations: [] };
+          {
+            kind: "refusal",
+            content: result.kind === "refusal" ? result.content : REFUSAL_UNVERIFIED,
+            citations: [],
+          };
     } catch (err) {
       // An unavailable model publishes nothing (503); an unusable draft becomes the verified refusal.
       if (err instanceof ModelUnavailableError) throw err;

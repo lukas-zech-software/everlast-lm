@@ -2,14 +2,20 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HashingTestEmbedder, LocalObjectStorage, type Embedder, type EmbeddingTask } from "@everlast/cloud";
+import {
+  HashingTestEmbedder,
+  LocalObjectStorage,
+  type Embedder,
+  type EmbeddingTask,
+} from "@everlast/cloud";
 import { seedReadySource } from "@everlast/db/testing";
 import { createWorkerHandler } from "@everlast/worker";
+import type { SavedResponseNote } from "@everlast/contracts";
 import { ChatService } from "../src/chat/service.ts";
 import type { GroundedModel, GroundedModelInput } from "../src/chat/model.ts";
 import type { GroundedDraft } from "../src/chat/draft.ts";
 import { createV2Runtime, type V2Runtime, type V2RuntimeOptions } from "../src/v2/runtime.ts";
-import { startTestApi, type TestApi } from "./support.ts";
+import { readJson, startTestApi, type TestApi } from "./support.ts";
 
 /**
  * TEST-ONLY harness for the Package 2.3 PostgreSQL suites (FR-NM-01..04, FR-WM-07, C-01, C-02, Gate v2.0 #2).
@@ -32,17 +38,38 @@ export class ScriptedModel implements GroundedModel {
 
 /** Cites every chunk that shares a 4+ letter keyword with the question; otherwise not_in_sources. */
 export const citeMatching: Script = ({ question, chunks }) => {
-  const words = (question.toLowerCase().match(/[\p{L}\p{N}-]{4,}/gu) ?? []).filter((w) => !["what", "selected", "notes", "from"].includes(w));
+  const words = (question.toLowerCase().match(/[\p{L}\p{N}-]{4,}/gu) ?? []).filter(
+    (w) => !["what", "selected", "notes", "from"].includes(w),
+  );
   const hits = chunks.filter((c) => words.some((w) => c.text.toLowerCase().includes(w)));
-  if (hits.length === 0) return { status: "not_in_sources", missing_topic: "the question", sentences: [] };
-  return { status: "answered", sentences: hits.map((c) => ({ text: c.text.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.trim() ?? c.text, citations: [c.chunk_id], kind: "claim" as const })) };
+  if (hits.length === 0)
+    return { status: "not_in_sources", missing_topic: "the question", sentences: [] };
+  return {
+    status: "answered",
+    sentences: hits.map((c) => ({
+      text:
+        c.text
+          .split("\n")
+          .find((l) => l.trim() && !l.startsWith("#"))
+          ?.trim() ?? c.text,
+      citations: [c.chunk_id],
+      kind: "claim" as const,
+    })),
+  };
 };
 
 /** Cites every chunk it was given (Note Assistant actions). */
 export const citeAll: Script = ({ chunks }) =>
   chunks.length === 0
     ? { status: "not_in_sources", sentences: [] }
-    : { status: "answered", sentences: chunks.map((c) => ({ text: `Point from ${c.source_id.slice(0, 8)}.`, citations: [c.chunk_id], kind: "claim" as const })) };
+    : {
+        status: "answered",
+        sentences: chunks.map((c) => ({
+          text: `Point from ${c.source_id.slice(0, 8)}.`,
+          citations: [c.chunk_id],
+          kind: "claim" as const,
+        })),
+      };
 
 /** Lexical test embedder whose document embeddings can be held open or made to fail. */
 export class ControlledEmbedder implements Embedder {
@@ -71,7 +98,8 @@ export class ControlledEmbedder implements Embedder {
     if (task === "RETRIEVAL_DOCUMENT") {
       this.documentCalls += 1;
       if (this.gate) await this.gate;
-      if (this.failDocuments) throw new Error("embedding backend unavailable: secret upstream detail");
+      if (this.failDocuments)
+        throw new Error("embedding backend unavailable: secret upstream detail");
     }
     return this.inner.embed(texts);
   }
@@ -79,7 +107,30 @@ export class ControlledEmbedder implements Embedder {
 
 export interface SseEvent {
   event: string;
-  data: any;
+  data: unknown;
+}
+
+export interface ApiErrorBody {
+  code: string;
+  message: string;
+}
+
+export interface TurnMessageCitation {
+  badge_number?: number;
+  source_id: string;
+  source_title?: string;
+  source_media_type?: string;
+  status?: string;
+  chunk_id: string;
+  snippet?: string;
+}
+
+export interface TurnMessage {
+  id: string;
+  role: string;
+  kind?: string;
+  content: string;
+  citations: TurnMessageCitation[];
 }
 
 export interface NotesApi {
@@ -87,48 +138,104 @@ export interface NotesApi {
   v2: V2Runtime;
   model: ScriptedModel;
   embedder: ControlledEmbedder;
-  drain(): Promise<unknown>;
-  call(as: string, method: string, path: string, json?: unknown): Promise<{ status: number; json: any }>;
-  notebook(as: string): Promise<string>;
-  userId(as: string): Promise<string>;
-  addText(as: string, nb: string, text: string): Promise<string>;
-  seedSources(as: string, nb: string, count: number): Promise<void>;
-  turn(as: string, nb: string, message: string, sources: string[]): Promise<{ status: number; messages: any[]; error?: any; json?: any }>;
-  saveNote(as: string, nb: string, messageId: string): Promise<{ status: number; json: any }>;
-  close(): Promise<void>;
+  drain: () => Promise<unknown>;
+  call: <T = unknown>(
+    as: string,
+    method: string,
+    path: string,
+    json?: unknown,
+    _type?: T,
+  ) => Promise<{ status: number; json: T }>;
+  notebook: (as: string) => Promise<string>;
+  userId: (as: string) => Promise<string>;
+  addText: (as: string, nb: string, text: string) => Promise<string>;
+  seedSources: (as: string, nb: string, count: number) => Promise<void>;
+  turn: (
+    as: string,
+    nb: string,
+    message: string,
+    sources: string[],
+  ) => Promise<{
+    status: number;
+    messages: TurnMessage[];
+    error?: ApiErrorBody | undefined;
+    json?: unknown;
+  }>;
+  saveNote: (
+    as: string,
+    nb: string,
+    messageId: string,
+  ) => Promise<{ status: number; json: { note: SavedResponseNote; error?: ApiErrorBody } }>;
+  close: () => Promise<void>;
 }
 
 /** `v2` adds runtime options (e.g. a Studio report model test double, [008-studio-text-reports] T040/T043/T047). */
-export async function startNotesApi(options: { sourceLimit?: number; v2?: Partial<V2RuntimeOptions>; db?: TestApi["db"] } = {}): Promise<NotesApi> {
+export async function startNotesApi(
+  options: { sourceLimit?: number; v2?: Partial<V2RuntimeOptions>; db?: TestApi["db"] } = {},
+): Promise<NotesApi> {
   const sourceLimit = options.sourceLimit ?? 50;
   const dir = await mkdtemp(join(tmpdir(), "everlast-notes-"));
   const embedder = new ControlledEmbedder();
   const model = new ScriptedModel();
   const storage = new LocalObjectStorage({ root: dir, publicBaseUrl: "http://127.0.0.1:9" });
-  let drain: () => Promise<unknown> = async () => undefined;
+  let drain: () => Promise<unknown> = () => Promise.resolve(undefined);
   let pending: Promise<unknown> = Promise.resolve();
   const notifyJobs = () => {
     pending = pending.then(() => drain()).catch(() => undefined);
   };
   let v2!: V2Runtime;
-  const api = await startTestApi({ sourceLimit }, (db) => {
-    v2 = createV2Runtime({ pool: db.pool, sourceLimit, model, storage, embedder, notifyJobs, ...options.v2 });
-    return { embedder, storage, notifyJobs, v2, chat: new ChatService({ pool: db.pool, embedder, model }) };
-  }, options.db ? { db: options.db } : {});
+  const api = await startTestApi(
+    { sourceLimit },
+    (db) => {
+      v2 = createV2Runtime({
+        pool: db.pool,
+        sourceLimit,
+        model,
+        storage,
+        embedder,
+        notifyJobs,
+        ...options.v2,
+      });
+      return {
+        embedder,
+        storage,
+        notifyJobs,
+        v2,
+        chat: new ChatService({ pool: db.pool, embedder, model }),
+      };
+    },
+    options.db ? { db: options.db } : {},
+  );
   const worker = createWorkerHandler(
-    { pool: api.db.pool, storage, embedder, ocr: { name: "none", recognize: async () => new Map() }, studioRunner: v2.studioRunner },
-    { NODE_ENV: "test" }
+    {
+      pool: api.db.pool,
+      storage,
+      embedder,
+      ocr: { name: "none", recognize: () => Promise.resolve(new Map()) },
+      studioRunner: v2.studioRunner,
+    },
+    { NODE_ENV: "test" },
   );
   drain = () => worker.drain();
 
-  const call = async (as: string, method: string, path: string, json?: unknown) => {
-    const res = await api.fetch(path, { method, as, ...(json !== undefined ? { json } : {}) });
+  const call = async <T = unknown>(
+    as: string,
+    method: string,
+    path: string,
+    json?: unknown,
+    _type?: T,
+  ): Promise<{ status: number; json: T }> => {
+    const res = await api.fetch(path, { method, as, ...(json === undefined ? {} : { json }) });
     const text = await res.text();
-    return { status: res.status, json: text ? JSON.parse(text) : null };
+    return { status: res.status, json: (text ? JSON.parse(text) : null) as T };
   };
   const userId = async (as: string) => {
     await api.fetch("/api/notebooks", { as });
-    return (await api.db.pool.query("SELECT id FROM users WHERE subject = $1", [`local:${as}`])).rows[0].id as string;
+    return (
+      await api.db.pool.query<{ id: string }>("SELECT id FROM users WHERE subject = $1", [
+        `local:${as}`,
+      ])
+    ).rows[0]!.id;
   };
 
   return {
@@ -140,39 +247,72 @@ export async function startNotesApi(options: { sourceLimit?: number; v2?: Partia
     call,
     userId,
     async notebook(as) {
-      return (await call(as, "POST", "/api/notebooks", {})).json.notebook.id;
+      return ((await call(as, "POST", "/api/notebooks", {})).json as { notebook: { id: string } })
+        .notebook.id;
     },
     async addText(as, nb, text) {
-      const r = await call(as, "POST", `/api/notebooks/${nb}/sources/text`, { attempt_id: randomUUID(), text });
-      if (r.status !== 201) throw new Error(`addText failed: ${r.status} ${JSON.stringify(r.json)}`);
-      const id: string = r.json.source.id;
+      const r = await call(as, "POST", `/api/notebooks/${nb}/sources/text`, {
+        attempt_id: randomUUID(),
+        text,
+      });
+      if (r.status !== 201)
+        throw new Error(`addText failed: ${r.status} ${JSON.stringify(r.json)}`);
+      const id = (r.json as { source: { id: string } }).source.id;
       for (let i = 0; i < 200; i++) {
         await drain();
         const s = await call(as, "GET", `/api/notebooks/${nb}/sources/${id}`);
-        if (s.json.source.status === "Ready") return id;
-        if (s.json.source.status === "Failed") throw new Error("text source failed");
-        await new Promise((r) => setTimeout(r, 10));
+        const status = (s.json as { source: { status: string } }).source.status;
+        if (status === "Ready") return id;
+        if (status === "Failed") throw new Error("text source failed");
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
       throw new Error("text source never became Ready");
     },
     async seedSources(as, nb, count) {
       const owner = await userId(as);
       for (let i = 0; i < count; i++) {
-        await seedReadySource(api.db.pool, owner, nb, { title: `Upload ${i + 1}.txt`, mediaType: "text/plain", pages: [`Filler upload number ${i + 1}.`], embed: (t) => embedder.embed(t, "RETRIEVAL_DOCUMENT") });
+        await seedReadySource(api.db.pool, owner, nb, {
+          title: `Upload ${i + 1}.txt`,
+          mediaType: "text/plain",
+          pages: [`Filler upload number ${i + 1}.`],
+          embed: (t) => embedder.embed(t, "RETRIEVAL_DOCUMENT"),
+        });
       }
     },
     async turn(as, nb, message, sources) {
-      const res = await api.fetch(`/api/notebooks/${nb}/chat/turns`, { method: "POST", as, json: { message, active_source_ids: sources, request_id: randomUUID() } });
-      if (res.headers.get("content-type")?.startsWith("application/json")) return { status: res.status, messages: [], json: await res.json() };
+      const res = await api.fetch(`/api/notebooks/${nb}/chat/turns`, {
+        method: "POST",
+        as,
+        json: { message, active_source_ids: sources, request_id: randomUUID() },
+      });
+      if (res.headers.get("content-type")?.startsWith("application/json"))
+        return { status: res.status, messages: [], json: await readJson(res) };
       const events: SseEvent[] = (await res.text())
         .split("\n\n")
         .filter(Boolean)
-        .map((block) => ({ event: /^event: (.+)$/m.exec(block)![1]!, data: JSON.parse(/^data: (.+)$/m.exec(block)![1]!) }));
-      const final = events.find((e) => e.event === "final")?.data;
-      return { status: res.status, messages: final?.messages ?? [], error: events.find((e) => e.event === "error")?.data };
+        .map((block) => ({
+          event: /^event: (.+)$/m.exec(block)![1]!,
+          data: JSON.parse(/^data: (.+)$/m.exec(block)![1]!) as unknown,
+        }));
+      const finalData = events.find((e) => e.event === "final")?.data as
+        { messages?: TurnMessage[] } | undefined;
+      const errorData = events.find((e) => e.event === "error")?.data as ApiErrorBody | undefined;
+      return {
+        status: res.status,
+        messages: finalData?.messages ?? [],
+        error: errorData,
+      };
     },
     saveNote(as, nb, messageId) {
-      return call(as, "POST", `/api/notebooks/${nb}/chat/messages/${messageId}/note`, { notebook_id: nb, message_id: messageId });
+      return call<{ note: SavedResponseNote; error?: ApiErrorBody }>(
+        as,
+        "POST",
+        `/api/notebooks/${nb}/chat/messages/${messageId}/note`,
+        {
+          notebook_id: nb,
+          message_id: messageId,
+        },
+      );
     },
     async close() {
       embedder.open();

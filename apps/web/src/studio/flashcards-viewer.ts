@@ -18,18 +18,26 @@ export interface FlashcardsViewerOptions {
   title: string;
   payload: StudioFlashcardsPayload;
   progress: LearningProgressDto | null;
-  onRecordProgress(itemId: string, outcome: LearningItemOutcome): Promise<LearningProgressDto>;
-  onResetProgress(): Promise<LearningProgressDto>;
-  onExplain(itemId: string): Promise<void> | void;
-  onCitationClick?(sourceId: string, chunkId: string): void;
-  onClose?(): void;
+  onRecordProgress: (itemId: string, outcome: LearningItemOutcome) => Promise<LearningProgressDto>;
+  onResetProgress: () => Promise<LearningProgressDto>;
+  onExplain: (itemId: string) => Promise<void> | void;
+  onCitationClick?: (sourceId: string, chunkId: string) => void;
+  onClose?: () => void;
   actions?: HTMLElement[];
-  confirmReset?(): Promise<boolean>;
+  confirmReset?: () => Promise<boolean>;
 }
 
 export interface FlashcardsViewer {
   element: HTMLElement;
-  destroy(): void;
+  destroy: () => void;
+}
+
+function stopEvent(ev: Event): void {
+  (ev as Partial<Event>).stopPropagation?.();
+}
+
+function preventEvent(ev: Event): void {
+  (ev as Partial<Event>).preventDefault?.();
 }
 
 export function createFlashcardsViewer(options: FlashcardsViewerOptions): FlashcardsViewer {
@@ -63,27 +71,31 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     class: "btn btn-sm",
     type: "button",
     "data-testid": "flashcards-review-missed",
-  }) as HTMLButtonElement;
+  });
   const practiceAllBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "flashcards-practice-all",
     text: "Practice all again",
-  }) as HTMLButtonElement;
+  });
   const resetBtn = h("button", {
     class: "btn btn-sm",
     type: "button",
     "data-testid": "flashcards-reset-progress",
     text: "Reset progress",
-  }) as HTMLButtonElement;
+  });
 
   const headEl = h(
     "div",
     { class: "studio-viewer-head" },
     ...(closeBtn ? [closeBtn] : []),
-    h("h3", { class: "studio-report-title", "data-testid": "studio-report-title", text: options.title }),
+    h("h3", {
+      class: "studio-report-title",
+      "data-testid": "studio-report-title",
+      text: options.title,
+    }),
     h("span", { class: "muted", text: "AI-generated" }),
-    ...(options.actions ?? [])
+    ...(options.actions ?? []),
   );
 
   const toolbarEl = h(
@@ -93,7 +105,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     counterEl,
     reviewMissedBtn,
     practiceAllBtn,
-    resetBtn
+    resetBtn,
   );
 
   const noteEl = payload.insufficient_evidence_note
@@ -114,7 +126,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     toolbarEl,
     ...(noteEl ? [noteEl] : []),
     cardHost,
-    navHost
+    navHost,
   );
 
   function statesMap() {
@@ -141,7 +153,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
         text: `[${cite.badge_number}]`,
       });
       btn.addEventListener("click", (ev: Event) => {
-        ev.stopPropagation?.();
+        stopEvent(ev);
         options.onCitationClick?.(cite.source_id, cite.chunk_id);
       });
       return btn;
@@ -180,8 +192,15 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     const frontFace = h(
       "div",
       { class: "flashcard-face flashcard-front", hidden: side !== "front" },
-      h("span", { class: "flashcard-face-label muted", text: "Question / Term · Click or Space to flip" }),
-      h("p", { class: "flashcard-text", "data-testid": "flashcard-front-text", text: card.front_text })
+      h("span", {
+        class: "flashcard-face-label muted",
+        text: "Question / Term · Click or Space to flip",
+      }),
+      h("p", {
+        class: "flashcard-text",
+        "data-testid": "flashcard-front-text",
+        text: card.front_text,
+      }),
     );
 
     const explainBtn = h("button", {
@@ -191,7 +210,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       text: "Explain",
     });
     explainBtn.addEventListener("click", (ev: Event) => {
-      ev.stopPropagation?.();
+      stopEvent(ev);
       void options.onExplain(card.id);
     });
 
@@ -200,13 +219,13 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       type: "button",
       "data-testid": "flashcard-got-it",
       text: "Got it",
-    }) as HTMLButtonElement;
+    });
     const needsReviewBtn = h("button", {
       class: "btn btn-sm",
       type: "button",
       "data-testid": "flashcard-needs-review",
       text: "Needs review",
-    }) as HTMLButtonElement;
+    });
 
     const record = async (outcome: LearningItemOutcome) => {
       if (busy) return;
@@ -216,7 +235,9 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       try {
         progress = await options.onRecordProgress(card.id, outcome);
         if (reviewMissedOnly && outcome === "mastered") {
-          const remaining = payload.cards.filter((c) => statesMap()[c.id]?.status === "needs_review");
+          const remaining = payload.cards.filter(
+            (c) => statesMap()[c.id]?.status === "needs_review",
+          );
           if (remaining.length === 0) reviewMissedOnly = false;
         }
         side = "front";
@@ -230,11 +251,11 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     };
 
     gotItBtn.addEventListener("click", (ev: Event) => {
-      ev.stopPropagation?.();
+      stopEvent(ev);
       void record("mastered");
     });
     needsReviewBtn.addEventListener("click", (ev: Event) => {
-      ev.stopPropagation?.();
+      stopEvent(ev);
       void record("needs_review");
     });
 
@@ -242,9 +263,13 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       "div",
       { class: "flashcard-face flashcard-back", hidden: side !== "back" },
       h("span", { class: "flashcard-face-label muted", text: "Answer / Definition" }),
-      h("p", { class: "flashcard-text", "data-testid": "flashcard-back-text", text: card.back_text }),
+      h("p", {
+        class: "flashcard-text",
+        "data-testid": "flashcard-back-text",
+        text: card.back_text,
+      }),
       h("div", { class: "flashcard-citations" }, ...renderBadges(card.citations)),
-      h("div", { class: "flashcard-actions" }, gotItBtn, needsReviewBtn, explainBtn)
+      h("div", { class: "flashcard-actions" }, gotItBtn, needsReviewBtn, explainBtn),
     );
 
     const stage = h(
@@ -258,13 +283,13 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
         "aria-label": "Flip flashcard",
       },
       frontFace,
-      backFace
+      backFace,
     );
     stage.addEventListener("click", flip);
     stage.addEventListener("keydown", (ev: Event) => {
       const key = (ev as KeyboardEvent).key;
       if (key === " " || key === "Spacebar" || key === "Enter") {
-        (ev as KeyboardEvent).preventDefault?.();
+        preventEvent(ev);
         flip();
       }
     });
@@ -276,7 +301,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       "data-testid": "flashcard-prev",
       disabled: currentIndex === 0,
       text: "← Prev",
-    }) as HTMLButtonElement;
+    });
     prevBtn.addEventListener("click", () => {
       if (currentIndex > 0) {
         currentIndex -= 1;
@@ -291,7 +316,7 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
       "data-testid": "flashcard-next",
       disabled: currentIndex >= deck.length - 1,
       text: "Next →",
-    }) as HTMLButtonElement;
+    });
     nextBtn.addEventListener("click", () => {
       if (currentIndex < deck.length - 1) {
         currentIndex += 1;
@@ -319,16 +344,17 @@ export function createFlashcardsViewer(options: FlashcardsViewerOptions): Flashc
     renderCard();
   });
 
-  resetBtn.addEventListener("click", async () => {
-    const ok = options.confirmReset
-      ? await options.confirmReset()
-      : true;
+  const handleReset = async (): Promise<void> => {
+    const ok = options.confirmReset ? await options.confirmReset() : true;
     if (!ok) return;
     progress = await options.onResetProgress();
     reviewMissedOnly = false;
     currentIndex = 0;
     side = "front";
     renderCard();
+  };
+  resetBtn.addEventListener("click", () => {
+    void handleReset();
   });
 
   renderCard();

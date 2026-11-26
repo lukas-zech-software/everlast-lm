@@ -34,7 +34,10 @@ export function createTitleEditor(notebook: NotebookDto, onMissing: () => void):
       return;
     }
     try {
-      const updated = await api<{ notebook: NotebookDto }>(`/api/notebooks/${notebook.id}`, { method: "PATCH", json: { title: result.value } });
+      const updated = await api<{ notebook: NotebookDto }>(`/api/notebooks/${notebook.id}`, {
+        method: "PATCH",
+        json: { title: result.value },
+      });
       persisted = updated.notebook.title;
       showIfUnchanged(persisted);
       document.title = `${persisted} · Everlast LM`;

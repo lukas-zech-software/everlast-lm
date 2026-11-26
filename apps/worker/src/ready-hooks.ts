@@ -20,7 +20,10 @@ export interface ReadySourceEvent {
 export type ReadySourceHook = (event: ReadySourceEvent) => Promise<unknown>;
 
 /** First Ready source of a notebook with a default icon: ask the selector once for a topic emoji. */
-export async function applyTopicIcon(event: ReadySourceEvent, selector: TopicEmojiSelector): Promise<boolean> {
+export async function applyTopicIcon(
+  event: ReadySourceEvent,
+  selector: TopicEmojiSelector,
+): Promise<boolean> {
   try {
     if (!(await claimTopicIconSelection(event.notebook_id))) return false;
     const icon = await selector.suggest({ title: event.title, mediaType: event.media_type });
@@ -31,7 +34,9 @@ export async function applyTopicIcon(event: ReadySourceEvent, selector: TopicEmo
 }
 
 /** Runs every hook once per (source, revision), in the background, swallowing hook failures. */
-export function createReadySourceDispatcher(hooks: ReadySourceHook[]): (event: ReadySourceEvent) => Promise<void> {
+export function createReadySourceDispatcher(
+  hooks: ReadySourceHook[],
+): (event: ReadySourceEvent) => Promise<void> {
   const seen = new Set<string>();
   return async (event) => {
     const key = `${event.notebook_id}:${event.source_id}:${event.revision_id}`;

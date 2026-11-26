@@ -38,10 +38,18 @@ export interface ReconcileReport {
 }
 
 export async function reconcileCodeExecutions(deps: ReconcileDeps): Promise<ReconcileReport> {
-  const report: ReconcileReport = { reconciled: 0, destroyed: 0, destroyFailed: 0, invalidated: 0, purged: 0 };
+  const report: ReconcileReport = {
+    reconciled: 0,
+    destroyed: 0,
+    destroyFailed: 0,
+    invalidated: 0,
+    purged: 0,
+  };
   report.reconciled = (await reconcileExpiredExecutions(deps.pool)).length;
   report.invalidated = await invalidateChartsOfUnavailableSources(deps.pool);
-  for (const sandbox of await listSandboxesToDestroy(deps.pool, { minAgeMs: deps.sandboxMinAgeMs ?? 5 * 60_000 })) {
+  for (const sandbox of await listSandboxesToDestroy(deps.pool, {
+    minAgeMs: deps.sandboxMinAgeMs ?? 5 * 60_000,
+  })) {
     if (!sandbox.provider_handle) {
       await markSandboxDestroyed(deps.pool, sandbox.attempt_id);
       continue;
@@ -55,7 +63,9 @@ export async function reconcileCodeExecutions(deps: ReconcileDeps): Promise<Reco
       report.destroyFailed++;
     }
   }
-  for (const artifact of await listArtifactsToPurge(deps.pool, { candidateAgeMs: deps.candidateAgeMs ?? 10 * 60_000 })) {
+  for (const artifact of await listArtifactsToPurge(deps.pool, {
+    candidateAgeMs: deps.candidateAgeMs ?? 10 * 60_000,
+  })) {
     try {
       await deps.storage.deleteVersion(artifact.object_key, artifact.object_generation);
       await markArtifactObjectDeleted(deps.pool, artifact.artifact_id);
@@ -75,13 +85,27 @@ export function startCodeExecutionReconciler(deps: ReconcileDeps, intervalMs = 6
     running = true;
     reconcileCodeExecutions(deps)
       .then((r) => {
-        if (r.reconciled + r.destroyed + r.destroyFailed + r.purged > 0) console.info(JSON.stringify({ severity: "INFO", message: "code execution reconcile", ...r }));
+        if (r.reconciled + r.destroyed + r.destroyFailed + r.purged > 0) {
+          process.stdout.write(
+            `${JSON.stringify({ severity: "INFO", message: "code execution reconcile", ...r })}\n`,
+          );
+        }
       })
-      .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `code execution reconcile failed: ${(err as Error).message}` })))
-      .finally(() => (running = false));
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.warn(
+          JSON.stringify({
+            severity: "WARNING",
+            message: `code execution reconcile failed: ${message}`,
+          }),
+        );
+      })
+      .finally(() => {
+        running = false;
+      });
   };
   tick();
   const timer = setInterval(tick, intervalMs);
-  timer.unref?.();
+  timer.unref();
   return () => clearInterval(timer);
 }

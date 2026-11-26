@@ -1,13 +1,27 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Pool } from "pg";
-import { SourceNotReadyError, SourceSnapshotInvalidError, UnifiedDocumentChunkSchema } from "@everlast/contracts";
+import {
+  SourceNotReadyError,
+  SourceSnapshotInvalidError,
+  UnifiedDocumentChunkSchema,
+} from "@everlast/contracts";
 import { HashingTestEmbedder } from "@everlast/cloud";
-import { createTestDatabase, createTestUser, seedReadySource, type TestDatabase } from "../src/testing.ts";
+import {
+  createTestDatabase,
+  createTestUser,
+  seedReadySource,
+  type TestDatabase,
+} from "../src/testing.ts";
 import { createNotebook, deleteNotebook, NotebookForbiddenError } from "../src/notebooks.ts";
 import { reserveSources } from "../src/quota.ts";
 import { captureScopeSnapshot } from "../src/scope-guard.ts";
-import { buildOrTsQuery, getSnapshotChunksByIds, readSourceForInspection, retrieveScopedChunks } from "../src/scoped-context.ts";
+import {
+  buildOrTsQuery,
+  getSnapshotChunksByIds,
+  readSourceForInspection,
+  retrieveScopedChunks,
+} from "../src/scoped-context.ts";
 
 /**
  * T014–T018 / T031 — C-02 hybrid retrieval and singleton inspection against PostgreSQL + pgvector
@@ -15,17 +29,19 @@ import { buildOrTsQuery, getSnapshotChunksByIds, readSourceForInspection, retrie
  */
 
 let db: TestDatabase;
+let dropDb: (() => Promise<void>) | undefined;
 let pool: Pool;
 const embedder = new HashingTestEmbedder({ NODE_ENV: "test" });
 const embed = (texts: string[]) => embedder.embed(texts);
 
 beforeAll(async () => {
   db = await createTestDatabase();
+  dropDb = () => db.drop();
   pool = db.pool;
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await dropDb?.();
 });
 
 async function query(text: string) {
@@ -67,16 +83,23 @@ describe("C-02 hybrid retrieval (FR-SI-03, NFR-EVAL-04)", () => {
     const owner = await createTestUser(pool);
     const { notebook } = await createNotebook(pool, owner, {});
     const s = await seedReadySource(pool, owner, notebook.id, {
-      pages: ["Codename OMEGA-991 is restricted.\n\nGeneral notes about logistics.\n\nMore unrelated material."],
+      pages: [
+        "Codename OMEGA-991 is restricted.\n\nGeneral notes about logistics.\n\nMore unrelated material.",
+      ],
       embed,
     });
     const snapshot = await captureScopeSnapshot(pool, owner, notebook.id, [s.sourceId]);
-    const opts = { queryText: "omega 991", queryEmbedding: await query("unrelated vector words"), limit: 3 };
+    const opts = {
+      queryText: "omega 991",
+      queryEmbedding: await query("unrelated vector words"),
+      limit: 3,
+    };
     const first = await retrieveScopedChunks(pool, snapshot, opts);
     const second = await retrieveScopedChunks(pool, snapshot, opts);
     expect(first[0]!.text).toContain("OMEGA-991");
     expect(first.map((c) => c.chunk_id)).toEqual(second.map((c) => c.chunk_id));
-    for (const { score: _s, ...chunk } of first) expect(UnifiedDocumentChunkSchema.safeParse(chunk).success).toBe(true);
+    for (const { score: _s, ...chunk } of first)
+      expect(UnifiedDocumentChunkSchema.safeParse(chunk).success).toBe(true);
     expect(buildOrTsQuery("What is the?")).toBeNull();
     expect(buildOrTsQuery("Robert'); DROP TABLE chunks;--")).toBe("robert | drop | table | chunks");
   });
@@ -89,7 +112,10 @@ describe("C-02 hybrid retrieval (FR-SI-03, NFR-EVAL-04)", () => {
     const sa = await seedReadySource(pool, owner, nbA.id, { pages: [text], embed });
     const sb = await seedReadySource(pool, owner, nbB.id, { pages: [text], embed });
     const snapshot = await captureScopeSnapshot(pool, owner, nbA.id, [sa.sourceId]);
-    const results = await retrieveScopedChunks(pool, snapshot, { queryText: "OMEGA-991", queryEmbedding: await query(text) });
+    const results = await retrieveScopedChunks(pool, snapshot, {
+      queryText: "OMEGA-991",
+      queryEmbedding: await query(text),
+    });
     expect(results.map((r) => r.source_id)).toEqual([sa.sourceId]);
     expect(results.some((r) => r.source_id === sb.sourceId)).toBe(false);
   });
@@ -97,16 +123,25 @@ describe("C-02 hybrid retrieval (FR-SI-03, NFR-EVAL-04)", () => {
   it("RET-04: deletion or revision replacement after capture fails retrieval instead of substituting content", async () => {
     const owner = await createTestUser(pool);
     const { notebook } = await createNotebook(pool, owner, {});
-    const s = await seedReadySource(pool, owner, notebook.id, { pages: ["Original revision text."], embed });
+    const s = await seedReadySource(pool, owner, notebook.id, {
+      pages: ["Original revision text."],
+      embed,
+    });
     const snapshot = await captureScopeSnapshot(pool, owner, notebook.id, [s.sourceId]);
     await pool.query("UPDATE sources SET active_revision = 2 WHERE id = $1", [s.sourceId]);
     await expect(
-      retrieveScopedChunks(pool, snapshot, { queryText: "original", queryEmbedding: await query("original") })
+      retrieveScopedChunks(pool, snapshot, {
+        queryText: "original",
+        queryEmbedding: await query("original"),
+      }),
     ).rejects.toBeInstanceOf(SourceSnapshotInvalidError);
     await pool.query("UPDATE sources SET active_revision = 1 WHERE id = $1", [s.sourceId]);
     await deleteNotebook(pool, owner, notebook.id);
     await expect(
-      retrieveScopedChunks(pool, snapshot, { queryText: "original", queryEmbedding: await query("original") })
+      retrieveScopedChunks(pool, snapshot, {
+        queryText: "original",
+        queryEmbedding: await query("original"),
+      }),
     ).rejects.toBeInstanceOf(SourceSnapshotInvalidError);
   });
 
@@ -116,7 +151,12 @@ describe("C-02 hybrid retrieval (FR-SI-03, NFR-EVAL-04)", () => {
     const a = await seedReadySource(pool, owner, notebook.id, { pages: ["Alpha only."], embed });
     const b = await seedReadySource(pool, owner, notebook.id, { pages: ["Beta only."], embed });
     const snapshot = await captureScopeSnapshot(pool, owner, notebook.id, [a.sourceId]);
-    const resolved = await getSnapshotChunksByIds(pool, snapshot, [...a.chunkIds, ...b.chunkIds, "garbage", randomUUID()]);
+    const resolved = await getSnapshotChunksByIds(pool, snapshot, [
+      ...a.chunkIds,
+      ...b.chunkIds,
+      "garbage",
+      randomUUID(),
+    ]);
     expect(resolved.map((c) => c.chunk_id)).toEqual(a.chunkIds);
   });
 });
@@ -130,13 +170,30 @@ describe("FR-SI-04 singleton inspection", () => {
       pages: ["Page one intro.\n\nPage one detail.", "Page two only paragraph."],
       embed,
     });
-    const other = await seedReadySource(pool, owner, notebook.id, { pages: ["Other source."], embed });
-    const content = await readSourceForInspection(pool, owner, notebook.id, report.sourceId, { highlightChunkId: report.chunkIds[2] });
-    expect(content.source).toMatchObject({ id: report.sourceId, title: "Report.pdf", revision: 1, page_count: 2 });
+    const other = await seedReadySource(pool, owner, notebook.id, {
+      pages: ["Other source."],
+      embed,
+    });
+    const content = await readSourceForInspection(pool, owner, notebook.id, report.sourceId, {
+      highlightChunkId: report.chunkIds[2],
+    });
+    expect(content.source).toMatchObject({
+      id: report.sourceId,
+      title: "Report.pdf",
+      revision: 1,
+      page_count: 2,
+    });
     expect(content.pages.map((p) => p.page_number)).toEqual([1, 2]);
     expect(content.chunks.map((c) => c.chunk_id)).toEqual(report.chunkIds);
-    expect(content.highlight).toEqual({ chunk_id: report.chunkIds[2], page_number: 2, start_offset: 0, end_offset: 24 });
-    const foreign = await readSourceForInspection(pool, owner, notebook.id, report.sourceId, { highlightChunkId: other.chunkIds[0] });
+    expect(content.highlight).toEqual({
+      chunk_id: report.chunkIds[2],
+      page_number: 2,
+      start_offset: 0,
+      end_offset: 24,
+    });
+    const foreign = await readSourceForInspection(pool, owner, notebook.id, report.sourceId, {
+      highlightChunkId: other.chunkIds[0],
+    });
     expect(foreign.highlight).toBeNull();
     expect(JSON.stringify(foreign)).not.toContain("Other source.");
   });
@@ -146,13 +203,24 @@ describe("FR-SI-04 singleton inspection", () => {
     const intruder = await createTestUser(pool);
     const { notebook } = await createNotebook(pool, owner, {});
     const s = await seedReadySource(pool, owner, notebook.id, { pages: ["Secret page."], embed });
-    await expect(readSourceForInspection(pool, intruder, notebook.id, s.sourceId)).rejects.toBeInstanceOf(NotebookForbiddenError);
+    await expect(
+      readSourceForInspection(pool, intruder, notebook.id, s.sourceId),
+    ).rejects.toBeInstanceOf(NotebookForbiddenError);
     const [pending] = await reserveSources(pool, owner, notebook.id, [
-      { attempt_id: randomUUID(), title: "p.pdf", media_type: "application/pdf", declared_bytes: 1 },
+      {
+        attempt_id: randomUUID(),
+        title: "p.pdf",
+        media_type: "application/pdf",
+        declared_bytes: 1,
+      },
     ]);
-    await expect(readSourceForInspection(pool, owner, notebook.id, pending!.source!.id)).rejects.toBeInstanceOf(SourceNotReadyError);
+    await expect(
+      readSourceForInspection(pool, owner, notebook.id, pending!.source!.id),
+    ).rejects.toBeInstanceOf(SourceNotReadyError);
     const { notebook: other } = await createNotebook(pool, owner, {});
-    await expect(readSourceForInspection(pool, owner, other.id, s.sourceId)).rejects.toMatchObject({ code: "InvalidScope" });
+    await expect(readSourceForInspection(pool, owner, other.id, s.sourceId)).rejects.toMatchObject({
+      code: "InvalidScope",
+    });
   });
 
   it("INS-03: page batches paginate with a cursor bound to the immutable revision", async () => {
@@ -160,12 +228,23 @@ describe("FR-SI-04 singleton inspection", () => {
     const { notebook } = await createNotebook(pool, owner, {});
     const pages = Array.from({ length: 6 }, (_, i) => `Page ${i + 1} ${"x".repeat(100)}`);
     const s = await seedReadySource(pool, owner, notebook.id, { pages, embed });
-    const first = await readSourceForInspection(pool, owner, notebook.id, s.sourceId, { maxChars: 250 });
+    const first = await readSourceForInspection(pool, owner, notebook.id, s.sourceId, {
+      maxChars: 250,
+    });
     expect(first.pages.map((p) => p.page_number)).toEqual([1, 2]);
     expect(first.next_cursor).toBe("r1p3");
-    const second = await readSourceForInspection(pool, owner, notebook.id, s.sourceId, { maxChars: 250, cursor: first.next_cursor! });
+    const second = await readSourceForInspection(pool, owner, notebook.id, s.sourceId, {
+      maxChars: 250,
+      cursor: first.next_cursor!,
+    });
     expect(second.pages.map((p) => p.page_number)).toEqual([3, 4]);
-    expect(second.chunks.every((c) => [3, 4].includes((c.locator as { page_number: number }).page_number))).toBe(true);
-    await expect(readSourceForInspection(pool, owner, notebook.id, s.sourceId, { cursor: "r9p3" })).rejects.toBeInstanceOf(SourceSnapshotInvalidError);
+    expect(
+      second.chunks.every((c) =>
+        [3, 4].includes((c.locator as { page_number: number }).page_number),
+      ),
+    ).toBe(true);
+    await expect(
+      readSourceForInspection(pool, owner, notebook.id, s.sourceId, { cursor: "r9p3" }),
+    ).rejects.toBeInstanceOf(SourceSnapshotInvalidError);
   });
 });

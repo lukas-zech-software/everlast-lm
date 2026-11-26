@@ -18,9 +18,7 @@ const SOURCE_A = [
   "Studio artifacts use durable outbox leases and snapshot revision fences.",
 ];
 
-const SOURCE_B = [
-  "Confidential Quantum Relay operates solely in Antarctica.",
-];
+const SOURCE_B = ["Confidential Quantum Relay operates solely in Antarctica."];
 
 test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + injection rejection, cross-reload Review missed, and Learning Overview", async ({
   page,
@@ -30,8 +28,20 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
   await signIn(page, email);
   const nb = await createNotebook(page.request, email);
 
-  const srcAId = await uploadSource(page.request, email, nb, "PlatformSpec.pdf", buildPdf([{ kind: "text", lines: SOURCE_A }]));
-  const srcBId = await uploadSource(page.request, email, nb, "DeselectedSecret.pdf", buildPdf([{ kind: "text", lines: SOURCE_B }]));
+  const srcAId = await uploadSource(
+    page.request,
+    email,
+    nb,
+    "PlatformSpec.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_A }]),
+  );
+  const srcBId = await uploadSource(
+    page.request,
+    email,
+    nb,
+    "DeselectedSecret.pdf",
+    buildPdf([{ kind: "text", lines: SOURCE_B }]),
+  );
   await waitReady(page.request, email, nb, 2);
 
   await page.goto(`/notebook/${nb}`);
@@ -52,7 +62,9 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
   await fcModal.getByTestId("flashcards-count-select").selectOption("fewer");
   await fcModal.getByTestId("flashcards-generate").click();
 
-  const fcRow = page.locator('[data-testid="studio-artifact-row"][data-plugin-type="flashcards"]').first();
+  const fcRow = page
+    .locator('[data-testid="studio-artifact-row"][data-plugin-type="flashcards"]')
+    .first();
   await expect(fcRow).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
   await fcRow.getByTestId("studio-artifact-open").click();
 
@@ -70,7 +82,9 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
   // Explain with Source A active -> grounded chat turn appears
   const beforeExplainMsgs = await page.getByTestId("message-assistant").count();
   await fcViewer.getByTestId("flashcard-explain").click();
-  await expect(page.getByTestId("message-assistant")).toHaveCount(beforeExplainMsgs + 1, { timeout: 15_000 });
+  await expect(page.getByTestId("message-assistant")).toHaveCount(beforeExplainMsgs + 1, {
+    timeout: 15_000,
+  });
 
   // Deselect Source A (so supporting source missing) -> Explain warns SupportingSourcesRequired without injecting card text
   const srcARow = page.locator(`[data-testid="source-row"][data-source-id="${srcAId}"]`);
@@ -79,7 +93,9 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
   await srcBCheckbox.check();
   const msgCountBefore = await page.getByTestId("message-assistant").count();
   await fcViewer.getByTestId("flashcard-explain").click();
-  await expect(page.getByTestId("studio-status")).toContainText(/select|supporting/i, { timeout: 10_000 });
+  await expect(page.getByTestId("studio-status")).toContainText(/select|supporting/i, {
+    timeout: 10_000,
+  });
   expect(await page.getByTestId("message-assistant").count()).toBe(msgCountBefore);
 
   // Restore S_aktiv = [Source A]
@@ -160,7 +176,9 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
 
   // Reload browser and reopen Quiz -> verify mastery state persisted and Review missed shows strictly missed items
   await page.reload();
-  const persistedQuizRow = page.locator(`[data-testid="studio-artifact-row"][data-artifact-id="${quizId}"]`);
+  const persistedQuizRow = page.locator(
+    `[data-testid="studio-artifact-row"][data-artifact-id="${quizId}"]`,
+  );
   await expect(persistedQuizRow).toHaveAttribute("data-status", "Completed", { timeout: 15_000 });
   await persistedQuizRow.getByTestId("studio-artifact-open").click();
 
@@ -178,7 +196,9 @@ test("AL-E01: Gate v4.0 #1/#2 Flashcards + Explain, Quiz semantic grading + inje
   await expect(loModal).toBeVisible();
   await loModal.getByTestId("learning-overview-generate").click();
 
-  const loRow = page.locator('[data-testid="studio-artifact-row"][data-plugin-type="learning_overview"]').first();
+  const loRow = page
+    .locator('[data-testid="studio-artifact-row"][data-plugin-type="learning_overview"]')
+    .first();
   await expect(loRow).toHaveAttribute("data-status", "Completed", { timeout: 30_000 });
   await loRow.getByTestId("studio-artifact-open").click();
 

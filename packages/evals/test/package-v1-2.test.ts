@@ -17,19 +17,33 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await db?.drop();
+  await db.drop();
 });
 
 describe("package 1.2 regression", () => {
   it("PKG12-01: PDF and Markdown corpus documents reach Ready with only valid C-01 chunks; deselection leaks 0", async () => {
-    const cases = buildGoldenDataset().filter((c) => c.category === "deselected_source" || c.category === "history_carryover");
+    const cases = buildGoldenDataset().filter(
+      (c) => c.category === "deselected_source" || c.category === "history_carryover",
+    );
     const result = await runEvaluation(
-      { pool: db.pool, embedder: new HashingTestEmbedder({ NODE_ENV: "test" }), model: new LexicalCitingModel(), ocr: new NoOcrEngine(), judge: null, concurrency: 2 },
-      cases
+      {
+        pool: db.pool,
+        embedder: new HashingTestEmbedder({ NODE_ENV: "test" }),
+        model: new LexicalCitingModel(),
+        ocr: new NoOcrEngine(),
+        judge: null,
+        concurrency: 2,
+      },
+      cases,
     );
     expect(result.upload.passed).toBe(true);
-    expect(new Set(result.upload.documents.map((d) => d.media_type))).toEqual(new Set(["application/pdf", "text/markdown"]));
-    expect(result.metrics.find((m) => m.name === "scoping_leakage_count")).toMatchObject({ value: 0, status: "pass" });
+    expect(new Set(result.upload.documents.map((d) => d.media_type))).toEqual(
+      new Set(["application/pdf", "text/markdown"]),
+    );
+    expect(result.metrics.find((m) => m.name === "scoping_leakage_count")).toMatchObject({
+      value: 0,
+      status: "pass",
+    });
     expect(result.errored).toEqual([]);
   }, 180_000);
 });

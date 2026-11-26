@@ -37,44 +37,86 @@ export interface MindmapLatencyCohortReport {
   samples: MindmapLatencySample[];
 }
 
+function validateCompletedMindmapSample(sample: MindmapLatencySample): void {
+  if (
+    sample.completed_at_ms === null ||
+    !Number.isFinite(sample.completed_at_ms) ||
+    sample.completed_at_ms < sample.submitted_at_ms ||
+    sample.duration_ms === null ||
+    !Number.isFinite(sample.duration_ms) ||
+    Math.abs(sample.duration_ms - (sample.completed_at_ms - sample.submitted_at_ms)) > 0.001
+  ) {
+    throw new Error("Completed duration must match ordered timestamps");
+  }
+  const nodeCount = sample.node_count;
+  if (nodeCount === null || !Number.isInteger(nodeCount) || nodeCount < 2 || nodeCount > 120) {
+    throw new Error("Invalid Completed mindmap node count");
+  }
+}
+
+function validateMindmapSample(
+  sample: Partial<MindmapLatencySample>,
+  identities: Set<string>,
+): void {
+  if (!sample.sample_id?.trim() || identities.has(sample.sample_id)) {
+    throw new Error("Expected unique sample identities; duplicate or empty ID");
+  }
+  identities.add(sample.sample_id);
+  if (
+    !sample.stratum ||
+    !["cold", "warm"].includes(sample.stratum) ||
+    !sample.status ||
+    !["Completed", "Failed", "Cancelled", "Running", "Queued"].includes(sample.status)
+  ) {
+    throw new Error("Invalid sample status or stratum");
+  }
+  if (
+    sample.submitted_at_ms === undefined ||
+    !Number.isFinite(sample.submitted_at_ms) ||
+    sample.submitted_at_ms < 0
+  ) {
+    throw new Error("Invalid submission timestamp");
+  }
+  if (sample.status === "Completed") {
+    validateCompletedMindmapSample(sample as MindmapLatencySample);
+  }
+}
+
+function sampleDurationMs(sample: MindmapLatencySample): number {
+  if (
+    sample.status !== "Completed" ||
+    sample.duration_ms === null ||
+    !Number.isFinite(sample.duration_ms) ||
+    sample.duration_ms < 0
+  ) {
+    return Number.POSITIVE_INFINITY;
+  }
+  return sample.duration_ms;
+}
+
 export function aggregateMindmapLatencyCohort(
   samples: readonly MindmapLatencySample[],
-  budgetMs = MINDMAP_P95_BUDGET_MS
+  budgetMs = MINDMAP_P95_BUDGET_MS,
 ): MindmapLatencyCohortReport {
   if (samples.length < MINDMAP_MIN_COHORT_SIZE) {
     throw new Error(
-      `Mindmap latency cohort requires at least ${MINDMAP_MIN_COHORT_SIZE} predeclared runs (received ${samples.length}).`
+      `Mindmap latency cohort requires at least ${MINDMAP_MIN_COHORT_SIZE} predeclared runs (received ${samples.length}).`,
     );
   }
-
-  if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("Invalid latency budget");
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0) {
+    throw new Error("Invalid latency budget");
+  }
   const identities = new Set<string>();
   for (const sample of samples) {
-    if (!sample.sample_id?.trim() || identities.has(sample.sample_id)) throw new Error("Expected unique sample identities; duplicate or empty ID");
-    identities.add(sample.sample_id);
-    if (!["cold", "warm"].includes(sample.stratum) || !["Completed", "Failed", "Cancelled", "Running", "Queued"].includes(sample.status)) throw new Error("Invalid sample status or stratum");
-    if (!Number.isFinite(sample.submitted_at_ms) || sample.submitted_at_ms < 0) throw new Error("Invalid submission timestamp");
-    if (sample.status === "Completed") {
-      if (sample.completed_at_ms === null || !Number.isFinite(sample.completed_at_ms) || sample.completed_at_ms < sample.submitted_at_ms || sample.duration_ms === null || !Number.isFinite(sample.duration_ms) || Math.abs(sample.duration_ms - (sample.completed_at_ms - sample.submitted_at_ms)) > 0.001) throw new Error("Completed duration must match ordered timestamps");
-      if (!Number.isInteger(sample.node_count) || sample.node_count! < 2 || sample.node_count! > 120) throw new Error("Invalid Completed mindmap node count");
-    }
+    validateMindmapSample(sample, identities);
   }
 
-  const durations = samples.map((s) => {
-    if (
-      s.status !== "Completed" ||
-      s.duration_ms === null ||
-      !Number.isFinite(s.duration_ms) ||
-      s.duration_ms < 0
-    ) {
-      return Number.POSITIVE_INFINITY;
-    }
-    return s.duration_ms;
-  });
-
-  const sorted = [...durations].sort((a, b) => a - b);
+  const sorted = samples.map(sampleDurationMs).sort((a, b) => a - b);
   const rank = Math.ceil(0.95 * samples.length);
-  const p95 = sorted[rank - 1]!;
+  const p95 = sorted[rank - 1];
+  if (p95 === undefined) {
+    throw new Error("Mindmap latency cohort produced no P95 sample");
+  }
   const coldCount = samples.filter((s) => s.stratum === "cold").length;
   const warmCount = samples.filter((s) => s.stratum === "warm").length;
 

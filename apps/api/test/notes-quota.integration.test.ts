@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { startNotesApi, type NotesApi } from "./notes-pg-support.ts";
+import type { NoteSource } from "@everlast/contracts";
+import { startNotesApi, type ApiErrorBody, type NotesApi } from "./notes-pg-support.ts";
 
 /**
  * [007-notes-pinboard-lifecycle] T032 — one source admission for uploads and note-sources (Constitution VI,
@@ -15,16 +16,38 @@ beforeAll(async () => {
   n = await startNotesApi({ sourceLimit: 50 });
 });
 afterAll(async () => {
-  await n?.close();
+  await n.close();
 });
 
 async function note(nb: string, title: string, content: string): Promise<string> {
-  return (await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes`, { title, content_md: content })).json.note.id;
+  const res = await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes`, {
+    title,
+    content_md: content,
+  });
+  return (res.json as { note: { id: string } }).note.id;
 }
-const convert = (nb: string, ids: string[]) => n.call(OWNER, "POST", `/api/notebooks/${nb}/notes/convert-to-source`, { note_ids: ids });
-const slots = async (nb: string) => (await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json.source_slots;
+const convert = async (
+  nb: string,
+  ids: string[],
+): Promise<{ status: number; json: { source: NoteSource; error: ApiErrorBody } }> => {
+  const res = await n.call(OWNER, "POST", `/api/notebooks/${nb}/notes/convert-to-source`, {
+    note_ids: ids,
+  });
+  return { status: res.status, json: res.json as { source: NoteSource; error: ApiErrorBody } };
+};
+const slots = async (nb: string) =>
+  (
+    (await n.call(OWNER, "GET", `/api/notebooks/${nb}/notes`)).json as {
+      source_slots: { used: number; limit: number };
+    }
+  ).source_slots;
 const occupied = async (nb: string) =>
-  (await n.api.db.pool.query("SELECT count(*)::int AS c FROM sources WHERE notebook_id = $1 AND status IN ('Uploading','Processing','Ready')", [nb])).rows[0].c as number;
+  (
+    await n.api.db.pool.query<{ c: number }>(
+      "SELECT count(*)::int AS c FROM sources WHERE notebook_id = $1 AND status IN ('Uploading','Processing','Ready')",
+      [nb],
+    )
+  ).rows[0]!.c;
 
 describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
   it("two concurrent conversions at 49/50 create exactly one source and one 409 SourceLimitReached", async () => {
@@ -36,10 +59,17 @@ describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
     const statuses = results.map((r) => r.status).sort();
     expect(statuses).toEqual([201, 409]);
     const rejected = results.find((r) => r.status === 409)!;
-    expect(rejected.json.error).toEqual({ code: "SourceLimitReached", message: "Source limit reached" });
+    expect(rejected.json.error).toEqual({
+      code: "SourceLimitReached",
+      message: "Source limit reached",
+    });
     expect(await occupied(nb)).toBe(50);
-    const listed = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources`)).json.sources;
-    expect(listed.filter((s: any) => s.media_type === "note_markdown")).toHaveLength(1);
+    const listed = (
+      (await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources`)).json as {
+        sources: Array<{ media_type: string; status: string }>;
+      }
+    ).sources;
+    expect(listed.filter((s) => s.media_type === "note_markdown")).toHaveLength(1);
   });
 
   it("an in-flight conversion already holds its slot while ingestion is still running", async () => {
@@ -49,14 +79,15 @@ describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
     const b = await note(nb, "B", "Beta finding");
     n.embedder.hold();
     const pending = convert(nb, [a]);
-    for (let i = 0; i < 100 && (await occupied(nb)) < 49; i++) await new Promise((r) => setTimeout(r, 10));
+    for (let i = 0; i < 100 && (await occupied(nb)) < 49; i++)
+      await new Promise((r) => setTimeout(r, 10));
     expect(await occupied(nb)).toBe(49);
     expect(await slots(nb)).toEqual({ used: 49, limit: 50 });
     // The last free slot goes to an upload; the next conversion is rejected while the first one still runs.
     const upload = await n.call(OWNER, "POST", `/api/notebooks/${nb}/sources/uploads`, {
       files: [{ attempt_id: randomUUID(), file_name: "late.txt", declared_bytes: 10 }],
     });
-    expect(upload.json.items[0].admitted).toBe(true);
+    expect((upload.json as { items: Array<{ admitted: boolean }> }).items[0]!.admitted).toBe(true);
     const second = await convert(nb, [b]);
     expect(second.status).toBe(409);
     expect(second.json.error.code).toBe("SourceLimitReached");
@@ -77,13 +108,24 @@ describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
     const upload = await n.call(OWNER, "POST", `/api/notebooks/${nb}/sources/uploads`, {
       files: [{ attempt_id: randomUUID(), file_name: "more.txt", declared_bytes: 10 }],
     });
-    expect(upload.json.items[0]).toMatchObject({ admitted: false, error: { code: "SourceQuotaExceeded" } });
-    const text = await n.call(OWNER, "POST", `/api/notebooks/${nb}/sources/text`, { attempt_id: randomUUID(), text: "more text" });
+    expect(
+      (upload.json as { items: Array<{ admitted: boolean; error?: ApiErrorBody }> }).items[0],
+    ).toMatchObject({
+      admitted: false,
+      error: { code: "SourceQuotaExceeded" },
+    });
+    const text = await n.call(OWNER, "POST", `/api/notebooks/${nb}/sources/text`, {
+      attempt_id: randomUUID(),
+      text: "more text",
+    });
     expect(text.status).toBe(409);
-    expect(text.json.error.code).toBe("SourceQuotaExceeded");
+    expect((text.json as { error: ApiErrorBody }).error.code).toBe("SourceQuotaExceeded");
     const again = await convert(nb, [a]);
     expect(again.status).toBe(409);
-    expect(again.json.error).toEqual({ code: "SourceLimitReached", message: "Source limit reached" });
+    expect(again.json.error).toEqual({
+      code: "SourceLimitReached",
+      message: "Source limit reached",
+    });
   });
 
   it("a failed ingestion releases its slot and never returns upstream error text", async () => {
@@ -100,8 +142,12 @@ describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
     }
     expect(await occupied(nb)).toBe(0);
     expect(await slots(nb)).toEqual({ used: 0, limit: 50 });
-    const failed = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources`)).json.sources;
-    expect(failed.every((s: any) => s.status === "Failed")).toBe(true);
+    const failed = (
+      (await n.call(OWNER, "GET", `/api/notebooks/${nb}/sources`)).json as {
+        sources: Array<{ status: string }>;
+      }
+    ).sources;
+    expect(failed.every((s) => s.status === "Failed")).toBe(true);
     expect(JSON.stringify(failed)).not.toContain("secret upstream detail");
     // The note is unchanged and can be converted once ingestion works again.
     expect((await convert(nb, [a])).status).toBe(201);
@@ -116,7 +162,9 @@ describe("FR-WM-07, FR-NM-03: note-sources share the v1 source slots", () => {
       files: [{ attempt_id: randomUUID(), file_name: "pending.txt", declared_bytes: 10 }],
     });
     expect(await slots(nb)).toEqual({ used: 3, limit: 50 });
-    const quota = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/quota`)).json;
+    const quota = (await n.call(OWNER, "GET", `/api/notebooks/${nb}/quota`)).json as {
+      sources_used: number;
+    };
     expect(quota.sources_used).toBe(3);
   });
 });

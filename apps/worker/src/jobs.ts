@@ -1,5 +1,12 @@
 import type { Pool } from "@everlast/db";
-import { claimDueJobs, completeJob, deferJob, failJob, type JobKind, type JobRecord } from "@everlast/db";
+import {
+  claimDueJobs,
+  completeJob,
+  deferJob,
+  failJob,
+  type JobKind,
+  type JobRecord,
+} from "@everlast/db";
 
 /**
  * Outbox drain (FR-WM-01, FR-SI-01): claims due jobs with SKIP LOCKED and runs their handler. A crash
@@ -17,7 +24,7 @@ export type JobHandler = (job: JobRecord) => Promise<JobResult>;
 export async function drainJobs(
   pool: Pool,
   handlers: Partial<Record<JobKind, JobHandler>>,
-  options: { batchSize?: number; maxBatches?: number } = {}
+  options: { batchSize?: number; maxBatches?: number } = {},
 ): Promise<{ processed: number }> {
   const kinds = Object.keys(handlers) as JobKind[];
   let processed = 0;
@@ -27,16 +34,29 @@ export async function drainJobs(
     await Promise.all(
       jobs.map(async (job) => {
         try {
-          const result = await handlers[job.kind]!(job);
+          const handler = handlers[job.kind];
+          if (!handler) {
+            await failJob(pool, job.id, "UnhandledError");
+            processed++;
+            return;
+          }
+          const result = await handler(job);
           if (result.kind === "done") await completeJob(pool, job.id);
           else if (result.kind === "defer") await deferJob(pool, job.id, result.seconds);
           else await failJob(pool, job.id, result.errorCode, result.kind === "retry");
         } catch (err) {
-          console.error(JSON.stringify({ severity: "ERROR", job_id: job.id, kind: job.kind, message: (err as Error).message }));
+          console.error(
+            JSON.stringify({
+              severity: "ERROR",
+              job_id: job.id,
+              kind: job.kind,
+              message: (err as Error).message,
+            }),
+          );
           await failJob(pool, job.id, "UnhandledError");
         }
         processed++;
-      })
+      }),
     );
   }
   return { processed };

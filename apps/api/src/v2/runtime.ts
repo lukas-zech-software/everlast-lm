@@ -4,9 +4,7 @@ import {
   AppError,
   InvalidScopeError,
   OutputLanguageSchema,
-  SourceQuotaExceededError,
   SourceSnapshotInvalidError,
-  StudioPluginRegistry,
   type ChatMessage,
   type Citation,
   type Notebook,
@@ -23,7 +21,6 @@ import {
   runWithV2Persistence,
   forgetNotebook,
   getChatConfiguration,
-  getNotebook,
   getNotebookOwner,
   getOrCreateThread,
   getSource,
@@ -33,6 +30,7 @@ import {
   claimPrimaryGuideLanguage,
   finishOnDemandGuide,
   recoverOnDemandGuides,
+  type CorpusTokenizer,
   type GuideAdmissionLimits,
   PostgresLearningProgressRepository,
   PostgresStudioArtifactRepository,
@@ -57,13 +55,19 @@ import {
 } from "@everlast/db";
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
 import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
 import { StudioJobRunner } from "@everlast/worker/studio/runner";
 import type { MindmapModelClient } from "@everlast/worker/studio/mindmaps/model";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import type { ReportModelClient, ReportSuggestionModel } from "@everlast/worker/studio/reports/model";
+// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
+// prettier-ignore
 import { ReportSuggestionService, structuredSuggestionModel } from "@everlast/worker/studio/reports/suggestions";
 import type { DataTableModelClient } from "@everlast/worker/studio/tables/model";
 import type { GroundedModel } from "../chat/model.ts";
@@ -72,7 +76,11 @@ import { GroundedNoteAssistant } from "../notes/assistant-model.ts";
 import { createPostgresNoteSources } from "@everlast/notes/note-sources";
 import { NotesService, type NoteAssistantContext } from "../notes/service.ts";
 import { handleNotesRoute } from "../routes/notes.ts";
-import { handlePackageV22Route, savedResponseNoteSaver, type PackageV22ApiDependencies } from "../routes/package-v2-2.ts";
+import {
+  handlePackageV22Route,
+  savedResponseNoteSaver,
+  type PackageV22ApiDependencies,
+} from "../routes/package-v2-2.ts";
 import { handleStudioRoute } from "../routes/studio.ts";
 import { handleWorkspacePreferencesRoute } from "../routes/workspace-preferences.ts";
 import { WorkspacePreferencesService } from "../services/workspace-preferences.ts";
@@ -90,10 +98,14 @@ import type { StudioServiceDeps } from "../studio/service.ts";
  * runs a single API instance (D16); a start-up sweep resolves work a stopped process left behind.
  */
 
-export type V2Handler = (req: IncomingMessage, res: ServerResponse, userId: string) => Promise<boolean>;
+export type V2Handler = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  userId: string,
+) => Promise<boolean>;
 
 export interface V2RuntimeOptions {
-  studioContext?:ConstructorParameters<typeof StudioJobRunner>[0]["contextRuntime"]|undefined;
+  studioContext?: ConstructorParameters<typeof StudioJobRunner>[0]["contextRuntime"] | undefined;
   pool: Pool;
   sourceLimit: number;
   guideAdmission?: GuideAdmissionLimits;
@@ -131,27 +143,31 @@ export interface V2RuntimeOptions {
 
 export interface V2Runtime {
   /** NFR-PERF-01: actual recovery-sweep result, false on any startup sweep failure. */
-  recoveryReady():Promise<boolean>;
+  recoveryReady: () => Promise<boolean>;
   workspace: WorkspacePreferencesService;
   handlers: V2Handler[];
   /** Mirrors an authorized PostgreSQL notebook into the PoC bridge. */
-  syncNotebook(userId: string, notebook: NotebookDto): Notebook;
+  syncNotebook: (userId: string, notebook: NotebookDto) => Notebook;
   /** Advances `updated_at` of an authorized notebook after a source write (FR-WM-02). */
-  notebookModified(userId: string, notebook: NotebookDto): Promise<void>;
+  notebookModified: (userId: string, notebook: NotebookDto) => Promise<void>;
   /** Updates Ready counts and starts Ready-source hooks after the API listed a notebook's sources (fallback to the watcher). */
-  syncSources(userId: string, notebookId: string, sources: SourceRecord[]): void;
-  notebookDeleted(notebookId: string): Promise<void>;
-  chatPreferences(userId: string, notebookId: string, browserLocale?: string): Promise<ResponsePreferences>;
+  syncSources: (userId: string, notebookId: string, sources: SourceRecord[]) => void;
+  notebookDeleted: (notebookId: string) => Promise<void>;
+  chatPreferences: (
+    userId: string,
+    notebookId: string,
+    browserLocale?: string,
+  ) => Promise<ResponsePreferences>;
   /** One watcher pass: dispatches Ready-source hooks for new `(source_id, active_revision)` Ready transitions. */
-  pollReadySources(): Promise<number>;
+  pollReadySources: () => Promise<number>;
   /**
    * Durable publication events (specs/009, FR-SI-02/05): runs the Ready-source hooks for every committed revision
    * still Pending (imports and re-syncs) and completes an event only once its guide exists in a terminal state, so a
    * restart never loses a new-revision guide and never needs a user reopen. Returns the number of completed events.
    */
-  drainPublicationEvents(): Promise<number>;
+  drainPublicationEvents: () => Promise<number>;
   /** Stops background work (the Ready watcher). */
-  close(): void;
+  close: () => void;
   /** Shared configured Studio runner for in-process test worker drains so test doubles/contextRuntime stay consistent. */
   studioRunner: Pick<StudioJobRunner, "run">;
 }
@@ -166,17 +182,37 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const inScope = <T>(fn: () => T): T => runWithV2Persistence(pool, fn);
   // specs/013 R5 (FR-010, FR-011): resolve background work a stopped process left behind (one API instance, D16).
   // v2 requests, Ready dispatch and the watcher wait for it, so nothing this process starts is swept.
-  let recoverySucceeded=false;
-  const swept: Promise<void> = Promise.all([sweepInterruptedStudioArtifacts(pool), sweepOrphanedSourceGuides(pool), recoverOnDemandGuides(pool)])
+  let recoverySucceeded = false;
+  const swept: Promise<void> = Promise.all([
+    sweepInterruptedStudioArtifacts(pool),
+    sweepOrphanedSourceGuides(pool),
+    recoverOnDemandGuides(pool),
+  ])
     .then(([reports, guides]) => {
-      recoverySucceeded=true;
-      if (reports + guides > 0) console.info(JSON.stringify({ severity: "INFO", message: "v2 restart sweep", interrupted_reports: reports, orphaned_guides: guides }));
+      recoverySucceeded = true;
+      if (reports + guides > 0)
+        console.warn(
+          JSON.stringify({
+            severity: "INFO",
+            message: "v2 restart sweep",
+            interrupted_reports: reports,
+            orphaned_guides: guides,
+          }),
+        );
     })
-    .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 restart sweep failed: ${(err as Error).message}` })));
-  const afterSweep = <T>(fn: () => Promise<T>): Promise<T> => inScope(async () => {
-    await swept;
-    return fn();
-  });
+    .catch((err: unknown) =>
+      console.warn(
+        JSON.stringify({
+          severity: "WARNING",
+          message: `v2 restart sweep failed: ${err instanceof Error ? err.message : String(err)}`,
+        }),
+      ),
+    );
+  const afterSweep = <T>(fn: () => Promise<T>): Promise<T> =>
+    inScope(async () => {
+      await swept;
+      return fn();
+    });
   const ownerOf = (notebookId: string) => getNotebookOwner(notebookId);
 
   // PostgreSQL chat history as v2 sees it (saved responses, feedback, follow-ups): visible messages only.
@@ -185,38 +221,53 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     const stored = await listThreadMessages(pool, thread.id);
     const visible = await projectVisibleMessages(pool, notebookId, stored);
     const provenance = new Map(stored.map((m) => [m.id, m.provenance]));
-    return visible
-      .filter((m) => m.content !== null)
-      .map(
-        (m): ChatMessage => ({
+    return visible.flatMap((m): ChatMessage[] => {
+      if (m.content === null) return [];
+      return [
+        {
           id: m.id,
           thread_id: thread.id,
           notebook_id: notebookId,
           user_id: userId,
           role: m.role,
-          content: m.content!,
+          content: m.content,
           active_source_revisions_snapshot: provenance.get(m.id) ?? [],
-          citations: m.citations
-            .filter((c) => c.status === "available")
-            .map((c) => ({
-              badge_number: c.badge_number,
-              source_id: c.source_id,
-              source_title: c.source_title!,
-              chunk_id: c.chunk_id,
-              snippet: c.snippet!,
-              locator: c.locator!,
-            })),
+          citations: m.citations.flatMap((c) => {
+            if (
+              c.status !== "available" ||
+              c.source_title === null ||
+              c.snippet === null ||
+              c.locator === null
+            ) {
+              return [];
+            }
+            return [
+              {
+                badge_number: c.badge_number,
+                source_id: c.source_id,
+                source_title: c.source_title,
+                chunk_id: c.chunk_id,
+                snippet: c.snippet,
+                locator: c.locator,
+              },
+            ];
+          }),
           created_at: m.created_at,
-        })
-      );
+        },
+      ];
+    });
   });
 
   /** Every source, uploads and note-sources alike, through the PostgreSQL C-02 path (bounded per source). */
   const readSnapshot = async (ownerId: string, notebookId: string, ids: string[]) => {
     const snapshot = await captureScopeSnapshot(pool, ownerId, notebookId, ids);
-    const perSource = Math.max(20, Math.floor(SCOPED_CHUNK_LIMIT / Math.max(1, snapshot.sources.length)));
+    const perSource = Math.max(
+      20,
+      Math.floor(SCOPED_CHUNK_LIMIT / Math.max(1, snapshot.sources.length)),
+    );
     const chunks: UnifiedDocumentChunk[] = [];
-    for (const pair of snapshot.sources) chunks.push(...(await listSnapshotChunks(pool, { ...snapshot, sources: [pair] }, perSource)));
+    for (const pair of snapshot.sources)
+      chunks.push(...(await listSnapshotChunks(pool, { ...snapshot, sources: [pair] }, perSource)));
     return { snapshot, chunks };
   };
   const provider: ScopedContextProvider = {
@@ -226,10 +277,24 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       return (await readSnapshot(owner, notebookId, activeSourceIds)).chunks;
     },
   };
-  const resolveSnapshot = async (ownerId: string, notebookId: string, ids: string[]): Promise<SourceRevisionPair[]> =>
-    [...(await captureScopeSnapshot(pool, ownerId, notebookId, ids)).sources].sort((a, b) => a.source_id.localeCompare(b.source_id));
-  const verifySnapshot = async (ownerId: string, notebookId: string, snapshot: SourceRevisionPair[]): Promise<void> => {
-    await verifyScopeSnapshot(pool, { notebook_id: notebookId, owner_id: ownerId, sources: snapshot });
+  const resolveSnapshot = async (
+    ownerId: string,
+    notebookId: string,
+    ids: string[],
+  ): Promise<SourceRevisionPair[]> =>
+    [...(await captureScopeSnapshot(pool, ownerId, notebookId, ids)).sources].sort((a, b) =>
+      a.source_id.localeCompare(b.source_id),
+    );
+  const verifySnapshot = async (
+    ownerId: string,
+    notebookId: string,
+    snapshot: SourceRevisionPair[],
+  ): Promise<void> => {
+    await verifyScopeSnapshot(pool, {
+      notebook_id: notebookId,
+      owner_id: ownerId,
+      sources: snapshot,
+    });
   };
 
   // ---- Package 2.2: Source Guide, overview, chat configuration, follow-ups, saved responses -------------
@@ -242,40 +307,81 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       const sources = new Map((await listSources(pool, userId, notebookId)).map((s) => [s.id, s]));
       return scope.flatMap((pair) => {
         const s = sources.get(pair.source_id);
-        return s && s.active_revision === pair.revision
-          ? [{ source_id: s.id, revision: pair.revision, title: s.title, word_count: s.word_count ?? 0 }]
+        return s?.active_revision === pair.revision
+          ? [
+              {
+                source_id: s.id,
+                revision: pair.revision,
+                title: s.title,
+                word_count: s.word_count ?? 0,
+              },
+            ]
           : [];
       });
     },
     ...(options.generation ? { model: options.generation } : {}),
     resolveOwner: (notebookId) => ownerOf(notebookId),
     // FR-UI-02: background work has no browser locale, so notebook > user > en-US.
-    resolveOutputLanguage: async (notebookId, userId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
+    resolveOutputLanguage: async (notebookId, userId) =>
+      (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
   });
   // On-demand guides for another output language (FR-SI-02): one background run per (source, revision, language).
-  const startGuide = async (input: { notebook_id: string; user_id: string; source_id: string; revision: number; output_language: string }): Promise<void> => {
+  const startGuide = async (input: {
+    notebook_id: string;
+    user_id: string;
+    source_id: string;
+    revision: number;
+    output_language: string;
+  }): Promise<void> => {
     await swept;
-    const effective = (await workspace.resolveLanguagePreferences(input.user_id, input.notebook_id)).output_language;
+    const effective = (await workspace.resolveLanguagePreferences(input.user_id, input.notebook_id))
+      .output_language;
     const primary = await claimPrimaryGuideLanguage(pool, { ...input, output_language: effective });
     if (input.output_language === primary) {
       const source = await getSource(pool, input.user_id, input.notebook_id, input.source_id);
-      if (source.status !== "Ready" || source.active_revision !== input.revision) throw new AppError("SourceSnapshotInvalid", 409, "Requested source revision is not Ready");
+      if (source.status !== "Ready" || source.active_revision !== input.revision)
+        throw new AppError("SourceSnapshotInvalid", 409, "Requested source revision is not Ready");
       // Polling an initial primary Guide shares the ordinary Ready dispatcher, including its in-flight dedup.
-      void dispatchReady({ notebook_id: input.notebook_id, source_id: input.source_id, revision_id: input.revision,
-        title: source.title, media_type: source.media_type }).catch(() => undefined);
+      void dispatchReady({
+        notebook_id: input.notebook_id,
+        source_id: input.source_id,
+        revision_id: input.revision,
+        title: source.title,
+        media_type: source.media_type,
+      }).catch(() => undefined);
       return;
     }
     const admission = await admitOnDemandGuide(pool, input, options.guideAdmission);
     if (admission.state === "deduplicated") return;
-    if (admission.state !== "started") throw new AppError("GuideAdmissionLimited", 429, admission.state === "rate"
-      ? "On-demand Source Guide hourly limit reached. Try again later."
-      : "On-demand Source Guide concurrency limit reached. Try again after a running Guide finishes.");
+    if (admission.state !== "started")
+      throw new AppError(
+        "GuideAdmissionLimited",
+        429,
+        admission.state === "rate"
+          ? "On-demand Source Guide hourly limit reached. Try again later."
+          : "On-demand Source Guide concurrency limit reached. Try again after a running Guide finishes.",
+      );
     // Captured persistence context follows this background Promise; every terminal outcome releases its slot.
-    void v22.generateSourceGuide(input).catch(() => undefined).finally(() => finishOnDemandGuide(pool, admission.id))
-      .catch(() => console.warn(JSON.stringify({ severity: "WARNING", message: "Guide admission release failed; restart recovery required" })));
+    void v22
+      .generateSourceGuide(input)
+      .catch(() => undefined)
+      .finally(() => finishOnDemandGuide(pool, admission.id))
+      .catch(() =>
+        console.warn(
+          JSON.stringify({
+            severity: "WARNING",
+            message: "Guide admission release failed; restart recovery required",
+          }),
+        ),
+      );
   };
   // ---- Package 2.3: notes (PostgreSQL, specs/013) and note-sources (v1 PostgreSQL sources, owner decision 2026-10-20)
-  const noteSourceStore = createPostgresNoteSources({ pool, storage: options.storage, embedder: options.embedder, sourceLimit: options.sourceLimit });
+  const noteSourceStore = createPostgresNoteSources({
+    pool,
+    storage: options.storage,
+    embedder: options.embedder,
+    sourceLimit: options.sourceLimit,
+  });
   const noteSources: typeof noteSourceStore = {
     ...noteSourceStore,
     async create(ownerId, notebookId, input) {
@@ -297,7 +403,11 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       const thread = await getOrCreateThread(pool, input.ownerId, input.notebookId);
       const stored = await publishTurn(pool, {
         thread,
-        snapshot: { notebook_id: input.notebookId, owner_id: input.ownerId, sources: input.snapshot },
+        snapshot: {
+          notebook_id: input.notebookId,
+          owner_id: input.ownerId,
+          sources: input.snapshot,
+        },
         requestId: randomUUID(),
         question: input.question,
         answer: input.answer,
@@ -318,17 +428,27 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     authorizeSource: async (userId, notebookId, sourceId) => {
       try {
         const source = await getSource(pool, userId, notebookId, sourceId);
-        return { exists: true, ready: source.status === "Ready", revision: source.active_revision ?? 0 };
+        return {
+          exists: true,
+          ready: source.status === "Ready",
+          revision: source.active_revision ?? 0,
+        };
       } catch (err) {
-        if (err instanceof AppError && err.status === 404) return { exists: false, ready: false, revision: 0 };
+        if (err instanceof AppError && err.status === 404)
+          return { exists: false, ready: false, revision: 0 };
         throw err;
       }
     },
-    resolveOutputLanguage: async (userId, notebookId) => (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
+    resolveOutputLanguage: async (userId, notebookId) =>
+      (await workspace.resolveLanguagePreferences(userId, notebookId)).output_language,
     // FR-GC-09 / FR-NM-02: the shared save-note route writes the Package 2.3 notes store.
     saveNote: savedResponseNoteSaver(notes),
     ...(options.generation
-      ? { generateOverview: v22.generateOverview, generateFollowUps: v22.generateFollowUps, startGuide }
+      ? {
+          generateOverview: v22.generateOverview,
+          generateFollowUps: v22.generateFollowUps,
+          startGuide,
+        }
       : {}),
   };
 
@@ -340,12 +460,25 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
       // process lists Ready sources again but never regenerates an existing guide.
       const owner = await ownerOf(event.notebook_id);
       if (owner) {
-        const preferred = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
-        const language = await claimPrimaryGuideLanguage(pool, { notebook_id: event.notebook_id, user_id: owner,
-          source_id: event.source_id, revision: event.revision_id, output_language: preferred });
-        if (await getSourceGuide(event.notebook_id, event.source_id, event.revision_id, language)) return;
-        await v22.generateSourceGuide({ notebook_id: event.notebook_id, user_id: owner, source_id: event.source_id,
-          revision: event.revision_id, output_language: language, ...(event.ready_at ? { ready_at: event.ready_at } : {}) });
+        const preferred = (await workspace.resolveLanguagePreferences(owner, event.notebook_id))
+          .output_language;
+        const language = await claimPrimaryGuideLanguage(pool, {
+          notebook_id: event.notebook_id,
+          user_id: owner,
+          source_id: event.source_id,
+          revision: event.revision_id,
+          output_language: preferred,
+        });
+        if (await getSourceGuide(event.notebook_id, event.source_id, event.revision_id, language))
+          return;
+        await v22.generateSourceGuide({
+          notebook_id: event.notebook_id,
+          user_id: owner,
+          source_id: event.source_id,
+          revision: event.revision_id,
+          output_language: language,
+          ...(event.ready_at ? { ready_at: event.ready_at } : {}),
+        });
       }
     });
   }
@@ -363,37 +496,60 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const readyBatch = Math.max(1, options.readyWatch?.batchSize ?? 500);
   const watched = new Set<string>();
   let readyHighWater: Date | null = null;
+  const dispatchWatchedRow = async (row: {
+    id: string;
+    notebook_id: string;
+    active_revision: number;
+    title: string;
+    media_type: string;
+    updated_at: Date;
+  }): Promise<boolean> => {
+    const key = `${row.id}:${row.active_revision}`;
+    if (watched.has(key)) return false;
+    if (!(await ownerOf(row.notebook_id))) return false; // notebook deleted meanwhile
+    watched.add(key);
+    void dispatchReady({
+      notebook_id: row.notebook_id,
+      source_id: row.id,
+      revision_id: row.active_revision,
+      title: row.title,
+      media_type: row.media_type,
+      ready_at: row.updated_at.toISOString(),
+    });
+    return true;
+  };
   const pollReadySources = async (): Promise<number> => {
     if (hooks.length === 0) return 0;
-    if (!readyHighWater) readyHighWater = (await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]!.now;
+    readyHighWater ??=
+      (await pool.query<{ now: Date }>("SELECT now() AS now")).rows[0]?.now ?? new Date();
     // The cursor keeps PostgreSQL's microsecond text form: a JS Date would truncate it and re-read the same rows.
-    let cursor: { at: string; id: string } = { at: new Date(readyHighWater.getTime() - READY_LOOKBACK_MS).toISOString(), id: "00000000-0000-0000-0000-000000000000" };
+    let cursor: { at: string; id: string } = {
+      at: new Date(readyHighWater.getTime() - READY_LOOKBACK_MS).toISOString(),
+      id: "00000000-0000-0000-0000-000000000000",
+    };
     let dispatched = 0;
     for (;;) {
-      const { rows } = await pool.query<{ id: string; notebook_id: string; active_revision: number; title: string; media_type: string; updated_at: Date; cursor_at: string; owner_id: string }>(
+      const { rows } = await pool.query<{
+        id: string;
+        notebook_id: string;
+        active_revision: number;
+        title: string;
+        media_type: string;
+        updated_at: Date;
+        cursor_at: string;
+        owner_id: string;
+      }>(
         `SELECT s.id, s.notebook_id, s.active_revision, s.title, s.media_type, s.updated_at, s.updated_at::text AS cursor_at, n.owner_id
            FROM sources s JOIN notebooks n ON n.id = s.notebook_id
           WHERE s.status = 'Ready' AND s.active_revision IS NOT NULL AND (s.updated_at, s.id) > ($1::timestamptz, $2::uuid)
           ORDER BY s.updated_at, s.id
           LIMIT $3`,
-        [cursor.at, cursor.id, readyBatch]
+        [cursor.at, cursor.id, readyBatch],
       );
       for (const row of rows) {
         cursor = { at: row.cursor_at, id: row.id };
         if (row.updated_at > readyHighWater) readyHighWater = row.updated_at;
-        const key = `${row.id}:${row.active_revision}`;
-        if (watched.has(key)) continue;
-        if (!(await ownerOf(row.notebook_id))) continue; // notebook deleted meanwhile
-        watched.add(key);
-        dispatched += 1;
-        void dispatchReady({
-          notebook_id: row.notebook_id,
-          source_id: row.id,
-          revision_id: row.active_revision,
-          title: row.title,
-          media_type: row.media_type,
-          ready_at: row.updated_at.toISOString(),
-        });
+        if (await dispatchWatchedRow(row)) dispatched += 1;
       }
       if (rows.length < readyBatch) break;
     }
@@ -402,13 +558,25 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   const drainPublicationEvents = async (): Promise<number> => {
     let completed = 0;
     for (const event of await claimPendingPublicationEvents(pool, 50)) {
-      const row = await pool.query<{ title: string; media_type: string; updated_at: Date; status: string; active_revision: number | null }>(
+      const row = await pool.query<{
+        title: string;
+        media_type: string;
+        updated_at: Date;
+        status: string;
+        active_revision: number | null;
+      }>(
         "SELECT title, media_type, updated_at, status, active_revision FROM sources WHERE id = $1 AND notebook_id = $2",
-        [event.source_id, event.notebook_id]
+        [event.source_id, event.notebook_id],
       );
       const source = row.rows[0];
       const owner = await ownerOf(event.notebook_id);
-      if (!source || !owner || source.status !== "Ready" || source.active_revision !== event.revision || !options.generation) {
+      if (
+        !source ||
+        !owner ||
+        source.status !== "Ready" ||
+        source.active_revision !== event.revision ||
+        !options.generation
+      ) {
         await completePublicationEvent(pool, event.id);
         completed += 1;
         continue;
@@ -421,8 +589,14 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         media_type: source.media_type,
         ready_at: source.updated_at.toISOString(),
       });
-      const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id)).output_language;
-      const guide = await getSourceGuide(event.notebook_id, event.source_id, event.revision, language);
+      const language = (await workspace.resolveLanguagePreferences(owner, event.notebook_id))
+        .output_language;
+      const guide = await getSourceGuide(
+        event.notebook_id,
+        event.source_id,
+        event.revision,
+        language,
+      );
       if (guide && guide.status !== "GuidePending") {
         await completePublicationEvent(pool, event.id);
         completed += 1;
@@ -434,17 +608,28 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   let readyTimer: ReturnType<typeof setInterval> | null = null;
   if (options.readyWatch && hooks.length > 0) {
     let running = false;
-    readyTimer = setInterval(() => inScope(() => {
-      if (running) return;
-      running = true;
-      afterSweep(async () => {
-        await pollReadySources();
-        await drainPublicationEvents();
-      })
-        .catch((err) => console.warn(JSON.stringify({ severity: "WARNING", message: `v2 ready watcher: ${(err as Error).message}` })))
-        .finally(() => (running = false));
-    }), Math.max(10, options.readyWatch.intervalMs));
-    readyTimer.unref?.();
+    readyTimer = setInterval(
+      () =>
+        inScope(() => {
+          if (running) return;
+          running = true;
+          afterSweep(async () => {
+            await pollReadySources();
+            await drainPublicationEvents();
+          })
+            .catch((err: unknown) =>
+              console.warn(
+                JSON.stringify({
+                  severity: "WARNING",
+                  message: `v2 ready watcher: ${err instanceof Error ? err.message : String(err)}`,
+                }),
+              ),
+            )
+            .finally(() => (running = false));
+        }),
+      Math.max(10, options.readyWatch.intervalMs),
+    );
+    readyTimer.unref();
   }
 
   // ---- Package 2.4 & 3.3: Studio reports, mindmaps, and data tables -------------------------------------
@@ -460,29 +645,64 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // D12 / Constitution IV: Studio jobs read EVERY chunk of the snapshot (keyset pages); the plugin bounds model
   // calls with batchChunks. Chat, Source Guide and Note Assistant keep the bounded `provider` read above.
   const studioContext = {
-    buildLedger:(ownerId:string,notebookId:string,sources:SourceRevisionPair[],tokenizer:import("@everlast/db").CorpusTokenizer)=>buildScopedCorpusLedger(pool,{owner_id:ownerId,notebook_id:notebookId,sources},tokenizer),
-    async *streamOriginals(ownerId:string,notebookId:string,sources:SourceRevisionPair[]){
-      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
-      for await(const page of streamSnapshotChunks(pool,captured,16))yield page;
+    buildLedger: (
+      ownerId: string,
+      notebookId: string,
+      sources: SourceRevisionPair[],
+      tokenizer: CorpusTokenizer,
+    ) =>
+      buildScopedCorpusLedger(
+        pool,
+        { owner_id: ownerId, notebook_id: notebookId, sources },
+        tokenizer,
+      ),
+    async *streamOriginals(ownerId: string, notebookId: string, sources: SourceRevisionPair[]) {
+      const captured = { owner_id: ownerId, notebook_id: notebookId, sources };
+      for await (const page of streamSnapshotChunks(pool, captured, 16)) yield page;
     },
-    async loadCitedChunks(ownerId:string,notebookId:string,sources:SourceRevisionPair[],ids:string[]){
-      const captured={owner_id:ownerId,notebook_id:notebookId,sources};
-      await verifyScopeSnapshot(pool,captured);
-      const chunks:UnifiedDocumentChunk[]=[];let bytes=0;
-      for(let offset=0;offset<ids.length;offset+=16){
-        await verifyScopeSnapshot(pool,captured);
-        const page=await getSnapshotChunksByIds(pool,captured,ids.slice(offset,offset+16));
-        for(const chunk of page){bytes+=Buffer.byteLength(JSON.stringify(chunk));if(bytes>32_000_000)throw new Error("Cited original validation memory capacity exceeded");chunks.push(chunk);}
+    async loadCitedChunks(
+      ownerId: string,
+      notebookId: string,
+      sources: SourceRevisionPair[],
+      ids: string[],
+    ) {
+      const captured = { owner_id: ownerId, notebook_id: notebookId, sources };
+      await verifyScopeSnapshot(pool, captured);
+      const chunks: UnifiedDocumentChunk[] = [];
+      let bytes = 0;
+      for (let offset = 0; offset < ids.length; offset += 16) {
+        await verifyScopeSnapshot(pool, captured);
+        const page = await getSnapshotChunksByIds(pool, captured, ids.slice(offset, offset + 16));
+        for (const chunk of page) {
+          bytes += Buffer.byteLength(JSON.stringify(chunk));
+          if (bytes > 32_000_000)
+            throw new Error("Cited original validation memory capacity exceeded");
+          chunks.push(chunk);
+        }
       }
-      await verifyScopeSnapshot(pool,captured);return chunks;
+      await verifyScopeSnapshot(pool, captured);
+      return chunks;
     },
-    async getScopedContext(notebookId: string, activeSourceIds: string[], ownerId?: string): Promise<UnifiedDocumentChunk[]> {
+    async getScopedContext(
+      notebookId: string,
+      activeSourceIds: string[],
+      ownerId?: string,
+    ): Promise<UnifiedDocumentChunk[]> {
       const owner = ownerId ?? (await ownerOf(notebookId));
       if (!owner) throw new InvalidScopeError("Notebook is not available");
-      return listAllSnapshotChunks(pool, await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds));
+      return listAllSnapshotChunks(
+        pool,
+        await captureScopeSnapshot(pool, owner, notebookId, activeSourceIds),
+      );
     },
   };
-  const runner = new StudioJobRunner({ repo, registry, scopedContext: studioContext, access, contextRuntime:options.studioContext });
+  const runner = new StudioJobRunner({
+    repo,
+    registry,
+    scopedContext: studioContext,
+    access,
+    contextRuntime: options.studioContext,
+  });
   // A finished, failed or cancelled job changes the artifact, so it advances the notebook's modified time.
   const runAndTouch = {
     async run(id: string) {
@@ -494,22 +714,48 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
   // FR-SI-02 / FR-ST-11: guides for the effective output language; a missing language variant is generated on
   // demand (one run per source, revision and language) and reports Pending meanwhile.
   const guides = {
-    async getGuides(notebookId: string, snapshot: SourceRevisionPair[], outputLanguage?: string): Promise<SourceGuideState[]> {
+    async getGuides(
+      notebookId: string,
+      snapshot: SourceRevisionPair[],
+      outputLanguage?: string,
+    ): Promise<SourceGuideState[]> {
       return Promise.all(
         snapshot.map(async (pair): Promise<SourceGuideState> => {
-          const guide = await getSourceGuide(notebookId, pair.source_id, pair.revision, outputLanguage);
+          const guide = await getSourceGuide(
+            notebookId,
+            pair.source_id,
+            pair.revision,
+            outputLanguage,
+          );
           const owner = await ownerOf(notebookId);
           // Security review 2026-10-20: only a supported FR-UI-02 tag may start an on-demand guide run.
-          if (!guide && outputLanguage && options.generation && owner && OutputLanguageSchema.safeParse(outputLanguage).success) {
-            await startGuide({ notebook_id: notebookId, user_id: owner, source_id: pair.source_id, revision: pair.revision, output_language: outputLanguage });
+          if (
+            !guide &&
+            outputLanguage &&
+            options.generation &&
+            owner &&
+            OutputLanguageSchema.safeParse(outputLanguage).success
+          ) {
+            await startGuide({
+              notebook_id: notebookId,
+              user_id: owner,
+              source_id: pair.source_id,
+              revision: pair.revision,
+              output_language: outputLanguage,
+            });
           }
           if (guide?.status === "GuideReady") {
-            return { ...pair, status: "Ready", summary: guide.summary_md, key_topics: guide.key_topics };
+            return {
+              ...pair,
+              status: "Ready",
+              summary: guide.summary_md,
+              key_topics: guide.key_topics,
+            };
           }
           // Without guide generation a missing guide never arrives: report it as unavailable, not endless loading (FR-018).
           if (!guide && !options.generation) return { ...pair, status: "Failed" };
           return { ...pair, status: guide?.status === "GuideFailed" ? "Failed" : "Pending" };
-        })
+        }),
       );
     },
   };
@@ -530,39 +776,88 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     learningProgress: new PostgresLearningProgressRepository(pool),
     quizGraderGenerator,
     drilldown: {
-      readScope: (ownerId, notebookId, sourceIds) => assistantContext.read(ownerId, notebookId, sourceIds),
+      readScope: (ownerId, notebookId, sourceIds) =>
+        assistantContext.read(ownerId, notebookId, sourceIds),
       ...(options.model ? { answer: new GroundedNoteAssistant(options.model) } : {}),
       publishTurn: (input) => assistantContext.publish(input),
     },
     // FR-008 / FR-NM-03: report → cited note (NotesService, sanitized) → v1 note-source through the same admission
     // and ingestion as any note; verified markers are stripped and the citations kept as origin_citations.
     convertToSource: async (input) => {
-      const scope = { notebook_id: input.notebook_id, owner_id: input.owner_id, sources: input.snapshot };
-      const chunks = new Map((await getSnapshotChunksByIds(pool, scope, input.citations.map((c) => c.chunk_id))).map((c) => [c.chunk_id, c]));
-      const titles = new Map((await listSources(pool, input.owner_id, input.notebook_id)).map((s) => [s.id, s.title]));
+      const scope = {
+        notebook_id: input.notebook_id,
+        owner_id: input.owner_id,
+        sources: input.snapshot,
+      };
+      const chunks = new Map(
+        (
+          await getSnapshotChunksByIds(
+            pool,
+            scope,
+            input.citations.map((c) => c.chunk_id),
+          )
+        ).map((c) => [c.chunk_id, c]),
+      );
+      const titles = new Map(
+        (await listSources(pool, input.owner_id, input.notebook_id)).map((s) => [s.id, s.title]),
+      );
       const citations: Citation[] = input.citations.map((c) => {
         const chunk = chunks.get(c.chunk_id);
         const title = titles.get(c.source_id);
-        if (!chunk || !title) throw new SourceSnapshotInvalidError("A cited source of this report is no longer available");
-        return { badge_number: c.badge_number, source_id: c.source_id, source_title: title, chunk_id: c.chunk_id, snippet: c.snippet, locator: chunk.locator };
+        if (!chunk || !title)
+          throw new SourceSnapshotInvalidError(
+            "A cited source of this report is no longer available",
+          );
+        return {
+          badge_number: c.badge_number,
+          source_id: c.source_id,
+          source_title: title,
+          chunk_id: c.chunk_id,
+          snippet: c.snippet,
+          locator: chunk.locator,
+        };
       });
-      const note = await notes.saveStudioReport(input.notebook_id, input.owner_id, { artifact_id: input.artifact_id, title: input.title, content_md: input.content_md, citations });
-      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, { note_ids: [note.id], reuse: true });
+      const note = await notes.saveStudioReport(input.notebook_id, input.owner_id, {
+        artifact_id: input.artifact_id,
+        title: input.title,
+        content_md: input.content_md,
+        citations,
+      });
+      const { source } = await notes.convertToSource(input.notebook_id, input.owner_id, {
+        note_ids: [note.id],
+        reuse: true,
+      });
       return { source_id: source.id };
     },
-    suggestions: new ReportSuggestionService({ guides, model: options.suggestionModel ?? structuredSuggestionModel(options.generation) }),
+    suggestions: new ReportSuggestionService({
+      guides,
+      model: options.suggestionModel ?? structuredSuggestionModel(options.generation),
+    }),
     // FR-UI-02: requests without output_language use the effective language (notebook > user > en-US).
-    resolveOutputLanguage: async (ownerId, notebookId) => (await workspace.resolveLanguagePreferences(ownerId, notebookId)).output_language,
+    resolveOutputLanguage: async (ownerId, notebookId) =>
+      (await workspace.resolveLanguagePreferences(ownerId, notebookId)).output_language,
     onNotebookModified: touchNotebookModified,
   };
 
   return {
     workspace,
-    recoveryReady:async()=>{await swept;return recoverySucceeded;},
+    recoveryReady: async () => {
+      await swept;
+      return recoverySucceeded;
+    },
     handlers: [
-      (req, res, userId) => afterSweep(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
+      (req, res, userId) =>
+        afterSweep(() => handleWorkspacePreferencesRoute(req, res, workspace, userId)),
       (req, res, userId) => afterSweep(() => handlePackageV22Route(req, res, userId, v22Deps)),
-      (req, res, userId) => afterSweep(() => handleNotesRoute(req, res, { service: notes, verifyOwnership: async (nb, uid) => (await ownerOf(nb)) === uid }, userId)),
+      (req, res, userId) =>
+        afterSweep(() =>
+          handleNotesRoute(
+            req,
+            res,
+            { service: notes, verifyOwnership: async (nb, uid) => (await ownerOf(nb)) === uid },
+            userId,
+          ),
+        ),
       (req, res, userId) => afterSweep(() => handleStudioRoute(req, res, studioDeps, userId)),
     ],
     syncNotebook(userId, notebook) {
@@ -574,38 +869,45 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         await touchNotebookModified(notebook.id);
       });
     },
-    syncSources: (_userId, notebookId, sources) => inScope(() => {
-      const ready = sources.filter((s) => s.status === "Ready" && s.active_revision !== null);
-      setReadySourceCount(notebookId, ready.length);
-      for (const s of ready) {
-        const event: ReadySourceEvent = {
-          notebook_id: notebookId,
-          source_id: s.id,
-          revision_id: s.active_revision!,
-          title: s.title,
-          media_type: s.media_type,
-          ready_at: s.updated_at,
+    syncSources: (_userId, notebookId, sources) =>
+      inScope(() => {
+        const ready = sources.flatMap((s) =>
+          s.status === "Ready" && s.active_revision !== null
+            ? [{ source: s, revisionId: s.active_revision }]
+            : [],
+        );
+        setReadySourceCount(notebookId, ready.length);
+        for (const { source: s, revisionId } of ready) {
+          const event: ReadySourceEvent = {
+            notebook_id: notebookId,
+            source_id: s.id,
+            revision_id: revisionId,
+            title: s.title,
+            media_type: s.media_type,
+            ready_at: s.updated_at,
+          };
+          void afterSweep(() => dispatchReady(event));
+        }
+      }),
+    notebookDeleted: (notebookId) =>
+      inScope(async () => {
+        forgetNotebook(notebookId);
+        await repo.deleteForNotebook(notebookId);
+      }),
+    chatPreferences: (userId, notebookId, browserLocale) =>
+      inScope(async () => {
+        const [config, languages] = await Promise.all([
+          getChatConfiguration(notebookId, userId),
+          workspace.resolveLanguagePreferences(userId, notebookId, browserLocale),
+        ]);
+        return {
+          style: config.style,
+          custom_instructions: config.custom_instructions,
+          response_length: config.response_length,
+          input_language: languages.input_language,
+          output_language: languages.output_language,
         };
-        void afterSweep(() => dispatchReady(event));
-      }
-    }),
-    notebookDeleted: (notebookId) => inScope(async () => {
-      forgetNotebook(notebookId);
-      await repo.deleteForNotebook(notebookId);
-    }),
-    chatPreferences: (userId, notebookId, browserLocale) => inScope(async () => {
-      const [config, languages] = await Promise.all([
-        getChatConfiguration(notebookId, userId),
-        workspace.resolveLanguagePreferences(userId, notebookId, browserLocale),
-      ]);
-      return {
-        style: config.style,
-        custom_instructions: config.custom_instructions,
-        response_length: config.response_length,
-        input_language: languages.input_language,
-        output_language: languages.output_language,
-      };
-    }),
+      }),
     pollReadySources: () => afterSweep(pollReadySources),
     drainPublicationEvents: () => afterSweep(drainPublicationEvents),
     close() {

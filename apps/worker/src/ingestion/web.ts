@@ -2,9 +2,16 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import http from "node:http";
 import https from "node:https";
 import { isIP } from "node:net";
-import { parseHtml, readArticle, type HtmlElement } from "./dom.ts";
+import { parseHtml, readArticle, type HtmlDocument, type HtmlElement } from "./dom.ts";
 import { MAX_SOURCE_BYTES, WEB_EXTRACTION_FAILED_MESSAGE } from "@everlast/contracts";
-import { IngestionFailure, extractPdf, pageSection, splitLogicalPages, type CanonicalDocument, type CanonicalPage } from "./extract.ts";
+import {
+  IngestionFailure,
+  extractPdf,
+  pageSection,
+  splitLogicalPages,
+  type CanonicalDocument,
+  type CanonicalPage,
+} from "./extract.ts";
 import type { NormalizedSource, SourceAdapter } from "./pipeline.ts";
 
 /**
@@ -26,20 +33,48 @@ import type { NormalizedSource, SourceAdapter } from "./pipeline.ts";
 // Address classification
 // ---------------------------------------------------------------------------------------------------------
 
-export type AddressKind = "public" | "private" | "ula" | "loopback" | "link-local" | "metadata" | "unspecified" | "multicast" | "reserved";
+export type AddressKind =
+  | "public"
+  | "private"
+  | "ula"
+  | "loopback"
+  | "link-local"
+  | "metadata"
+  | "unspecified"
+  | "multicast"
+  | "reserved";
 
-const ALWAYS_BLOCKED: ReadonlySet<AddressKind> = new Set(["loopback", "link-local", "metadata", "unspecified", "multicast", "reserved"]);
-const METADATA_HOSTS = new Set(["metadata.google.internal", "metadata", "metadata.goog", "instance-data", "instance-data.ec2.internal"]);
+const ALWAYS_BLOCKED: ReadonlySet<AddressKind> = new Set([
+  "loopback",
+  "link-local",
+  "metadata",
+  "unspecified",
+  "multicast",
+  "reserved",
+]);
+const METADATA_HOSTS = new Set([
+  "metadata.google.internal",
+  "metadata",
+  "metadata.goog",
+  "instance-data",
+  "instance-data.ec2.internal",
+]);
 
-function parseIPv4(ip: string): number[] | null {
+type IPv4Bytes = [number, number, number, number];
+
+function parseIPv4(ip: string): IPv4Bytes | null {
   const parts = ip.split(".");
   if (parts.length !== 4) return null;
   const bytes = parts.map((p) => (/^\d{1,3}$/.test(p) ? Number(p) : NaN));
-  return bytes.every((b) => b >= 0 && b <= 255) ? bytes : null;
+  if (!bytes.every((b) => b >= 0 && b <= 255)) return null;
+  const [a = 0, b = 0, c = 0, d = 0] = bytes;
+  return [a, b, c, d];
 }
 
 function parseIPv6(ip: string): number[] | null {
-  let addr = ip.toLowerCase().replace(/%.*$/, "");
+  const lower = ip.toLowerCase();
+  const zoneIdx = lower.indexOf("%");
+  let addr = zoneIdx === -1 ? lower : lower.slice(0, zoneIdx);
   let tail: number[] = [];
   const lastColon = addr.lastIndexOf(":");
   if (addr.slice(lastColon + 1).includes(".")) {
@@ -53,33 +88,61 @@ function parseIPv6(ip: string): number[] | null {
   const head = halves[0] ? halves[0].split(":") : [];
   const rest = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
   const fill = halves.length === 2 ? 8 - head.length - rest.length : 0;
-  const groups = [...head, ...Array(fill).fill("0"), ...rest];
+  if (fill < 0) return null;
+  const padding = Array.from({ length: fill }, () => "0");
+  const groups = [...head, ...padding, ...rest];
   if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
   const bytes = groups.flatMap((g) => {
-    const n = parseInt(g, 16);
+    const n = Number.parseInt(g, 16);
     return [n >> 8, n & 0xff];
   });
   if (tail.length) bytes.splice(12, 4, ...tail);
   return bytes;
 }
 
-function classifyV4([a, b, c, d]: number[]): AddressKind {
+function isPrivateV4(a: number, b: number): boolean {
+  return (
+    a === 10 ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+function isReservedV4(a: number, b: number, c: number): boolean {
+  return a >= 240 || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0);
+}
+
+function classifyV4([a, b, c, d]: IPv4Bytes): AddressKind {
   if (a === 0) return b === 0 && c === 0 && d === 0 ? "unspecified" : "reserved";
   if (a === 127) return "loopback";
   if (a === 169 && b === 254) return c === 169 && d === 254 ? "metadata" : "link-local";
-  if (a === 10 || (a === 172 && b! >= 16 && b! <= 31) || (a === 192 && b === 168) || (a === 100 && b! >= 64 && b! <= 127)) return "private";
-  if (a! >= 224 && a! <= 239) return "multicast";
-  if (a! >= 240 || (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0)) return "reserved";
+  if (isPrivateV4(a, b)) return "private";
+  if (a >= 224 && a <= 239) return "multicast";
+  if (isReservedV4(a, b, c)) return "reserved";
   return "public";
 }
 
+function toIPv4Bytes(slice: number[]): IPv4Bytes {
+  const [a = 0, b = 0, c = 0, d = 0] = slice;
+  return [a, b, c, d];
+}
+
 /** Embedded IPv4 of mapped/compatible/NAT64/6to4 IPv6 forms, else null. */
-function embeddedV4(bytes: number[]): number[] | null {
+function embeddedV4(bytes: number[]): IPv4Bytes | null {
   const zeros = (from: number, to: number) => bytes.slice(from, to).every((b) => b === 0);
-  if (zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff) return bytes.slice(12);
-  if (zeros(0, 12) && !(zeros(12, 15) && (bytes[15] === 0 || bytes[15] === 1))) return bytes.slice(12);
-  if (bytes[0] === 0x00 && bytes[1] === 0x64 && bytes[2] === 0xff && bytes[3] === 0x9b && zeros(4, 12)) return bytes.slice(12);
-  if (bytes[0] === 0x20 && bytes[1] === 0x02) return bytes.slice(2, 6);
+  if (zeros(0, 10) && bytes[10] === 0xff && bytes[11] === 0xff) return toIPv4Bytes(bytes.slice(12));
+  if (zeros(0, 12) && !(zeros(12, 15) && (bytes[15] === 0 || bytes[15] === 1)))
+    return toIPv4Bytes(bytes.slice(12));
+  if (
+    bytes[0] === 0x00 &&
+    bytes[1] === 0x64 &&
+    bytes[2] === 0xff &&
+    bytes[3] === 0x9b &&
+    zeros(4, 12)
+  )
+    return toIPv4Bytes(bytes.slice(12));
+  if (bytes[0] === 0x20 && bytes[1] === 0x02) return toIPv4Bytes(bytes.slice(2, 6));
   return null;
 }
 
@@ -92,10 +155,11 @@ export function classifyAddress(ip: string): AddressKind {
   if (v6.slice(0, 15).every((b) => b === 0) && v6[15] === 1) return "loopback";
   const inner = embeddedV4(v6);
   if (inner) return classifyV4(inner);
-  if (v6[0] === 0xfe && (v6[1]! & 0xc0) === 0x80) return "link-local";
-  if (v6[0] === 0xfe && (v6[1]! & 0xc0) === 0xc0) return "private";
-  if ((v6[0]! & 0xfe) === 0xfc) return "ula";
-  if (v6[0] === 0xff) return "multicast";
+  const [b0 = 0, b1 = 0] = v6;
+  if (b0 === 0xfe && (b1 & 0xc0) === 0x80) return "link-local";
+  if (b0 === 0xfe && (b1 & 0xc0) === 0xc0) return "private";
+  if ((b0 & 0xfe) === 0xfc) return "ula";
+  if (b0 === 0xff) return "multicast";
   return "public";
 }
 
@@ -108,15 +172,18 @@ function normalizedBytes(ip: string): number[] | null {
 }
 
 export function cidrContains(cidr: string, ip: string): boolean {
-  const [base, bitsText] = cidr.split("/");
-  const net = normalizedBytes(base ?? "");
+  const [base = "", bitsText] = cidr.split("/");
+  const net = normalizedBytes(base);
   const addr = normalizedBytes(ip);
-  if (!net || !addr || net.length !== addr.length) return false;
+  if (!net || !addr) return false;
+  if (net.length !== addr.length) return false;
   const bits = bitsText === undefined ? net.length * 8 : Number(bitsText);
   for (let i = 0; i < net.length; i++) {
     const take = Math.max(0, Math.min(8, bits - i * 8));
     const mask = take === 0 ? 0 : (0xff << (8 - take)) & 0xff;
-    if ((net[i]! & mask) !== (addr[i]! & mask)) return false;
+    const netByte = net[i] ?? 0;
+    const addrByte = addr[i] ?? 0;
+    if ((netByte & mask) !== (addrByte & mask)) return false;
   }
   return true;
 }
@@ -133,7 +200,7 @@ export interface NetworkPolicy {
 }
 
 export interface Resolver {
-  lookup(hostname: string): Promise<{ address: string; family: number }[]>;
+  lookup: (hostname: string) => Promise<Array<{ address: string; family: number }>>;
 }
 
 export interface TransportRequest {
@@ -154,7 +221,7 @@ export interface TransportResponse {
 }
 
 export interface Transport {
-  request(req: TransportRequest): Promise<TransportResponse>;
+  request: (req: TransportRequest) => Promise<TransportResponse>;
 }
 
 export class SsrfBlockedError extends Error {
@@ -175,7 +242,7 @@ export class WebFetchError extends Error {
 
 export const systemResolver: Resolver = {
   async lookup(hostname) {
-    return dnsLookup(hostname, { all: true, verbatim: true });
+    return dnsLookup(hostname, { all: true, order: "verbatim" });
   },
 };
 
@@ -184,8 +251,13 @@ export const nodeTransport: Transport = {
   request(req) {
     return new Promise((resolve, reject) => {
       const client = req.url.protocol === "https:" ? https : http;
-      const pinned = (_host: string, options: { all?: boolean } | number, cb: (...args: unknown[]) => void) => {
-        if (typeof options === "object" && options?.all) cb(null, [{ address: req.address, family: req.family }]);
+      const pinned = (
+        _host: string,
+        options: { all?: boolean } | number,
+        cb: (...args: unknown[]) => void,
+      ) => {
+        if (typeof options === "object" && options.all)
+          cb(null, [{ address: req.address, family: req.family }]);
         else cb(null, req.address, req.family);
       };
       const r = client.request(
@@ -203,9 +275,10 @@ export const nodeTransport: Transport = {
         },
         (res) => {
           const headers: Record<string, string | undefined> = {};
-          for (const [k, v] of Object.entries(res.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(", ") : v;
+          for (const [k, v] of Object.entries(res.headers))
+            headers[k.toLowerCase()] = Array.isArray(v) ? v.join(", ") : v;
           resolve({ status: res.statusCode ?? 0, headers, body: res });
-        }
+        },
       );
       r.on("timeout", () => r.destroy(new WebFetchError("Request timed out")));
       r.on("error", reject);
@@ -235,28 +308,63 @@ export interface FetchedResource {
   body: Buffer;
 }
 
-async function validatedTarget(url: URL, options: GuardedFetchOptions): Promise<{ address: string; family: number; hostname: string }> {
-  if (url.protocol !== "http:" && url.protocol !== "https:") throw new SsrfBlockedError("unsupported scheme");
-  if (url.username || url.password) throw new SsrfBlockedError("credentials in URL");
-  const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase().replace(/\.$/, "");
-  if (METADATA_HOSTS.has(hostname) || hostname.endsWith(".internal") || hostname === "localhost" || hostname.endsWith(".localhost")) {
-    throw new SsrfBlockedError("reserved host name");
-  }
-  const addresses = isIP(hostname) ? [{ address: hostname, family: isIP(hostname) }] : await (options.resolver ?? systemResolver).lookup(hostname);
-  if (addresses.length === 0) throw new WebFetchError("Host did not resolve");
-  for (const { address } of addresses) {
-    const kind = classifyAddress(address);
-    if (ALWAYS_BLOCKED.has(kind)) throw new SsrfBlockedError(kind);
-    if (kind === "private" || kind === "ula") {
-      const inPolicy = options.policy.privateNetworks.some((cidr) => cidrContains(cidr, address));
-      const hostAllowed = options.policy.allowedPrivateHosts.length === 0 || options.policy.allowedPrivateHosts.includes(hostname);
-      if (!options.principalAuthorized || !inPolicy || !hostAllowed) throw new SsrfBlockedError(kind);
-    }
-  }
-  return { ...addresses[0]!, hostname };
+function isReservedHostname(hostname: string): boolean {
+  return (
+    METADATA_HOSTS.has(hostname) ||
+    hostname.endsWith(".internal") ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost")
+  );
 }
 
-async function readBounded(body: AsyncIterable<Uint8Array>, maxBytes: number, signal?: AbortSignal): Promise<Buffer> {
+function assertAddressAllowed(
+  address: string,
+  hostname: string,
+  options: GuardedFetchOptions,
+): void {
+  const kind = classifyAddress(address);
+  if (ALWAYS_BLOCKED.has(kind)) throw new SsrfBlockedError(kind);
+  if (kind !== "private" && kind !== "ula") return;
+  const inPolicy = options.policy.privateNetworks.some((cidr) => cidrContains(cidr, address));
+  const hostAllowed =
+    options.policy.allowedPrivateHosts.length === 0 ||
+    options.policy.allowedPrivateHosts.includes(hostname);
+  if (!options.principalAuthorized || !inPolicy || !hostAllowed) {
+    throw new SsrfBlockedError(kind);
+  }
+}
+
+async function validatedTarget(
+  url: URL,
+  options: GuardedFetchOptions,
+): Promise<{ address: string; family: number; hostname: string }> {
+  if (url.protocol !== "http:" && url.protocol !== "https:")
+    throw new SsrfBlockedError("unsupported scheme");
+  if (url.username || url.password) throw new SsrfBlockedError("credentials in URL");
+  const hostname = url.hostname
+    .replace(/^\[|\]$/g, "")
+    .toLowerCase()
+    .replace(/\.$/, "");
+  if (isReservedHostname(hostname)) {
+    throw new SsrfBlockedError("reserved host name");
+  }
+  const addresses = isIP(hostname)
+    ? [{ address: hostname, family: isIP(hostname) }]
+    : await (options.resolver ?? systemResolver).lookup(hostname);
+  if (addresses.length === 0) throw new WebFetchError("Host did not resolve");
+  for (const { address } of addresses) {
+    assertAddressAllowed(address, hostname, options);
+  }
+  const first = addresses[0];
+  if (!first) throw new WebFetchError("Host did not resolve");
+  return { ...first, hostname };
+}
+
+async function readBounded(
+  body: AsyncIterable<Uint8Array>,
+  maxBytes: number,
+  signal?: AbortSignal,
+): Promise<Buffer> {
   const parts: Buffer[] = [];
   let total = 0;
   for await (const chunk of body) {
@@ -271,7 +379,10 @@ async function readBounded(body: AsyncIterable<Uint8Array>, maxBytes: number, si
   return Buffer.concat(parts);
 }
 
-export async function guardedFetch(input: string, options: GuardedFetchOptions): Promise<FetchedResource> {
+export async function guardedFetch(
+  input: string,
+  options: GuardedFetchOptions,
+): Promise<FetchedResource> {
   const maxRedirects = options.maxRedirects ?? 5;
   const maxBytes = options.maxBytes ?? MAX_SOURCE_BYTES;
   // One wall-clock budget for every hop, the headers and the whole body: a slow-drip server cannot stall the fetch.
@@ -295,7 +406,10 @@ export async function guardedFetch(input: string, options: GuardedFetchOptions):
         hostname: target.hostname,
         address: target.address,
         family: target.family,
-        headers: { accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.1", "user-agent": "EverlastLM-Ingestion/3.1" },
+        headers: {
+          accept: "text/html,application/xhtml+xml,application/pdf;q=0.9,*/*;q=0.1",
+          "user-agent": "EverlastLM-Ingestion/3.1",
+        },
         timeoutMs: options.timeoutMs ?? 20_000,
         signal: controller.signal,
       });
@@ -307,9 +421,15 @@ export async function guardedFetch(input: string, options: GuardedFetchOptions):
         continue;
       }
       const declared = Number(res.headers["content-length"] ?? "0");
-      if (declared > maxBytes) throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
+      if (declared > maxBytes)
+        throw new IngestionFailure("SourceOversized", "Exceeds 200,000,000 bytes limit");
       const body = await readBounded(res.body, maxBytes, controller.signal);
-      return { finalUrl: url.toString(), status: res.status, contentType: (res.headers["content-type"] ?? "").toLowerCase(), body };
+      return {
+        finalUrl: url.toString(),
+        status: res.status,
+        contentType: (res.headers["content-type"] ?? "").toLowerCase(),
+        body,
+      };
     }
     throw new WebFetchError("Too many redirects");
   };
@@ -330,56 +450,101 @@ export async function guardedFetch(input: string, options: GuardedFetchOptions):
 export interface ExtractedArticle {
   title: string;
   canonicalUrl: string;
-  sections: { selector: string; text: string }[];
+  sections: Array<{ selector: string; text: string }>;
 }
 
-const BLOCKS = new Set(["P", "LI", "PRE", "BLOCKQUOTE", "FIGCAPTION", "DT", "DD", "TR", "H1", "H2", "H3", "H4", "H5", "H6", "DIV", "SECTION", "ARTICLE", "TD", "TH"]);
+const BLOCKS = new Set([
+  "P",
+  "LI",
+  "PRE",
+  "BLOCKQUOTE",
+  "FIGCAPTION",
+  "DT",
+  "DD",
+  "TR",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "DIV",
+  "SECTION",
+  "ARTICLE",
+  "TD",
+  "TH",
+]);
 const NEW_SECTION = new Set(["H1", "H2", "H3"]);
 const MIN_ARTICLE_WORDS = 10;
 
-const failExtraction = () => new IngestionFailure("WebExtractionFailed", WEB_EXTRACTION_FAILED_MESSAGE);
+const failExtraction = () =>
+  new IngestionFailure("WebExtractionFailed", WEB_EXTRACTION_FAILED_MESSAGE);
 const squash = (text: string) => text.replace(/\s+/g, " ").trim();
 
 function hasBlockDescendant(el: HtmlElement): boolean {
-  for (const child of Array.from(el.children as ArrayLike<HtmlElement>)) if (BLOCKS.has(child.tagName) || hasBlockDescendant(child)) return true;
+  for (const child of el.children) {
+    if (BLOCKS.has(child.tagName) || hasBlockDescendant(child)) return true;
+  }
   return false;
+}
+
+function resolveCanonicalUrl(document: HtmlDocument, finalUrl: string): string {
+  const canonicalHref =
+    document.querySelector('link[rel~="canonical"]')?.getAttribute("href") ?? null;
+  if (!canonicalHref) return finalUrl;
+  try {
+    const resolved = new URL(canonicalHref, finalUrl);
+    if (resolved.protocol === "https:" || resolved.protocol === "http:") {
+      return resolved.toString();
+    }
+  } catch {
+    /* invalid canonical link: keep the final URL */
+  }
+  return finalUrl;
+}
+
+function extractArticleElementText(el: HtmlElement): string | null {
+  if (!BLOCKS.has(el.tagName)) return null;
+  if (el.tagName === "TD" || el.tagName === "TH") return null; // handled as part of their row
+  if (el.tagName !== "TR" && hasBlockDescendant(el)) return null;
+  if (el.closest("tr") && el.tagName !== "TR") return null;
+  if (el.tagName === "TR") {
+    return [...el.children]
+      .map((cell) => squash(cell.textContent ?? ""))
+      .filter(Boolean)
+      .join(" | ");
+  }
+  return squash(el.textContent ?? "");
+}
+
+function collectArticleSections(articleHtml: string): string[][] {
+  const content = parseHtml(`<!doctype html><body>${articleHtml}</body>`);
+  let currentSection: string[] = [];
+  const sectionsText: string[][] = [currentSection];
+  for (const el of content.body.querySelectorAll("*")) {
+    const text = extractArticleElementText(el);
+    if (!text) continue;
+    if (NEW_SECTION.has(el.tagName) && currentSection.length > 0) {
+      currentSection = [];
+      sectionsText.push(currentSection);
+    }
+    currentSection.push(text);
+  }
+  return sectionsText;
 }
 
 export function extractArticle(html: string, finalUrl: string): ExtractedArticle {
   // jsdom defaults: scripts are not executed and no subresource (img/css/script/iframe) is loaded.
   const document = parseHtml(html, finalUrl);
-  const canonicalHref = document.querySelector('link[rel~="canonical"]')?.getAttribute("href") ?? null;
-  let canonicalUrl = finalUrl;
-  if (canonicalHref) {
-    try {
-      const resolved = new URL(canonicalHref, finalUrl);
-      if (resolved.protocol === "https:" || resolved.protocol === "http:") canonicalUrl = resolved.toString();
-    } catch {
-      /* invalid canonical link: keep the final URL */
-    }
-  }
+  const canonicalUrl = resolveCanonicalUrl(document, finalUrl);
   const pageTitle = squash(document.title ?? "");
   const article = readArticle(document);
   if (!article?.content) throw failExtraction();
 
-  const content = parseHtml(`<!doctype html><body>${article.content}</body>`);
-  const sectionsText: string[][] = [[]];
-  for (const el of Array.from(content.body.querySelectorAll("*") as ArrayLike<HtmlElement>)) {
-    if (!BLOCKS.has(el.tagName)) continue;
-    if (el.tagName === "TD" || el.tagName === "TH") continue; // handled as part of their row
-    if (el.tagName !== "TR" && hasBlockDescendant(el)) continue;
-    if (el.closest("tr") && el.tagName !== "TR") continue;
-    const text =
-      el.tagName === "TR"
-        ? Array.from(el.children as ArrayLike<HtmlElement>).map((cell) => squash(cell.textContent ?? "")).filter(Boolean).join(" | ")
-        : squash(el.textContent ?? "");
-    if (!text) continue;
-    if (NEW_SECTION.has(el.tagName) && sectionsText.at(-1)!.length > 0) sectionsText.push([]);
-    sectionsText.at(-1)!.push(text);
-  }
+  const sectionsText = collectArticleSections(article.content);
   const words = sectionsText.flat().join(" ").split(/\s+/).filter(Boolean).length;
   if (words < MIN_ARTICLE_WORDS) throw failExtraction();
-  const sections: { selector: string; text: string }[] = [];
+  const sections: Array<{ selector: string; text: string }> = [];
   for (const blocks of sectionsText) {
     if (blocks.length === 0) continue;
     for (const page of splitLogicalPages(blocks.join("\n\n"))) {
@@ -390,7 +555,12 @@ export function extractArticle(html: string, finalUrl: string): ExtractedArticle
 }
 
 export function articleToDocument(article: ExtractedArticle): CanonicalDocument {
-  const pages: CanonicalPage[] = article.sections.map((s, i) => ({ page_number: i + 1, text: s.text, sections: pageSection(s.text), dom_selector: s.selector }));
+  const pages: CanonicalPage[] = article.sections.map((s, i) => ({
+    page_number: i + 1,
+    text: s.text,
+    sections: pageSection(s.text),
+    dom_selector: s.selector,
+  }));
   return { pages, pageCount: pages.length, ocrPages: [] };
 }
 
@@ -403,29 +573,53 @@ function decodeHtml(body: Buffer, contentType: string): string {
   }
 }
 
-export interface WebAdapterOptions extends Omit<GuardedFetchOptions, "principalAuthorized"> {}
+export type WebAdapterOptions = Omit<GuardedFetchOptions, "principalAuthorized">;
 
 /** Fetches, routes (HTML → Readability, PDF → PDF parser) and normalizes a Web URL source (import and re-sync). */
-export async function fetchWebSource(url: string, options: WebAdapterOptions, ocr: Parameters<typeof extractPdf>[1]): Promise<Omit<NormalizedSource, "screen">> {
+export async function fetchWebSource(
+  url: string,
+  options: WebAdapterOptions,
+  ocr: Parameters<typeof extractPdf>[1],
+): Promise<Omit<NormalizedSource, "screen">> {
   let fetched: FetchedResource;
   try {
     // v3 is Owner-only: the notebook owner is the authorized principal for tenant-approved private destinations.
     fetched = await guardedFetch(url, { ...options, principalAuthorized: true });
   } catch (err) {
     if (err instanceof IngestionFailure) throw err;
-    if (err instanceof SsrfBlockedError) throw new IngestionFailure("DestinationBlocked", "This URL points to a network destination that cannot be imported");
+    if (err instanceof SsrfBlockedError)
+      throw new IngestionFailure(
+        "DestinationBlocked",
+        "This URL points to a network destination that cannot be imported",
+      );
     throw failExtraction();
   }
   if (fetched.status < 200 || fetched.status >= 300) throw failExtraction();
-  const isPdf = fetched.contentType.startsWith("application/pdf") || fetched.body.subarray(0, 5).toString("latin1") === "%PDF-";
+  const isPdf =
+    fetched.contentType.startsWith("application/pdf") ||
+    fetched.body.subarray(0, 5).toString("latin1") === "%PDF-";
   if (isPdf) {
     const doc = await extractPdf(fetched.body, ocr);
-    return { doc, viewerKind: "pages", byteSize: fetched.body.length, canonicalUrl: fetched.finalUrl, mediaType: "application/pdf" };
+    return {
+      doc,
+      viewerKind: "pages",
+      byteSize: fetched.body.length,
+      canonicalUrl: fetched.finalUrl,
+      mediaType: "application/pdf",
+    };
   }
-  const isHtml = /^(text\/html|application\/xhtml\+xml)/.test(fetched.contentType) || (!fetched.contentType && /<html/i.test(fetched.body.subarray(0, 2048).toString("utf8")));
+  const isHtml =
+    /^(text\/html|application\/xhtml\+xml)/.test(fetched.contentType) ||
+    (!fetched.contentType && /<html/i.test(fetched.body.subarray(0, 2048).toString("utf8")));
   if (!isHtml) throw failExtraction();
   const article = extractArticle(decodeHtml(fetched.body, fetched.contentType), fetched.finalUrl);
-  return { doc: articleToDocument(article), viewerKind: "article", byteSize: fetched.body.length, title: article.title, canonicalUrl: article.canonicalUrl };
+  return {
+    doc: articleToDocument(article),
+    viewerKind: "article",
+    byteSize: fetched.body.length,
+    title: article.title,
+    canonicalUrl: article.canonicalUrl,
+  };
 }
 
 export function createWebAdapter(options: WebAdapterOptions): SourceAdapter {

@@ -1,24 +1,38 @@
-import { ContextPlanSchema } from '@everlast/contracts';
-import type { z } from 'zod';
+import { ContextPlanSchema } from "@everlast/contracts";
+import type { z } from "zod";
 
 export type ContextPlan = z.infer<typeof ContextPlanSchema>;
 
 const BROAD_PATTERNS = [
   /summarize\s+(the\s+)?(main\s+)?themes\s+across\s+(all|\d+)/i,
   /overview\s+across\s+(all|\d+)\s+sources/i,
-  /compare\s+.*themes\s+(of|across)\s+(all|\d+)/i,
   /themes\s+across\s+all/i,
   /across\s+all\s+\d+\s+sources/i,
   /across\s+all\s+sources/i,
   /synthesize\s+(the\s+)?themes/i,
 ];
 
-export function classifyQuery(question: string): 'detailed' | 'broad' {
-  const q = question.trim();
-  for (const pattern of BROAD_PATTERNS) {
-    if (pattern.test(q)) return 'broad';
+function isBroadComparison(question: string): boolean {
+  // Whitespace immediately after "compare" may include line breaks. A later
+  // line break ends the comparison unless the "themes" phrase already started.
+  const comparisonParts =
+    /(compare\s+)|(themes\s+(?:of|across)\s+(?:all|\d+))|[\r\n\u2028\u2029]/gi;
+  let hasCompare = false;
+  for (const [, compare, themes] of question.matchAll(comparisonParts)) {
+    if (themes === undefined) {
+      hasCompare = compare !== undefined;
+    } else if (hasCompare) {
+      return true;
+    }
   }
-  return 'detailed';
+  return false;
+}
+
+export function classifyQuery(question: string): "detailed" | "broad" {
+  const q = question.trim();
+  return BROAD_PATTERNS.some((pattern) => pattern.test(q)) || isBroadComparison(q)
+    ? "broad"
+    : "detailed";
 }
 
 export interface PlanChatContextInput {
@@ -36,7 +50,7 @@ export interface PlanChatContextInput {
   evidenceTokens: number;
   requiredGuideIds?: string[];
   detailChunkIds?: string[];
-  purpose?: 'inspection' | 'generation';
+  purpose?: "inspection" | "generation";
 }
 
 export function planChatContext(input: PlanChatContextInput): ContextPlan {
@@ -47,9 +61,9 @@ export function planChatContext(input: PlanChatContextInput): ContextPlan {
   return ContextPlanSchema.parse({
     request_id: input.requestId,
     scope_manifest_hash: input.scopeManifestHash,
-    purpose: input.purpose ?? 'generation',
+    purpose: input.purpose ?? "generation",
     query_class: queryClass,
-    mode: 'retrieval',
+    mode: "retrieval",
     model: input.model,
     model_version: input.modelVersion,
     input_limit: input.inputLimit,

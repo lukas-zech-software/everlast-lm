@@ -64,13 +64,29 @@ describe("Gate v2.0 #3 Studio reports (deterministic)", () => {
       sections: payload.sections.filter((s) => s.key !== "quotes"),
       content_md: payload.content_md.slice(0, payload.content_md.indexOf("## Quotes")),
     };
-    expect(validateReportPayload(withoutQuotes, chunks, snapshot, "briefing_doc")).toMatch(/quotes/);
+    expect(validateReportPayload(withoutQuotes, chunks, snapshot, "briefing_doc")).toMatch(
+      /quotes/,
+    );
 
-    const uncited = { ...payload, content_md: payload.content_md.replace("## Key Takeaways\n\n", "## Key Takeaways\n\n- An unsupported claim without a badge.\n") };
+    const uncited = {
+      ...payload,
+      content_md: payload.content_md.replace(
+        "## Key Takeaways\n\n",
+        "## Key Takeaways\n\n- An unsupported claim without a badge.\n",
+      ),
+    };
     expect(validateReportPayload(uncited, chunks, snapshot, "briefing_doc")).toMatch(/uncited/i);
 
-    const twoSentences = { ...payload, content_md: payload.content_md.replace(/(## Key Takeaways\n\n- [^\n]*?)( \[\d+\])/, "$1 A second unsupported sentence.$2") };
-    expect(validateReportPayload(twoSentences, chunks, snapshot, "briefing_doc")).toMatch(/uncited/i);
+    const twoSentences = {
+      ...payload,
+      content_md: payload.content_md.replace(
+        /(## Key Takeaways\n\n- [^\n]*?)( \[\d+\])/,
+        "$1 A second unsupported sentence.$2",
+      ),
+    };
+    expect(validateReportPayload(twoSentences, chunks, snapshot, "briefing_doc")).toMatch(
+      /uncited/i,
+    );
   });
 
   it("the Vertex Flash release variant reports UNAVAILABLE unless Vertex is configured", async () => {

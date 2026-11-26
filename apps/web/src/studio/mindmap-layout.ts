@@ -66,7 +66,7 @@ export function defaultExpandedNodeIds(root: MindmapNode, maxDepth = 2): string[
  */
 export function computeMindmapLayout(
   root: MindmapNode,
-  visibleNodeIds: Iterable<string>
+  visibleNodeIds: Iterable<string>,
 ): MindmapLayout {
   const visible = new Set(visibleNodeIds);
   visible.add(root.id);
@@ -75,7 +75,11 @@ export function computeMindmapLayout(
   const edges: MindmapEdge[] = [];
   let leafRow = 0;
 
-  const place = (node: MindmapNode, depth: number, parentId: string | null): PositionedMindmapNode => {
+  const place = (
+    node: MindmapNode,
+    depth: number,
+    parentId: string | null,
+  ): PositionedMindmapNode => {
     const visibleChildren = node.children.filter((c) => visible.has(c.id));
     const x = PADDING + depth * LEVEL_X_GAP;
     let y: number;
@@ -88,9 +92,9 @@ export function computeMindmapLayout(
       for (const child of visibleChildren) {
         placedChildren.push(place(child, depth + 1, node.id));
       }
-      const firstY = placedChildren[0]!.y;
-      const lastY = placedChildren[placedChildren.length - 1]!.y;
-      y = Math.round((firstY + lastY) / 2);
+      const first = placedChildren[0];
+      const last = placedChildren.at(-1);
+      y = first && last ? Math.round((first.y + last.y) / 2) : PADDING;
     }
 
     const positioned: PositionedMindmapNode = {

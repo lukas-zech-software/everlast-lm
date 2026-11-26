@@ -11,7 +11,7 @@ const CRC_TABLE = (() => {
   for (let i = 0; i < 256; i++) {
     let c = i;
     for (let k = 0; k < 8; k++) {
-      c = (c & 1) !== 0 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+      c = (c & 1) === 0 ? c >>> 1 : 0xedb88320 ^ (c >>> 1);
     }
     table[i] = c >>> 0;
   }
@@ -20,8 +20,8 @@ const CRC_TABLE = (() => {
 
 function crc32(buf: Buffer): number {
   let c = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) {
-    c = CRC_TABLE[(c ^ buf[i]!) & 0xff]! ^ (c >>> 8);
+  for (const byte of buf) {
+    c = (CRC_TABLE[(c ^ byte) & 0xff] ?? 0) ^ (c >>> 8);
   }
   return (c ^ 0xffffffff) >>> 0;
 }

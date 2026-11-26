@@ -2,13 +2,21 @@ import { GoogleAuth } from "google-auth-library";
 import { parseHtml } from "./dom.ts";
 import { NO_TRANSCRIPT_MESSAGE } from "@everlast/contracts";
 import type { ObjectStorage } from "@everlast/cloud";
-import { IngestionFailure, MSG_NO_TEXT, type CanonicalDocument, type CanonicalPage } from "./extract.ts";
+import {
+  IngestionFailure,
+  MSG_NO_TEXT,
+  type CanonicalDocument,
+  type CanonicalPage,
+} from "./extract.ts";
 import { guardedFetch, SsrfBlockedError, type WebAdapterOptions } from "./web.ts";
 import { sourceObjectPrefix, type NormalizedSource, type SourceAdapter } from "./pipeline.ts";
 
 /** Optional everlast-render audio preprocessing (M4A/MP4 → FLAC) ahead of Speech V2. */
 export interface AudioPreprocessor {
-  audioToFlac(input: { name: string; generation: string }, format: "mp3" | "wav" | "m4a"): Promise<{ name: string; generation: string }>;
+  audioToFlac: (
+    input: { name: string; generation: string },
+    format: "mp3" | "wav" | "m4a",
+  ) => Promise<{ name: string; generation: string }>;
 }
 
 /**
@@ -36,10 +44,16 @@ export interface TranscribeInput {
 
 export interface Transcriber {
   readonly name: string;
-  transcribe(input: TranscribeInput): Promise<{ words: TranscriptWord[]; durationMs?: number | null }>;
+  transcribe: (
+    input: TranscribeInput,
+  ) => Promise<{ words: TranscriptWord[]; durationMs?: number | null }>;
 }
 
-const invalidTiming = () => new IngestionFailure("InvalidTranscriptTiming", "The transcript timing was invalid; the source was not indexed");
+const invalidTiming = () =>
+  new IngestionFailure(
+    "InvalidTranscriptTiming",
+    "The transcript timing was invalid; the source was not indexed",
+  );
 const noTranscript = () => new IngestionFailure("NoTranscript", NO_TRANSCRIPT_MESSAGE);
 
 /** Provider offsets ("1.234s" or {seconds, nanos}) → integer milliseconds. */
@@ -52,20 +66,32 @@ export function parseProviderOffset(value: unknown): number {
   }
   if (typeof value === "object") {
     const v = value as { seconds?: string | number; nanos?: number };
-    return Math.round(Number(v.seconds ?? 0) * 1000 + Number(v.nanos ?? 0) / 1e6);
+    return Math.round(Number(v.seconds ?? 0) * 1000 + (v.nanos ?? 0) / 1e6);
   }
   throw invalidTiming();
 }
 
 /** Absolute offsets for segmented transcription; words repeated in an overlap window are dropped deterministically. */
-export function assembleSegments(segments: { offsetMs: number; words: TranscriptWord[] }[]): TranscriptWord[] {
+export function assembleSegments(
+  segments: Array<{ offsetMs: number; words: TranscriptWord[] }>,
+): TranscriptWord[] {
   const out: TranscriptWord[] = [];
   for (const seg of [...segments].sort((a, b) => a.offsetMs - b.offsetMs)) {
     for (const w of seg.words) {
-      const abs = { text: w.text, start_ms: w.start_ms + seg.offsetMs, end_ms: w.end_ms + seg.offsetMs };
+      const abs = {
+        text: w.text,
+        start_ms: w.start_ms + seg.offsetMs,
+        end_ms: w.end_ms + seg.offsetMs,
+      };
       const last = out.at(-1);
       if (last && abs.start_ms < last.end_ms) {
-        const dupe = out.slice(-8).some((p) => p.text.toLowerCase() === abs.text.toLowerCase() && Math.abs(p.start_ms - abs.start_ms) <= 1000);
+        const dupe = out
+          .slice(-8)
+          .some(
+            (p) =>
+              p.text.toLowerCase() === abs.text.toLowerCase() &&
+              Math.abs(p.start_ms - abs.start_ms) <= 1000,
+          );
         if (dupe) continue;
       }
       out.push(abs);
@@ -77,7 +103,14 @@ export function assembleSegments(segments: { offsetMs: number; words: Transcript
 export function validateWords(words: TranscriptWord[], durationMs: number | null): void {
   let last = 0;
   for (const w of words) {
-    if (!Number.isSafeInteger(w.start_ms) || !Number.isSafeInteger(w.end_ms) || w.start_ms < 0 || w.end_ms < w.start_ms || w.start_ms < last) throw invalidTiming();
+    if (
+      !Number.isSafeInteger(w.start_ms) ||
+      !Number.isSafeInteger(w.end_ms) ||
+      w.start_ms < 0 ||
+      w.end_ms < w.start_ms ||
+      w.start_ms < last
+    )
+      throw invalidTiming();
     if (durationMs !== null && w.end_ms > durationMs) throw invalidTiming();
     last = w.start_ms;
   }
@@ -92,14 +125,36 @@ export function wordsToTranscript(words: TranscriptWord[]): CanonicalDocument {
   const pages: CanonicalPage[] = [];
   let group: TranscriptWord[] = [];
   const flush = () => {
-    if (!group.length) return;
-    const text = group.map((w) => w.text.trim()).filter(Boolean).join(" ");
-    if (text) pages.push({ page_number: pages.length + 1, text, sections: [[0, text.length]], start_ms: group[0]!.start_ms, end_ms: group.at(-1)!.end_ms });
+    const first = group[0];
+    const last = group.at(-1);
+    if (!first || !last) return;
+    const text = group
+      .map((w) => w.text.trim())
+      .filter(Boolean)
+      .join(" ");
+    if (text) {
+      pages.push({
+        page_number: pages.length + 1,
+        text,
+        sections: [[0, text.length]],
+        start_ms: first.start_ms,
+        end_ms: last.end_ms,
+      });
+    }
     group = [];
   };
   for (const w of words) {
+    const first = group[0];
     const last = group.at(-1);
-    if (last && (w.start_ms - last.end_ms > PAUSE_MS || group.length >= SEGMENT_MAX_WORDS || w.end_ms - group[0]!.start_ms > SEGMENT_MAX_MS)) flush();
+    if (
+      first &&
+      last &&
+      (w.start_ms - last.end_ms > PAUSE_MS ||
+        group.length >= SEGMENT_MAX_WORDS ||
+        w.end_ms - first.start_ms > SEGMENT_MAX_MS)
+    ) {
+      flush();
+    }
     group.push(w);
     if (/[.!?…]["')\]]?$/.test(w.text)) flush();
   }
@@ -117,21 +172,27 @@ function vttTime(value: string): number {
   return (Number(m[1] ?? 0) * 3600 + Number(m[2]) * 60 + Number(m[3])) * 1000 + Number(m[4]);
 }
 
-export function parseWebVtt(text: string): { start_ms: number; end_ms: number; text: string }[] {
-  const body = text.replace(/^﻿/, "").replace(/\r\n?/g, "\n");
-  if (!/^WEBVTT/.test(body)) throw noTranscript();
-  const cues: { start_ms: number; end_ms: number; text: string }[] = [];
+export function parseWebVtt(
+  text: string,
+): Array<{ start_ms: number; end_ms: number; text: string }> {
+  const body = text.replace(/^\uFEFF/, "").replace(/\r\n?/g, "\n");
+  if (!body.startsWith("WEBVTT")) throw noTranscript();
+  const cues: Array<{ start_ms: number; end_ms: number; text: string }> = [];
   for (const block of body.split(/\n{2,}/)) {
     const lines = block.split("\n");
     const timing = lines.findIndex((l) => l.includes("-->"));
     if (timing < 0) continue;
-    const [from, to] = lines[timing]!.split("-->");
-    const start = vttTime(from!);
-    const end = vttTime(to!.trim().split(/\s+/)[0]!);
+    const timingLine = lines[timing];
+    if (timingLine === undefined) continue;
+    const [from, to] = timingLine.split("-->");
+    const endToken = to?.trim().split(/\s+/)[0];
+    if (from === undefined || endToken === undefined) throw invalidTiming();
+    const start = vttTime(from);
+    const end = vttTime(endToken);
     if (end < start) throw invalidTiming();
     // Inert parsing decodes entities exactly once. This is plain transcript text, not safe HTML;
     // viewers must continue rendering it as text (FR-SI-01, NFR-SEC-02).
-    const cueText = String(parseHtml(lines.slice(timing + 1).join(" ")).body.textContent ?? "")
+    const cueText = (parseHtml(lines.slice(timing + 1).join(" ")).body.textContent ?? "")
       .replace(/\s+/g, " ")
       .trim();
     if (cueText) cues.push({ start_ms: start, end_ms: end, text: cueText });
@@ -140,8 +201,16 @@ export function parseWebVtt(text: string): { start_ms: number; end_ms: number; t
   return cues;
 }
 
-export function cuesToTranscript(cues: { start_ms: number; end_ms: number; text: string }[]): CanonicalDocument {
-  const pages: CanonicalPage[] = cues.map((c, i) => ({ page_number: i + 1, text: c.text, sections: [[0, c.text.length]], start_ms: c.start_ms, end_ms: c.end_ms }));
+export function cuesToTranscript(
+  cues: Array<{ start_ms: number; end_ms: number; text: string }>,
+): CanonicalDocument {
+  const pages: CanonicalPage[] = cues.map((c, i) => ({
+    page_number: i + 1,
+    text: c.text,
+    sections: [[0, c.text.length]],
+    start_ms: c.start_ms,
+    end_ms: c.end_ms,
+  }));
   return { pages, pageCount: pages.length, ocrPages: [] };
 }
 
@@ -151,7 +220,12 @@ export function cuesToTranscript(cues: { start_ms: number; end_ms: number; text:
 
 /** Duration of a PCM WAV from its header (null when the header is not a canonical RIFF/WAVE). */
 export function wavDurationMs(bytes: Buffer): number | null {
-  if (bytes.length < 44 || bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") return null;
+  if (
+    bytes.length < 44 ||
+    bytes.toString("ascii", 0, 4) !== "RIFF" ||
+    bytes.toString("ascii", 8, 12) !== "WAVE"
+  )
+    return null;
   let offset = 12;
   let byteRate = 0;
   while (offset + 8 <= bytes.length) {
@@ -168,17 +242,24 @@ export function wavDurationMs(bytes: Buffer): number | null {
 // Adapters
 // ---------------------------------------------------------------------------------------------------------
 
-const RENDER_FORMAT: Record<string, string> = { "audio/mpeg": "mp3", "audio/wav": "wav", "audio/mp4": "m4a" };
+const RENDER_FORMAT: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/mp4": "m4a",
+};
 
 async function transcribeObject(
   transcriber: Transcriber,
   object: { name: string; generation: string },
   mediaType: string,
   durationMs: number | null,
-  preprocessor?: AudioPreprocessor | undefined
+  preprocessor?: AudioPreprocessor,
 ): Promise<{ doc: CanonicalDocument; durationMs: number | null }> {
   // M4A/MP4 audio is normalized to FLAC by everlast-render when configured (Speech V2 auto-decoding coverage).
-  const input = preprocessor && mediaType === "audio/mp4" ? await preprocessor.audioToFlac(object, "m4a") : object;
+  const input =
+    preprocessor && mediaType === "audio/mp4"
+      ? await preprocessor.audioToFlac(object, "m4a")
+      : object;
   const result = await transcriber.transcribe({ object: input, mediaType, durationMs });
   const duration = durationMs ?? result.durationMs ?? null;
   validateWords(result.words, duration);
@@ -196,11 +277,21 @@ export interface AudioAdapterOptions {
 export function createAudioAdapter(options: AudioAdapterOptions): SourceAdapter {
   return async (ctx): Promise<NormalizedSource> => {
     const bytes = await ctx.readUpload();
-    if (!ctx.source.object_name || !ctx.source.object_generation) throw new IngestionFailure("Unreadable", "Could not read file (password-protected or corrupted)");
+    if (!ctx.source.object_name || !ctx.source.object_generation)
+      throw new IngestionFailure(
+        "Unreadable",
+        "Could not read file (password-protected or corrupted)",
+      );
     await ctx.progress("Transcribing");
     const object = { name: ctx.source.object_name, generation: ctx.source.object_generation };
     const declaredDuration = ctx.source.media_type === "audio/wav" ? wavDurationMs(bytes) : null;
-    const { doc, durationMs } = await transcribeObject(options.transcriber, object, ctx.source.media_type, declaredDuration, options.preprocessor);
+    const { doc, durationMs } = await transcribeObject(
+      options.transcriber,
+      object,
+      ctx.source.media_type,
+      declaredDuration,
+      options.preprocessor,
+    );
     return {
       doc,
       viewerKind: "transcript",
@@ -224,13 +315,27 @@ export function youtubeVideoId(link: string): string | null {
   try {
     const url = new URL(link);
     const host = url.hostname.replace(/^www\.|^m\./, "");
-    if (host === "youtu.be") return /^[A-Za-z0-9_-]{6,20}$/.test(url.pathname.slice(1)) ? url.pathname.slice(1) : null;
+    if (host === "youtu.be")
+      return /^[A-Za-z0-9_-]{6,20}$/.test(url.pathname.slice(1)) ? url.pathname.slice(1) : null;
     if (host !== "youtube.com" && host !== "youtube-nocookie.com") return null;
-    const id = url.searchParams.get("v") ?? /^\/(?:shorts|embed|live)\/([A-Za-z0-9_-]{6,20})/.exec(url.pathname)?.[1] ?? null;
+    const id =
+      url.searchParams.get("v") ??
+      /^\/(?:shorts|embed|live)\/([A-Za-z0-9_-]{6,20})/.exec(url.pathname)?.[1] ??
+      null;
     return id && /^[A-Za-z0-9_-]{6,20}$/.test(id) ? id : null;
   } catch {
     return null;
   }
+}
+
+function resolveStreamAudioMediaType(
+  contentType: string,
+): "audio/mpeg" | "audio/wav" | "audio/mp4" {
+  if (contentType.startsWith("audio/mpeg")) return "audio/mpeg";
+  if (contentType.startsWith("audio/wav") || contentType.startsWith("audio/x-wav")) {
+    return "audio/wav";
+  }
+  return "audio/mp4";
 }
 
 const MEDIA_TYPES = /^(audio|video)\//;
@@ -247,7 +352,11 @@ export function createVideoAdapter(options: VideoAdapterOptions): SourceAdapter 
       return await guardedFetch(url, { ...options.web, principalAuthorized: true });
     } catch (err) {
       if (err instanceof IngestionFailure) throw err;
-      if (err instanceof SsrfBlockedError) throw new IngestionFailure("DestinationBlocked", "This URL points to a network destination that cannot be imported");
+      if (err instanceof SsrfBlockedError)
+        throw new IngestionFailure(
+          "DestinationBlocked",
+          "This URL points to a network destination that cannot be imported",
+        );
       throw noTranscript();
     }
   };
@@ -261,39 +370,90 @@ export function createVideoAdapter(options: VideoAdapterOptions): SourceAdapter 
     const page = await fetchGuarded(url);
     if (page.status < 200 || page.status >= 300) throw noTranscript();
     const player = { type: "link", url };
-    const captions = async (vtt: Buffer, title?: string): Promise<NormalizedSource> => {
+    const captions = (vtt: Buffer, title?: string): NormalizedSource => {
       const doc = cuesToTranscript(parseWebVtt(vtt.toString("utf8")));
       if (doc.pages.length === 0) throw noTranscript();
-      return { doc, viewerKind: "transcript", byteSize: vtt.length, screen: true, title, player, mediaDurationMs: doc.pages.at(-1)!.end_ms ?? null };
+      return {
+        doc,
+        viewerKind: "transcript",
+        byteSize: vtt.length,
+        screen: true,
+        title,
+        player,
+        mediaDurationMs: doc.pages.at(-1)?.end_ms ?? null,
+      };
     };
-    const media = async (bytes: Buffer, contentType: string, title?: string): Promise<NormalizedSource> => {
-      const mediaType = contentType.startsWith("audio/mpeg") ? "audio/mpeg" : contentType.startsWith("audio/wav") || contentType.startsWith("audio/x-wav") ? "audio/wav" : "audio/mp4";
-      const written = await options.storage.write(`${sourceObjectPrefix(ctx.source)}media/${Date.now()}.${RENDER_FORMAT[mediaType]}`, bytes, mediaType);
+    const media = async (
+      bytes: Buffer,
+      contentType: string,
+      title?: string,
+    ): Promise<NormalizedSource> => {
+      const mediaType = resolveStreamAudioMediaType(contentType);
+      const written = await options.storage.write(
+        `${sourceObjectPrefix(ctx.source)}media/${Date.now()}.${RENDER_FORMAT[mediaType]}`,
+        bytes,
+        mediaType,
+      );
       await ctx.progress("Transcribing");
       const object = { name: written.name, generation: written.generation };
-      const { doc, durationMs } = await transcribeObject(options.transcriber, object, mediaType, mediaType === "audio/wav" ? wavDurationMs(bytes) : null, options.preprocessor);
+      const { doc, durationMs } = await transcribeObject(
+        options.transcriber,
+        object,
+        mediaType,
+        mediaType === "audio/wav" ? wavDurationMs(bytes) : null,
+        options.preprocessor,
+      );
       // T056 (FR-005): the stored stream is the seekable player, served only through the authorized media proxy.
-      return { doc, viewerKind: "transcript", byteSize: bytes.length, screen: true, title, player: { type: "video" }, mediaDurationMs: durationMs, mediaObject: object };
+      return {
+        doc,
+        viewerKind: "transcript",
+        byteSize: bytes.length,
+        screen: true,
+        title,
+        player: { type: "video" },
+        mediaDurationMs: durationMs,
+        mediaObject: object,
+      };
     };
 
     if (page.contentType.startsWith("text/vtt")) return captions(page.body);
     if (MEDIA_TYPES.test(page.contentType)) return media(page.body, page.contentType);
     if (!/^(text\/html|application\/xhtml\+xml)/.test(page.contentType)) throw noTranscript();
 
-    const document = parseHtml(page.body.toString("utf8"), page.finalUrl);
-    const title = document.title?.replace(/\s+/g, " ").trim() || undefined;
-    const track = document.querySelector('track[kind="captions"][src], track[kind="subtitles"][src], track:not([kind])[src]');
-    if (track) {
-      const vtt = await fetchGuarded(new URL(track.getAttribute("src")!, page.finalUrl).toString());
-      if (vtt.status >= 200 && vtt.status < 300) return captions(vtt.body, title);
-    }
-    const src = document.querySelector("video[src], audio[src]")?.getAttribute("src") ?? document.querySelector("video source[src], audio source[src]")?.getAttribute("src");
-    if (src) {
-      const stream = await fetchGuarded(new URL(src, page.finalUrl).toString());
-      if (stream.status >= 200 && stream.status < 300 && MEDIA_TYPES.test(stream.contentType)) return media(stream.body, stream.contentType, title);
-    }
-    throw noTranscript();
+    return resolveHtmlVideoSource(page, fetchGuarded, captions, media);
   };
+}
+
+async function resolveHtmlVideoSource(
+  page: { body: Buffer; finalUrl: string },
+  fetchGuarded: (
+    url: string,
+  ) => Promise<{ status: number; contentType: string; body: Buffer; finalUrl: string }>,
+  captions: (vtt: Buffer, title?: string) => NormalizedSource,
+  media: (bytes: Buffer, contentType: string, title?: string) => Promise<NormalizedSource>,
+): Promise<NormalizedSource> {
+  const document = parseHtml(page.body.toString("utf8"), page.finalUrl);
+  const trimmedTitle = document.title?.replace(/\s+/g, " ").trim() ?? "";
+  const title = trimmedTitle.length > 0 ? trimmedTitle : undefined;
+  const trackSrc = document
+    .querySelector(
+      'track[kind="captions"][src], track[kind="subtitles"][src], track:not([kind])[src]',
+    )
+    ?.getAttribute("src");
+  if (trackSrc) {
+    const vtt = await fetchGuarded(new URL(trackSrc, page.finalUrl).toString());
+    if (vtt.status >= 200 && vtt.status < 300) return captions(vtt.body, title);
+  }
+  const src =
+    document.querySelector("video[src], audio[src]")?.getAttribute("src") ??
+    document.querySelector("video source[src], audio source[src]")?.getAttribute("src");
+  if (src) {
+    const stream = await fetchGuarded(new URL(src, page.finalUrl).toString());
+    if (stream.status >= 200 && stream.status < 300 && MEDIA_TYPES.test(stream.contentType)) {
+      return media(stream.body, stream.contentType, title);
+    }
+  }
+  throw noTranscript();
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -311,12 +471,23 @@ export interface SpeechConfig {
   request?: (req: { url: string; method: "GET" | "POST"; data?: unknown }) => Promise<unknown>;
 }
 
-export function speechConfigFromEnv(env: NodeJS.ProcessEnv, _storage: ObjectStorage): SpeechConfig | null {
+export function speechConfigFromEnv(
+  env: NodeJS.ProcessEnv,
+  _storage: ObjectStorage,
+): SpeechConfig | null {
   const location = env.SPEECH_LOCATION;
   const projectId = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   const bucket = env.GCS_WORKSPACE_BUCKET ?? env.STORAGE_BUCKET;
   if (!location || !projectId || !bucket) return null;
-  return { projectId, location, bucket, languageCodes: (env.SPEECH_LANGUAGE_CODES ?? "auto").split(",").map((l) => l.trim()).filter(Boolean) };
+  return {
+    projectId,
+    location,
+    bucket,
+    languageCodes: (env.SPEECH_LANGUAGE_CODES ?? "auto")
+      .split(",")
+      .map((l) => l.trim())
+      .filter(Boolean),
+  };
 }
 
 interface BatchOperation {
@@ -324,7 +495,21 @@ interface BatchOperation {
   done?: boolean;
   error?: { message?: string };
   response?: {
-    results?: Record<string, { error?: unknown; inlineResult?: { transcript?: { results?: { alternatives?: { words?: { word?: string; startOffset?: unknown; endOffset?: unknown }[] }[] }[] } } }>;
+    results?: Record<
+      string,
+      {
+        error?: unknown;
+        inlineResult?: {
+          transcript?: {
+            results?: Array<{
+              alternatives?: Array<{
+                words?: Array<{ word?: string; startOffset?: unknown; endOffset?: unknown }>;
+              }>;
+            }>;
+          };
+        };
+      }
+    >;
   };
 }
 
@@ -332,49 +517,71 @@ interface BatchOperation {
 export class SpeechV2Transcriber implements Transcriber {
   readonly name = "speech-v2-chirp2";
   private readonly config: SpeechConfig;
-  private readonly auth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+  private readonly auth = new GoogleAuth({
+    scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+  });
 
   constructor(config: SpeechConfig) {
-    if (!/^europe-|^eu$/.test(config.location)) throw new Error("Speech-to-Text must run in an EU location (D3)");
+    if (!/^europe-|^eu$/.test(config.location))
+      throw new Error("Speech-to-Text must run in an EU location (D3)");
     this.config = config;
   }
 
   private async call(url: string, method: "GET" | "POST", data?: unknown): Promise<BatchOperation> {
-    if (this.config.request) return (await this.config.request({ url, method, ...(data !== undefined ? { data } : {}) })) as BatchOperation;
+    if (this.config.request)
+      return (await this.config.request({
+        url,
+        method,
+        ...(data === undefined ? {} : { data }),
+      })) as BatchOperation;
     const client = await this.auth.getClient();
-    return (await client.request<BatchOperation>({ url, method, ...(data !== undefined ? { data } : {}) })).data;
+    return (
+      await client.request<BatchOperation>({ url, method, ...(data === undefined ? {} : { data }) })
+    ).data;
   }
 
   async transcribe(input: TranscribeInput): Promise<{ words: TranscriptWord[] }> {
     const { projectId, location, bucket } = this.config;
     const host = `https://${location}-speech.googleapis.com/v2`;
     const uri = `gs://${bucket}/${input.object.name}`;
-    let op = await this.call(`${host}/projects/${projectId}/locations/${location}/recognizers/_:batchRecognize`, "POST", {
-      config: {
-        model: this.config.model ?? "chirp_2",
-        languageCodes: this.config.languageCodes ?? ["auto"],
-        features: { enableWordTimeOffsets: true, enableAutomaticPunctuation: true },
-        autoDecodingConfig: {},
+    let op = await this.call(
+      `${host}/projects/${projectId}/locations/${location}/recognizers/_:batchRecognize`,
+      "POST",
+      {
+        config: {
+          model: this.config.model ?? "chirp_2",
+          languageCodes: this.config.languageCodes ?? ["auto"],
+          features: { enableWordTimeOffsets: true, enableAutomaticPunctuation: true },
+          autoDecodingConfig: {},
+        },
+        files: [{ uri }],
+        recognitionOutputConfig: { inlineResponseConfig: {} },
       },
-      files: [{ uri }],
-      recognitionOutputConfig: { inlineResponseConfig: {} },
-    });
+    );
     const deadline = Date.now() + (this.config.timeoutMs ?? 600_000);
     while (!op.done) {
       if (Date.now() > deadline || !op.name) throw new Error("Speech batch recognition timed out");
       await new Promise((r) => setTimeout(r, this.config.pollMs ?? 1000));
       op = await this.call(`${host}/${op.name}`, "GET");
     }
-    if (op.error) throw new Error("Speech batch recognition failed");
-    const result = op.response?.results?.[uri];
-    if (!result || result.error) throw new Error("Speech batch recognition failed for the file");
-    const words: TranscriptWord[] = [];
-    for (const r of result.inlineResult?.transcript?.results ?? []) {
-      for (const w of r.alternatives?.[0]?.words ?? []) {
-        if (!w.word) continue;
-        words.push({ text: w.word, start_ms: parseProviderOffset(w.startOffset), end_ms: parseProviderOffset(w.endOffset) });
-      }
-    }
-    return { words };
+    return { words: extractSpeechWords(op, uri) };
   }
+}
+
+function extractSpeechWords(op: BatchOperation, uri: string): TranscriptWord[] {
+  if (op.error) throw new Error("Speech batch recognition failed");
+  const result = op.response?.results?.[uri];
+  if (!result || result.error) throw new Error("Speech batch recognition failed for the file");
+  const words: TranscriptWord[] = [];
+  for (const r of result.inlineResult?.transcript?.results ?? []) {
+    for (const w of r.alternatives?.[0]?.words ?? []) {
+      if (!w.word) continue;
+      words.push({
+        text: w.word,
+        start_ms: parseProviderOffset(w.startOffset),
+        end_ms: parseProviderOffset(w.endOffset),
+      });
+    }
+  }
+  return words;
 }

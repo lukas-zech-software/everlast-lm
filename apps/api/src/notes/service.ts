@@ -60,7 +60,8 @@ export class NotesServiceError extends Error {
   }
 }
 
-const err = (code: string, status: number, message = code) => new NotesServiceError(code, status, message);
+const err = (code: string, status: number, message = code) =>
+  new NotesServiceError(code, status, message);
 const INGESTION_FAILED = "The notes could not be converted to a source. Please try again.";
 
 export type { NoteSourceStore } from "@everlast/notes/note-source-store";
@@ -68,17 +69,21 @@ export type { NoteSourceStore } from "@everlast/notes/note-source-store";
 /** FR-NM-04 / C-02 / FR-GC-06: scoped reads and publication for the Note Assistant. */
 export interface NoteAssistantContext {
   /** Captures the (source_id, revision) snapshot of exactly these Ready sources and reads their chunks (bounded). */
-  read(ownerId: string, notebookId: string, sourceIds: string[]): Promise<{ snapshot: SourceRevisionPair[]; chunks: UnifiedDocumentChunk[] }>;
+  read: (
+    ownerId: string,
+    notebookId: string,
+    sourceIds: string[],
+  ) => Promise<{ snapshot: SourceRevisionPair[]; chunks: UnifiedDocumentChunk[] }>;
   /** Rechecks ownership and the exact captured revisions; throws SourceSnapshotInvalidError when one changed. */
-  verify(ownerId: string, notebookId: string, snapshot: SourceRevisionPair[]): Promise<void>;
+  verify: (ownerId: string, notebookId: string, snapshot: SourceRevisionPair[]) => Promise<void>;
   /** Publishes question and verified answer as one turn of the caller's chat thread under the publication fence. */
-  publish(input: {
+  publish: (input: {
     ownerId: string;
     notebookId: string;
     snapshot: SourceRevisionPair[];
     question: string;
     answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
-  }): Promise<VisibleMessage[]>;
+  }) => Promise<VisibleMessage[]>;
 }
 
 export interface NotesServiceDeps {
@@ -90,12 +95,10 @@ export interface NotesServiceDeps {
   /** Visible chat messages of the caller (shared save-note action); default: the v2 bridge reader. */
   getMessages?: (notebookId: string, userId: string) => Promise<ChatMessage[]>;
   /** Advances the notebook's `updated_at` after a note or note-source write (FR-WM-02). */
-  onNotebookModified?: (notebookId: string) => Promise<unknown> | void;
+  onNotebookModified?: (notebookId: string) => unknown;
 }
 
-export interface CitationKinds {
-  [chunk_id: string]: "note_assertion" | "source_fact";
-}
+export type CitationKinds = Record<string, "note_assertion" | "source_fact">;
 
 export interface AssistantResult {
   message: VisibleMessage;
@@ -115,10 +118,15 @@ const ACTION_PROMPTS: Record<NoteAssistantAction, string> = {
 };
 
 /** FR-NM-03: `# title` + body per note in display order; verified citation markers removed (FR-013). */
-export function composeNoteMarkdown(notes: Pick<Note, "title" | "content_md" | "citations_json">[]): string {
+export function composeNoteMarkdown(
+  notes: Array<Pick<Note, "title" | "content_md" | "citations_json">>,
+): string {
   return notes
     .map((n) => {
-      const body = stripCitationMarkers(n.content_md, new Set(n.citations_json.map((c) => c.badge_number)));
+      const body = stripCitationMarkers(
+        n.content_md,
+        new Set(n.citations_json.map((c) => c.badge_number)),
+      );
       return `# ${n.title}\n\n${body}`.trimEnd();
     })
     .join("\n\n");
@@ -140,7 +148,12 @@ export class NotesService {
     return this.modified(notebookId, await createNote(notebookId, userId, input));
   }
 
-  async update(notebookId: string, userId: string, noteId: string, patch: PatchNoteInput): Promise<Note> {
+  async update(
+    notebookId: string,
+    userId: string,
+    noteId: string,
+    patch: PatchNoteInput,
+  ): Promise<Note> {
     return this.modified(notebookId, await updateNote(notebookId, userId, noteId, patch));
   }
 
@@ -155,23 +168,38 @@ export class NotesService {
   }
 
   /** FR-NM-02 / FR-GC-09: copy an assistant message into a read-only saved-response note (shared save-note route). */
-  async saveFromMessage(notebookId: string, userId: string, messageId: string) {
-    const messages = await (this.deps.getMessages ?? ((nb: string, uid: string) => getChatMessages(undefined, nb, uid)))(notebookId, userId);
+  async saveFromMessage(
+    notebookId: string,
+    userId: string,
+    messageId: string,
+  ): Promise<{ note: Note; created: boolean }> {
+    const messages = await (
+      this.deps.getMessages ?? ((nb: string, uid: string) => getChatMessages(undefined, nb, uid))
+    )(notebookId, userId);
     const msg = messages.find((m) => m.id === messageId && m.role === "assistant");
     if (!msg) {
       // Repeat saves stay idempotent even after the chat was cleared.
-      const existing = (await listNotes(notebookId, userId)).find((n) => n.source_message_id === messageId);
+      const existing = (await listNotes(notebookId, userId)).find(
+        (n) => n.source_message_id === messageId,
+      );
       if (existing) return { note: existing, created: false };
       throw err("MessageNotFound", 404, "Assistant message not found");
     }
     // Shared save-note contract (FR-GC-09, FR-NM-02): title = preceding user question trimmed to 200 code points.
     const index = messages.findIndex((m) => m.id === msg.id);
-    const question = messages.slice(0, index).reverse().find((m) => m.role === "user")?.content.trim() ?? "";
-    const title = question ? clampCodePoints(question, NOTE_TITLE_MAX_CODE_POINTS).trim() : SAVED_RESPONSE_DEFAULT_TITLE;
+    const question =
+      messages
+        .slice(0, index)
+        .reverse()
+        .find((m) => m.role === "user")
+        ?.content.trim() ?? "";
+    const title = question
+      ? clampCodePoints(question, NOTE_TITLE_MAX_CODE_POINTS).trim()
+      : SAVED_RESPONSE_DEFAULT_TITLE;
     const saved = await saveResponseAsNote(notebookId, userId, {
       message_id: msg.id,
       content: msg.content,
-      citations: msg.citations ?? [],
+      citations: msg.citations,
       title,
     });
     return saved.created ? this.modified(notebookId, saved) : saved;
@@ -182,17 +210,34 @@ export class NotesService {
    * path (sanitized content, idempotent per artifact, title clamped to the note title limit), so converting it
    * through FR-NM-03 removes the verified `[n]` markers and keeps `origin_citations` exactly as for saved responses.
    */
-  async saveStudioReport(notebookId: string, userId: string, input: { artifact_id: string; title: string; content_md: string; citations: Citation[] }): Promise<Note> {
+  async saveStudioReport(
+    notebookId: string,
+    userId: string,
+    input: { artifact_id: string; title: string; content_md: string; citations: Citation[] },
+  ): Promise<Note> {
     await this.assertAuthorized(notebookId, userId);
-    const saved = await saveResponseAsNote(notebookId, userId, { message_id: input.artifact_id, content: input.content_md, citations: input.citations, title: input.title });
+    const saved = await saveResponseAsNote(notebookId, userId, {
+      message_id: input.artifact_id,
+      content: input.content_md,
+      citations: input.citations,
+      title: input.title,
+    });
     return saved.created ? (await this.modified(notebookId, saved)).note : saved.note;
   }
 
-  async convertToEditable(notebookId: string, userId: string, noteId: string) {
+  async convertToEditable(
+    notebookId: string,
+    userId: string,
+    noteId: string,
+  ): ReturnType<typeof convertToEditable> {
     return this.modified(notebookId, await convertToEditable(notebookId, userId, noteId));
   }
 
-  private async resolveNotes(notebookId: string, userId: string, input: ConvertToSourceInput): Promise<Note[]> {
+  private async resolveNotes(
+    notebookId: string,
+    userId: string,
+    input: ConvertToSourceInput,
+  ): Promise<Note[]> {
     if ("all" in input) return listNotes(notebookId, userId);
     const notes: Note[] = [];
     for (const id of new Set(input.note_ids)) {
@@ -204,29 +249,45 @@ export class NotesService {
   }
 
   private store(): NoteSourceStore {
-    if (!this.deps.noteSources) throw err("Unavailable", 503, "Converting notes to sources is not configured");
+    if (!this.deps.noteSources)
+      throw err("Unavailable", 503, "Converting notes to sources is not configured");
     return this.deps.noteSources;
   }
 
   /** FR-NM-03: snapshot notes into one note_markdown v1 source; `reuse` returns a Ready snapshot of the same notes. */
-  async convertToSource(notebookId: string, userId: string, input: ConvertToSourceInput): Promise<{ source: NoteSource; reused: boolean }> {
+  async convertToSource(
+    notebookId: string,
+    userId: string,
+    input: ConvertToSourceInput,
+  ): Promise<{ source: NoteSource; reused: boolean }> {
     const notes = await this.resolveNotes(notebookId, userId, input);
     return this.snapshotNotes(notebookId, userId, notes, "reuse" in input && input.reuse === true);
   }
 
-  private async snapshotNotes(notebookId: string, userId: string, notes: Note[], reuse: boolean): Promise<{ source: NoteSource; reused: boolean }> {
+  private async snapshotNotes(
+    notebookId: string,
+    userId: string,
+    notes: Note[],
+    reuse: boolean,
+  ): Promise<{ source: NoteSource; reused: boolean }> {
     if (notes.length === 0 || notes.every((n) => n.content_md.trim() === "")) {
       throw err("NoteSourceEmpty", 422, "Selected notes have no content to convert");
     }
-    const origins: NoteSourceOrigin[] = notes.map((n) => ({ note_id: n.id, revision: n.revision, title: n.title }));
+    const origins: NoteSourceOrigin[] = notes.map((n) => ({
+      note_id: n.id,
+      revision: n.revision,
+      title: n.title,
+    }));
     const store = this.store();
     if (reuse) {
       const existing = await store.findReusable(userId, notebookId, origins);
       if (existing) return { source: existing, reused: true };
     }
     const markdown = composeNoteMarkdown(notes);
-    if (Buffer.byteLength(markdown, "utf8") > NOTE_SOURCE_MAX_BYTES) throw err("SourceOversized", 422, "Combined notes exceed 200,000,000 bytes");
-    if (countNoteWords(markdown) > NOTE_SOURCE_MAX_WORDS) throw err("SourceOversizedWords", 422, "Combined notes exceed 500,000 words");
+    if (Buffer.byteLength(markdown, "utf8") > NOTE_SOURCE_MAX_BYTES)
+      throw err("SourceOversized", 422, "Combined notes exceed 200,000,000 bytes");
+    if (countNoteWords(markdown) > NOTE_SOURCE_MAX_WORDS)
+      throw err("SourceOversizedWords", 422, "Combined notes exceed 500,000 words");
 
     let source: NoteSource;
     try {
@@ -237,9 +298,12 @@ export class NotesService {
         origin_citations: notes.flatMap((n) => n.citations_json),
       });
     } catch (e) {
-      if (e instanceof SourceQuotaExceededError) throw err("SourceLimitReached", 409, NOTE_ERROR_MESSAGES.SourceLimitReached);
-      if (e instanceof AppError && (e.status === 404 || e.status === 403)) throw err("NotebookNotFound", 404, "Notebook not found");
-      if (e instanceof AppError && e.status === 503) throw err("Unavailable", 503, "Converting notes to sources is not configured");
+      if (e instanceof SourceQuotaExceededError)
+        throw err("SourceLimitReached", 409, NOTE_ERROR_MESSAGES.SourceLimitReached);
+      if (e instanceof AppError && (e.status === 404 || e.status === 403))
+        throw err("NotebookNotFound", 404, "Notebook not found");
+      if (e instanceof AppError && e.status === 503)
+        throw err("Unavailable", 503, "Converting notes to sources is not configured");
       // Never forward upstream error text (NFR-SEC-01); the source is Failed and its slot released.
       throw err("IngestionFailed", 502, INGESTION_FAILED);
     }
@@ -252,59 +316,131 @@ export class NotesService {
     }
   }
 
+  private async readAssistantScope(
+    context: NoteAssistantContext,
+    userId: string,
+    notebookId: string,
+    scopeIds: string[],
+  ): Promise<{ snapshot: SourceRevisionPair[]; chunks: UnifiedDocumentChunk[] }> {
+    try {
+      return await context.read(userId, notebookId, scopeIds);
+    } catch (e) {
+      if (e instanceof InvalidScopeError) {
+        throw err("InvalidScope", 404, "Selected source is not available");
+      }
+      if (e instanceof SourceNotReadyError) {
+        throw err("SourceNotReady", 409, "Selected source is not ready");
+      }
+      throw e;
+    }
+  }
+
+  private async generateAssistantAnswer(
+    assistant: NoteAssistantModel,
+    question: string,
+    chunks: UnifiedDocumentChunk[],
+  ): Promise<{ kind: "answer" | "refusal"; content: string; citations: StoredCitation[] }> {
+    try {
+      return await assistant.answer({ question, chunks });
+    } catch (e) {
+      if (e instanceof ModelUnavailableError) {
+        throw err(
+          "Unavailable",
+          503,
+          "The note assistant model is not available. Please try again.",
+        );
+      }
+      throw e;
+    }
+  }
+
+  private async publishAssistantTurn(
+    context: NoteAssistantContext,
+    input: {
+      ownerId: string;
+      notebookId: string;
+      snapshot: SourceRevisionPair[];
+      question: string;
+      answer: { kind: "answer" | "refusal"; content: string; citations: StoredCitation[] };
+    },
+  ): Promise<VisibleMessage[]> {
+    // Recheck authorization and the captured revisions before publishing (FR-018).
+    await this.assertAuthorized(input.notebookId, input.ownerId);
+    try {
+      await context.verify(input.ownerId, input.notebookId, input.snapshot);
+      return await context.publish(input);
+    } catch (e) {
+      if (
+        e instanceof SourceSnapshotInvalidError ||
+        e instanceof InvalidScopeError ||
+        e instanceof SourceNotReadyError
+      ) {
+        throw err("SourceSnapshotInvalid", 409, "A source changed while the action was running");
+      }
+      throw e;
+    }
+  }
+
   /**
    * FR-NM-04: reuse or convert the exact selection (FR-NM-03), read through C-02 with a revision snapshot, answer
    * with the grounded model and the v1 verifier, recheck, then publish one turn to the PostgreSQL chat thread.
    * Summarize/Outline read the note-source alone; Related ideas/Critique add the selected existing sources.
    */
-  async runAssistant(notebookId: string, userId: string, input: NoteAssistantInput): Promise<AssistantResult> {
-    if (input.selected_note_ids.length > NOTE_ASSISTANT_MAX_NOTES) throw err("ValidationError", 422);
-    const needsComparison = input.action_type === "related_ideas" || input.action_type === "critique";
+  async runAssistant(
+    notebookId: string,
+    userId: string,
+    input: NoteAssistantInput,
+  ): Promise<AssistantResult> {
+    if (input.selected_note_ids.length > NOTE_ASSISTANT_MAX_NOTES) {
+      throw err("ValidationError", 422);
+    }
+    const needsComparison =
+      input.action_type === "related_ideas" || input.action_type === "critique";
     if (needsComparison && input.selected_source_ids.length === 0) {
       throw err("ComparisonSourceRequired", 400, NOTE_ERROR_MESSAGES.ComparisonSourceRequired);
     }
-    const notes = await this.resolveNotes(notebookId, userId, { note_ids: input.selected_note_ids });
+    const notes = await this.resolveNotes(notebookId, userId, {
+      note_ids: input.selected_note_ids,
+    });
     const { assistant, context } = this.deps;
-    if (!assistant || !context) throw err("Unavailable", 503, "The note assistant model is not configured");
+    if (!assistant || !context) {
+      throw err("Unavailable", 503, "The note assistant model is not configured");
+    }
     await this.assertAuthorized(notebookId, userId);
 
-    const { source: noteSource, reused } = await this.snapshotNotes(notebookId, userId, notes, true);
-    const scopeIds = needsComparison ? [noteSource.id, ...input.selected_source_ids.filter((id) => id !== noteSource.id)] : [noteSource.id];
+    const { source: noteSource, reused } = await this.snapshotNotes(
+      notebookId,
+      userId,
+      notes,
+      true,
+    );
+    const scopeIds = needsComparison
+      ? [noteSource.id, ...input.selected_source_ids.filter((id) => id !== noteSource.id)]
+      : [noteSource.id];
 
-    let snapshot: SourceRevisionPair[];
-    let chunks: UnifiedDocumentChunk[];
-    try {
-      ({ snapshot, chunks } = await context.read(userId, notebookId, scopeIds));
-    } catch (e) {
-      if (e instanceof InvalidScopeError) throw err("InvalidScope", 404, "Selected source is not available");
-      if (e instanceof SourceNotReadyError) throw err("SourceNotReady", 409, "Selected source is not ready");
-      throw e;
-    }
-
+    const { snapshot, chunks } = await this.readAssistantScope(
+      context,
+      userId,
+      notebookId,
+      scopeIds,
+    );
     const question = ACTION_PROMPTS[input.action_type];
-    let answer;
-    try {
-      answer = await assistant.answer({ question, chunks });
-    } catch (e) {
-      if (e instanceof ModelUnavailableError) throw err("Unavailable", 503, "The note assistant model is not available. Please try again.");
-      throw e;
+    const answer = await this.generateAssistantAnswer(assistant, question, chunks);
+    const messages = await this.publishAssistantTurn(context, {
+      ownerId: userId,
+      notebookId,
+      snapshot,
+      question,
+      answer,
+    });
+    const message = messages.find((m) => m.role === "assistant");
+    if (!message) {
+      throw err("InternalError", 500, "Published assistant message was not found");
     }
-
-    // Recheck authorization and the captured revisions before publishing (FR-018).
-    await this.assertAuthorized(notebookId, userId);
-    let messages: VisibleMessage[];
-    try {
-      await context.verify(userId, notebookId, snapshot);
-      messages = await context.publish({ ownerId: userId, notebookId, snapshot, question, answer });
-    } catch (e) {
-      if (e instanceof SourceSnapshotInvalidError || e instanceof InvalidScopeError || e instanceof SourceNotReadyError) {
-        throw err("SourceSnapshotInvalid", 409, "A source changed while the action was running");
-      }
-      throw e;
-    }
-    const message = messages.find((m) => m.role === "assistant")!;
     const kinds: CitationKinds = {};
-    for (const c of answer.citations) kinds[c.chunk_id] = c.source_id === noteSource.id ? "note_assertion" : "source_fact";
+    for (const c of answer.citations) {
+      kinds[c.chunk_id] = c.source_id === noteSource.id ? "note_assertion" : "source_fact";
+    }
     return {
       message,
       messages,

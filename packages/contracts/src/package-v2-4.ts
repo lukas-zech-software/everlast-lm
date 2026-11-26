@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { UUID_V7_REGEX, type UnifiedDocumentChunk } from "./document-chunk.ts";
 import { SourceRevisionPairSchema, type SourceRevisionPair } from "./scoped-context.ts";
+import { countCodePoints } from "./text-limits.ts";
 import { OutputLanguageSchema } from "./package-v2-1.ts";
 import {
   DataTableFocusPromptSchema,
@@ -14,9 +15,7 @@ import {
   StudioMindmapPayloadSchema,
   StudioPluginTypeSchema,
   type DataTableSchemaId,
-  type StudioDataTableParams,
   type StudioDataTablePayload,
-  type StudioMindmapParams,
   type StudioMindmapPayload,
   type StudioPluginType,
 } from "./package-v3-3.ts";
@@ -81,7 +80,13 @@ export const ReportSubtypeSchema = z.enum([
 ]);
 export type ReportSubtype = z.infer<typeof ReportSubtypeSchema>;
 
-export const StudioJobStatusSchema = z.enum(["Queued", "Running", "Completed", "Failed", "Cancelled"]);
+export const StudioJobStatusSchema = z.enum([
+  "Queued",
+  "Running",
+  "Completed",
+  "Failed",
+  "Cancelled",
+]);
 export type StudioJobStatus = z.infer<typeof StudioJobStatusSchema>;
 
 const TRANSITIONS: Record<StudioJobStatus, readonly StudioJobStatus[]> = {
@@ -142,9 +147,13 @@ export interface PromptValidationResult {
 /** FR-ST-11: 1–5,000 Unicode code points after trimming outer whitespace; never truncates. */
 export function validateCustomReportPrompt(input: string): PromptValidationResult {
   const trimmed = input.trim();
-  const codePoints = Array.from(trimmed).length;
+  const codePoints = countCodePoints(trimmed);
   if (codePoints < 1) {
-    return { valid: false, codePoints: 0, error: "Report prompt must not be empty or whitespace only." };
+    return {
+      valid: false,
+      codePoints: 0,
+      error: "Report prompt must not be empty or whitespace only.",
+    };
   }
   if (codePoints > CUSTOM_REPORT_PROMPT_MAX) {
     return {
@@ -158,18 +167,18 @@ export function validateCustomReportPrompt(input: string): PromptValidationResul
 
 export const CustomReportPromptSchema = z.string().transform((value, ctx) => {
   const result = validateCustomReportPrompt(value);
-  if (!result.valid) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: result.error ?? "Invalid report prompt" });
+  if (!result.valid || result.normalized === undefined) {
+    ctx.addIssue({ code: "custom", message: result.error ?? "Invalid report prompt" });
     return z.NEVER;
   }
-  return result.normalized as string;
+  return result.normalized;
 });
 
 export const ReportCitationSchema = z
   .object({
     badge_number: z.number().int().positive(),
     chunk_id: z.string().regex(UUID_V7_REGEX, "chunk_id must be a valid UUID v7"),
-    source_id: z.string().uuid(),
+    source_id: z.uuid(),
     revision: z.number().int().positive(),
     snippet: z.string().min(1),
   })
@@ -182,7 +191,13 @@ export type ReportCitation = z.infer<typeof ReportCitationSchema>;
  */
 export const REQUIRED_REPORT_SECTIONS = {
   briefing_doc: ["executive_summary", "core_themes", "key_takeaways", "quotes"],
-  study_guide: ["topic_review", "short_answer_questions", "answer_key", "essay_questions", "glossary"],
+  study_guide: [
+    "topic_review",
+    "short_answer_questions",
+    "answer_key",
+    "essay_questions",
+    "glossary",
+  ],
   faq: ["faq"],
   timeline: ["events", "cast_of_characters"],
 } as const satisfies Record<ReportTemplateType, readonly string[]>;
@@ -195,7 +210,9 @@ export const REPORT_SECTION_KEY_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 
 export const ReportSectionSchema = z
   .object({
-    key: z.string().regex(REPORT_SECTION_KEY_PATTERN, "section key must be a stable snake_case identifier"),
+    key: z
+      .string()
+      .regex(REPORT_SECTION_KEY_PATTERN, "section key must be a stable snake_case identifier"),
     heading: z.string().min(1),
   })
   .strict();
@@ -204,11 +221,16 @@ export type ReportSection = z.infer<typeof ReportSectionSchema>;
 export const StudioReportPayloadSchema = z
   .object({
     content_md: z.string().min(1),
-    citations: z.array(ReportCitationSchema).min(1, "A completed report must carry at least one citation"),
+    citations: z
+      .array(ReportCitationSchema)
+      .min(1, "A completed report must carry at least one citation"),
     sections: z
       .array(ReportSectionSchema)
       .min(1, "A completed report must carry its sections")
-      .refine((list) => new Set(list.map((x) => x.key)).size === list.length, "section keys must be unique"),
+      .refine(
+        (list) => new Set(list.map((x) => x.key)).size === list.length,
+        "section keys must be unique",
+      ),
   })
   .strict();
 export type StudioReportPayload = z.infer<typeof StudioReportPayloadSchema>;
@@ -237,7 +259,7 @@ export const StudioParamsJsonSchema = z.union([
   StudioSlideDeckParamsSchema,
   StudioInfographicParamsSchema,
 ]);
-export type StudioParamsJson = {
+export interface StudioParamsJson {
   custom_prompt?: string;
   schema_id?: DataTableSchemaId;
   focus_prompt?: string;
@@ -248,7 +270,7 @@ export type StudioParamsJson = {
   slide_count?: number;
   style?: InfographicStyle;
   [key: string]: unknown;
-};
+}
 
 export const StudioPayloadJsonSchema = z.union([
   StudioReportPayloadSchema,
@@ -270,10 +292,82 @@ export type StudioPayloadJson =
   | StudioSlideDeckPayload
   | StudioInfographicPayload;
 
+const STUDIO_PAYLOAD_SCHEMAS: Record<StudioPluginType, z.ZodType> = {
+  [STUDIO_REPORT_PLUGIN_TYPE]: StudioReportPayloadSchema,
+  [STUDIO_MINDMAP_PLUGIN_TYPE]: StudioMindmapPayloadSchema,
+  [STUDIO_DATA_TABLE_PLUGIN_TYPE]: StudioDataTablePayloadSchema,
+  [STUDIO_FLASHCARDS_PLUGIN_TYPE]: StudioFlashcardsPayloadSchema,
+  [STUDIO_QUIZ_PLUGIN_TYPE]: StudioQuizPayloadSchema,
+  [STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE]: StudioLearningOverviewPayloadSchema,
+  [STUDIO_SLIDE_DECK_PLUGIN_TYPE]: StudioSlideDeckPayloadSchema,
+  [STUDIO_INFOGRAPHIC_PLUGIN_TYPE]: StudioInfographicPayloadSchema,
+};
+
+function forwardPrefixedIssues(
+  issues: readonly z.core.$ZodIssue[],
+  prefix: string,
+  ctx: z.RefinementCtx,
+): void {
+  for (const issue of issues) {
+    ctx.addIssue({ ...issue, path: [prefix, ...issue.path] });
+  }
+}
+
+function validateStudioArtifactSubtype(
+  pluginType: StudioPluginType,
+  subtype: StudioSubtype,
+  ctx: z.RefinementCtx,
+): void {
+  if (pluginType === STUDIO_REPORT_PLUGIN_TYPE) {
+    if (!ReportSubtypeSchema.safeParse(subtype).success) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["subtype"],
+        message: `Invalid report subtype ${subtype}`,
+      });
+    }
+  } else if (subtype !== "default") {
+    ctx.addIssue({
+      code: "custom",
+      path: ["subtype"],
+      message: `Plugin ${pluginType} requires subtype "default"`,
+    });
+  }
+}
+
+function validateStudioArtifactPayload(
+  pluginType: StudioPluginType,
+  subtype: StudioSubtype,
+  payloadJson: unknown,
+  ctx: z.RefinementCtx,
+): void {
+  if (pluginType === STUDIO_REPORT_PLUGIN_TYPE) {
+    const parsed = StudioReportPayloadSchema.safeParse(payloadJson);
+    if (!parsed.success) {
+      forwardPrefixedIssues(parsed.error.issues, "payload_json", ctx);
+      return;
+    }
+    const present = new Set(parsed.data.sections.map((x) => x.key));
+    const missing = requiredReportSections(subtype).filter((key) => !present.has(key));
+    if (missing.length > 0) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["payload_json", "sections"],
+        message: `a completed ${subtype} report must carry the sections ${missing.join(", ")}`,
+      });
+    }
+    return;
+  }
+  const parsed = STUDIO_PAYLOAD_SCHEMAS[pluginType].safeParse(payloadJson);
+  if (!parsed.success) {
+    forwardPrefixedIssues(parsed.error.issues, "payload_json", ctx);
+  }
+}
+
 export const StudioArtifactSchema = z
   .object({
-    id: z.string().uuid(),
-    notebook_id: z.string().uuid(),
+    id: z.uuid(),
+    notebook_id: z.uuid(),
     plugin_type: StudioPluginTypeSchema,
     subtype: StudioSubtypeSchema,
     status: StudioJobStatusSchema,
@@ -285,108 +379,33 @@ export const StudioArtifactSchema = z
     progress: StudioProgressSchema.nullable(),
     failure: StudioFailureSchema.nullable(),
     attempt: z.number().int().positive(),
-    retry_of: z.string().uuid().nullable(),
-    created_at: z.string().datetime(),
-    updated_at: z.string().datetime(),
+    retry_of: z.uuid().nullable(),
+    created_at: z.iso.datetime(),
+    updated_at: z.iso.datetime(),
   })
   .strict()
   .superRefine((artifact, ctx) => {
-    if (artifact.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
-      if (!ReportSubtypeSchema.safeParse(artifact.subtype).success) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["subtype"],
-          message: `Invalid report subtype ${artifact.subtype}`,
-        });
-      }
-    } else if (artifact.subtype !== "default") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["subtype"],
-        message: `Plugin ${artifact.plugin_type} requires subtype "default"`,
-      });
-    }
+    validateStudioArtifactSubtype(artifact.plugin_type, artifact.subtype, ctx);
 
     if ((artifact.status === "Completed") !== (artifact.payload_json !== null)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["payload_json"],
         message: "payload_json must be present if and only if status is Completed",
       });
     }
     if (artifact.payload_json !== null) {
-      if (artifact.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
-        const parsed = StudioReportPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        } else {
-          const present = new Set(parsed.data.sections.map((x) => x.key));
-          const missing = requiredReportSections(artifact.subtype).filter((key) => !present.has(key));
-          if (missing.length > 0) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ["payload_json", "sections"],
-              message: `a completed ${artifact.subtype} report must carry the sections ${missing.join(", ")}`,
-            });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
-        const parsed = StudioMindmapPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
-        const parsed = StudioDataTablePayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE) {
-        const parsed = StudioFlashcardsPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE) {
-        const parsed = StudioQuizPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE) {
-        const parsed = StudioLearningOverviewPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE) {
-        const parsed = StudioSlideDeckPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      } else if (artifact.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE) {
-        const parsed = StudioInfographicPayloadSchema.safeParse(artifact.payload_json);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            ctx.addIssue({ ...issue, path: ["payload_json", ...issue.path] });
-          }
-        }
-      }
+      validateStudioArtifactPayload(
+        artifact.plugin_type,
+        artifact.subtype,
+        artifact.payload_json,
+        ctx,
+      );
     }
     const needsFailure = artifact.status === "Failed" || artifact.status === "Cancelled";
     if (needsFailure !== (artifact.failure !== null)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["failure"],
         message: "failure must be present if and only if status is Failed or Cancelled",
       });
@@ -394,7 +413,7 @@ export const StudioArtifactSchema = z
     const ids = artifact.source_revisions_snapshot.map((s) => s.source_id);
     if (new Set(ids).size !== ids.length) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: ["source_revisions_snapshot"],
         message: "snapshot source IDs must be unique",
       });
@@ -430,11 +449,11 @@ export interface StudioArtifact {
 }
 
 const ActiveSourceIdsSchema = z
-  .array(z.string().uuid("source ID must be a valid UUID"))
+  .array(z.uuid("source ID must be a valid UUID"))
   .min(1, "active_source_ids must contain at least 1 source ID")
   .refine((ids) => new Set(ids).size === ids.length, "active_source_ids must be unique");
 
-export const CreateStudioJobRequestSchema = z
+const CreateStudioJobRequestBaseSchema = z
   .object({
     plugin_type: StudioPluginTypeSchema,
     subtype: StudioSubtypeSchema,
@@ -445,147 +464,203 @@ export const CreateStudioJobRequestSchema = z
     difficulty: PedagogyDifficultySchema.optional(),
     card_count: FlashcardCountInputSchema.optional(),
     question_count: z.number().int().min(QUIZ_MIN_QUESTIONS).max(QUIZ_MAX_QUESTIONS).optional(),
-    section_count: z.number().int().min(LEARNING_OVERVIEW_MIN_SECTIONS).max(LEARNING_OVERVIEW_MAX_SECTIONS).optional(),
+    section_count: z
+      .number()
+      .int()
+      .min(LEARNING_OVERVIEW_MIN_SECTIONS)
+      .max(LEARNING_OVERVIEW_MAX_SECTIONS)
+      .optional(),
     slide_count: z.number().int().min(SLIDE_COUNT_MIN).max(SLIDE_COUNT_MAX).optional(),
     style: InfographicStyleSchema.optional(),
     /** FR-UI-02: one of the supported output-language tags; omitted → resolved server-side. */
     output_language: OutputLanguageSchema.optional(),
   })
-  .strict()
-  .superRefine((req, ctx) => {
-    const hasPedagogyFields =
-      req.difficulty !== undefined ||
-      req.card_count !== undefined ||
-      req.question_count !== undefined ||
-      req.section_count !== undefined;
-    const hasVisualFields = req.slide_count !== undefined || req.style !== undefined;
-    if (req.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
-      if (!ReportSubtypeSchema.safeParse(req.subtype).success) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["subtype"],
-          message: `Unknown report subtype ${req.subtype}`,
-        });
-      }
-      if ((req.subtype === "dynamic" || req.subtype === "custom") && req.custom_prompt === undefined) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["custom_prompt"],
-          message: `custom_prompt is required for subtype ${req.subtype}`,
-        });
-      }
-      if (req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields || hasVisualFields) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "focus_prompt, schema_id, active-learning, and visual parameters are not valid for report requests",
-        });
-      }
-    } else if (req.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
-      if (req.subtype !== "default") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["subtype"],
-          message: `Unknown mindmap subtype ${req.subtype}`,
-        });
-      }
-      if (req.custom_prompt !== undefined || req.focus_prompt !== undefined || req.schema_id !== undefined || hasPedagogyFields || hasVisualFields) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "mindmap/default accepts no custom_prompt, focus_prompt, schema_id, active-learning, or visual parameters",
-        });
-      }
-    } else if (req.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
-      if (req.subtype !== "default") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["subtype"],
-          message: `Unknown data_table subtype ${req.subtype}`,
-        });
-      }
-      if (req.custom_prompt !== undefined || hasPedagogyFields || hasVisualFields) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["custom_prompt"],
-          message: "data_table/default uses focus_prompt and schema_id only",
-        });
-      }
-    } else {
-      if (req.subtype !== "default") {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["subtype"],
-          message: `Unknown ${req.plugin_type} subtype ${req.subtype}`,
-        });
-      }
-      if (req.custom_prompt !== undefined || req.schema_id !== undefined) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: `${req.plugin_type}/default does not accept custom_prompt or schema_id`,
-        });
-      }
-      if (req.focus_prompt !== undefined) {
-        const promptCheck =
-          req.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE
-            ? validateSlideFocusPrompt(req.focus_prompt)
-            : req.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE
-              ? validateInfographicFocusPrompt(req.focus_prompt)
-              : validatePedagogyFocusPrompt(req.focus_prompt);
-        if (!promptCheck.valid) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["focus_prompt"],
-            message: promptCheck.error ?? "Invalid focus prompt",
-          });
-        }
-      }
-      if (req.plugin_type === STUDIO_FLASHCARDS_PLUGIN_TYPE && (req.question_count !== undefined || req.section_count !== undefined || hasVisualFields)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "flashcards/default does not accept question_count, section_count, or visual parameters",
-        });
-      }
-      if (req.plugin_type === STUDIO_QUIZ_PLUGIN_TYPE && (req.card_count !== undefined || req.section_count !== undefined || hasVisualFields)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "quiz/default does not accept card_count, section_count, or visual parameters",
-        });
-      }
-      if (
-        req.plugin_type === STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE &&
-        (req.card_count !== undefined || req.question_count !== undefined || req.difficulty !== undefined || hasVisualFields)
-      ) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "learning_overview/default accepts section_count and focus_prompt only",
-        });
-      }
-      if (req.plugin_type === STUDIO_SLIDE_DECK_PLUGIN_TYPE && (hasPedagogyFields || req.style !== undefined)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "slide_deck/default accepts slide_count and focus_prompt only",
-        });
-      }
-      if (req.plugin_type === STUDIO_INFOGRAPHIC_PLUGIN_TYPE && (hasPedagogyFields || req.slide_count !== undefined)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["plugin_type"],
-          message: "infographic/default accepts style and focus_prompt only",
-        });
-      }
+  .strict();
+
+type RawCreateStudioJobRequest = z.output<typeof CreateStudioJobRequestBaseSchema>;
+
+interface JobFieldFlags {
+  hasPedagogyFields: boolean;
+  hasVisualFields: boolean;
+}
+
+function addCustomIssue(ctx: z.RefinementCtx, path: string[], message: string): void {
+  ctx.addIssue({ code: "custom", path, message });
+}
+
+function validateReportJobRequest(
+  req: RawCreateStudioJobRequest,
+  flags: JobFieldFlags,
+  ctx: z.RefinementCtx,
+): void {
+  if (!ReportSubtypeSchema.safeParse(req.subtype).success) {
+    addCustomIssue(ctx, ["subtype"], `Unknown report subtype ${req.subtype}`);
+  }
+  if ((req.subtype === "dynamic" || req.subtype === "custom") && req.custom_prompt === undefined) {
+    addCustomIssue(ctx, ["custom_prompt"], `custom_prompt is required for subtype ${req.subtype}`);
+  }
+  if (
+    req.focus_prompt !== undefined ||
+    req.schema_id !== undefined ||
+    flags.hasPedagogyFields ||
+    flags.hasVisualFields
+  ) {
+    addCustomIssue(
+      ctx,
+      ["plugin_type"],
+      "focus_prompt, schema_id, active-learning, and visual parameters are not valid for report requests",
+    );
+  }
+}
+
+function validateMindmapJobRequest(
+  req: RawCreateStudioJobRequest,
+  flags: JobFieldFlags,
+  ctx: z.RefinementCtx,
+): void {
+  if (req.subtype !== "default") {
+    addCustomIssue(ctx, ["subtype"], `Unknown mindmap subtype ${req.subtype}`);
+  }
+  if (
+    req.custom_prompt !== undefined ||
+    req.focus_prompt !== undefined ||
+    req.schema_id !== undefined ||
+    flags.hasPedagogyFields ||
+    flags.hasVisualFields
+  ) {
+    addCustomIssue(
+      ctx,
+      ["plugin_type"],
+      "mindmap/default accepts no custom_prompt, focus_prompt, schema_id, active-learning, or visual parameters",
+    );
+  }
+}
+
+function validateDataTableJobRequest(
+  req: RawCreateStudioJobRequest,
+  flags: JobFieldFlags,
+  ctx: z.RefinementCtx,
+): void {
+  if (req.subtype !== "default") {
+    addCustomIssue(ctx, ["subtype"], `Unknown data_table subtype ${req.subtype}`);
+  }
+  if (req.custom_prompt !== undefined || flags.hasPedagogyFields || flags.hasVisualFields) {
+    addCustomIssue(
+      ctx,
+      ["custom_prompt"],
+      "data_table/default uses focus_prompt and schema_id only",
+    );
+  }
+}
+
+function validateFocusPromptForPlugin(
+  pluginType: StudioPluginType,
+  focusPrompt: string,
+): PromptValidationResult {
+  if (pluginType === STUDIO_SLIDE_DECK_PLUGIN_TYPE) {
+    return validateSlideFocusPrompt(focusPrompt);
+  }
+  if (pluginType === STUDIO_INFOGRAPHIC_PLUGIN_TYPE) {
+    return validateInfographicFocusPrompt(focusPrompt);
+  }
+  return validatePedagogyFocusPrompt(focusPrompt);
+}
+
+const DISALLOWED_PARAM_VALIDATORS: Record<
+  StudioPluginType,
+  (req: RawCreateStudioJobRequest, flags: JobFieldFlags) => string | null
+> = {
+  [STUDIO_REPORT_PLUGIN_TYPE]: () => null,
+  [STUDIO_MINDMAP_PLUGIN_TYPE]: () => null,
+  [STUDIO_DATA_TABLE_PLUGIN_TYPE]: () => null,
+  [STUDIO_FLASHCARDS_PLUGIN_TYPE]: (req, flags) =>
+    req.question_count !== undefined || req.section_count !== undefined || flags.hasVisualFields
+      ? "flashcards/default does not accept question_count, section_count, or visual parameters"
+      : null,
+  [STUDIO_QUIZ_PLUGIN_TYPE]: (req, flags) =>
+    req.card_count !== undefined || req.section_count !== undefined || flags.hasVisualFields
+      ? "quiz/default does not accept card_count, section_count, or visual parameters"
+      : null,
+  [STUDIO_LEARNING_OVERVIEW_PLUGIN_TYPE]: (req, flags) =>
+    req.card_count !== undefined ||
+    req.question_count !== undefined ||
+    req.difficulty !== undefined ||
+    flags.hasVisualFields
+      ? "learning_overview/default accepts section_count and focus_prompt only"
+      : null,
+  [STUDIO_SLIDE_DECK_PLUGIN_TYPE]: (req, flags) =>
+    flags.hasPedagogyFields || req.style !== undefined
+      ? "slide_deck/default accepts slide_count and focus_prompt only"
+      : null,
+  [STUDIO_INFOGRAPHIC_PLUGIN_TYPE]: (req, flags) =>
+    flags.hasPedagogyFields || req.slide_count !== undefined
+      ? "infographic/default accepts style and focus_prompt only"
+      : null,
+};
+
+function disallowedPluginParamMessage(
+  req: RawCreateStudioJobRequest,
+  flags: JobFieldFlags,
+): string | null {
+  return DISALLOWED_PARAM_VALIDATORS[req.plugin_type](req, flags);
+}
+
+function validateStandardPluginJobRequest(
+  req: RawCreateStudioJobRequest,
+  flags: JobFieldFlags,
+  ctx: z.RefinementCtx,
+): void {
+  if (req.subtype !== "default") {
+    addCustomIssue(ctx, ["subtype"], `Unknown ${req.plugin_type} subtype ${req.subtype}`);
+  }
+  if (req.custom_prompt !== undefined || req.schema_id !== undefined) {
+    addCustomIssue(
+      ctx,
+      ["plugin_type"],
+      `${req.plugin_type}/default does not accept custom_prompt or schema_id`,
+    );
+  }
+  if (req.focus_prompt !== undefined) {
+    const promptCheck = validateFocusPromptForPlugin(req.plugin_type, req.focus_prompt);
+    if (!promptCheck.valid) {
+      addCustomIssue(ctx, ["focus_prompt"], promptCheck.error ?? "Invalid focus prompt");
     }
-  });
+  }
+  const paramError = disallowedPluginParamMessage(req, flags);
+  if (paramError !== null) {
+    addCustomIssue(ctx, ["plugin_type"], paramError);
+  }
+}
+
+export const CreateStudioJobRequestSchema = CreateStudioJobRequestBaseSchema.superRefine(
+  (req, ctx) => {
+    const flags: JobFieldFlags = {
+      hasPedagogyFields:
+        req.difficulty !== undefined ||
+        req.card_count !== undefined ||
+        req.question_count !== undefined ||
+        req.section_count !== undefined,
+      hasVisualFields: req.slide_count !== undefined || req.style !== undefined,
+    };
+    if (req.plugin_type === STUDIO_REPORT_PLUGIN_TYPE) {
+      validateReportJobRequest(req, flags, ctx);
+    } else if (req.plugin_type === STUDIO_MINDMAP_PLUGIN_TYPE) {
+      validateMindmapJobRequest(req, flags, ctx);
+    } else if (req.plugin_type === STUDIO_DATA_TABLE_PLUGIN_TYPE) {
+      validateDataTableJobRequest(req, flags, ctx);
+    } else {
+      validateStandardPluginJobRequest(req, flags, ctx);
+    }
+  },
+);
 export type CreateStudioJobRequest = z.output<typeof CreateStudioJobRequestSchema>;
 
 /** Retry is a fresh, explicitly scoped request (C-03, FR-013). */
 export const RetryStudioJobRequestSchema = z
-  .object({ active_source_ids: ActiveSourceIdsSchema, output_language: OutputLanguageSchema.optional() })
+  .object({
+    active_source_ids: ActiveSourceIdsSchema,
+    output_language: OutputLanguageSchema.optional(),
+  })
   .strict();
 export type RetryStudioJobRequest = z.output<typeof RetryStudioJobRequestSchema>;
 
@@ -601,7 +676,10 @@ export type ReportSuggestion = z.infer<typeof ReportSuggestionSchema>;
 export const ReportSuggestionsResultSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("SuggestionsLoading") }).strict(),
   z
-    .object({ state: z.literal("SuggestionsReady"), suggestions: z.array(ReportSuggestionSchema).min(3).max(4) })
+    .object({
+      state: z.literal("SuggestionsReady"),
+      suggestions: z.array(ReportSuggestionSchema).min(3).max(4),
+    })
     .strict(),
   z.object({ state: z.literal("SuggestionsUnavailable"), reason: z.string().min(1) }).strict(),
 ]);
@@ -610,7 +688,7 @@ export type ReportSuggestionsResult = z.infer<typeof ReportSuggestionsResultSche
 /** Consumer-side view of Source Guide metadata (FR-SI-02). */
 export const SourceGuideStateSchema = z
   .object({
-    source_id: z.string().uuid(),
+    source_id: z.uuid(),
     revision: z.number().int().positive(),
     status: z.enum(["Pending", "Ready", "Failed"]),
     summary: z.string().optional(),
@@ -621,14 +699,32 @@ export type SourceGuideState = z.infer<typeof SourceGuideStateSchema>;
 
 /* ------------------------ Report model outputs (FR-ST-10/11) ------------------------ */
 
-export const REPORT_FINDING_KINDS = ["summary", "fact", "quote", "term", "event", "person", "qa", "risk"] as const;
+export const REPORT_FINDING_KINDS = [
+  "summary",
+  "fact",
+  "quote",
+  "term",
+  "event",
+  "person",
+  "qa",
+  "risk",
+] as const;
 const ModelText = z.string().trim().min(1).max(4000);
 const OptionalModelText = ModelText.optional();
 
 /** Map step: chunk-anchored findings of one bounded batch (shape only; chunk membership is checked by the adapter). */
 export const ReportExtractOutputSchema = z.object({
   findings: z
-    .array(z.object({ kind: z.enum(REPORT_FINDING_KINDS), text: ModelText, chunk_id: z.string().min(1), quote: OptionalModelText, date: OptionalModelText, question: OptionalModelText }))
+    .array(
+      z.object({
+        kind: z.enum(REPORT_FINDING_KINDS),
+        text: ModelText,
+        chunk_id: z.string().min(1),
+        quote: OptionalModelText,
+        date: OptionalModelText,
+        question: OptionalModelText,
+      }),
+    )
     .max(1000),
 });
 export type ReportExtractOutput = z.infer<typeof ReportExtractOutputSchema>;
@@ -637,7 +733,11 @@ export type ReportExtractOutput = z.infer<typeof ReportExtractOutputSchema>;
  * Reduce-step item: it references a finding by its index; the adapter copies that finding's chunk_id, quote and
  * date, so verbatim evidence cannot be reworded by the model (FR-014, Gate v2.0 #3).
  */
-const ReportModelItemSchema = z.object({ text: ModelText, finding: z.number().int().min(0), question: OptionalModelText });
+const ReportModelItemSchema = z.object({
+  text: ModelText,
+  finding: z.number().int().min(0),
+  question: OptionalModelText,
+});
 
 /** Reduce step: sections keyed by stable section keys with localized headings. */
 export const ReportComposeOutputSchema = z.object({
@@ -650,10 +750,12 @@ export const ReportComposeOutputSchema = z.object({
         table: z
           .object({
             columns: z.array(z.string().min(1)).min(1).max(8),
-            rows: z.array(z.object({ cells: z.array(z.string()).max(8), chunk_id: z.string().min(1) })).max(200),
+            rows: z
+              .array(z.object({ cells: z.array(z.string()).max(8), chunk_id: z.string().min(1) }))
+              .max(200),
           })
           .optional(),
-      })
+      }),
     )
     .min(1)
     .max(20),
@@ -661,7 +763,9 @@ export const ReportComposeOutputSchema = z.object({
 export type ReportComposeOutput = z.infer<typeof ReportComposeOutputSchema>;
 
 /** Dynamic report suggestions from Source Guides (FR-ST-11): 3–4 validated cards. */
-export const ReportSuggestionsOutputSchema = z.object({ suggestions: z.array(ReportSuggestionSchema).min(3).max(4) });
+export const ReportSuggestionsOutputSchema = z.object({
+  suggestions: z.array(ReportSuggestionSchema).min(3).max(4),
+});
 
 /* ------------------------------ C-03 plugin ------------------------------ */
 
@@ -714,12 +818,12 @@ export interface StudioGenerationContext {
   chunks: UnifiedDocumentChunk[];
   /** NFR-PERF-01 / D12: bounded original C-02 pages; legacy arrays remain a compatibility adapter. */
   original_chunks?: AsyncIterable<UnifiedDocumentChunk[]> | undefined;
-  cached_context?:string|undefined;
-  before_model_call?:(()=>Promise<void>)|undefined;
-  load_cited_chunks?: ((ids:string[])=>Promise<UnifiedDocumentChunk[]>) | undefined;
+  cached_context?: string | undefined;
+  before_model_call?: (() => Promise<void>) | undefined;
+  load_cited_chunks?: ((ids: string[]) => Promise<UnifiedDocumentChunk[]>) | undefined;
   output_language?: string | undefined;
   signal: AbortSignal;
-  reportProgress(stage: StudioProgress["stage"], percent: number): void;
+  reportProgress: (stage: StudioProgress["stage"], percent: number) => void;
 }
 
 export type StudioGenerationOutcome<TPayload extends StudioPayloadJson = StudioPayloadJson> =
@@ -729,8 +833,8 @@ export type StudioGenerationOutcome<TPayload extends StudioPayloadJson = StudioP
 export interface StudioGeneratorPlugin {
   readonly manifest: StudioGeneratorPluginManifest;
   /** Synchronous validation at submission; throws StudioParamsError. */
-  triggerJob(request: StudioJobRequest): StudioJobPlan;
-  generate(ctx: StudioGenerationContext): Promise<StudioGenerationOutcome>;
+  triggerJob: (request: StudioJobRequest) => StudioJobPlan;
+  generate: (ctx: StudioGenerationContext) => Promise<StudioGenerationOutcome>;
 }
 
 export class StudioPluginRegistry {

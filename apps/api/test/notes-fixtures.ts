@@ -20,14 +20,19 @@ export function resetAll(): void {
   resetNoteStore();
 }
 
-export async function newNotebook(): Promise<string> {
-  return createPocNotebook(USER, "NB").id;
+export function newNotebook(): Promise<string> {
+  return Promise.resolve(createPocNotebook(USER, "NB").id);
 }
 
 export async function startApi(deps: NotesServiceDeps) {
   const service = new NotesService(deps);
   const server: Server = createServer((req, res) => {
-    handleNotesRoute(req, res, { service, ...(deps.verifyOwnership ? { verifyOwnership: deps.verifyOwnership } : {}) }, USER)
+    handleNotesRoute(
+      req,
+      res,
+      { service, ...(deps.verifyOwnership ? { verifyOwnership: deps.verifyOwnership } : {}) },
+      USER,
+    )
       .then((handled) => {
         if (!handled) {
           res.writeHead(404);
@@ -41,13 +46,19 @@ export async function startApi(deps: NotesServiceDeps) {
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  const call = async (method: string, path: string, body?: unknown) => {
+  const call = async (
+    method: string,
+    path: string,
+    body?: unknown,
+  ): Promise<{ status: number; json: unknown }> => {
     const r = await fetch(base + path, {
       method,
-      ...(body !== undefined ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}),
+      ...(body === undefined
+        ? {}
+        : { body: JSON.stringify(body), headers: { "content-type": "application/json" } }),
     });
     const text = await r.text();
-    return { status: r.status, json: text ? (JSON.parse(text) as any) : null };
+    return { status: r.status, json: text ? (JSON.parse(text) as unknown) : null };
   };
   return { call, service, close: () => new Promise<void>((r) => server.close(() => r())) };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { STUDIO_FLASHCARDS_PLUGIN_TYPE } from "@everlast/contracts";
+import { STUDIO_FLASHCARDS_PLUGIN_TYPE, StudioFlashcardsPayloadSchema } from "@everlast/contracts";
 import {
   buildThreeSourceStudioFixture,
   makeStudioChunk,
@@ -26,7 +26,11 @@ describe("[014-studio-active-learning-suite] T007: Flashcards worker pipeline, p
     const plan = plugin.triggerJob({
       notebook_id: "41000000-0000-4000-8000-000000000001",
       subtype: "default",
-      params: { difficulty: "hard", card_count: "standard", focus_prompt: "Architecture & security" },
+      params: {
+        difficulty: "hard",
+        card_count: "standard",
+        focus_prompt: "Architecture & security",
+      },
       snapshot: fixture.snapshot,
       output_language: "en-US",
     });
@@ -46,11 +50,11 @@ describe("[014-studio-active-learning-suite] T007: Flashcards worker pipeline, p
 
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const payload = outcome.payload as any;
+    const payload = StudioFlashcardsPayloadSchema.parse(outcome.payload);
     expect(payload.target_count).toBe(20);
     expect(payload.difficulty).toBe("hard");
     expect(payload.cards.length).toBe(20);
-    expect(new Set(payload.cards.map((c: any) => c.id)).size).toBe(20);
+    expect(new Set(payload.cards.map((c) => c.id)).size).toBe(20);
     for (const card of payload.cards) {
       expect(card.id).toMatch(/^[0-9a-f-]{36}$/i);
       expect(card.source_chunk_ids.length).toBeGreaterThanOrEqual(1);
@@ -71,8 +75,9 @@ describe("[014-studio-active-learning-suite] T007: Flashcards worker pipeline, p
     });
     expect(fewerOutcome.status).toBe("completed");
     if (fewerOutcome.status === "completed") {
-      expect((fewerOutcome.payload as any).target_count).toBe(10);
-      expect((fewerOutcome.payload as any).cards.length).toBe(10);
+      const fewerPayload = StudioFlashcardsPayloadSchema.parse(fewerOutcome.payload);
+      expect(fewerPayload.target_count).toBe(10);
+      expect(fewerPayload.cards.length).toBe(10);
     }
   });
 
@@ -94,7 +99,7 @@ describe("[014-studio-active-learning-suite] T007: Flashcards worker pipeline, p
     });
     expect(brief.status).toBe("completed");
     if (brief.status === "completed") {
-      const p = brief.payload as any;
+      const p = brief.payload;
       expect(p.cards.length).toBeLessThan(20);
       expect(p.insufficient_evidence_note).toBeTruthy();
       expect(validateFlashcardsPayload(p, shortChunks, snapshot)).toBeNull();
@@ -126,7 +131,7 @@ describe("[014-studio-active-learning-suite] T007: Flashcards worker pipeline, p
     });
     expect(outcome.status).toBe("completed");
     if (outcome.status !== "completed") return;
-    const forged = structuredClone(outcome.payload) as any;
+    const forged = StudioFlashcardsPayloadSchema.parse(structuredClone(outcome.payload));
     const out = fixture.unselectedChunks[0]!;
     forged.citations.push({
       badge_number: 999,

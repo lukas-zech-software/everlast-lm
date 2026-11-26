@@ -1,7 +1,11 @@
 import { inflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { StudioSlideDeckPayloadSchema, type SlideItem, type StudioSlideDeckPayload } from "@everlast/contracts";
+import {
+  StudioSlideDeckPayloadSchema,
+  type SlideItem,
+  type StudioSlideDeckPayload,
+} from "@everlast/contracts";
 import { exportSlideDeckArtifact } from "../src/studio/slide-export.ts";
 
 /**
@@ -21,7 +25,13 @@ const cite = {
 };
 
 function makeDeckPayload(slideCount = 8): StudioSlideDeckPayload {
-  const layouts = ["title", "two_column", "key_metric_callout", "comparison_table", "diagram_chart"] as const;
+  const layouts = [
+    "title",
+    "two_column",
+    "key_metric_callout",
+    "comparison_table",
+    "diagram_chart",
+  ] as const;
   const slides: SlideItem[] = Array.from({ length: slideCount }, (_, i) => {
     const layout = layouts[i % layouts.length]!;
     return {
@@ -32,8 +42,12 @@ function makeDeckPayload(slideCount = 8): StudioSlideDeckPayload {
       visual_spec: {
         layout,
         subtitle: `Overview ${i + 1}`,
-        ...(layout === "key_metric_callout" ? { callout: { value: "99.95%", label: "Availability" } } : {}),
-        ...(layout === "diagram_chart" ? { diagram_steps: ["Ingest", "Chunk", "Ground", "Export"] } : {}),
+        ...(layout === "key_metric_callout"
+          ? { callout: { value: "99.95%", label: "Availability" } }
+          : {}),
+        ...(layout === "diagram_chart"
+          ? { diagram_steps: ["Ingest", "Chunk", "Ground", "Export"] }
+          : {}),
       },
       speaker_notes: `Speaker notes detail for slide ${i + 1}.`,
       source_chunk_ids: [CHUNK],
@@ -91,7 +105,9 @@ describe("[015-studio-visuals-presentations] T008: Slide Deck PPTX & PDF export 
       body: { format: "pptx" },
     });
 
-    expect(exported.contentType).toBe("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    expect(exported.contentType).toBe(
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    );
     expect(exported.filename).toMatch(/^slide-deck-42000000\.pptx$/);
     const buf = Buffer.from(exported.bytes);
     expect(buf.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))).toBe(true);
@@ -144,12 +160,16 @@ describe("[015-studio-visuals-presentations] T008: Slide Deck PPTX & PDF export 
       const viewport = page1.getViewport({ scale: 1 });
       expect(Math.round(viewport.width)).toBe(960);
       expect(Math.round(viewport.height)).toBe(540);
-      const p1Text = (await page1.getTextContent()).items.map((it: any) => it.str).join(" ");
+      const p1Text = (await page1.getTextContent()).items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
       expect(p1Text).toContain("Slide 1: Architecture Milestone");
       expect(p1Text).toContain("Key finding 1 verified in europe-west4");
 
       const page8 = await doc.getPage(8);
-      const p8Text = (await page8.getTextContent()).items.map((it: any) => it.str).join(" ");
+      const p8Text = (await page8.getTextContent()).items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
       expect(p8Text).toContain("Slide 8: Architecture Milestone");
     } finally {
       await loadingTask.destroy();
@@ -164,7 +184,7 @@ describe("[015-studio-visuals-presentations] T008: Slide Deck PPTX & PDF export 
         title: "Architecture Brief",
         payload,
         body: { format: "google_slides" },
-      })
+      }),
     ).rejects.toThrow();
   });
 });

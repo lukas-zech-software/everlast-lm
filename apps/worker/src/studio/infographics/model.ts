@@ -50,8 +50,8 @@ export interface InfographicComposeRequest {
 
 export interface InfographicModelClient {
   readonly id?: string;
-  extract(request: InfographicExtractRequest): Promise<InfographicFactCandidate[]>;
-  compose(request: InfographicComposeRequest): Promise<StudioInfographicPayload>;
+  extract: (request: InfographicExtractRequest) => Promise<InfographicFactCandidate[]>;
+  compose: (request: InfographicComposeRequest) => Promise<StudioInfographicPayload>;
 }
 
 export class InfographicGenerationError extends Error {
@@ -61,9 +61,24 @@ export class InfographicGenerationError extends Error {
   }
 }
 
-const stripHtml = (s: string): string => s.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const stripHtml = (s: string): string =>
+  s
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-const FOCUS_STOPWORDS = new Set(["the", "and", "for", "with", "from", "that", "this", "into", "about", "using"]);
+const FOCUS_STOPWORDS = new Set([
+  "the",
+  "and",
+  "for",
+  "with",
+  "from",
+  "that",
+  "this",
+  "into",
+  "about",
+  "using",
+]);
 
 function tokenizeFocus(focus?: string): string[] {
   if (!focus) return [];
@@ -80,7 +95,10 @@ function splitHeadingAndBody(sentence: string, index: number): { heading: string
     const body = sentence.slice(colonIdx + 1).trim() || sentence;
     return { heading, body };
   }
-  const words = sentence.replace(/[.!?]+$/, "").split(/\s+/).filter(Boolean);
+  const words = sentence
+    .replace(/[.!?]+$/, "")
+    .split(/\s+/)
+    .filter(Boolean);
   const heading = words.slice(0, Math.min(5, words.length)).join(" ") || `Point ${index + 1}`;
   return { heading, body: sentence };
 }
@@ -94,9 +112,14 @@ function extractMetric(sentence: string, heading: string): { value: string; labe
   };
 }
 
-function resolveAutoStyle(candidates: readonly InfographicFactCandidate[], focus?: string): InfographicResolvedStyle {
-  const combined = `${focus ?? ""} ${candidates.map((c) => c.sentence).join(" ")}`.toLowerCase();
-  const stageHits = (combined.match(/\b(stage|step|phase|workflow|pipeline|sequence|detection|recovery)\b/g) ?? []).length;
+function resolveAutoStyle(
+  candidates: readonly InfographicFactCandidate[],
+  focus = "",
+): InfographicResolvedStyle {
+  const combined = `${focus} ${candidates.map((c) => c.sentence).join(" ")}`.toLowerCase();
+  const stageHits = (
+    combined.match(/\b(stage|step|phase|workflow|pipeline|sequence|detection|recovery)\b/g) ?? []
+  ).length;
   if (stageHits >= 2) return "process_flow";
   const metricHits = candidates.filter((c) => Boolean(c.metric_value)).length;
   if (metricHits >= 2) return "metrics_summary";
@@ -106,135 +129,174 @@ function resolveAutoStyle(candidates: readonly InfographicFactCandidate[], focus
   return "architecture_diagram";
 }
 
+function resolveBlockCategory(style: InfographicResolvedStyle, idx: number): string {
+  switch (style) {
+    case "process_flow":
+      return `Stage ${idx + 1}`;
+    case "comparison":
+      return idx % 2 === 0 ? "Baseline" : "Alternative";
+    case "metrics_summary":
+      return "Metric";
+    case "architecture_diagram":
+      return "Component";
+  }
+}
+
+interface ScoredInfographicCandidate {
+  score: number;
+  order: number;
+  candidate: InfographicFactCandidate;
+}
+
+function collectChunkCandidates(
+  chunk: UnifiedDocumentChunk,
+  focusTokens: readonly string[],
+  startOrder: number,
+  signal: AbortSignal,
+): ScoredInfographicCandidate[] {
+  const sentences = splitSentences(chunk.text);
+  const rawSentences = sentences.length > 0 ? sentences : [chunk.text];
+  const entries: ScoredInfographicCandidate[] = [];
+  let order = startOrder;
+
+  for (const rawSentence of rawSentences) {
+    signal.throwIfAborted();
+    const cleaned = stripHtml(rawSentence);
+    if (cleaned.length < 10) continue;
+    if (/ignore\s+(?:all\s+)?previous\s+instructions/i.test(cleaned)) continue;
+
+    const { heading, body } = splitHeadingAndBody(cleaned, order);
+    const metric = extractMetric(cleaned, heading);
+    const snippet = chunk.text.includes(rawSentence.trim())
+      ? rawSentence.trim().slice(0, 220)
+      : cleaned.slice(0, 220);
+    const lower = cleaned.toLowerCase();
+    const score = focusTokens.reduce((acc, tok) => (lower.includes(tok) ? acc + 2 : acc), 0);
+
+    entries.push({
+      score,
+      order: order++,
+      candidate: {
+        sentence: cleaned,
+        heading,
+        body,
+        ...(metric ? { metric_value: metric.value, metric_label: metric.label } : {}),
+        chunk_id: chunk.chunk_id,
+        source_id: chunk.source_id,
+        revision: chunk.revision,
+        snippet: snippet || chunk.text.slice(0, 180),
+      },
+    });
+  }
+  return entries;
+}
+
+function extractInfographicCandidates(req: InfographicExtractRequest): InfographicFactCandidate[] {
+  req.signal.throwIfAborted();
+  const focusTokens = tokenizeFocus(req.focus_prompt);
+  const out: ScoredInfographicCandidate[] = [];
+  let order = 0;
+
+  for (const chunk of req.chunks) {
+    const chunkEntries = collectChunkCandidates(chunk, focusTokens, order, req.signal);
+    out.push(...chunkEntries);
+    order += chunkEntries.length;
+  }
+
+  out.sort((a, b) => b.score - a.score || a.order - b.order);
+  return out.map((item) => item.candidate);
+}
+
+function composeInfographicPayload(req: InfographicComposeRequest): StudioInfographicPayload {
+  req.signal.throwIfAborted();
+  const selected = req.candidates.slice(0, 6);
+  const firstSelected = selected[0];
+  if (!firstSelected) {
+    throw new InfographicGenerationError("Cannot compose infographic without grounded candidates.");
+  }
+
+  const resolvedStyle: InfographicResolvedStyle =
+    req.style === "auto" ? resolveAutoStyle(req.candidates, req.focus_prompt) : req.style;
+
+  const refByKey = new Map<string, StudioEvidenceRef>();
+  const citations: StudioEvidenceRef[] = [];
+
+  const ensureRef = (c: InfographicFactCandidate): StudioEvidenceRef => {
+    const key = `${c.source_id}|${c.chunk_id}|${c.revision}`;
+    let ref = refByKey.get(key);
+    if (!ref) {
+      ref = {
+        badge_number: citations.length + 1,
+        chunk_id: c.chunk_id,
+        source_id: c.source_id,
+        revision: c.revision,
+        snippet: c.snippet,
+      };
+      refByKey.set(key, ref);
+      citations.push(ref);
+    }
+    return ref;
+  };
+
+  const blocks: InfographicBlock[] = selected.map((c, idx) => {
+    const ref = ensureRef(c);
+    if (c.custom_block) {
+      return {
+        ...c.custom_block,
+        badge_numbers: [ref.badge_number],
+      };
+    }
+    return {
+      id: `block_${idx + 1}`,
+      heading: c.heading,
+      body: c.body,
+      ...(c.metric_value
+        ? { metric_value: c.metric_value, metric_label: c.metric_label ?? c.heading }
+        : {}),
+      category: resolveBlockCategory(resolvedStyle, idx),
+      badge_numbers: [ref.badge_number],
+    };
+  });
+
+  const title = req.focus_prompt
+    ? stripHtml(req.focus_prompt).slice(0, 64)
+    : `Visual Overview: ${firstSelected.heading.slice(0, 48)}`;
+  const subtitle = `Grounded across ${citations.length} source excerpt(s)`;
+  const { svg } = renderInfographicSvg({
+    style: resolvedStyle,
+    title,
+    subtitle,
+    blocks,
+    citations: citations.map((c) => ({
+      badge_number: c.badge_number,
+      label: c.snippet.slice(0, 44),
+    })),
+  });
+
+  return {
+    style: resolvedStyle,
+    title,
+    subtitle,
+    structured_blocks: blocks,
+    rendered_svg: svg,
+    source_chunk_ids: [...new Set(citations.map((c) => c.chunk_id))],
+    citations,
+  };
+}
+
 export class DeterministicInfographicModel implements InfographicModelClient {
   readonly id = "deterministic-infographic-model";
 
-  async extract(req: InfographicExtractRequest): Promise<InfographicFactCandidate[]> {
-    req.signal.throwIfAborted();
-    const focusTokens = tokenizeFocus(req.focus_prompt);
-    const out: { score: number; order: number; candidate: InfographicFactCandidate }[] = [];
-    let order = 0;
-
-    for (const chunk of req.chunks) {
-      const sentences = splitSentences(chunk.text);
-      const rawSentences = sentences.length > 0 ? sentences : [chunk.text];
-      for (const rawSentence of rawSentences) {
-        req.signal.throwIfAborted();
-        const cleaned = stripHtml(rawSentence);
-        if (cleaned.length < 10) continue;
-        if (/ignore\s+(?:all\s+)?previous\s+instructions/i.test(cleaned)) continue;
-
-        const { heading, body } = splitHeadingAndBody(cleaned, order);
-        const metric = extractMetric(cleaned, heading);
-        const snippet = chunk.text.includes(rawSentence.trim())
-          ? rawSentence.trim().slice(0, 220)
-          : cleaned.slice(0, 220);
-        const lower = cleaned.toLowerCase();
-        const score = focusTokens.reduce((acc, tok) => (lower.includes(tok) ? acc + 2 : acc), 0);
-
-        out.push({
-          score,
-          order: order++,
-          candidate: {
-            sentence: cleaned,
-            heading,
-            body,
-            ...(metric ? { metric_value: metric.value, metric_label: metric.label } : {}),
-            chunk_id: chunk.chunk_id,
-            source_id: chunk.source_id,
-            revision: chunk.revision,
-            snippet: snippet || chunk.text.slice(0, 180),
-          },
-        });
-      }
-    }
-
-    out.sort((a, b) => b.score - a.score || a.order - b.order);
-    return out.map((item) => item.candidate);
+  extract(req: InfographicExtractRequest): Promise<InfographicFactCandidate[]> {
+    return new Promise((resolve) => {
+      resolve(extractInfographicCandidates(req));
+    });
   }
 
-  async compose(req: InfographicComposeRequest): Promise<StudioInfographicPayload> {
-    req.signal.throwIfAborted();
-    if (req.candidates.length === 0) {
-      throw new InfographicGenerationError("Cannot compose infographic without grounded candidates.");
-    }
-
-    const resolvedStyle: InfographicResolvedStyle =
-      req.style === "auto" ? resolveAutoStyle(req.candidates, req.focus_prompt) : req.style;
-
-    const selected = req.candidates.slice(0, 6);
-    const refByKey = new Map<string, StudioEvidenceRef>();
-    const citations: StudioEvidenceRef[] = [];
-
-    const ensureRef = (c: InfographicFactCandidate): StudioEvidenceRef => {
-      const key = `${c.source_id}|${c.chunk_id}|${c.revision}`;
-      let ref = refByKey.get(key);
-      if (!ref) {
-        ref = {
-          badge_number: citations.length + 1,
-          chunk_id: c.chunk_id,
-          source_id: c.source_id,
-          revision: c.revision,
-          snippet: c.snippet,
-        };
-        refByKey.set(key, ref);
-        citations.push(ref);
-      }
-      return ref;
-    };
-
-    const blocks: InfographicBlock[] = selected.map((c, idx) => {
-      const ref = ensureRef(c);
-      if (c.custom_block) {
-        return {
-          ...c.custom_block,
-          badge_numbers: [ref.badge_number],
-        };
-      }
-      const category =
-        resolvedStyle === "process_flow"
-          ? `Stage ${idx + 1}`
-          : resolvedStyle === "comparison"
-            ? idx % 2 === 0
-              ? "Baseline"
-              : "Alternative"
-            : resolvedStyle === "metrics_summary"
-              ? "Metric"
-              : "Component";
-      return {
-        id: `block_${idx + 1}`,
-        heading: c.heading,
-        body: c.body,
-        ...(c.metric_value ? { metric_value: c.metric_value, metric_label: c.metric_label ?? c.heading } : {}),
-        category,
-        badge_numbers: [ref.badge_number],
-      };
+  compose(req: InfographicComposeRequest): Promise<StudioInfographicPayload> {
+    return new Promise((resolve) => {
+      resolve(composeInfographicPayload(req));
     });
-
-    const title = req.focus_prompt
-      ? stripHtml(req.focus_prompt).slice(0, 64)
-      : `Visual Overview: ${selected[0]!.heading.slice(0, 48)}`;
-    const subtitle = `Grounded across ${citations.length} source excerpt(s)`;
-    const { svg } = renderInfographicSvg({
-      style: resolvedStyle,
-      title,
-      subtitle,
-      blocks,
-      citations: citations.map((c) => ({
-        badge_number: c.badge_number,
-        label: c.snippet.slice(0, 44),
-      })),
-    });
-
-    return {
-      style: resolvedStyle,
-      title,
-      subtitle,
-      structured_blocks: blocks,
-      rendered_svg: svg,
-      source_chunk_ids: [...new Set(citations.map((c) => c.chunk_id))],
-      citations,
-    };
   }
 }
 
@@ -248,7 +310,7 @@ const vertexInfographicSchema = z.strictObject({
       category: z.string().trim().min(1).optional(),
       chunk_id: z.string().min(1),
       snippet: z.string().trim().min(1),
-    })
+    }),
   ),
 });
 
