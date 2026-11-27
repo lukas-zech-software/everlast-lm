@@ -212,3 +212,28 @@ Traceability: NFR-SEC-01, FR-GC-01, FR-SI-01, FR-SI-02, C-03, D16; grill report 
 | D16 | `packages/db/src/v2-persistence.ts` | Persistence selection (adapter) | `v2Pool`, `allowV2MemoryStores` (test-only), `V2PersistenceUnboundError` | `packages/db` v2 stores | `apps/api/src/v2/runtime.ts`, `apps/worker/src/studio/handler.ts` | `packages/db/test/v2-persistence.test.ts` V2P-01..05; unit, integration and e2e suites |
 | FR-GC-01 | `apps/api/src/chat/model.ts`, `service.ts`, `routes/chat.ts`, `http.ts` | Model adapter, service, transport | unchanged | unchanged | `apps/api/src/server.ts` | `chat-session-cleanup.test.ts` CHAT-SESS-01..03, `http-send-error.test.ts`, `chat.test.ts` CHAT-LOG-01 |
 | FR-SI-01, FR-SI-02, C-03 | `apps/worker/src/{studio/runner,ingestion/*,ready-hooks}.ts`, `apps/render/src/main.ts`, `packages/notes/src/note-sources.ts`, `apps/api/src/v2/runtime.ts` | Logging at terminal transitions | unchanged | unchanged | unchanged | `ready-hooks-logging.test.ts` LOG-HOOK-01, `studio-plugin-flow.test.ts` LOG-STUDIO-01, `job-notifier.test.ts`, `poll-interval.test.ts`, `ocr.test.ts` CFG-03/04 |
+
+## Grill remediation: harness role and Source Guide extraction — 2026-11-27 (CC-09, D25)
+
+Traceability: CC-09 (constitution 2.4.0), D21, D25, C-01..C-03, FR-SI-02; grill report 2026-11-26 findings F7 (steps 1–2) and F25 (harness role).
+
+### Scope
+- `scripts/architecture/roles.mjs`: `isHarnessEdge(edge)`. `no-cross-app` and `no-shared-to-app` skip harness edges: test-file importers, `devDependencies` manifest edges and importers in `@everlast/evals`. All other rules still apply. Fixtures HARNESS-01..07 are in `scripts/test/architecture-rules.test.mjs`.
+- The D21 inventory goes from 88 to 13 to 9. The 75 harness records and 4 Source Guide records were deleted as stale; nothing was added, renewed or re-fingerprinted. `T035` stays open for the remaining 9 Studio-engine records, which expire on 2027-02-05.
+- `apps/worker/src/{package-v2-2,package-v2-2-runtime,ready-hooks}.ts` moved to `apps/api/src/source-guides/` together with their tests. The shim `package-v2-2-gemini.ts` was deleted. `ReportSuggestionInput` and `ReportSuggestionGuide` are now exported from `@everlast/cloud`.
+
+### CC-09 Boundary Review
+- **Automated: PASS.**
+  - `pnpm test:architecture` passes.
+  - `pnpm check:architecture` and `--base-ref origin/main` report 0 findings and 9 exceptions.
+- **Manual: PASS.**
+  - The moved modules depend only on `@everlast/contracts`, `@everlast/db` and `@everlast/cloud`.
+  - There are no new production cross-app edges: the worker's suggestion service imports the shared type from `@everlast/cloud`, not from the moved module.
+  - The only consumer of the new `@everlast/api/source-guides/package-v2-2` export is the harness package `@everlast/evals` (D25).
+  - Execution placement is unchanged: the code already ran only in the API process (D16).
+  - Transactions, quotas, dispatch and publication fences are unchanged, because the code moved verbatim apart from its imports.
+
+| SRS / contract | Module path, owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-02, C-02 | `apps/api/src/source-guides/{package-v2-2,package-v2-2-runtime,ready-hooks}.ts`, @lukas-zech-software | Source Guide / overview / follow-up workflow and Ready-hook dispatch | `@everlast/api/source-guides/package-v2-2` (harness consumers only) | `@everlast/contracts`, `@everlast/db`, `@everlast/cloud` | `apps/api/src/v2/runtime.ts`, `apps/api/src/server.ts` | `apps/api/test/source-guides/*.test.ts`, `apps/api/test/package-v2-2*.test.ts`, `apps/api/test/source-guide-sync.test.ts`, `packages/evals/test/source-guide-gate.eval.test.ts` (104 tests before and after the move) |
+| CC-09, D25 | `scripts/architecture/roles.mjs`, `scripts/architecture/rules/{no-cross-app,no-shared-to-app}.mjs` | Static dependency-direction enforcement | `isHarnessEdge(edge)`, `HARNESS_PACKAGES` | — | `scripts/check-architecture.mjs` | HARNESS-01..07 and the existing `scripts/test/architecture*.test.mjs` |

@@ -33,8 +33,8 @@ Layer separation does not require separate services or databases. It can be appl
 - [API v2 runtime](../apps/api/src/v2/runtime.ts)
 - [Worker package exports](../apps/worker/package.json)
 - [API package dependencies](../apps/api/package.json)
-- [Shared runtime currently in worker](../apps/worker/src/package-v2-2-runtime.ts)
-- [Ready-source hooks](../apps/worker/src/ready-hooks.ts)
+- [Shared runtime currently in worker](../apps/api/src/source-guides/package-v2-2-runtime.ts)
+- [Ready-source hooks](../apps/api/src/source-guides/ready-hooks.ts)
 - [Studio registry](../apps/worker/src/studio/registry.ts), [runner](../apps/worker/src/studio/runner.ts), and [dispatcher](../apps/worker/src/studio/dispatcher.ts)
 - Model interfaces and adapters under `apps/worker/src/studio/{reports,mindmaps,tables}/`, plus `apps/worker/src/package-v2-2-gemini.ts` and `apps/worker/src/ingestion/topic-emoji.ts`
 
