@@ -19,6 +19,8 @@ const UNIT = [
   "apps/api/test/identity.test.ts",
   "apps/api/test/chat-verifier.test.ts",
   "packages/cloud/test/ocr.test.ts",
+  // Grill remediation (failure visibility): pure logging, error-cause and config tests.
+  "packages/cloud/test/log.test.ts",
   "apps/web/test/lib.test.ts",
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",
