@@ -4,7 +4,7 @@ import type {
   ScopedContextEnvelope,
   SourceRevisionPair,
 } from "@everlast/contracts";
-import { createC02PackageV22SourceReader } from "../src/package-v2-2.ts";
+import { createC02PackageV22SourceReader } from "../../src/source-guides/package-v2-2.ts";
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";

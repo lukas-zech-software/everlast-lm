@@ -42,6 +42,16 @@ import { JobSchema } from "@everlast/contracts";
 import { createJobRecord } from "@everlast/db";
 ```
 
+## Harness exemption (D25)
+
+Test-file importers and `devDependencies` manifest edges between apps are harness edges (`scripts/architecture/roles.mjs`, Constitution IV/CC-09 2.4.0) and are not reported
+by this rule. A harness edge is one of three kinds: an importer in a package-level `test/`/`tests/` directory, a
+`__tests__/` directory or a `*.test.*`/`*.spec.*` file (a `test/` directory under `src/` is production code); a
+`devDependencies` manifest edge; or an importer in `@everlast/evals`. Harness code still reaches other packages
+only through declared `exports`, because `public-entrypoint` reports deep imports and relative escapes.
+`no-production-harness-import` keeps production code from loading harness files, and `no-production-testkit`
+keeps it from importing `@everlast/evals`.
+
 ## ESLint Feasibility & Existing Plugin Comparison
 
 - **Existing plugins**: `eslint-plugin-boundaries` (`boundaries/element-types`) and `eslint-plugin-import-x` (`import-x/no-restricted-paths`) can forbid `apps/* -> apps/*` for source `import`/`require` statements.

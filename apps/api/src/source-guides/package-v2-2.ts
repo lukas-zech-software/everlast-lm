@@ -12,6 +12,7 @@ import {
   type ScopedContextProvider,
   type ScopedContextEnvelope,
 } from "@everlast/contracts";
+import type { ReportSuggestionInput } from "@everlast/cloud";
 import { getOverview, getSourceGuide, saveOverview, saveSourceGuide } from "@everlast/db";
 
 export interface ScopedSourceMaterial {
@@ -128,16 +129,6 @@ export interface StructuredGenerationClient {
   generateReportSuggestions?: (input: ReportSuggestionInput) => Promise<{
     suggestions: Array<{ title: string; description: string; prompt_template: string }>;
   }>;
-}
-/** Source Guide metadata of one active source; no chunk text (FR-ST-11, FR-SI-02). */
-export interface ReportSuggestionGuide {
-  source_id: string;
-  summary: string;
-  key_topics: string[];
-}
-export interface ReportSuggestionInput {
-  guides: ReportSuggestionGuide[];
-  output_language: string;
 }
 export interface RetryOptions {
   sleep?: (ms: number) => Promise<void>;

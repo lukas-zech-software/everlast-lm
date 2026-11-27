@@ -8,8 +8,8 @@ import {
   type ScopedSourceMaterial,
   type StructuredGenerationClient,
   readSourceGuide,
-} from "../src/package-v2-2.ts";
-import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
+} from "../../src/source-guides/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../../src/source-guides/ready-hooks.ts";
 import { allowV2MemoryStores } from "@everlast/db";
 
 // TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).

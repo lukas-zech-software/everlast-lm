@@ -6,7 +6,7 @@ import {
   type SourceGuideState,
   type SourceRevisionPair,
 } from "@everlast/contracts";
-import type { ReportSuggestionInput } from "../../package-v2-2.ts";
+import type { ReportSuggestionInput } from "@everlast/cloud";
 import { ReportGenerationError, type ReportSuggestionModel } from "./model.ts";
 
 /** FR-SI-02 consumer port: Source Guide states of a snapshot, for the effective output language when given. */

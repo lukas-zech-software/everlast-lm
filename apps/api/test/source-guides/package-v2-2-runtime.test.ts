@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
-import { createPackageV22Runtime } from "../src/package-v2-2-runtime.ts";
-import type { StructuredGenerationClient } from "../src/package-v2-2.ts";
-import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
+import { createPackageV22Runtime } from "../../src/source-guides/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../../src/source-guides/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../../src/source-guides/ready-hooks.ts";
 import type { ScopedContextEnvelope, ScopedContextProvider } from "@everlast/contracts";
 import { allowV2MemoryStores } from "@everlast/db";
 

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { allowV2MemoryStores, resetPackageV22Store } from "@everlast/db";
 // Preserve exact D21 legacy exception fingerprint (specs/004 T035)
 // prettier-ignore
-import { generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import { generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient } from "@everlast/api/source-guides/package-v2-2";
 import { buildCorpus } from "./corpus.ts";
 
 /**

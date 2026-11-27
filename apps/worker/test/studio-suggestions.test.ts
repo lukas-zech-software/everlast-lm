@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { GenerateContentRequest } from "@everlast/cloud";
 import type { SourceGuideState } from "@everlast/contracts";
-import type { ReportSuggestionInput } from "../src/package-v2-2.ts";
+import type { ReportSuggestionInput } from "@everlast/cloud";
 import { ReportSuggestionService } from "../src/studio/reports/suggestions.ts";
 import { DeterministicReportModel } from "../src/studio/reports/deterministic-model.ts";
 import type { ReportSuggestionModel } from "../src/studio/reports/model.ts";
@@ -217,7 +217,7 @@ describe("Flash-Lite report suggestions on the Package 2.2 client (FR-ST-11, FR-
 
   it("the Vertex client generates suggestions with Flash-Lite and a JSON schema from guide metadata only", async () => {
     const { VertexStructuredGenerationClient, StructuredGenerationError } =
-      await import("../src/package-v2-2-gemini.ts");
+      await import("@everlast/cloud");
     const requests: GenerateContentRequest[] = [];
     const responses = [
       JSON.stringify({ suggestions: [card(1), card(2), card(3)] }),

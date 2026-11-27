@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
-import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
+import { createReadySourceDispatcher } from "../../src/source-guides/ready-hooks.ts";
 
 /** Grill F5, FR-SI-02: a failing Ready hook (Source Guide, topic icon) is logged, never silently swallowed. */
 describe("FR-SI-02 Ready hook failures", () => {

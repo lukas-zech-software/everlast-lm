@@ -6,7 +6,7 @@ import {
   resetPocBridge,
   resetWorkspacePreferenceStore,
 } from "@everlast/db";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import type { StructuredGenerationClient } from "../src/source-guides/package-v2-2.ts";
 import { citeAll, startNotesApi, type NotesApi } from "./notes-pg-support.ts";
 
 /**
