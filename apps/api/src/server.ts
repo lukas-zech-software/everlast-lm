@@ -59,7 +59,12 @@ import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
  */
 export function createJobNotifier(env: NodeJS.ProcessEnv = process.env): () => void {
   const workerUrl = env.WORKER_URL ?? env.WORKER_INTERNAL_URL;
-  if (!workerUrl) return () => undefined;
+  if (!workerUrl) {
+    // Grill F22: on Cloud Run a missing worker URL would silently stop all ingestion.
+    if (env.K_SERVICE)
+      throw new Error("WORKER_URL or WORKER_INTERNAL_URL must be set on Cloud Run (F22)");
+    return () => undefined;
+  }
   const queue = env.CLOUD_TASKS_INGESTION_QUEUE;
   const invoker = env.CLOUD_TASKS_INVOKER_SA_EMAIL;
   const project = env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;

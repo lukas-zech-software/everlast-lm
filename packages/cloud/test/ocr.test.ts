@@ -47,4 +47,15 @@ describe("Document AI OCR adapter", () => {
     expect(engine.name).toBe("documentai:eu:abc123");
     expect(createOcrEngine({}).name).toBe("none");
   });
+
+  // Grill F22: on Cloud Run a missing processor fails at startup instead of silently skipping OCR.
+  it("CFG-03 createOcrEngine throws on Cloud Run without a processor", () => {
+    expect(() => createOcrEngine({ K_SERVICE: "everlast-dev-worker" })).toThrow(
+      /DOCUMENT_AI_PROCESSOR_NAME/,
+    );
+  });
+
+  it("CFG-04 createOcrEngine falls back locally", () => {
+    expect(createOcrEngine({}).name).toBe("none");
+  });
 });
