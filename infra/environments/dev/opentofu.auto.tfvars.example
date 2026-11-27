@@ -21,8 +21,8 @@ db_availability_type = "ZONAL"
 db_disk_size_gb      = 20
 db_activation_policy = "ALWAYS" # Set to "NEVER" between demo sessions to cut idle compute costs (§5.4)
 
-api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
-worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
+api_image            = "europe-west4-docker.pkg.dev/<project>/everlast/everlast:<tag>" # replace before planning
+worker_image         = "europe-west4-docker.pkg.dev/<project>/everlast/everlast:<tag>" # replace before planning
 api_min_instances    = 0 # Set to 1 before live demos per §5.5 to avoid cold-start penalties
 api_max_instances    = 1 # D16: v2 PoC data lives in API memory; raise only after the v3 PostgreSQL switch
 worker_max_instances = 5

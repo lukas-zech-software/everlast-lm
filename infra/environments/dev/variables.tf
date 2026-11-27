@@ -16,9 +16,8 @@ variable "tasks_location" {
 }
 
 variable "enable_project_services" {
-  description = "Explicit project-owner approval gate for enabling billable Google Cloud APIs (defaults to false)."
+  description = "Explicit project-owner approval gate for enabling billable Google Cloud APIs (defaults to false). Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = bool
-  default     = false
 }
 
 variable "enable_model_armor" {
@@ -46,15 +45,13 @@ variable "github_repository" {
 }
 
 variable "authorized_domains" {
-  description = "Authorized domains for Identity Platform OIDC/SAML callbacks."
+  description = "Authorized domains for Identity Platform OIDC/SAML callbacks. Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = list(string)
-  default     = ["localhost"]
 }
 
 variable "cors_allowed_origins" {
-  description = "Allowed origins for browser direct signed-URL uploads to the workspace GCS bucket."
+  description = "Allowed origins for browser direct signed-URL uploads to the workspace GCS bucket. Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = list(string)
-  default     = ["http://localhost:5173", "http://localhost:3000"]
 }
 
 variable "db_tier" {
@@ -82,15 +79,23 @@ variable "db_activation_policy" {
 }
 
 variable "api_image" {
-  description = "Container image URI for everlast-api."
+  description = "Container image URI for everlast-api. Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = string
-  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+
+  validation {
+    condition     = !startswith(var.api_image, "us-docker.pkg.dev/cloudrun/container/hello")
+    error_message = "api_image must be a real Artifact Registry image; the Cloud Run hello placeholder would replace dev (F1)."
+  }
 }
 
 variable "worker_image" {
-  description = "Container image URI for everlast-worker."
+  description = "Container image URI for everlast-worker. Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = string
-  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+
+  validation {
+    condition     = !startswith(var.worker_image, "us-docker.pkg.dev/cloudrun/container/hello")
+    error_message = "worker_image must be a real Artifact Registry image; the Cloud Run hello placeholder would replace dev (F1)."
+  }
 }
 
 variable "api_min_instances" {
@@ -112,9 +117,8 @@ variable "worker_max_instances" {
 }
 
 variable "mount_secrets" {
-  description = "Whether Secret Manager secret versions have been populated and should be mounted into Cloud Run."
+  description = "Whether Secret Manager secret versions have been populated and should be mounted into Cloud Run. Required: set it in the gitignored tfvars (F1); a missing value fails the plan."
   type        = bool
-  default     = false
 }
 
 variable "max_sources_per_notebook" {
