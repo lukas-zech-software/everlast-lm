@@ -174,6 +174,14 @@ through caches or chat history is the product's core enterprise guarantee.
   - Retain feature-oriented modules. Deployment applications MUST NOT serve as shared
     libraries for other applications. Shared workflows MUST live behind explicit public
     interfaces in focused workspace packages; shared packages MUST NOT depend on `apps/*`.
+  - Harness code is never loaded by a deployed service: package-level `test/`/`tests/`
+    directories, `__tests__/` directories and `*.test.*`/`*.spec.*` files (a `test/` directory
+    nested under `src/` is production code), `devDependencies` manifest edges, and declared
+    harness packages (`@everlast/evals`). Harness code MAY depend on deployment applications
+    only through their declared public exports and remains subject to public-entrypoint,
+    deep-import and relative-escape rules. Production code MUST NOT import harness code,
+    including within its own package. Declaring another harness package requires a recorded
+    `Dn`.
   - Cross-package consumers MUST use explicit public exports. Wildcard exports exposing
     implementation trees, deep imports, relative-path escapes, and type-only imports MUST
     NOT bypass boundaries. New workspace dependency cycles are forbidden.
@@ -389,4 +397,4 @@ server-side RBAC, atomic quotas, and EU residency cannot be retrofitted later.
 - Compliance MUST be verified at every `/speckit-plan` Constitution Check (`CC-01`..`CC-09`),
   during `/speckit-analyze`, and in pull request review.
 
-**Version**: 2.3.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-12
+**Version**: 2.4.0 | **Ratified**: 2026-10-15 | **Last Amended**: 2026-11-27
