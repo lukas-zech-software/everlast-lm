@@ -35,7 +35,6 @@ on:
 permissions:
   contents: read
   id-token: write
-  pull-requests: write
 
 concurrency:
   group: opentofu-${{ github.workflow }}-${{ github.event.inputs.environment || github.ref }}
@@ -62,6 +61,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup OpenTofu
         uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
@@ -80,6 +81,18 @@ jobs:
       - name: Validate OpenTofu configuration & module graph
         run: tofu validate
 
+      # Grill F11 / NFR-SEC-01 / D22: mocked-provider suites need no credentials.
+      - name: Run offline OpenTofu tests (mocked providers)
+        if: matrix.environment == 'dev'
+        working-directory: infra
+        run: |
+          for dir in modules/compute modules/storage_secrets modules/iam_identity modules/code_execution environments/dev; do
+            echo "::group::tofu test $dir"
+            tofu -chdir="$dir" init -backend=false -input=false
+            tofu -chdir="$dir" test
+            echo "::endgroup::"
+          done
+
   # ---------------------------------------------------------------------------
   # 2. Authenticated OpenTofu Plan (Keyless Workload Identity Federation)
   #    Executes when GCP_WIF_PROVIDER is configured for the target environment.
@@ -89,7 +102,6 @@ jobs:
     needs: [validate]
     if: >-
       (github.event_name == 'pull_request' ||
-       github.event_name == 'push' ||
        (github.event_name == 'workflow_dispatch' && inputs.action != 'validate'))
     runs-on: ubuntu-latest
     environment: ${{ matrix.environment }}
@@ -103,6 +115,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check whether GCP WIF variables are configured
         id: wif_check
@@ -113,6 +127,15 @@ jobs:
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
+
+      # Grill F1: never plan with the root defaults; the real values come from the environment secret.
+      - name: Write OpenTofu variables from the environment secret
+        if: steps.wif_check.outputs.configured == 'true'
+        env:
+          OPENTOFU_TFVARS: ${{ secrets.OPENTOFU_TFVARS }}
+        run: |
+          if [ -z "$OPENTOFU_TFVARS" ]; then echo "::error::Environment secret OPENTOFU_TFVARS is empty; refusing to plan with defaults (F1)."; exit 1; fi
+          umask 077; printf '%s\n' "$OPENTOFU_TFVARS" > opentofu.auto.tfvars
 
       - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
@@ -155,12 +178,11 @@ jobs:
   # ---------------------------------------------------------------------------
   # 3. Authenticated OpenTofu Apply (Protected GitHub Environment Gate)
   # ---------------------------------------------------------------------------
+  # Grill F1 / NFR-SEC-01: apply runs only on manual dispatch; the `dev` environment requires a reviewer.
   apply:
     name: "Apply (${{ github.event.inputs.environment || 'dev' }})"
     needs: [plan]
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && inputs.action == 'apply')
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
     runs-on: ubuntu-latest
     environment: ${{ github.event.inputs.environment || 'dev' }}
     defaults:
@@ -169,6 +191,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Check whether GCP WIF variables are configured
         id: wif_check
