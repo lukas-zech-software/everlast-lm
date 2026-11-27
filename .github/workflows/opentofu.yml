@@ -94,24 +94,19 @@ jobs:
           done
 
   # ---------------------------------------------------------------------------
-  # 2. Authenticated OpenTofu Plan (Keyless Workload Identity Federation)
-  #    Executes when GCP_WIF_PROVIDER is configured for the target environment.
+  # 2. Authenticated OpenTofu Plan (manual dispatch only; Keyless Workload Identity Federation)
+  #    Grill F1/F27: no PR plans while PR code would run with deployer credentials, and no plan artifact:
+  #    a saved plan carries the tfvars values and artifacts of a public repository are downloadable.
   # ---------------------------------------------------------------------------
   plan:
-    name: "Plan (${{ matrix.environment }})"
+    name: "Plan (${{ inputs.environment }})"
     needs: [validate]
-    if: >-
-      (github.event_name == 'pull_request' ||
-       (github.event_name == 'workflow_dispatch' && inputs.action != 'validate'))
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'plan'
     runs-on: ubuntu-latest
-    environment: ${{ matrix.environment }}
-    strategy:
-      fail-fast: false
-      matrix:
-        environment: ${{ github.event_name == 'workflow_dispatch' && fromJson(format('["{0}"]', inputs.environment)) || fromJson('["dev"]') }}
+    environment: ${{ inputs.environment }}
     defaults:
       run:
-        working-directory: infra/environments/${{ matrix.environment }}
+        working-directory: infra/environments/${{ inputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -123,7 +118,7 @@ jobs:
         run: |
           if [ -z "${{ vars.GCP_WIF_PROVIDER }}" ] || [ -z "${{ vars.GCP_CI_SERVICE_ACCOUNT }}" ] || [ -z "${{ vars.GCP_TFSTATE_BUCKET }}" ] || [ -z "${{ vars.GCP_PROJECT_ID }}" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Skipping Remote Plan::GitHub Environment '${{ matrix.environment }}' does not yet have GCP_WIF_PROVIDER, GCP_CI_SERVICE_ACCOUNT, GCP_TFSTATE_BUCKET, and GCP_PROJECT_ID variables configured. Offline validation succeeded."
+            echo "::notice title=Skipping Remote Plan::GitHub Environment '${{ inputs.environment }}' does not yet have GCP_WIF_PROVIDER, GCP_CI_SERVICE_ACCOUNT, GCP_TFSTATE_BUCKET, and GCP_PROJECT_ID variables configured. Offline validation succeeded."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
@@ -156,38 +151,26 @@ jobs:
         run: |
           tofu init \
             -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
-            -backend-config="prefix=opentofu/state/${{ matrix.environment }}"
+            -backend-config="prefix=opentofu/state/${{ inputs.environment }}"
 
       - name: Create OpenTofu execution plan
         if: steps.wif_check.outputs.configured == 'true'
-        run: |
-          tofu plan \
-            -input=false \
-            -var="project_id=${{ vars.GCP_PROJECT_ID }}" \
-            -out=tfplan.binary
-          tofu show -no-color tfplan.binary > tfplan.txt
-
-      - name: Upload OpenTofu plan artifact
-        if: steps.wif_check.outputs.configured == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: tfplan-${{ matrix.environment }}-${{ github.sha }}
-          path: infra/environments/${{ matrix.environment }}/tfplan.binary
-          retention-days: 5
+        run: tofu plan -input=false -var="project_id=${{ vars.GCP_PROJECT_ID }}"
 
   # ---------------------------------------------------------------------------
   # 3. Authenticated OpenTofu Apply (Protected GitHub Environment Gate)
+  #    Grill F1 / NFR-SEC-01: manual dispatch only; the `dev` environment requires a reviewer. The job plans and
+  #    applies in one place, so no plan file leaves the protected job.
   # ---------------------------------------------------------------------------
-  # Grill F1 / NFR-SEC-01: apply runs only on manual dispatch; the `dev` environment requires a reviewer.
   apply:
-    name: "Apply (${{ github.event.inputs.environment || 'dev' }})"
-    needs: [plan]
+    name: "Apply (${{ inputs.environment }})"
+    needs: [validate]
     if: github.event_name == 'workflow_dispatch' && inputs.action == 'apply'
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'dev' }}
+    environment: ${{ inputs.environment }}
     defaults:
       run:
-        working-directory: infra/environments/${{ github.event.inputs.environment || 'dev' }}
+        working-directory: infra/environments/${{ inputs.environment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -204,6 +187,15 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # Grill F1: never apply root defaults; the real values come from the environment secret.
+      - name: Write OpenTofu variables from the environment secret
+        if: steps.wif_check.outputs.configured == 'true'
+        env:
+          OPENTOFU_TFVARS: ${{ secrets.OPENTOFU_TFVARS }}
+        run: |
+          if [ -z "$OPENTOFU_TFVARS" ]; then echo "::error::Environment secret OPENTOFU_TFVARS is empty; refusing to apply with defaults (F1)."; exit 1; fi
+          umask 077; printf '%s\n' "$OPENTOFU_TFVARS" > opentofu.auto.tfvars
+
       - name: Setup OpenTofu
         if: steps.wif_check.outputs.configured == 'true'
         uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
@@ -218,20 +210,15 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_CI_SERVICE_ACCOUNT }}
 
-      - name: Download verified OpenTofu plan artifact
-        if: steps.wif_check.outputs.configured == 'true'
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: tfplan-${{ github.event.inputs.environment || 'dev' }}-${{ github.sha }}
-          path: infra/environments/${{ github.event.inputs.environment || 'dev' }}
-
       - name: Initialize OpenTofu with GCS state backend
         if: steps.wif_check.outputs.configured == 'true'
         run: |
           tofu init \
             -backend-config="bucket=${{ vars.GCP_TFSTATE_BUCKET }}" \
-            -backend-config="prefix=opentofu/state/${{ github.event.inputs.environment || 'dev' }}"
+            -backend-config="prefix=opentofu/state/${{ inputs.environment }}"
 
-      - name: Apply OpenTofu plan
+      - name: Plan and apply in the protected job
         if: steps.wif_check.outputs.configured == 'true'
-        run: tofu apply -input=false -auto-approve tfplan.binary
+        run: |
+          tofu plan -input=false -var="project_id=${{ vars.GCP_PROJECT_ID }}" -out=tfplan.binary
+          tofu apply -input=false -auto-approve tfplan.binary

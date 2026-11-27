@@ -83,8 +83,8 @@ variable "api_image" {
   type        = string
 
   validation {
-    condition     = !startswith(var.api_image, "us-docker.pkg.dev/cloudrun/container/hello")
-    error_message = "api_image must be a real Artifact Registry image; the Cloud Run hello placeholder would replace dev (F1)."
+    condition     = !startswith(var.api_image, "us-docker.pkg.dev/cloudrun/container/hello") && can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9._-]+/[a-z0-9._/-]+(:[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$", var.api_image))
+    error_message = "api_image must be a real Artifact Registry image (REGION-docker.pkg.dev/PROJECT/REPO/IMAGE:TAG or @sha256:DIGEST); placeholders and the Cloud Run hello image would replace dev (F1)."
   }
 }
 
@@ -93,8 +93,8 @@ variable "worker_image" {
   type        = string
 
   validation {
-    condition     = !startswith(var.worker_image, "us-docker.pkg.dev/cloudrun/container/hello")
-    error_message = "worker_image must be a real Artifact Registry image; the Cloud Run hello placeholder would replace dev (F1)."
+    condition     = !startswith(var.worker_image, "us-docker.pkg.dev/cloudrun/container/hello") && can(regex("^[a-z0-9-]+-docker\\.pkg\\.dev/[a-z0-9-]+/[a-z0-9._-]+/[a-z0-9._/-]+(:[A-Za-z0-9._-]+|@sha256:[a-f0-9]{64})$", var.worker_image))
+    error_message = "worker_image must be a real Artifact Registry image (REGION-docker.pkg.dev/PROJECT/REPO/IMAGE:TAG or @sha256:DIGEST); placeholders and the Cloud Run hello image would replace dev (F1)."
   }
 }
 

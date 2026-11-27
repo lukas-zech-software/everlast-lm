@@ -35,3 +35,18 @@ run "placeholder_worker_image_is_rejected" {
   variables { worker_image = "us-docker.pkg.dev/cloudrun/container/hello:latest" }
   expect_failures = [var.worker_image]
 }
+
+# Final review I1: a verbatim copy of opentofu.auto.tfvars.example must not plan.
+run "example_placeholder_image_is_rejected" {
+  command = plan
+  variables { api_image = "europe-west4-docker.pkg.dev/<project>/everlast/everlast:<tag>" }
+  expect_failures = [var.api_image]
+}
+
+run "live_style_image_is_accepted" {
+  command = plan
+  variables {
+    api_image    = "europe-west4-docker.pkg.dev/lukas-gcloud-playground/everlast-dev-containers/everlast:51f78ab"
+    worker_image = "europe-west4-docker.pkg.dev/lukas-gcloud-playground/everlast-dev-containers/everlast@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+  }
+}
