@@ -149,6 +149,7 @@ ${item("/org.openoffice.Office.Common/Security/Scripting", "DisableActiveContent
 
 export { sanitizeOoxml } from "./sanitize.ts";
 import { sanitizeOoxml } from "./sanitize.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 const run = promisify(execFile);
 
@@ -219,12 +220,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       );
     })
     .catch((err: unknown) => {
-      console.error(
-        JSON.stringify({
-          severity: "ERROR",
-          operation_id: request.operationId,
-          error: err instanceof Error ? err.name : "UnknownError",
-        }),
+      // IDs only (no document content or names); the message carries the converter's failure (grill F5).
+      logFailure(
+        "render.execution",
+        { operation_id: request.operationId, command: request.command },
+        err,
       );
       process.exit(1);
     });

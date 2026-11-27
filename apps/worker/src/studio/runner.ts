@@ -27,6 +27,7 @@ import { validateQuizPayload } from "./quizzes/validation.ts";
 import { validateLearningOverviewPayload } from "./learning-overview/validation.ts";
 import { validateSlideDeckPayload } from "./slides/validation.ts";
 import { validateInfographicPayload } from "./infographics/validation.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /** Re-verifies owner access and source revisions (D12); throws InvalidScopeError / SourceSnapshotInvalidError. */
 export interface StudioAccessVerifier {
@@ -429,6 +430,7 @@ export class StudioJobRunner {
       ) {
         return await this.requireArtifact(id);
       }
+      logFailure("studio.run", { artifact_id: id, plugin_type: initial.plugin_type }, err);
       return await this.failAttempt(
         id,
         classifyRunError(err, initial.plugin_type),

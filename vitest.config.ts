@@ -26,6 +26,7 @@ const UNIT = [
   "packages/db/test/v2-persistence.test.ts",
   "apps/api/test/job-notifier.test.ts",
   "apps/worker/test/poll-interval.test.ts",
+  "apps/worker/test/ready-hooks-logging.test.ts",
   "apps/web/test/lib.test.ts",
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",

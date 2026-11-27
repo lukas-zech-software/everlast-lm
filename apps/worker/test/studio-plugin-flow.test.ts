@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { StudioParamsError, StudioPluginRegistry, type ReportSubtype } from "@everlast/contracts";
 import { InMemoryStudioArtifactRepository } from "@everlast/db";
 import { StudioJobRunner } from "../src/studio/runner.ts";
@@ -76,6 +76,27 @@ describe("ReportGeneratorPlugin end-to-end through the runner (FR-ST-10)", () =>
       ],
     });
     expect(retry).toMatchObject({ attempt: 2, retry_of: a.id, status: "Queued" });
+  });
+
+  it("C-03 LOG-STUDIO-01 an unexpected plugin error is logged before Failed (grill F5)", async () => {
+    const s = setup();
+    const a = await s.submit("briefing_doc");
+    vi.spyOn(s.plugin, "generate").mockRejectedValue(new TypeError("plugin exploded"));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const failed = await s.runner.run(a.id);
+      expect(failed).toMatchObject({ status: "Failed", failure: { code: "GenerationError" } });
+      const lines = spy.mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+      expect(lines).toContainEqual(
+        expect.objectContaining({
+          scope: "studio.run",
+          artifact_id: a.id,
+          error_message: "plugin exploded",
+        }),
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("triggerJob validates subtype and custom prompt synchronously", () => {

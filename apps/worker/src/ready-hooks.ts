@@ -1,5 +1,6 @@
 import { claimTopicIconSelection, setTopicIconIfDefault } from "@everlast/db";
 import type { TopicEmojiSelector } from "./ingestion/topic-emoji.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Release v2 follow-up work after a source reaches Ready (FR-WM-02 topic icon, FR-SI-02 Source Guide).
@@ -28,12 +29,13 @@ export async function applyTopicIcon(
     if (!(await claimTopicIconSelection(event.notebook_id))) return false;
     const icon = await selector.suggest({ title: event.title, mediaType: event.media_type });
     return icon ? await setTopicIconIfDefault(event.notebook_id, icon) : false;
-  } catch {
+  } catch (err) {
+    logFailure("ready_hook.topic_icon", { notebook_id: event.notebook_id }, err, "WARNING");
     return false;
   }
 }
 
-/** Runs every hook once per (source, revision), in the background, swallowing hook failures. */
+/** Runs every hook once per (source, revision), in the background; hook failures are logged, never thrown. */
 export function createReadySourceDispatcher(
   hooks: ReadySourceHook[],
 ): (event: ReadySourceEvent) => Promise<void> {
@@ -42,6 +44,16 @@ export function createReadySourceDispatcher(
     const key = `${event.notebook_id}:${event.source_id}:${event.revision_id}`;
     if (seen.has(key)) return;
     seen.add(key);
-    await Promise.all(hooks.map((hook) => hook(event).catch(() => undefined)));
+    const ids = {
+      notebook_id: event.notebook_id,
+      source_id: event.source_id,
+      revision_id: event.revision_id,
+    };
+    // Grill F5: a failing hook never changes the ingestion outcome, but it is logged, not swallowed.
+    await Promise.all(
+      hooks.map((hook) =>
+        hook(event).catch((err: unknown) => logFailure("ready_hook", ids, err, "WARNING")),
+      ),
+    );
   };
 }
