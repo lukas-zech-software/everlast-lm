@@ -118,7 +118,10 @@ export class CloudRunJobRenderer implements OfficeRenderer {
       await new Promise((r) => setTimeout(r, this.config.pollMs ?? 2000));
       op = (await this.call(`https://run.googleapis.com/v2/${op.name}`, "GET")) as Operation;
     }
-    if (op.error) throw new RenderJobError("Render job failed");
+    if (op.error)
+      throw new RenderJobError(
+        `Render job failed: ${op.error.message ?? op.error.code ?? "unknown"}`,
+      );
     const meta = await this.config.storage.stat(outputObject);
     if (!meta) throw new RenderJobError("Render job produced no output");
     return { name: outputObject, generation: meta.generation };

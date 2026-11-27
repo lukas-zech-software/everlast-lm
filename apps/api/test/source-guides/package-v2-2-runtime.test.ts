@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
-import { createPackageV22Runtime } from "../src/package-v2-2-runtime.ts";
-import type { StructuredGenerationClient } from "../src/package-v2-2.ts";
-import { createReadySourceDispatcher } from "../src/ready-hooks.ts";
+import { createPackageV22Runtime } from "../../src/source-guides/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../../src/source-guides/package-v2-2.ts";
+import { createReadySourceDispatcher } from "../../src/source-guides/ready-hooks.ts";
 import type { ScopedContextEnvelope, ScopedContextProvider } from "@everlast/contracts";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";

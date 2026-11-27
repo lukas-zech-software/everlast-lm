@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { AppError } from "@everlast/contracts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Native Node HTTP helpers (FR-WM-01, FR-WM-04). Error bodies follow the workspace API contract:
@@ -61,19 +62,18 @@ export function sendError(res: ServerResponse, err: unknown, requestId: string):
     return;
   }
   if (err instanceof AppError) {
+    if (err.status >= 500)
+      // NFR-SEC-01: the cause of a 5xx may quote request or source content; log names and status only.
+      logFailure("http.request", { request_id: requestId, code: err.code }, err, "WARNING", {
+        messages: "none",
+      });
     sendJson(res, err.status, {
       error: { code: err.code, message: err.message },
       request_id: requestId,
     });
     return;
   }
-  console.error(
-    JSON.stringify({
-      severity: "ERROR",
-      request_id: requestId,
-      message: err instanceof Error && err.stack ? err.stack : String(err),
-    }),
-  );
+  logFailure("http.request", { request_id: requestId }, err);
   sendJson(res, 500, {
     error: { code: "InternalError", message: "Internal server error" },
     request_id: requestId,

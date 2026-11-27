@@ -2,6 +2,7 @@ import type { ServerResponse } from "node:http";
 import { z } from "zod";
 import { AppError, OutputLanguageSchema, isAppError } from "@everlast/contracts";
 import { clearThread, getOrCreateThread, loadVisibleThread, searchThread } from "@everlast/db";
+import { logFailure } from "@everlast/cloud/log";
 import { readJson, requireParam, sendJson, validationError } from "../http.ts";
 import type { Router } from "../router.ts";
 import type { AppDeps } from "../app.ts";
@@ -21,6 +22,17 @@ const TurnBody = z
   .strict();
 
 /** First Accept-Language entry that is a supported output language (FR-UI-02 browser fallback). */
+/** A user Stop or disconnect is not an outage; every other failure keeps its cause in the log (grill F5). */
+function logTurnFailure(err: unknown, requestId: string): void {
+  // NFR-SEC-01: chat errors may quote the question or source chunks, so only names, status and frames are logged.
+  if (!isAppError(err))
+    logFailure("chat.turn", { request_id: requestId }, err, "ERROR", { messages: "none" });
+  else if (err.status >= 500)
+    logFailure("chat.turn", { request_id: requestId, code: err.code }, err, "WARNING", {
+      messages: "none",
+    });
+}
+
 export function browserLocaleOf(header: string | string[] | undefined): string | undefined {
   if (typeof header !== "string") return undefined;
   for (const entry of header.split(",")) {
@@ -115,14 +127,7 @@ export function registerChatRoutes(router: Router, deps: AppDeps): void {
               code: "InternalError",
               message: "An error occurred while generating the response. Please try again.",
             };
-        if (!isAppError(err))
-          console.error(
-            JSON.stringify({
-              severity: "ERROR",
-              request_id: requestId,
-              message: (err as Error).message,
-            }),
-          );
+        if (!abort.signal.aborted) logTurnFailure(err, requestId);
         sse(res, "error", { error, request_id: requestId });
       }
       res.end();

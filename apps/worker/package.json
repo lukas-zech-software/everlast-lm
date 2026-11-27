@@ -68,21 +68,6 @@
       "import": "./src/ingestion/web.ts",
       "default": "./src/ingestion/web.ts"
     },
-    "./package-v2-2": {
-      "types": "./src/package-v2-2.ts",
-      "import": "./src/package-v2-2.ts",
-      "default": "./src/package-v2-2.ts"
-    },
-    "./package-v2-2-runtime": {
-      "types": "./src/package-v2-2-runtime.ts",
-      "import": "./src/package-v2-2-runtime.ts",
-      "default": "./src/package-v2-2-runtime.ts"
-    },
-    "./ready-hooks": {
-      "types": "./src/ready-hooks.ts",
-      "import": "./src/ready-hooks.ts",
-      "default": "./src/ready-hooks.ts"
-    },
     "./studio/dispatcher": {
       "types": "./src/studio/dispatcher.ts",
       "import": "./src/studio/dispatcher.ts",

@@ -53,11 +53,14 @@ import {
   type Pool,
   type SourceRecord,
 } from "@everlast/db";
-import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
-// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
-// prettier-ignore
-import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
+import { createPackageV22Runtime } from "../source-guides/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../source-guides/package-v2-2.ts";
+import {
+  applyTopicIcon,
+  createReadySourceDispatcher,
+  type ReadySourceEvent,
+  type ReadySourceHook,
+} from "../source-guides/ready-hooks.ts";
 import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";
@@ -85,6 +88,7 @@ import { handleStudioRoute } from "../routes/studio.ts";
 import { handleWorkspacePreferencesRoute } from "../routes/workspace-preferences.ts";
 import { WorkspacePreferencesService } from "../services/workspace-preferences.ts";
 import type { StudioServiceDeps } from "../studio/service.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Release v2 runtime (D16; persistence since specs/013, DEV-04 closed).
@@ -348,7 +352,14 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
         revision_id: input.revision,
         title: source.title,
         media_type: source.media_type,
-      }).catch(() => undefined);
+      }).catch((err: unknown) =>
+        logFailure(
+          "source_guide.dispatch",
+          { notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision },
+          err,
+          "WARNING",
+        ),
+      );
       return;
     }
     const admission = await admitOnDemandGuide(pool, input, options.guideAdmission);
@@ -364,7 +375,13 @@ export function createV2Runtime(options: V2RuntimeOptions): V2Runtime {
     // Captured persistence context follows this background Promise; every terminal outcome releases its slot.
     void v22
       .generateSourceGuide(input)
-      .catch(() => undefined)
+      .catch((err: unknown) =>
+        logFailure(
+          "source_guide.generate",
+          { notebook_id: input.notebook_id, source_id: input.source_id, revision: input.revision },
+          err,
+        ),
+      )
       .finally(() => finishOnDemandGuide(pool, admission.id))
       .catch(() =>
         console.warn(

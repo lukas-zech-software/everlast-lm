@@ -7,7 +7,7 @@ import {
   runWithV2Persistence,
 } from "@everlast/db";
 import { seedReadySource } from "@everlast/db/testing";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import type { StructuredGenerationClient } from "../src/source-guides/package-v2-2.ts";
 import { createV2Generation } from "../src/server.ts";
 import { createV2Runtime, type V2Runtime } from "../src/v2/runtime.ts";
 import { readJson, startTestApi, type TestApi } from "./support.ts";

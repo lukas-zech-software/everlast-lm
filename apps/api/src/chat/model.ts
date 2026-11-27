@@ -65,8 +65,8 @@ export class UnverifiableDraftError extends Error {
 }
 
 export class ModelUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ModelUnavailableError";
   }
 }
@@ -232,13 +232,15 @@ export class AdkGroundedModel implements GroundedModel {
     );
     const onAbort = () => controller.abort(signal?.reason);
     signal?.addEventListener("abort", onAbort, { once: true });
+    const userId = "chat";
+    let sessionId: string | undefined;
     try {
-      const userId = "chat";
       const session = await runner.sessionService.createSession({
         appName,
         userId,
         sessionId: randomUUID(),
       });
+      sessionId = session.id;
       let text = "";
       for await (const event of runner.runAsync({
         userId,
@@ -250,18 +252,20 @@ export class AdkGroundedModel implements GroundedModel {
         if (isFinalResponse(event))
           text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
       }
-      await runner.sessionService
-        .deleteSession({ appName, userId, sessionId: session.id })
-        .catch(() => undefined);
       return text;
     } catch (err) {
       if (signal?.aborted) throw signal.reason ?? err;
       throw err instanceof ModelUnavailableError
         ? err
-        : new ModelUnavailableError((err as Error).message);
+        : new ModelUnavailableError((err as Error).message, { cause: err });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
+      // Grill F21: free the in-memory session on every outcome, not only on success.
+      if (sessionId)
+        await runner.sessionService
+          .deleteSession({ appName, userId, sessionId })
+          .catch(() => undefined);
     }
   }
 
@@ -273,8 +277,9 @@ export class AdkGroundedModel implements GroundedModel {
     );
     const onAbort = () => controller.abort(input.signal?.reason);
     input.signal?.addEventListener("abort", onAbort, { once: true });
+    const userId = "chat";
+    let sessionId: string | undefined;
     try {
-      const userId = "chat";
       const session = await this.runner.sessionService.createSession({
         appName: "everlast-chat",
         userId,
@@ -285,6 +290,7 @@ export class AdkGroundedModel implements GroundedModel {
           operational_model_calls: 0,
         },
       });
+      sessionId = session.id;
       let text = "";
       for await (const event of this.runner.runAsync({
         userId,
@@ -310,9 +316,6 @@ export class AdkGroundedModel implements GroundedModel {
           text = (event.content?.parts ?? []).map((p) => p.text ?? "").join("");
         }
       }
-      await this.runner.sessionService
-        .deleteSession({ appName: "everlast-chat", userId, sessionId: session.id })
-        .catch(() => undefined);
       return GroundedDraftSchema.parse(JSON.parse(text));
     } catch (err) {
       if (input.signal?.aborted) throw input.signal.reason ?? err;
@@ -320,10 +323,15 @@ export class AdkGroundedModel implements GroundedModel {
         throw new UnverifiableDraftError();
       throw err instanceof ModelUnavailableError
         ? err
-        : new ModelUnavailableError((err as Error).message);
+        : new ModelUnavailableError((err as Error).message, { cause: err });
     } finally {
       clearTimeout(timer);
       input.signal?.removeEventListener("abort", onAbort);
+      // Grill F21: free the in-memory session on every outcome, not only on success.
+      if (sessionId)
+        await this.runner.sessionService
+          .deleteSession({ appName: "everlast-chat", userId, sessionId })
+          .catch(() => undefined);
     }
   }
 }

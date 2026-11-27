@@ -8,6 +8,10 @@ import { createPocNotebook } from "@everlast/db";
 import { createV2Runtime } from "../src/v2/runtime.ts";
 import { WorkspacePreferencesService } from "../src/services/workspace-preferences.ts";
 import { startTestApi, type TestApi } from "./support.ts";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 /**
  * Package 2.1 over the real API: PostgreSQL notebooks and ownership, locally signed tokens, release v2 PoC

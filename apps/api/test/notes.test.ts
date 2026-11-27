@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { Note } from "@everlast/contracts";
 import { newNotebook, resetAll, startApi } from "./notes-fixtures.ts";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 describe("FR-NM-01: notes CRUD routes", () => {
   let api: Awaited<ReturnType<typeof startApi>>;

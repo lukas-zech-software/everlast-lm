@@ -18,6 +18,7 @@ const EXPECTED_RULE_IDS = new Set([
   "contracts-only",
   "browser-safe",
   "no-production-testkit",
+  "no-production-harness-import",
   "public-entrypoint",
   "unscanned-module",
   "outside-workspace",
@@ -88,7 +89,7 @@ function runSingleRule(root, ruleId) {
   return inspectArchitecture(root, { rules: [rule] });
 }
 
-test("architecture rule registry and docs cover all 14 rules", () => {
+test("architecture rule registry and docs cover all 15 rules", () => {
   assert.equal(ARCHITECTURE_RULES.length, EXPECTED_RULE_IDS.size);
   assert.equal(RULES_BY_ID.size, ARCHITECTURE_RULES.length);
   const readme = readFileSync(join(REPO_ROOT, "docs/architecture-rules/README.md"), "utf8");
@@ -333,4 +334,82 @@ test("package-cycle rejects circular package dependencies and allows acyclic gra
     "packages/db/src/a.ts": "import '@everlast/contracts';",
   });
   assert.deepEqual(runSingleRule(validRoot, "package-cycle"), []);
+});
+
+// D25 / CC-09 (constitution 2.4.0): harness edges may use apps' declared exports; all other rules still apply.
+const rulesOf = (root) => inspectArchitecture(root).map((v) => v.rule);
+
+test("D25 HARNESS-01 an app test may import another app's declared export", (t) => {
+  const root = createFixture(t, {
+    "apps/api/test/x.test.ts": "import { value } from '@everlast/worker';",
+  });
+  assert.ok(!rulesOf(root).includes("no-cross-app"));
+});
+
+test("D25 HARNESS-02 an app test may not deep-import another app", (t) => {
+  const root = createFixture(t, {
+    "apps/api/test/x.test.ts": "import { secret } from '../../worker/src/private.ts';",
+  });
+  assert.ok(rulesOf(root).includes("public-entrypoint"));
+});
+
+test("D25 HARNESS-03 production app code may not import another app", (t) => {
+  const root = createFixture(t, {
+    "apps/api/src/y.ts": "import { value } from '@everlast/worker';",
+  });
+  assert.ok(rulesOf(root).includes("no-cross-app"));
+});
+
+test("D25 HARNESS-04 the evals harness may import an app's declared export", (t) => {
+  const root = createFixture(t, {
+    "packages/evals/src/z.ts": "import { value } from '@everlast/api';",
+  });
+  assert.ok(!rulesOf(root).includes("no-shared-to-app"));
+});
+
+test("D25 HARNESS-05 other shared packages may not import apps", (t) => {
+  const root = createFixture(t, {
+    "packages/db/src/z.ts": "import { value } from '@everlast/api';",
+  });
+  assert.ok(rulesOf(root).includes("no-shared-to-app"));
+});
+
+test("D25 HARNESS-06 production code may not import the evals harness", (t) => {
+  const root = createFixture(t, {
+    "apps/api/src/y.ts": "import { value } from '@everlast/evals';",
+  });
+  assert.ok(rulesOf(root).includes("no-production-testkit"));
+});
+
+test("D25 HARNESS-07 only devDependencies manifest edges between apps are harness", (t) => {
+  const manifest = (section) => ({
+    name: "@everlast/web",
+    type: "module",
+    exports: { ".": "./src/index.ts" },
+    [section]: { "@everlast/api": "workspace:*" },
+  });
+  const devRoot = createFixture(t, { "apps/web/package.json": manifest("devDependencies") });
+  assert.ok(!rulesOf(devRoot).includes("no-cross-app"));
+  const prodRoot = createFixture(t, { "apps/web/package.json": manifest("dependencies") });
+  assert.ok(rulesOf(prodRoot).includes("no-cross-app"));
+});
+
+test("D25 HARNESS-08 production code may not import a harness file, even within its own package", (t) => {
+  const appRoot = createFixture(t, {
+    "apps/api/src/y.ts": "import { value } from '../test/bridge.ts';",
+    "apps/api/test/bridge.ts": "export { value } from '@everlast/worker';",
+  });
+  assert.ok(rulesOf(appRoot).includes("no-production-harness-import"));
+  const sharedRoot = createFixture(t, {
+    "packages/db/src/y.ts": "import { value } from '../test/bridge.ts';",
+    "packages/db/test/bridge.ts": "export { value } from '@everlast/api';",
+  });
+  assert.ok(rulesOf(sharedRoot).includes("no-production-harness-import"));
+});
+
+test("D25 HARNESS-09 a nested test/ directory under src is production code", (t) => {
+  const root = createFixture(t, {
+    "apps/api/src/routes/test/connection.ts": "import { value } from '@everlast/worker';",
+  });
+  assert.ok(rulesOf(root).includes("no-cross-app"));
 });

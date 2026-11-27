@@ -15,6 +15,10 @@ import {
   type NotesApi,
   type TurnMessage,
 } from "./notes-pg-support.ts";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 /**
  * [007-notes-pinboard-lifecycle] T023 rewritten for PostgreSQL, T039, T040, T041 — Note Assistant (FR-NM-04

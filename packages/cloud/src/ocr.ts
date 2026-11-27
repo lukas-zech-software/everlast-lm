@@ -152,6 +152,10 @@ export function createOcrEngine(env: NodeJS.ProcessEnv = process.env): OcrEngine
     fromName?.[1] ?? env.VERTEX_PROJECT ?? env.GCP_PROJECT_ID ?? env.GOOGLE_CLOUD_PROJECT;
   const processorId = fromName?.[3] ?? env.DOCUMENT_AI_PROCESSOR_ID;
   const location = fromName?.[2] ?? env.DOCUMENT_AI_LOCATION ?? "eu";
-  if (!processorId || !project) return new NoOcrEngine();
+  if (!processorId || !project) {
+    // Grill F22: on Cloud Run a missing processor would silently skip OCR for scanned PDFs.
+    if (env.K_SERVICE) throw new Error("DOCUMENT_AI_PROCESSOR_NAME must be set on Cloud Run (F22)");
+    return new NoOcrEngine();
+  }
   return new DocumentAiOcr({ project, location, processorId });
 }

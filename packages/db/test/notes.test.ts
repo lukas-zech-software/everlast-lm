@@ -18,6 +18,10 @@ import {
   resetChatStore,
 } from "@everlast/db";
 import type { Citation } from "@everlast/contracts";
+import { allowV2MemoryStores } from "../src/v2-persistence.ts";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 const nb = "11111111-1111-4111-8111-111111111111";
 const nb2 = "22222222-2222-4222-8222-222222222222";

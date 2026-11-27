@@ -36,6 +36,11 @@
       "import": "./src/ocr.ts",
       "default": "./src/ocr.ts"
     },
+    "./log": {
+      "types": "./src/log.ts",
+      "import": "./src/log.ts",
+      "default": "./src/log.ts"
+    },
     "./index": {
       "types": "./src/index.ts",
       "import": "./src/index.ts",

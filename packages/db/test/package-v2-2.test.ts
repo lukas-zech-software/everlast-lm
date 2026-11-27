@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import * as repo from "../src/package-v2-2.ts";
 import { persistChatMessage, resetChatStore } from "../src/poc-bridge.ts";
+import { allowV2MemoryStores } from "../src/v2-persistence.ts";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 const notebookId = "11111111-1111-4111-8111-111111111111";
 const sourceId = "22222222-2222-4222-8222-222222222222";

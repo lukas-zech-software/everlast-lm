@@ -115,9 +115,9 @@ variable "api_min_instances" {
 }
 
 variable "api_max_instances" {
-  description = "Maximum instances for everlast-api."
+  description = "Maximum instances for everlast-api. Must be 1 while D16 holds (precondition in modules/compute)."
   type        = number
-  default     = 10
+  default     = 1
 }
 
 variable "worker_max_instances" {

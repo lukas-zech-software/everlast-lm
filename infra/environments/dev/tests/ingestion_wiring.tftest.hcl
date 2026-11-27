@@ -11,7 +11,13 @@ mock_provider "google" {
 mock_provider "google-beta" {}
 
 variables {
-  project_id = "everlast-test"
+  project_id              = "everlast-test"
+  api_image               = "europe-west4-docker.pkg.dev/everlast-test/everlast/everlast:test"
+  worker_image            = "europe-west4-docker.pkg.dev/everlast-test/everlast/everlast:test"
+  mount_secrets           = true
+  authorized_domains      = ["everlast-test.web.app"]
+  cors_allowed_origins    = ["https://everlast-test.web.app"]
+  enable_project_services = false
 }
 
 run "disabled_defaults" {

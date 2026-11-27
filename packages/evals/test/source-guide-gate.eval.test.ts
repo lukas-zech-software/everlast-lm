@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import type { StructuredGenerationClient } from "@everlast/api/source-guides/package-v2-2";
 
 /**
  * Gate v2.0 #1 harness (SRS §5.4, FR-SI-02, FR-018): the release check runs `generateSourceGuide` over the

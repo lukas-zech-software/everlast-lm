@@ -180,3 +180,61 @@ Traceability: C-01..C-03, NFR-EVAL-02/04, CC-09.
 - **PASS (manual + automated)**: No new runtime dependencies, workspace package edges, cross-app imports, shared-to-app edges, or `packages/contracts` runtime dependencies were introduced.
 - Preserved all C-01/C-02/C-03 schema semantics, authorization/snapshot checks, transaction atomicity, and public exports.
 - Preserved all **88** exact `D21` (`specs/004-ui-skeleton-quality-gates T035`) legacy exceptions in `scripts/architecture-policy.json` without widening or modifying the policy (using `// prettier-ignore` on the 12 legacy import lines whose formatting or quotes would otherwise alter AST token fingerprints). Zero `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, or `as any` suppressions were added.
+
+## Grill remediation: failure visibility — 2026-11-27 (CC-09)
+
+Traceability: NFR-SEC-01, FR-GC-01, FR-SI-01, FR-SI-02, C-03, D16; grill report 2026-11-26 findings F5, F8a, F21, F22.
+
+### Scope
+- `packages/cloud/src/log.ts` (`@everlast/cloud/log`): `logFailure(scope, context, err, severity)` writes one structured line per failure, with IDs-only context, error name, message (≤ 500 characters), upstream status, cause and capped stack (NFR-SEC-01).
+- `AppError` (`packages/contracts`) and `ModelUnavailableError` (`apps/api/src/chat/model.ts`) accept `{ cause }`. `sendError` and the chat SSE catch log 5xx AppErrors and unexpected errors; response bodies are unchanged.
+- ADK sessions are deleted in `finally` for chat `generate()` and the code-correction `run()` (F21).
+- `v2Pool()` fails closed with `V2PersistenceUnboundError`. The in-memory double needs the TEST-ONLY `allowV2MemoryStores()` opt-in, which the root `vitest.setup.ts` applies to every test file (F8a, D16).
+- Under `K_SERVICE`, a missing worker URL or Document AI processor fails at startup, and `WORKER_POLL_MS` must be a positive integer (F22).
+- Terminal transitions now log their cause: Studio runner, ingestion and sync attempts, Ready hooks, Source Guide dispatch and generation, render executions, and note-source ingestion (F5).
+
+- **Final-review fixes:**
+  - The in-memory v2 double is now opted into per test file, not globally, so the vitest suites enforce fail-closed too.
+  - The DB-free Gate v2.0 #1 harness (`runSourceGuideGate`) opts in and then restores the previous setting.
+  - `logFailure` logs stack frames only and takes a message policy: `studio.run` logs names, status and frames only (no messages), stack frames are stripped by their exact header, and render executions log the exit code and signal but never converter stderr (NFR-SEC-01).
+  - The `chat.turn` failure logs and the 5xx `http.request` branch also log names, status and frames only, because chat errors and their causes may quote the question or source chunks (NFR-SEC-01).
+
+### CC-09 Boundary Review
+- **Automated: PASS.** `pnpm check:architecture` reports 0 findings with the 88 `D21` exceptions unchanged, and `pnpm test:architecture` passes.
+- **Manual: PASS.**
+  - The only new workspace edges point to `@everlast/cloud/log`, from `apps/api`, `apps/worker`, `apps/render` and `packages/notes`, which already depend on `@everlast/cloud`.
+  - `packages/contracts` gains no dependency.
+  - Workflow, transaction, authorization, C-02 scope and publication-fence ownership are unchanged: the changes add logging and fail-closed guards only.
+  - D16 execution placement is unchanged.
+
+| SRS / contract | Module path, owner | Responsibility | Public exports / ports | Allowed consumers | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| NFR-SEC-01 | `packages/cloud/src/log.ts`, @lukas-zech-software | Logging adapter | `logFailure`, `FailureSeverity`, `FailureContext` (`@everlast/cloud/log`) | api, worker, render, notes | n/a (pure function) | `packages/cloud/test/log.test.ts` LOG-01..07 |
+| D16 | `packages/db/src/v2-persistence.ts` | Persistence selection (adapter) | `v2Pool`, `allowV2MemoryStores` (test-only), `V2PersistenceUnboundError` | `packages/db` v2 stores | `apps/api/src/v2/runtime.ts`, `apps/worker/src/studio/handler.ts` | `packages/db/test/v2-persistence.test.ts` V2P-01..05; unit, integration and e2e suites |
+| FR-GC-01 | `apps/api/src/chat/model.ts`, `service.ts`, `routes/chat.ts`, `http.ts` | Model adapter, service, transport | unchanged | unchanged | `apps/api/src/server.ts` | `chat-session-cleanup.test.ts` CHAT-SESS-01..03, `http-send-error.test.ts`, `chat.test.ts` CHAT-LOG-01 |
+| FR-SI-01, FR-SI-02, C-03 | `apps/worker/src/{studio/runner,ingestion/*,ready-hooks}.ts`, `apps/render/src/main.ts`, `packages/notes/src/note-sources.ts`, `apps/api/src/v2/runtime.ts` | Logging at terminal transitions | unchanged | unchanged | unchanged | `ready-hooks-logging.test.ts` LOG-HOOK-01, `studio-plugin-flow.test.ts` LOG-STUDIO-01, `job-notifier.test.ts`, `poll-interval.test.ts`, `ocr.test.ts` CFG-03/04 |
+
+## Grill remediation: harness role and Source Guide extraction — 2026-11-27 (CC-09, D25)
+
+Traceability: CC-09 (constitution 2.4.0), D21, D25, C-01..C-03, FR-SI-02; grill report 2026-11-26 findings F7 (steps 1–2) and F25 (harness role).
+
+### Scope
+- `scripts/architecture/roles.mjs`: `isHarnessPath`, `isHarnessEdge`. `no-cross-app` and `no-shared-to-app` skip harness edges: importers in package-level test directories or test files, `devDependencies` manifest edges, and importers in `@everlast/evals`. A `test/` directory nested under `src/` is production code. The new rule `no-production-harness-import` rejects any production import of a harness file, including within the same package. Fixtures HARNESS-01..09 are in `scripts/test/architecture-rules.test.mjs`.
+- The D21 inventory goes from 88 to 13 to 9. The 75 harness records and 4 Source Guide records were deleted as stale; nothing was added, renewed or re-fingerprinted. `T035` stays open for the remaining 9 Studio-engine records, which expire on 2027-02-05.
+- `apps/worker/src/{package-v2-2,package-v2-2-runtime,ready-hooks}.ts` moved to `apps/api/src/source-guides/` together with their tests. The shim `package-v2-2-gemini.ts` was deleted. `ReportSuggestionInput` and `ReportSuggestionGuide` are now exported from `@everlast/cloud`.
+
+### CC-09 Boundary Review
+- **Automated: PASS.**
+  - `pnpm test:architecture` passes.
+  - `pnpm check:architecture` and `--base-ref origin/main` report 0 findings and 9 exceptions.
+- **Manual: PASS.**
+  - The moved modules depend only on `@everlast/contracts`, `@everlast/db` and `@everlast/cloud`.
+  - There are no new production cross-app edges: the worker's suggestion service imports the shared type from `@everlast/cloud`, not from the moved module.
+  - The only consumer of the new `@everlast/api/source-guides/package-v2-2` export is the harness package `@everlast/evals` (D25).
+  - Execution placement is unchanged: the code already ran only in the API process (D16).
+  - Transactions, quotas, dispatch and publication fences are unchanged, because the code moved verbatim apart from its imports.
+
+| SRS / contract | Module path, owner | Responsibility | Public exports / ports | Allowed consumers / dependencies | Composition root | Regression evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| FR-SI-02, C-02 | `apps/api/src/source-guides/{package-v2-2,package-v2-2-runtime,ready-hooks}.ts`, @lukas-zech-software | Source Guide / overview / follow-up workflow and Ready-hook dispatch | `@everlast/api/source-guides/package-v2-2` (harness consumers only) | `@everlast/contracts`, `@everlast/db`, `@everlast/cloud` | `apps/api/src/v2/runtime.ts`, `apps/api/src/server.ts` | `apps/api/test/source-guides/*.test.ts`, `apps/api/test/package-v2-2*.test.ts`, `apps/api/test/source-guide-sync.test.ts`, `packages/evals/test/source-guide-gate.eval.test.ts` (104 tests before and after the move) |
+| CC-09, D25 | `scripts/architecture/roles.mjs`, `scripts/architecture/rules/{no-cross-app,no-shared-to-app}.mjs` | Static dependency-direction enforcement | `isHarnessPath(relPath)`, `isHarnessEdge(edge)`, `HARNESS_PACKAGES`, rule `no-production-harness-import` | — | `scripts/check-architecture.mjs` | HARNESS-01..09 and the existing `scripts/test/architecture*.test.mjs` |

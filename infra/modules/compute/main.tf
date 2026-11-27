@@ -155,6 +155,10 @@ resource "google_cloud_run_v2_service_iam_member" "worker_api_invoker" {
 resource "google_cloud_run_v2_service" "api" {
   lifecycle {
     precondition {
+      condition     = var.api_max_instances == 1
+      error_message = "D16: v2 background work runs in the API process; exactly one API instance is allowed until reports move to the outbox."
+    }
+    precondition {
       condition     = !var.private_benchmark_bridge_enabled || (var.api_min_instances == 1 && var.api_max_instances == 1 && alltrue([for key in ["BENCHMARK_BRIDGE_EXPIRES_AT_MS", "BENCHMARK_BRIDGE_CAMPAIGN_ID", "BENCHMARK_BRIDGE_PUBLIC_KEY", "BENCHMARK_BRIDGE_EXECUTION_CONFIG", "BENCHMARK_APPROVED_NOTEBOOKS"] : contains(keys(var.private_benchmark_env_vars), key)]))
       error_message = "Private benchmark requires a bounded min=max=1 window and pinned bootstrap inputs. Roll back the toggle/minimum immediately after approved collection."
     }
@@ -205,7 +209,7 @@ resource "google_cloud_run_v2_service" "api" {
           cpu    = "2"
           memory = "1Gi"
         }
-        cpu_idle          = !var.private_benchmark_bridge_enabled
+        cpu_idle          = false # D16: in-process v2 background work runs after the response (grill F6)
         startup_cpu_boost = true
       }
 

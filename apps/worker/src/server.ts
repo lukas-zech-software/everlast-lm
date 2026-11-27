@@ -222,10 +222,19 @@ export async function startWorker(
   await new Promise<void>((resolve) => server.listen(port, resolve));
   // Recover anything left in the outbox (crash between commit and notify), then poll while alive.
   void worker.drain();
-  const interval = setInterval(() => void worker.drain(), Number(env.WORKER_POLL_MS ?? 5000));
+  const interval = setInterval(() => void worker.drain(), readPollIntervalMs(env));
   server.on("close", () => clearInterval(interval));
   console.log(JSON.stringify({ severity: "INFO", message: `Worker listening on :${port}` }));
   return { server, deps, worker };
+}
+
+/** Outbox poll interval (FR-SI-01); a non-positive or non-integer value fails startup instead of a 1 ms loop (F22). */
+export function readPollIntervalMs(env: NodeJS.ProcessEnv): number {
+  if (env.WORKER_POLL_MS === undefined) return 5000;
+  const value = Number(env.WORKER_POLL_MS);
+  if (!Number.isSafeInteger(value) || value < 1)
+    throw new Error("WORKER_POLL_MS must be a positive integer");
+  return value;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
