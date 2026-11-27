@@ -5,8 +5,8 @@ import type { Pool } from "pg";
  * Store selection for the release v2 stores (DEV-04 closed by specs/013, D16). The API runs every request and
  * every v2 background task inside `runWithV2Persistence(pool, …)`, so all v2 store functions read and write that
  * app's PostgreSQL database. `configureV2Persistence` sets a process default (store-level tests). With neither,
- * `v2Pool()` fails closed (grill F8a): the in-memory path is a TEST-ONLY double that suites enable explicitly with
- * `allowV2MemoryStores()` (the root `vitest.setup.ts` does this for every test file).
+ * `v2Pool()` fails closed (grill F8a): the in-memory path is a TEST-ONLY double that DB-free test files and the
+ * DB-free eval harness enable explicitly with `allowV2MemoryStores()`.
  */
 
 const scope = new AsyncLocalStorage<Pool>();
@@ -24,9 +24,14 @@ export function configureV2Persistence(next: Pool | null): void {
   defaultPool = next;
 }
 
-/** TEST-ONLY: lets v2 stores use their in-memory double when no pool is bound. Production never calls this. */
-export function allowV2MemoryStores(allowed = true): void {
+/**
+ * TEST-ONLY: lets v2 stores use their in-memory double when no pool is bound; DB-free tests and the DB-free eval
+ * harness opt in explicitly. Production never calls this. Returns the previous setting so callers can restore it.
+ */
+export function allowV2MemoryStores(allowed = true): boolean {
+  const previous = memoryAllowed;
   memoryAllowed = allowed;
+  return previous;
 }
 
 /** Runs `fn` (and every async continuation it starts) with v2 stores bound to `pool`. */

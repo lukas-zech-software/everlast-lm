@@ -13,7 +13,7 @@ import { getNotebookMetadata } from "../src/workspace-preferences.ts";
 describe("D16 v2 persistence selection", () => {
   const pool = { query: () => Promise.reject(new Error("unused")) } as unknown as Pool;
   afterEach(() => {
-    allowV2MemoryStores(true);
+    allowV2MemoryStores(false);
     configureV2Persistence(null);
   });
 
@@ -35,6 +35,11 @@ describe("D16 v2 persistence selection", () => {
   it("V2P-04 explicit memory opt-in returns null", () => {
     allowV2MemoryStores(true);
     expect(v2Pool()).toBeNull();
+  });
+
+  it("V2P-06 allowV2MemoryStores returns the previous setting", () => {
+    expect(allowV2MemoryStores(true)).toBe(false);
+    expect(allowV2MemoryStores(false)).toBe(true);
   });
 
   it("V2P-05 a store call fails closed", async () => {

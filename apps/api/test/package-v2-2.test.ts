@@ -19,6 +19,10 @@ import { NotesService } from "../src/notes/service.ts";
 import { getMessageFeedback, listNotes, resetNoteStore } from "@everlast/db";
 import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
 import { getMessageFollowUps } from "@everlast/db";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 const notebook = "11111111-1111-4111-8111-111111111111";
 const source = "22222222-2222-4222-8222-222222222222";

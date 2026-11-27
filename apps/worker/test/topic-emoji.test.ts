@@ -8,6 +8,10 @@ import {
 } from "@everlast/db";
 import { applyTopicIcon } from "../src/ready-hooks.ts";
 import { selectTopicEmoji, type TopicEmojiClient } from "../src/ingestion/topic-emoji.ts";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 beforeEach(() => {
   resetPocBridge();
