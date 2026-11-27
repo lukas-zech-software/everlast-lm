@@ -91,9 +91,12 @@ describe("ReportGeneratorPlugin end-to-end through the runner (FR-ST-10)", () =>
         expect.objectContaining({
           scope: "studio.run",
           artifact_id: a.id,
-          error_message: "plugin exploded",
+          error_name: "TypeError",
+          error_message: null,
         }),
       );
+      // NFR-SEC-01: plugin/model errors may quote generated or source text, so no message is logged.
+      expect(JSON.stringify(lines)).not.toContain("plugin exploded");
     } finally {
       spy.mockRestore();
     }

@@ -196,7 +196,7 @@ Traceability: NFR-SEC-01, FR-GC-01, FR-SI-01, FR-SI-02, C-03, D16; grill report 
 - **Final-review fixes:**
   - The in-memory v2 double is now opted into per test file, not globally, so the vitest suites enforce fail-closed too.
   - The DB-free Gate v2.0 #1 harness (`runSourceGuideGate`) opts in and then restores the previous setting.
-  - `logFailure` logs stack frames only and takes a message policy: `studio.run` keeps only engine-error messages, and render executions log the exit code and signal but never converter stderr (NFR-SEC-01).
+  - `logFailure` logs stack frames only and takes a message policy: `studio.run` logs names, status and frames only (no messages), stack frames are stripped by their exact header, and render executions log the exit code and signal but never converter stderr (NFR-SEC-01).
 
 ### CC-09 Boundary Review
 - **Automated: PASS.** `pnpm check:architecture` reports 0 findings with the 88 `D21` exceptions unchanged, and `pnpm test:architecture` passes.

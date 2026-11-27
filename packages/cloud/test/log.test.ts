@@ -61,25 +61,31 @@ describe("NFR-SEC-01 logFailure", () => {
     expect(String(line().stack)).toMatch(/^\s+at /);
   });
 
-  it("LOG-09 messages: 'internal' keeps engine errors and drops others, including the cause", () => {
-    logFailure("x", {}, new TypeError("Cannot read properties of undefined"), "ERROR", {
-      messages: "internal",
-    });
-    logFailure(
-      "x",
-      {},
-      new SyntaxError('Unexpected token, "model text" is not valid JSON'),
-      "ERROR",
-      {
-        messages: "internal",
-      },
-    );
+  it("LOG-09 messages: 'none' also drops the cause message", () => {
     logFailure("x", {}, new TypeError("outer", { cause: new Error("quoted content") }), "ERROR", {
-      messages: "internal",
+      messages: "none",
     });
-    expect(line(0).error_message).toBe("Cannot read properties of undefined");
-    expect(line(1)).toMatchObject({ error_name: "SyntaxError", error_message: null });
-    expect(line(2)).toMatchObject({ cause_name: "Error", cause_message: null });
+    expect(line()).toMatchObject({
+      error_name: "TypeError",
+      error_message: null,
+      cause_name: "Error",
+      cause_message: null,
+    });
+  });
+
+  it("LOG-11 a message that imitates stack frames never leaks into the stack", () => {
+    const err = new Error("lead\n    at SECRET-FRAME (doc.txt:1:1)\ntail SECRET-TAIL");
+    logFailure("x", {}, err, "ERROR", { messages: "none" });
+    const stack = String(line().stack);
+    expect(stack).not.toContain("SECRET");
+    expect(stack).toMatch(/^\s+at /);
+  });
+
+  it("LOG-12 a stack whose header does not match the error is dropped", () => {
+    const err = new Error("visible");
+    err.stack = "Forged: SECRET-HEADER\n    at f (x.ts:1:1)";
+    logFailure("x", {}, err);
+    expect(line().stack).toBeNull();
   });
 
   it("LOG-10 messages: 'none' logs names and status only", () => {

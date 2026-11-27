@@ -43,27 +43,37 @@ function upstreamStatus(err: ErrorLike): number | null {
 }
 
 /**
- * Which error messages may be logged. `all` (default) suits our own and upstream API errors; `internal` keeps
- * only engine errors (TypeError, RangeError, ReferenceError), whose messages describe code, not data — use it
- * where errors may quote model or source text; `none` logs names and status only (for example converter stderr).
+ * Which error messages may be logged. `all` (default) suits our own and upstream API errors. `none` logs names,
+ * status and stack frames only; use it wherever an error may quote model, source or document text (an error's
+ * name proves nothing about its message).
  */
-export type FailureMessagePolicy = "all" | "internal" | "none";
+export type FailureMessagePolicy = "all" | "none";
 export interface FailureLogOptions {
   readonly messages?: FailureMessagePolicy;
 }
 
-const ENGINE_ERRORS = new Set(["TypeError", "RangeError", "ReferenceError"]);
+const FRAME = /^ {4}at \S[^\n]*$/;
 
-function messageOf(name: string, text: string, policy: FailureMessagePolicy): string | null {
-  if (policy === "none" || (policy === "internal" && !ENGINE_ERRORS.has(name))) return null;
-  return text.slice(0, MAX_MESSAGE);
+function messageOf(text: string, policy: FailureMessagePolicy): string | null {
+  return policy === "none" ? null : text.slice(0, MAX_MESSAGE);
 }
 
-/** Stack frames only: V8 stacks start with `name: message`, which would bypass the message cap and policy. */
-function framesOf(stack: unknown): string | null {
-  if (typeof stack !== "string") return null;
-  const start = stack.indexOf("\n    at ");
-  return start === -1 ? null : stack.slice(start + 1, start + 1 + MAX_STACK);
+/**
+ * Stack frames only. V8 formats `stack` as `name: message` followed by frame lines, so the exact header is
+ * stripped by prefix (never by searching the text, which a message could imitate) and only consecutive
+ * frame lines are kept. A stack whose header does not match the error is dropped.
+ */
+function framesOf(e: ErrorLike | null, name: string): string | null {
+  if (typeof e?.stack !== "string") return null;
+  const message = asText(e.message);
+  const header = message ? `${name}: ${message}` : name;
+  if (!e.stack.startsWith(`${header}\n`)) return null;
+  const frames: string[] = [];
+  for (const frameLine of e.stack.slice(header.length + 1).split("\n")) {
+    if (!FRAME.test(frameLine)) break;
+    frames.push(frameLine);
+  }
+  return frames.length > 0 ? frames.join("\n").slice(0, MAX_STACK) : null;
 }
 
 export function logFailure(
@@ -85,13 +95,11 @@ export function logFailure(
       message: `${scope} failed`,
       scope,
       error_name: errorName,
-      error_message: messageOf(errorName, e ? asText(e.message) : asText(err), policy),
+      error_message: messageOf(e ? asText(e.message) : asText(err), policy),
       upstream_status: e ? upstreamStatus(e) : null,
       cause_name: causeName,
-      cause_message: cause
-        ? messageOf(causeName ?? "NonError", asText(cause.message), policy)
-        : null,
-      stack: framesOf(e?.stack),
+      cause_message: cause ? messageOf(asText(cause.message), policy) : null,
+      stack: framesOf(e, errorName),
     }),
   );
 }

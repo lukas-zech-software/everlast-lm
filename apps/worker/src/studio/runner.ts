@@ -430,14 +430,14 @@ export class StudioJobRunner {
       ) {
         return await this.requireArtifact(id);
       }
-      // Model/plugin errors may quote generated or source text: only engine-error messages are logged (NFR-SEC-01).
+      // Model/plugin errors may quote generated or source text: names, status and frames only (NFR-SEC-01).
       logFailure(
         "studio.run",
         { artifact_id: id, plugin_type: initial.plugin_type },
         err,
         "ERROR",
         {
-          messages: "internal",
+          messages: "none",
         },
       );
       return await this.failAttempt(
