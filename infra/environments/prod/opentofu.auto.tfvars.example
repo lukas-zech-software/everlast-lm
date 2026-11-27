@@ -23,7 +23,7 @@ db_activation_policy = "ALWAYS"
 api_image            = "us-docker.pkg.dev/cloudrun/container/hello"
 worker_image         = "us-docker.pkg.dev/cloudrun/container/hello"
 api_min_instances    = 0
-api_max_instances    = 20
+api_max_instances    = 1  # D16 single API instance
 worker_max_instances = 20
 mount_secrets        = false
 
