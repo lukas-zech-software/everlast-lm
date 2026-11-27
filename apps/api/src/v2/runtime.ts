@@ -53,11 +53,14 @@ import {
   type Pool,
   type SourceRecord,
 } from "@everlast/db";
-import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
-// Preserve exact D21 legacy exception fingerprint (specs/004 T035)
-// prettier-ignore
-import { applyTopicIcon, createReadySourceDispatcher, type ReadySourceEvent, type ReadySourceHook } from "@everlast/worker/ready-hooks";
+import { createPackageV22Runtime } from "../source-guides/package-v2-2-runtime.ts";
+import type { StructuredGenerationClient } from "../source-guides/package-v2-2.ts";
+import {
+  applyTopicIcon,
+  createReadySourceDispatcher,
+  type ReadySourceEvent,
+  type ReadySourceHook,
+} from "../source-guides/ready-hooks.ts";
 import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { DurableStudioDispatcher } from "@everlast/worker/studio/dispatcher";
 import { createStudioPluginRegistry } from "@everlast/worker/studio/registry";

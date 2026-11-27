@@ -1,5 +1,5 @@
 import { claimTopicIconSelection, setTopicIconIfDefault } from "@everlast/db";
-import type { TopicEmojiSelector } from "./ingestion/topic-emoji.ts";
+import type { TopicEmojiSelector } from "@everlast/cloud/topic-emoji";
 import { logFailure } from "@everlast/cloud/log";
 
 /**

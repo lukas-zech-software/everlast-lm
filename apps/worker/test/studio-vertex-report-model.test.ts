@@ -124,7 +124,7 @@ describe("VertexReportModel latency config (Gate v2.0 #3 P95 ≤ 25 s, FR-ST-10)
   });
 
   it("the shared Package 2.2 client keeps its default config when no per-call config is passed", async () => {
-    const { VertexStructuredGenerationClient } = await import("../src/package-v2-2-gemini.ts");
+    const { VertexStructuredGenerationClient } = await import("@everlast/cloud");
     const fake = fakeVertex([{ ok: true }]);
     const client = new VertexStructuredGenerationClient({
       project: "p",
@@ -532,7 +532,7 @@ describe("[008-studio-text-reports] T081 report deadline and terminal publicatio
 
 describe("[008-studio-text-reports] T069 rejected model output is logged without content (observability, NFR-SEC-01)", () => {
   it("invalid JSON and schema mismatches log a warning with the reason only", async () => {
-    const { VertexStructuredGenerationClient } = await import("../src/package-v2-2-gemini.ts");
+    const { VertexStructuredGenerationClient } = await import("@everlast/cloud");
     const warnings: string[] = [];
     const original = console.warn;
     console.warn = (line: string) => warnings.push(line);

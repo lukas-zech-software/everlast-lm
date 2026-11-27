@@ -45,7 +45,7 @@ import { VertexTopicEmojiClient, VertexTopicEmojiSelector } from "@everlast/clou
 // Preserve exact D21 legacy exception fingerprint (specs/004 T035)
 // prettier-ignore
 import { createVertexReportModelFromEnv, type VertexReportModel } from "@everlast/worker/studio/reports/vertex-model";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import type { StructuredGenerationClient } from "./source-guides/package-v2-2.ts";
 
 /**
  * API entrypoint (FR-WM-01, NFR-SEC-01). Runs directly on Node 26 (type stripping, no build step).

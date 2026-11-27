@@ -5,7 +5,10 @@ import {
   type GenAiFactoryOptions,
   type StructuredGenerationInput,
 } from "@everlast/cloud";
-import { generateSourceGuide, type ScopedSourceMaterial } from "../src/package-v2-2.ts";
+import {
+  generateSourceGuide,
+  type ScopedSourceMaterial,
+} from "../../src/source-guides/package-v2-2.ts";
 import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
 import { allowV2MemoryStores } from "@everlast/db";
 

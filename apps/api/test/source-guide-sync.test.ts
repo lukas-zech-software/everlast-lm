@@ -15,7 +15,7 @@ import {
   seedReadySource,
   type TestDatabase,
 } from "@everlast/db/testing";
-import type { StructuredGenerationClient } from "@everlast/worker/package-v2-2";
+import type { StructuredGenerationClient } from "../src/source-guides/package-v2-2.ts";
 import { createV2Runtime } from "../src/v2/runtime.ts";
 
 /**

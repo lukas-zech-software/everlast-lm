@@ -17,7 +17,7 @@ import {
 } from "../src/routes/package-v2-2.ts";
 import { NotesService } from "../src/notes/service.ts";
 import { getMessageFeedback, listNotes, resetNoteStore } from "@everlast/db";
-import { createPackageV22Runtime } from "@everlast/worker/package-v2-2-runtime";
+import { createPackageV22Runtime } from "../src/source-guides/package-v2-2-runtime.ts";
 import { getMessageFollowUps } from "@everlast/db";
 import { allowV2MemoryStores } from "@everlast/db";
 

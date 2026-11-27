@@ -230,9 +230,17 @@ interface StructuredSource {
   chunks: ReadonlyArray<{ chunk_id: string; text: string }>;
 }
 
-interface ReportSuggestionInput {
+/** Source Guide metadata of one active source; no chunk text (FR-ST-11, FR-SI-02). */
+export interface ReportSuggestionGuide {
+  source_id: string;
+  summary: string;
+  key_topics: string[];
+}
+
+/** Dynamic report suggestion input shared by the API Source Guide runtime and the worker Studio service. */
+export interface ReportSuggestionInput {
   output_language: string;
-  guides: ReadonlyArray<{ source_id: string; summary: string; key_topics: string[] }>;
+  guides: readonly ReportSuggestionGuide[];
 }
 
 const sourcePayload = (source: StructuredSource) => ({
