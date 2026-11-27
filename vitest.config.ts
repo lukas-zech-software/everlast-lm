@@ -23,6 +23,7 @@ const UNIT = [
   "packages/cloud/test/log.test.ts",
   "apps/api/test/http-send-error.test.ts",
   "apps/api/test/chat-session-cleanup.test.ts",
+  "packages/db/test/v2-persistence.test.ts",
   "apps/web/test/lib.test.ts",
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",
@@ -75,6 +76,7 @@ const UNIT = [
 export default defineConfig({
   test: {
     globals: true,
+    setupFiles: ["./vitest.setup.ts"],
     environment: "node",
     passWithNoTests: false,
     projects: [
