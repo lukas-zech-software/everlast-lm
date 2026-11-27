@@ -32,6 +32,7 @@ these roles to actual paths and public exports before implementation.
 | Transport handlers | Contracts and application services; authorized simple CRUD repositories with rationale | Multi-step workflow ownership, worker implementation imports |
 | Composition roots | Public workflow and adapter interfaces, configuration/lifecycle wiring | Other deployment applications as libraries |
 | Browser code | Browser-safe public contracts and client interfaces | Server workflows, database or server credential adapters |
+| Harness code (tests, devDependency edges, `@everlast/evals`; D25) | Declared public exports of any workspace package, including apps | Deep imports or relative escapes; being imported by production code |
 
 Shared packages cannot import applications. Cross-package access uses declared public exports;
 relative imports within a module remain valid. A barrel export or type-only import cannot

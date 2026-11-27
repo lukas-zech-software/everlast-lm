@@ -33,6 +33,7 @@
 | **D21** | **Incremental architecture enforcement (2026-11-07)** | Package 1.4 quality tooling enforces CC-09 dependency boundaries using exact, expiring migration records and the existing required CI context. See the D21 section below for scope, parser choice and rollout. C-01..C-03, NFR-EVAL-02/04. |
 | D22 | Admin-created accounts only (FR-WM-04, NFR-SEC-02) | Owner decision recorded 2026-11-05, flowed back 2026-11-07: disable client signup using Identity Platform client permissions; administrators provision accounts. Preserve existing sign-in and configured identity methods. No new service or provider upgrade; live enforcement remains pending deployment/verification. See SRS DEV-06. |
 | **D24** | **Single-developer hobby project scope & KPI calibration (2026-11-12)** | Project-owner decision (`SRS DEV-07`): calibrate all context-window, P95 latency, frame-rate, cohort-size, and LLM-eval thresholds from enterprise-SLA numbers to realistic single-developer hobby-project values ($\ge 100,000$ active tokens, Chat TTFT $\le 10.0\text{ s}$ P95, Mindmap viewer $\ge 30\text{ fps}$ / $\le 33.3\text{ ms}$ P95 and generation $\le 60.0\text{ s}$ P95, Audio ASR $\le 120.0\text{ s}$ P95 on 5-min fixture, Code Sandbox status $\le 10.0\text{ s}$ and boot+exec $\le 15.0\text{ s}$ P95, Source Guide $\le 30.0\text{ s}$ P95 / $\le 350$ words / $\le 60$ chars, Studio Reports $\le 60.0\text{ s}$ P95, Response length ratios $\le 75\%$ / $\ge 125\%$, cohort size $N \ge 5$, hallucination $< 10\%$, negative rejection $\ge 90\%$) and allow local deterministic, PostgreSQL integration, and Playwright verification to clear release gates without requiring paid multi-hour cloud benchmark campaigns. |
+| **D25** | **Harness role for architecture enforcement (2026-11-27)** | Test files, `devDependencies` manifest edges and the harness package `@everlast/evals` may use deployment applications through declared public exports only; `no-cross-app`/`no-shared-to-app` skip these edges, every other rule applies. Retires 75 of 88 D21 records; see the D25 section below. Constitution IV/CC-09 (2.4.0), D21. |
 
 
 ---
@@ -504,3 +505,33 @@ Because Everlast LM is a single-developer private hobby experiment project witho
    - Response Length Control (`FR-GC-07`): `Shorter` $\le 50\% \rightarrow \le 75\%$ and `Longer` $\ge 150\% \rightarrow \ge 125\%$ of `Default` word count.
    - LLM-Judged Quality Gates (`NFR-EVAL-01`, `NFR-EVAL-03`): hallucination rate $< 5\% \rightarrow < 10\%$; negative rejection rate $\ge 99\% \rightarrow \ge 90\%$ ($NFR\text{-}EVAL\text{-}02 = 1.0$ and $NFR\text{-}EVAL\text{-}04 = 0$ remain strict).
 4. **Release Gate Clearance Without Paid Multi-Hour Cloud Benchmark Campaigns**: Verified local deterministic, contract, PostgreSQL integration, and Playwright browser test suites plus local benchmark/viewer verification are sufficient to clear `Gate v3.0` and start `v4.0` implementation.
+
+## D25 — Harness role for architecture enforcement (2026-11-27)
+
+Traceability: Constitution IV/CC-09 (2.4.0), D21, C-01..C-03; grill report 2026-11-26 findings F7 and F25.
+
+**Decision.** Harness code is never deployed: test files (`test/`, `tests/`, `__tests__/` directories and
+`*.test.*`/`*.spec.*` files), `devDependencies` manifest edges, and the declared harness package `@everlast/evals`.
+The architecture checker treats an edge as a harness edge when its importer is a test file, when it is a
+`devDependencies` manifest edge, or when its importer belongs to `@everlast/evals`
+(`scripts/architecture/roles.mjs`). Harness edges are exempt from `no-cross-app` and `no-shared-to-app` only.
+`public-entrypoint`, deep-import, relative-escape, cycle and `no-production-testkit` rules still apply, so
+harness code reaches applications only through their declared `exports`, and production code still cannot
+import `@everlast/evals`. Declaring another harness package requires a new `Dn`.
+
+**Effect on the D21 inventory.** The 75 D21 records for harness edges become stale and are deleted; this is a
+removal, not a widening, and no record is added, renewed or re-fingerprinted. Of the 13 production R1 records,
+4 are retired by moving the API-only Source Guide modules (`package-v2-2.ts`, `package-v2-2-runtime.ts`,
+`ready-hooks.ts`) from `apps/worker/src` into `apps/api/src/source-guides/`; their execution placement is
+unchanged (they already ran only in the API process, D16). The remaining 9 production records (the Studio
+engine imports in `apps/api/src/v2/runtime.ts` and `apps/api/src/server.ts`, and the `apps/api` → `apps/worker`
+manifest edge) still expire on 2027-02-05. They must be retired by extracting `packages/studio` (F7 step 3,
+including `studio/reports/suggestions.ts`) before then, or renewed through the D21 decision process.
+`specs/004-ui-skeleton-quality-gates T035` stays open until they are gone.
+
+**Alternatives rejected.** Renewing all 88 records (ceremony without remediation, D24); copying the e2e and
+eval harnesses into each application (duplicates the app boot code they exercise); blanket ignore patterns
+(forbidden by D21).
+
+**Approval.** Project-owner approval in review of the implementing PR; the constitution text lands first in its
+own PR (2.4.0).
