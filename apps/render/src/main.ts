@@ -205,6 +205,34 @@ export async function executeRender(
   }
 }
 
+/**
+ * Logs a failed execution with IDs, exit code and signal only (grill F5, NFR-SEC-01). An execFile error message
+ * embeds the converter's stderr, which can carry document metadata and names, so no message is logged.
+ */
+export function logRenderFailure(
+  request: Pick<RenderRequest, "operationId" | "command">,
+  err: unknown,
+): void {
+  const proc = (typeof err === "object" && err !== null ? err : {}) as {
+    code?: unknown;
+    signal?: unknown;
+    killed?: unknown;
+  };
+  logFailure(
+    "render.execution",
+    {
+      operation_id: request.operationId,
+      command: request.command,
+      exit_code: typeof proc.code === "number" ? proc.code : null,
+      signal: typeof proc.signal === "string" ? proc.signal : null,
+      killed: proc.killed === true,
+    },
+    err,
+    "ERROR",
+    { messages: "none" },
+  );
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const request = parseRenderRequest(process.env);
   executeRender(request, createObjectStorage(process.env))
@@ -220,12 +248,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       );
     })
     .catch((err: unknown) => {
-      // IDs only (no document content or names); the message carries the converter's failure (grill F5).
-      logFailure(
-        "render.execution",
-        { operation_id: request.operationId, command: request.command },
-        err,
-      );
+      logRenderFailure(request, err);
       process.exit(1);
     });
 }

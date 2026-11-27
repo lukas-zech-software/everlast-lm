@@ -55,6 +55,45 @@ describe("NFR-SEC-01 logFailure", () => {
     expect(line().severity).toBe("WARNING");
   });
 
+  it("LOG-08 the stack carries frames only, never the message", () => {
+    logFailure("x", {}, new Error(`SECRET-DOC-TITLE ${"x".repeat(600)}`));
+    expect(String(line().stack)).not.toContain("SECRET-DOC-TITLE");
+    expect(String(line().stack)).toMatch(/^\s+at /);
+  });
+
+  it("LOG-09 messages: 'internal' keeps engine errors and drops others, including the cause", () => {
+    logFailure("x", {}, new TypeError("Cannot read properties of undefined"), "ERROR", {
+      messages: "internal",
+    });
+    logFailure(
+      "x",
+      {},
+      new SyntaxError('Unexpected token, "model text" is not valid JSON'),
+      "ERROR",
+      {
+        messages: "internal",
+      },
+    );
+    logFailure("x", {}, new TypeError("outer", { cause: new Error("quoted content") }), "ERROR", {
+      messages: "internal",
+    });
+    expect(line(0).error_message).toBe("Cannot read properties of undefined");
+    expect(line(1)).toMatchObject({ error_name: "SyntaxError", error_message: null });
+    expect(line(2)).toMatchObject({ cause_name: "Error", cause_message: null });
+  });
+
+  it("LOG-10 messages: 'none' logs names and status only", () => {
+    logFailure(
+      "x",
+      {},
+      Object.assign(new Error("Command failed: ffmpeg\nMetadata: title=SECRET"), { status: 1 }),
+      "ERROR",
+      { messages: "none" },
+    );
+    expect(line()).toMatchObject({ error_name: "Error", error_message: null, upstream_status: 1 });
+    expect(JSON.stringify(line())).not.toContain("SECRET");
+  });
+
   it("LOG-07 context cannot override reserved fields", () => {
     logFailure("x", { severity: "INFO", scope: "evil" }, new Error("r"));
     expect(line()).toMatchObject({ severity: "ERROR", scope: "x" });

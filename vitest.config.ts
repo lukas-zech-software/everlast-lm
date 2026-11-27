@@ -24,6 +24,7 @@ const UNIT = [
   "apps/api/test/http-send-error.test.ts",
   "apps/api/test/chat-session-cleanup.test.ts",
   "packages/db/test/v2-persistence.test.ts",
+  "apps/render/test/render-failure-log.test.ts",
   "apps/api/test/job-notifier.test.ts",
   "apps/worker/test/poll-interval.test.ts",
   "apps/worker/test/ready-hooks-logging.test.ts",

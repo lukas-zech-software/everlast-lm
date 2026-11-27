@@ -430,7 +430,16 @@ export class StudioJobRunner {
       ) {
         return await this.requireArtifact(id);
       }
-      logFailure("studio.run", { artifact_id: id, plugin_type: initial.plugin_type }, err);
+      // Model/plugin errors may quote generated or source text: only engine-error messages are logged (NFR-SEC-01).
+      logFailure(
+        "studio.run",
+        { artifact_id: id, plugin_type: initial.plugin_type },
+        err,
+        "ERROR",
+        {
+          messages: "internal",
+        },
+      );
       return await this.failAttempt(
         id,
         classifyRunError(err, initial.plugin_type),
