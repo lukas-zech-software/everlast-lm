@@ -63,7 +63,10 @@ export function sendError(res: ServerResponse, err: unknown, requestId: string):
   }
   if (err instanceof AppError) {
     if (err.status >= 500)
-      logFailure("http.request", { request_id: requestId, code: err.code }, err, "WARNING");
+      // NFR-SEC-01: the cause of a 5xx may quote request or source content; log names and status only.
+      logFailure("http.request", { request_id: requestId, code: err.code }, err, "WARNING", {
+        messages: "none",
+      });
     sendJson(res, err.status, {
       error: { code: err.code, message: err.message },
       request_id: requestId,

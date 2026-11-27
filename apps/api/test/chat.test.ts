@@ -339,8 +339,14 @@ describe("FR-GC-02 / D13 verification and transport", () => {
       expect(error!.error.code).toBe("RetryableFailure");
       const lines = spy.mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
       expect(lines).toContainEqual(
-        expect.objectContaining({ scope: "chat.turn", cause_message: "Model error 403" }),
+        expect.objectContaining({
+          scope: "chat.turn",
+          cause_name: "ModelUnavailableError",
+          cause_message: null,
+        }),
       );
+      // NFR-SEC-01: chat errors may quote the question or source chunks, so no message is logged.
+      expect(JSON.stringify(lines)).not.toContain("Model error 403");
     } finally {
       spy.mockRestore();
     }

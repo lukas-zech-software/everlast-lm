@@ -27,8 +27,11 @@ describe("NFR-SEC-01 sendError logging", () => {
     expect(JSON.parse(String(spy.mock.calls[0]?.[0]))).toMatchObject({
       request_id: "req-1",
       severity: "WARNING",
-      cause_message: "Vertex 403",
+      cause_name: "Error",
+      cause_message: null,
     });
+    // NFR-SEC-01: a 5xx cause may quote request or source content, so only names and status are logged.
+    expect(String(spy.mock.calls[0]?.[0])).not.toContain("Vertex 403");
     expect(res.writeHead.mock.calls[0]?.[0]).toBe(503);
   });
 

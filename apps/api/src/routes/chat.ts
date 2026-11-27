@@ -24,9 +24,13 @@ const TurnBody = z
 /** First Accept-Language entry that is a supported output language (FR-UI-02 browser fallback). */
 /** A user Stop or disconnect is not an outage; every other failure keeps its cause in the log (grill F5). */
 function logTurnFailure(err: unknown, requestId: string): void {
-  if (!isAppError(err)) logFailure("chat.turn", { request_id: requestId }, err);
+  // NFR-SEC-01: chat errors may quote the question or source chunks, so only names, status and frames are logged.
+  if (!isAppError(err))
+    logFailure("chat.turn", { request_id: requestId }, err, "ERROR", { messages: "none" });
   else if (err.status >= 500)
-    logFailure("chat.turn", { request_id: requestId, code: err.code }, err, "WARNING");
+    logFailure("chat.turn", { request_id: requestId, code: err.code }, err, "WARNING", {
+      messages: "none",
+    });
 }
 
 export function browserLocaleOf(header: string | string[] | undefined): string | undefined {
