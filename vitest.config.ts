@@ -19,6 +19,15 @@ const UNIT = [
   "apps/api/test/identity.test.ts",
   "apps/api/test/chat-verifier.test.ts",
   "packages/cloud/test/ocr.test.ts",
+  // Grill remediation (failure visibility): pure logging, error-cause and config tests.
+  "packages/cloud/test/log.test.ts",
+  "apps/api/test/http-send-error.test.ts",
+  "apps/api/test/chat-session-cleanup.test.ts",
+  "packages/db/test/v2-persistence.test.ts",
+  "apps/render/test/render-failure-log.test.ts",
+  "apps/api/test/job-notifier.test.ts",
+  "apps/worker/test/poll-interval.test.ts",
+  "apps/worker/test/ready-hooks-logging.test.ts",
   "apps/web/test/lib.test.ts",
   "packages/evals/test/release-v1.test.ts",
   "packages/evals/test/release-v1.boundaries.test.ts",
@@ -71,6 +80,7 @@ const UNIT = [
 export default defineConfig({
   test: {
     globals: true,
+    setupFiles: ["./vitest.setup.ts"],
     environment: "node",
     passWithNoTests: false,
     projects: [

@@ -1,6 +1,6 @@
 import { performance } from "node:perf_hooks";
 import { createHash } from "node:crypto";
-import { resetPackageV22Store } from "@everlast/db";
+import { allowV2MemoryStores, resetPackageV22Store } from "@everlast/db";
 // Preserve exact D21 legacy exception fingerprint (specs/004 T035)
 // prettier-ignore
 import { generateSourceGuide, type PackageV22SourceReader, type ScopedSourceMaterial, type StructuredGenerationClient } from "@everlast/worker/package-v2-2";
@@ -158,20 +158,27 @@ export async function runSourceGuideGate(options: {
       );
     },
   };
-  resetPackageV22Store();
+  // Gate v2.0 #1 is a DB-free harness: it stores guides in the TEST-ONLY in-memory v2 double and restores the
+  // caller's fail-closed setting afterwards (D16, grill F8a).
+  const previousMemory = allowV2MemoryStores(true);
   const cases: SourceGuideGateCase[] = [];
-  for (const outputLanguage of SOURCE_GUIDE_GATE_LANGUAGES) {
-    for (const source of sources) {
-      cases.push(
-        await runSingleSourceGuideCase({
-          source,
-          outputLanguage,
-          dispatchDelayMs: options.dispatchDelayMs,
-          reader,
-          model: options.model,
-        }),
-      );
+  try {
+    resetPackageV22Store();
+    for (const outputLanguage of SOURCE_GUIDE_GATE_LANGUAGES) {
+      for (const source of sources) {
+        cases.push(
+          await runSingleSourceGuideCase({
+            source,
+            outputLanguage,
+            dispatchDelayMs: options.dispatchDelayMs,
+            reader,
+            model: options.model,
+          }),
+        );
+      }
     }
+  } finally {
+    allowV2MemoryStores(previousMemory);
   }
   const ready = cases.filter((c) => c.problem === null).length;
   const result = {

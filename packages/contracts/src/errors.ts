@@ -42,8 +42,9 @@ export class AppError extends Error {
   readonly code: AppErrorCode;
   readonly status: number;
 
-  constructor(code: AppErrorCode, status: number, message: string) {
-    super(message);
+  /** `options.cause` keeps the upstream reason for server logs only; it never reaches the response body. */
+  constructor(code: AppErrorCode, status: number, message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "AppError";
     this.code = code;
     this.status = status;

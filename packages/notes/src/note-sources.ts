@@ -22,6 +22,7 @@ import {
 import type { Embedder, ObjectStorage } from "@everlast/cloud";
 import { ingestNoteSource } from "./note-source-ingest.ts";
 import type { NoteSourceStore } from "./note-source-store.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Note-sources as v1 PostgreSQL sources (FR-NM-03, FR-NM-04, FR-WM-07, FR-SI-01, C-01; owner decision 2026-10-20,
@@ -129,7 +130,8 @@ export function createPostgresNoteSources(options: PostgresNoteSourcesOptions): 
           { pool, storage: options.storage, embedder: options.embedder },
           { source: reserved, markdown: input.markdown },
         );
-      } catch {
+      } catch (err) {
+        logFailure("note_source.ingest", { notebook_id: notebookId, source_id: reserved.id }, err);
         outcome = null;
       }
       if (outcome?.status !== "ready") {

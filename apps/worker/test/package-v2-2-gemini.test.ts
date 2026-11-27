@@ -7,6 +7,10 @@ import {
 } from "@everlast/cloud";
 import { generateSourceGuide, type ScopedSourceMaterial } from "../src/package-v2-2.ts";
 import { getSourceGuide, resetPackageV22Store } from "@everlast/db";
+import { allowV2MemoryStores } from "@everlast/db";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 /**
  * Vertex AI structured generation for Source Guide, notebook overview and follow-ups (FR-SI-02, FR-GC-04/05).

@@ -16,6 +16,10 @@ import {
   sortNotebookOverview,
   touchNotebookModified,
 } from "../src/workspace-preferences.ts";
+import { allowV2MemoryStores } from "../src/v2-persistence.ts";
+
+// TEST-ONLY: this DB-free suite exercises the in-memory v2 double (D16, grill F8a).
+allowV2MemoryStores();
 
 const OWNER_A = "owner-a";
 const OWNER_B = "owner-b";

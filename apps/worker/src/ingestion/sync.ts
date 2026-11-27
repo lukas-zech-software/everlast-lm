@@ -17,6 +17,7 @@ import {
   toPublishPages,
   type IngestionDeps,
 } from "./pipeline.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Re-sync executor (FR-SI-05, FR-SI-02, C-01/C-02, D15; specs/009 T041/T042).
@@ -67,6 +68,7 @@ async function handleSyncError(
   }
   const name = (err as Error).name;
   if (attempt >= MAX_JOB_ATTEMPTS || name === "AdapterUnavailableError") {
+    logFailure("sync.attempt", { operation_id: token.operationId, attempt }, err);
     return failSyncOperation(
       deps,
       token,
@@ -74,9 +76,7 @@ async function handleSyncError(
       SYNC_FAILED_MESSAGE,
     );
   }
-  console.error(
-    JSON.stringify({ severity: "WARNING", operation_id: token.operationId, error: name }),
-  );
+  logFailure("sync.attempt", { operation_id: token.operationId, attempt }, err, "WARNING");
   await releaseOperationLease(deps.pool, token);
   return { status: "retry", errorCode: "SyncFailed" };
 }

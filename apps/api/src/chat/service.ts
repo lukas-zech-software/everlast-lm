@@ -280,7 +280,7 @@ export class ChatService {
         return null;
       }
       if (err instanceof ModelUnavailableError) {
-        throw new AppError("RetryableFailure", 503, GENERATION_ERROR_MESSAGE);
+        throw new AppError("RetryableFailure", 503, GENERATION_ERROR_MESSAGE, { cause: err });
       }
       throw err;
     }

@@ -115,6 +115,7 @@ export default tseslint.config(
         projectService: {
           allowDefaultProject: [
             "vitest.config.ts",
+            "vitest.setup.ts",
             "playwright.config.ts",
             "packages/testkit/test/*.ts",
           ],
@@ -229,6 +230,7 @@ export default tseslint.config(
       "**/*.spec.{ts,mts,cts,js,mjs,cjs}",
       "**/test/**/*.{ts,mts,cts,js,mjs,cjs}",
       "vitest.config.ts",
+      "vitest.setup.ts",
       "playwright.config.ts",
     ],
     rules: {

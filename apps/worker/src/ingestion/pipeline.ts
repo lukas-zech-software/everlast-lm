@@ -38,6 +38,7 @@ import {
 } from "./extract.ts";
 import { chunkDocumentAnchored, chunkTranscript, type ChunkerOptions } from "./chunker.ts";
 import type { ContentScreener } from "./screening.ts";
+import { logFailure } from "@everlast/cloud/log";
 
 /**
  * Deterministic ingestion pipeline (FR-SI-01, FR-WM-07, C-01): read or fetch the source, normalize it to canonical
@@ -370,9 +371,10 @@ async function handleIngestFailure(
   const name = (err as Error).name;
   const { errorCode, failureMessage } = classifyIngestError(name);
   if (errorCode === "OcrUnavailable" || attempt >= MAX_JOB_ATTEMPTS) {
+    logFailure("ingest.attempt", { source_id: source.id, attempt }, err);
     return failIngestAttempt(deps, source, operation, errorCode, failureMessage);
   }
-  console.error(JSON.stringify({ severity: "WARNING", source_id: source.id, error: name }));
+  logFailure("ingest.attempt", { source_id: source.id, attempt }, err, "WARNING");
   if (operation) {
     await releaseOperationLease(deps.pool, {
       operationId: operation.id,

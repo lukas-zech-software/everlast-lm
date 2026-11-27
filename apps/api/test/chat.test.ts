@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { HashingTestEmbedder } from "@everlast/cloud";
 import { seedReadySource } from "@everlast/db/testing";
 import { ChatService } from "../src/chat/service.ts";
@@ -325,6 +325,25 @@ describe("FR-GC-02 / D13 verification and transport", () => {
       ["phase"],
       ["phase"],
     ]);
+  });
+
+  it("CHAT-LOG-01: a model outage is logged with its cause (FR-GC-01, grill F5)", async () => {
+    const nb = await notebook("chatlog01");
+    const s = await seedReadySource(api.db.pool, nb.owner, nb.id, { pages: ["Text."], embed });
+    model.script = () => {
+      throw new ModelUnavailableError("Model error 403");
+    };
+    const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const { error } = await turn("chatlog01", nb.id, "Text?", [s.sourceId]);
+      expect(error!.error.code).toBe("RetryableFailure");
+      const lines = spy.mock.calls.map((c) => JSON.parse(String(c[0])) as Record<string, unknown>);
+      expect(lines).toContainEqual(
+        expect.objectContaining({ scope: "chat.turn", cause_message: "Model error 403" }),
+      );
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("CHAT-07: model timeout/rate-limit yields the exact retry message and persists nothing", async () => {
