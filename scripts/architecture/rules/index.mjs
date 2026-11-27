@@ -3,6 +3,7 @@ import { computedModuleRule } from "./computed-module.mjs";
 import { contractsOnlyRule } from "./contracts-only.mjs";
 import { invalidExportRule } from "./invalid-export.mjs";
 import { noCrossAppRule } from "./no-cross-app.mjs";
+import { noProductionHarnessImportRule } from "./no-production-harness-import.mjs";
 import { noProductionTestkitRule } from "./no-production-testkit.mjs";
 import { noSharedToAppRule } from "./no-shared-to-app.mjs";
 import { outsideWorkspaceRule } from "./outside-workspace.mjs";
@@ -21,6 +22,7 @@ export const ARCHITECTURE_RULES = [
   contractsOnlyRule,
   browserSafeRule,
   noProductionTestkitRule,
+  noProductionHarnessImportRule,
   publicEntrypointRule,
   unscannedModuleRule,
   outsideWorkspaceRule,

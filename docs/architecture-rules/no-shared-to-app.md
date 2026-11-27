@@ -42,10 +42,12 @@ import { ChunkSchema } from "@everlast/contracts";
 ## Harness exemption (D25)
 
 Importers in the declared harness package `@everlast/evals` (and test files of any shared package) are harness edges (`scripts/architecture/roles.mjs`, Constitution IV/CC-09 2.4.0) and are not reported
-by this rule. A harness edge is one of three kinds: a test-file importer (`test/`, `tests/`, `__tests__/` or
-`*.test.*`/`*.spec.*`), a `devDependencies` manifest edge, or an importer in `@everlast/evals`. Harness code
-still reaches other packages only through declared `exports`: `public-entrypoint` reports deep imports and
-relative escapes, and `no-production-testkit` keeps production code from importing `@everlast/evals`.
+by this rule. A harness edge is one of three kinds: an importer in a package-level `test/`/`tests/` directory, a
+`__tests__/` directory or a `*.test.*`/`*.spec.*` file (a `test/` directory under `src/` is production code); a
+`devDependencies` manifest edge; or an importer in `@everlast/evals`. Harness code still reaches other packages
+only through declared `exports`, because `public-entrypoint` reports deep imports and relative escapes.
+`no-production-harness-import` keeps production code from loading harness files, and `no-production-testkit`
+keeps it from importing `@everlast/evals`.
 
 ## ESLint Feasibility & Existing Plugin Comparison
 

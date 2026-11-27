@@ -33,7 +33,7 @@
 | **D21** | **Incremental architecture enforcement (2026-11-07)** | Package 1.4 quality tooling enforces CC-09 dependency boundaries using exact, expiring migration records and the existing required CI context. See the D21 section below for scope, parser choice and rollout. C-01..C-03, NFR-EVAL-02/04. |
 | D22 | Admin-created accounts only (FR-WM-04, NFR-SEC-02) | Owner decision recorded 2026-11-05, flowed back 2026-11-07: disable client signup using Identity Platform client permissions; administrators provision accounts. Preserve existing sign-in and configured identity methods. No new service or provider upgrade; live enforcement remains pending deployment/verification. See SRS DEV-06. |
 | **D24** | **Single-developer hobby project scope & KPI calibration (2026-11-12)** | Project-owner decision (`SRS DEV-07`): calibrate all context-window, P95 latency, frame-rate, cohort-size, and LLM-eval thresholds from enterprise-SLA numbers to realistic single-developer hobby-project values ($\ge 100,000$ active tokens, Chat TTFT $\le 10.0\text{ s}$ P95, Mindmap viewer $\ge 30\text{ fps}$ / $\le 33.3\text{ ms}$ P95 and generation $\le 60.0\text{ s}$ P95, Audio ASR $\le 120.0\text{ s}$ P95 on 5-min fixture, Code Sandbox status $\le 10.0\text{ s}$ and boot+exec $\le 15.0\text{ s}$ P95, Source Guide $\le 30.0\text{ s}$ P95 / $\le 350$ words / $\le 60$ chars, Studio Reports $\le 60.0\text{ s}$ P95, Response length ratios $\le 75\%$ / $\ge 125\%$, cohort size $N \ge 5$, hallucination $< 10\%$, negative rejection $\ge 90\%$) and allow local deterministic, PostgreSQL integration, and Playwright verification to clear release gates without requiring paid multi-hour cloud benchmark campaigns. |
-| **D25** | **Harness role for architecture enforcement (2026-11-27)** | Test files, `devDependencies` manifest edges and the harness package `@everlast/evals` may use deployment applications through declared public exports only; `no-cross-app`/`no-shared-to-app` skip these edges, every other rule applies. Retires 75 of 88 D21 records; see the D25 section below. Constitution IV/CC-09 (2.4.0), D21. |
+| **D25** | **Harness role for architecture enforcement (2026-11-27)** | Package-level test directories and test files, `devDependencies` manifest edges and the harness package `@everlast/evals` may use deployment applications through declared public exports only; `no-cross-app`/`no-shared-to-app` skip these edges, and `no-production-harness-import` keeps production code from loading harness files. Retires 75 of 88 D21 records; see the D25 section below. Constitution IV/CC-09 (2.4.0), D21. |
 
 
 ---
@@ -510,14 +510,16 @@ Because Everlast LM is a single-developer private hobby experiment project witho
 
 Traceability: Constitution IV/CC-09 (2.4.0), D21, C-01..C-03; grill report 2026-11-26 findings F7 and F25.
 
-**Decision.** Harness code is never deployed: test files (`test/`, `tests/`, `__tests__/` directories and
-`*.test.*`/`*.spec.*` files), `devDependencies` manifest edges, and the declared harness package `@everlast/evals`.
-The architecture checker treats an edge as a harness edge when its importer is a test file, when it is a
-`devDependencies` manifest edge, or when its importer belongs to `@everlast/evals`
-(`scripts/architecture/roles.mjs`). Harness edges are exempt from `no-cross-app` and `no-shared-to-app` only.
-`public-entrypoint`, deep-import, relative-escape, cycle and `no-production-testkit` rules still apply, so
-harness code reaches applications only through their declared `exports`, and production code still cannot
-import `@everlast/evals`. Declaring another harness package requires a new `Dn`.
+**Decision.** Harness code is never loaded by a deployed service. It comprises package-level `test/`/`tests/`
+directories, `__tests__/` directories and `*.test.*`/`*.spec.*` files; `devDependencies` manifest edges; and the
+declared harness package `@everlast/evals`. A `test/` directory nested under `src/` is production code. The
+repository image does contain harness files (`COPY . .`), so the guarantee is that no production module loads them.
+The architecture checker (`scripts/architecture/roles.mjs`) exempts harness edges from `no-cross-app` and
+`no-shared-to-app` only. `public-entrypoint` still applies, so harness code reaches applications only through their
+declared `exports`. `no-production-testkit` keeps production code from importing `@everlast/evals`, and the new
+`no-production-harness-import` rule rejects any production import of a harness file, including within the same
+package. The package-cycle graph considers production edges only, as before. Declaring another harness package
+requires a new `Dn`.
 
 **Effect on the D21 inventory.** The 75 D21 records for harness edges become stale and are deleted; this is a
 removal, not a widening, and no record is added, renewed or re-fingerprinted. Of the 13 production R1 records,
