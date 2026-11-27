@@ -65,8 +65,8 @@ export class UnverifiableDraftError extends Error {
 }
 
 export class ModelUnavailableError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "ModelUnavailableError";
   }
 }
@@ -258,7 +258,7 @@ export class AdkGroundedModel implements GroundedModel {
       if (signal?.aborted) throw signal.reason ?? err;
       throw err instanceof ModelUnavailableError
         ? err
-        : new ModelUnavailableError((err as Error).message);
+        : new ModelUnavailableError((err as Error).message, { cause: err });
     } finally {
       clearTimeout(timer);
       signal?.removeEventListener("abort", onAbort);
@@ -320,7 +320,7 @@ export class AdkGroundedModel implements GroundedModel {
         throw new UnverifiableDraftError();
       throw err instanceof ModelUnavailableError
         ? err
-        : new ModelUnavailableError((err as Error).message);
+        : new ModelUnavailableError((err as Error).message, { cause: err });
     } finally {
       clearTimeout(timer);
       input.signal?.removeEventListener("abort", onAbort);
